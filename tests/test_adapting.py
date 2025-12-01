@@ -2,12 +2,23 @@ from collections import namedtuple
 from datetime import datetime, timezone
 import decimal
 import pytest
+import enum
 import uuid
 
 import rapidquery as rq
 
 
 NamedCase = namedtuple("NamedCase", ["data", "attribute", "type", "error"])
+
+
+class Enum(enum.Enum):
+    FIELD = "field"
+
+class StrEnum(enum.StrEnum):
+    FIELD = "field"
+
+class IntEnum(enum.IntEnum):
+    FIELD = 1
 
 
 TEST_CASES = [
@@ -26,7 +37,6 @@ TEST_CASES = [
     NamedCase(-4.5, "is_float", rq.FloatType(), False),
     NamedCase("data", "is_string", None, False),
     NamedCase("data", "is_string", rq.StringType(), False),
-    NamedCase("data", "is_string", rq.EnumType("a", ["a"]), False),
     NamedCase("data", "is_string", rq.IntervalType(), False),
     NamedCase("data", "is_string", rq.InetType(), False),
     NamedCase("data", "is_string", rq.MacAddressType(), False),
@@ -55,9 +65,14 @@ TEST_CASES = [
     NamedCase(decimal.Decimal("1.2"), "is_decimal", None, False),
     NamedCase(decimal.Decimal("1.2"), "is_decimal", rq.DecimalType(), False),
     NamedCase(decimal.Decimal("1.2"), "is_decimal", rq.FloatType(), True),
-    NamedCase(1.2, "is_decimal", rq.DecimalType(), True),
+    NamedCase(1.2, "is_decimal", rq.DecimalType(), False),
+    NamedCase("1.2", "is_decimal", rq.DecimalType(), False),
     NamedCase([1.3, 2.1, 3], "is_vector", rq.VectorType(), False),
     NamedCase([3, "b"], "is_vector", rq.VectorType(), True),
+    NamedCase("data", "is_string", rq.EnumType("a", ["a"]), False),
+    NamedCase(Enum.FIELD, "is_string", rq.EnumType("a", ["a"]), False),
+    NamedCase(StrEnum.FIELD, "is_string", rq.EnumType("a", ["a"]), False),
+    NamedCase(IntEnum.FIELD, "is_string", rq.EnumType("a", ["a"]), True),
 ]
 
 

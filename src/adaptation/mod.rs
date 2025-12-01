@@ -127,18 +127,14 @@ impl ReturnableValue {
                 Ok(Self::from(PythonValue::Double(val)))
             },
             sea_query::ColumnType::Decimal(_) | sea_query::ColumnType::Money(_) => unsafe {
-                // TODO: Support float
-                if pyo3::ffi::Py_IS_TYPE(object.as_ptr(), crate::typeref::STD_DECIMAL_TYPE) == 0 {
-                    return Err(typeerror!(
-                        "expected decimal.Decimal, got {}",
-                        object.py(),
-                        object.as_ptr()
-                    ));
+                if pyo3::ffi::Py_IS_TYPE(object.as_ptr(), crate::typeref::STD_DECIMAL_TYPE) == 1 {
+                    return Ok(Self::from(PythonValue::Decimal(NonNull::new_unchecked(
+                        object.into_ptr(),
+                    ))));
                 }
 
-                Ok(Self::from(PythonValue::Decimal(NonNull::new_unchecked(
-                    object.into_ptr(),
-                ))))
+                let last_try = common::_new_decimal_Decimal(object.py(), object.into_ptr())?;
+                Ok(Self::from(PythonValue::Decimal(NonNull::new_unchecked(last_try))))
             },
             sea_query::ColumnType::DateTime | sea_query::ColumnType::Timestamp => unsafe {
                 if pyo3::ffi::Py_IS_TYPE(object.as_ptr(), crate::typeref::STD_DATETIME_TYPE) == 0 {
@@ -214,9 +210,31 @@ impl ReturnableValue {
             },
             sea_query::ColumnType::Custom(_) => unimplemented!(),
             sea_query::ColumnType::Enum { .. } => unsafe {
-                // TODO: support enum.EnumMeta
+                // https://github.com/ijl/orjson/blob/master/src/util.rs#L55
+                if (*pyo3::ffi::Py_TYPE(object.as_ptr())).ob_base.ob_base.ob_type
+                    == crate::typeref::STD_ENUM_TYPE
+                {
+                    let value = object.getattr("value")?;
+
+                    if pyo3::ffi::PyUnicode_CheckExact(value.as_ptr()) == 0 {
+                        return Err(typeerror!(
+                            "Enum value wasn't str, was {}",
+                            object.py(),
+                            object.as_ptr()
+                        ));
+                    }
+
+                    return Ok(Self::from(PythonValue::String(NonNull::new_unchecked(
+                        value.into_ptr(),
+                    ))));
+                }
+
                 if pyo3::ffi::PyUnicode_CheckExact(object.as_ptr()) == 0 {
-                    return Err(typeerror!("expected str, got {}", object.py(), object.as_ptr()));
+                    return Err(typeerror!(
+                        "expected str or Enum, got {}",
+                        object.py(),
+                        object.as_ptr()
+                    ));
                 }
 
                 Ok(Self::from(PythonValue::String(NonNull::new_unchecked(
