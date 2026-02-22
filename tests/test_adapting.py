@@ -14,8 +14,10 @@ NamedCase = namedtuple("NamedCase", ["data", "attribute", "type", "error"])
 class Enum(enum.Enum):
     FIELD = "field"
 
+
 class StrEnum(enum.StrEnum):
     FIELD = "field"
+
 
 class IntEnum(enum.IntEnum):
     FIELD = 1

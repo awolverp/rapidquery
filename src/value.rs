@@ -1,0 +1,158 @@
+use crate::sqltypes::NativeSQLType;
+use crate::sqltypes::TypeEngine;
+
+implement_state_pyclass! {
+    /// Bridges Python types, Rust types, and SQL types for seamless data conversion.
+    ///
+    /// This class handles validation, adaptation, and conversion between different
+    /// type systems used in the application stack.
+    ///
+    /// NOTE: this class is immutable and frozen.
+    ///
+    /// It can automatically detects the type of your value and selects appropriate Rust and SQL types.
+    /// For example:
+    /// - Python `int` becomes `BIGINT` SQL type (`BigIntegerType`)
+    /// - Python `dict` or `list` becomes `JSON` SQL type (`JsonType`)
+    /// - Python `float` becomes `DOUBLE` SQL type (`DoubleType`)
+    ///
+    /// However, for more accurate type selection, it's recommended to use the `sql_type` parameter.
+    ///
+    /// @extends typing.Generic[I,O]
+    /// @signature (value: I | None, sql_type: SQLTypeAbstract[I, O] | None = ...)
+    pub struct [] PyValue(ValueState) as "Value" {
+        sql_type: TypeEngine,
+        serialized: Option<sea_query::Value>,
+        deserialized: Option<pyo3::Py<pyo3::PyAny>>,
+    }
+}
+
+impl ValueState {
+    #[inline(always)]
+    pub unsafe fn new_unchecked(
+        sql_type: TypeEngine,
+        serialized: Option<sea_query::Value>,
+        deserialized: Option<pyo3::Py<pyo3::PyAny>>,
+    ) -> Self {
+        Self {
+            sql_type,
+            serialized,
+            deserialized,
+        }
+    }
+
+    pub fn from_pyobject(sql_type: TypeEngine, object: pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+        unsafe {
+            if pyo3::ffi::Py_IsNone(object.as_ptr()) == 0 {
+                sql_type.validate(object.py(), object.as_ptr())?;
+            } else {
+                // There's no need to do validation.
+                // The `ValueState` will handle `NoneType`s itself
+            }
+
+            Ok(Self::new_unchecked(sql_type, None, Some(object.unbind())))
+        }
+    }
+
+    pub fn from_sea_query_value(sql_type: TypeEngine, value: sea_query::Value) -> pyo3::PyResult<Self> {
+        unsafe { Ok(Self::new_unchecked(sql_type, Some(value), None)) }
+    }
+
+    pub fn to_simple_expr(&mut self, py: pyo3::Python) -> pyo3::PyResult<sea_query::SimpleExpr> {
+        if let Some(x) = &self.serialized {
+            return Ok(sea_query::SimpleExpr::Value(x.clone()));
+        }
+
+        // SAFETY:
+        // The `self.deserialized` has validated by `.validate` method before.
+        let serialized = unsafe {
+            self.sql_type
+                .serialize(py, self.deserialized.as_ref().unwrap_unchecked().as_ptr())?
+        };
+        self.serialized = Some(serialized.clone());
+
+        Ok(sea_query::SimpleExpr::Value(serialized))
+    }
+
+    pub fn clone_ref(&self, py: pyo3::Python) -> Self {
+        Self {
+            sql_type: self.sql_type.clone(),
+            serialized: self.serialized.clone(),
+            deserialized: self.deserialized.as_ref().map(|x| x.clone_ref(py)),
+        }
+    }
+}
+
+#[pyo3::pymethods]
+impl PyValue {
+    #[new]
+    #[pyo3(signature=(value, sql_type=None))]
+    fn __new__(
+        value: pyo3::Bound<'_, pyo3::PyAny>,
+        sql_type: Option<pyo3::Bound<'_, pyo3::PyAny>>,
+    ) -> pyo3::PyResult<Self> {
+        unsafe {
+            if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::VALUE_TYPE {
+                let py = value.py();
+
+                let casted_value = value.cast_into_unchecked::<Self>();
+                let state = casted_value.get().0.lock().clone_ref(py);
+                return Ok(state.into());
+            }
+        }
+
+        let type_engine = {
+            if let Some(sql_type) = sql_type {
+                TypeEngine::new(&sql_type)?
+            } else {
+                TypeEngine::infer_pyobject(&value)?
+            }
+        };
+
+        let result = ValueState::from_pyobject(type_engine, value)?;
+        return Ok(Self::from(result));
+    }
+
+    /// @signature (self) -> SQLTypeAbstract[I, O]
+    #[getter]
+    fn sql_type<'a>(&self, py: pyo3::Python<'a>) -> pyo3::Bound<'a, pyo3::PyAny> {
+        let lock = self.0.lock();
+        lock.sql_type.as_pyobject(py)
+    }
+
+    /// Converts the adapted value back to a Python type.
+    ///
+    /// @signature (self) -> I | O
+    #[getter]
+    fn value<'py>(&self, py: pyo3::Python<'py>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::PyAny>> {
+        let mut lock = self.0.lock();
+
+        if let Some(x) = &lock.deserialized {
+            return Ok(x.bind(py).clone());
+        }
+
+        let deserialized = unsafe {
+            lock.sql_type
+                .deserialize(py, lock.serialized.as_ref().unwrap())
+                .map(|x| pyo3::Bound::from_owned_ptr(py, x))?
+        };
+        lock.deserialized = Some(deserialized.clone().unbind());
+
+        Ok(deserialized)
+    }
+
+    fn __hash__(&self, py: pyo3::Python) -> pyo3::PyResult<isize> {
+        self.value(py)
+            .map(|x| unsafe { pyo3::ffi::PyObject_Hash(x.as_ptr()) })
+    }
+
+    fn __repr__(&self) -> pyo3::PyResult<String> {
+        let lock = self.0.lock();
+
+        match (&lock.deserialized, &lock.serialized) {
+            (Some(de), Some(se)) => Ok(format!("Value[{} -> {:?}]", de, se)),
+            (None, Some(se)) => Ok(format!("Value[? -> {:?}]", se)),
+            (Some(de), None) => Ok(format!("Value[{} -> ?]", de)),
+            (None, None) => unreachable!(),
+        }
+    }
+}

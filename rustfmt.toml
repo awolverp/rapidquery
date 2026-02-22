@@ -1,3 +1,2 @@
 max_width = 110
-imports_granularity = "Module"
-wrap_comments = true
+imports_granularity = "Item"

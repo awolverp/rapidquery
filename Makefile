@@ -1,7 +1,7 @@
 BUILD_CMD := maturin develop
 
 .DEFAULT_GOAL := help
-.PHONY: help build-dev build-prod test fmt
+.PHONY: help build-dev build-prod test fmt stubgen
 
 help:
 	@echo "RapidQuery Project Management"
@@ -11,6 +11,7 @@ help:
 	@echo -e "    test          run clippy and pytest in debug mode"
 	@echo -e "    test-full     run clippy and pytest in debug mode and release mode"
 	@echo -e "    fmt           format rust and python code"
+	@echo -e "    stubgen       Use pyo3-inspection to generate stubfiles"
 
 build-dev:
 	$(BUILD_CMD) --uv
@@ -36,3 +37,11 @@ fmt:
 	ruff clean
 
 ready: fmt test-full
+
+stubgen:
+	python3 tools/stubgen.py rapidquery._lib > rapidquery/_lib.pyi
+	ruff check --fix rapidquery/_lib.pyi
+	ruff format --line-length=100 .
+	mypy rapidquery
+	ruff clean
+	rm -rf .mypy_cache

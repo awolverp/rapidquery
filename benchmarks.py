@@ -1,11 +1,12 @@
-import rapidquery as rq
+import sys
+import time
+import typing
+
+import pypika
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import dialect
-import pypika
-import typing
-import time
-import sys
 
+import rapidquery as rq
 
 # Postgres dialect is faster than other dialects (according to benchmarks)
 # and also providing dialect in SQLALchemy can make it faster

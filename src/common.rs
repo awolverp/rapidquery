@@ -1,37 +1,81 @@
-use pyo3::types::PyAnyMethods;
-use sea_query::IntoIden;
 use std::str::FromStr;
 
-/// Asterisk type - very useful for expression creating
-#[pyo3::pyclass(module = "rapidquery._lib", name = "_AsteriskType", frozen)]
-pub struct PyAsteriskType {}
+use pyo3::types::PyAnyMethods;
+use sea_query::IntoIden;
 
-#[derive(Clone, PartialEq, Debug)]
-pub enum ColumnNameOrAstrisk {
-    Astrisk,
-    Name(sea_query::DynIden),
-}
+implement_pyclass! {
+    (
+        /// Asterisk `"*"`
+        #[allow(non_camel_case_types)]
+        #[derive(Debug, Clone, Copy)]
+        pub struct [] Py_AsteriskType as "_AsteriskType";
+    )
+    (
+        /// Subclass of schema statements.
+        #[derive(Debug, Clone, Copy)]
+        pub struct [subclass] PySchemaStatement as "SchemaStatement";
+    )
+    (
+        /// Subclass of query statements.
+        #[derive(Debug, Clone, Copy)]
+        pub struct [subclass] PyQueryStatement as "QueryStatement";
+    )
+    (
+        /// Represents a reference to a database column with optional table and schema qualification.
+        ///
+        /// This class is used to uniquely identify columns in SQL queries, supporting
+        /// schema-qualified and table-qualified column references.
+        ///
+        /// @signature (name: str | _AsteriskType, table: str | None = ..., schema: str | None = ...)
+        #[derive(Debug, Clone)]
+        pub struct [] PyColumnRef as "ColumnRef" {
+            /// Name of the referenced column. [`Option::None`] means '*'.
+            pub name: Option<sea_query::DynIden>,
 
-impl std::fmt::Display for ColumnNameOrAstrisk {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ColumnNameOrAstrisk::Astrisk => write!(f, "*"),
-            ColumnNameOrAstrisk::Name(x) => write!(f, "{:?}", x.to_string()),
+            /// Table of the referenced column.
+            pub table: Option<sea_query::DynIden>,
+
+            /// Schema of the referenced column.
+            pub schema: Option<sea_query::DynIden>,
         }
-    }
-}
+    )
+    (
+        /// Represents a table name reference with optional schema, database, and alias.
+        ///
+        /// This class encapsulates a table name that can include:
+        /// - The base table name
+        /// - Optional schema/namespace qualification
+        /// - Optional database qualification (for systems that support it)
+        ///
+        /// The class provides parsing capabilities for string representations
+        /// and supports comparison operations.
+        ///
+        /// @signature (
+        ///     name: str,
+        ///     schema: str | None = None,
+        ///     database: str | None = None,
+        ///     alias: str | None = None,
+        /// )
+        #[derive(Debug, Clone)]
+        pub struct [] PyTableName as "TableName" {
+            /// Table name
+            pub name: sea_query::DynIden,
 
-#[pyo3::pyclass(module = "rapidquery._lib", name = "ColumnRef", frozen)]
-#[derive(Clone)]
-pub struct PyColumnRef {
-    pub col: ColumnNameOrAstrisk,
-    pub table: Option<sea_query::DynIden>,
-    pub schema: Option<sea_query::DynIden>,
+            /// Table schema
+            pub schema: Option<sea_query::DynIden>,
+
+            /// Table database
+            pub database: Option<sea_query::DynIden>,
+
+            /// Alias name
+            pub alias: Option<sea_query::DynIden>,
+        }
+    )
 }
 
 impl sea_query::IntoColumnRef for PyColumnRef {
     fn into_column_ref(self) -> sea_query::ColumnRef {
-        if let ColumnNameOrAstrisk::Name(name) = self.col {
+        if let Some(name) = self.name {
             match (self.table, self.schema) {
                 (Some(table), Some(schema)) => sea_query::ColumnRef::SchemaTableColumn(schema, table, name),
                 (Some(table), None) => sea_query::ColumnRef::TableColumn(table, name),
@@ -49,27 +93,27 @@ impl From<sea_query::ColumnRef> for PyColumnRef {
     fn from(value: sea_query::ColumnRef) -> Self {
         match value {
             sea_query::ColumnRef::Asterisk => Self {
-                col: ColumnNameOrAstrisk::Astrisk,
+                name: None,
                 table: None,
                 schema: None,
             },
             sea_query::ColumnRef::TableAsterisk(table) => Self {
-                col: ColumnNameOrAstrisk::Astrisk,
+                name: None,
                 table: Some(table),
                 schema: None,
             },
             sea_query::ColumnRef::SchemaTableColumn(schema, table, name) => Self {
-                col: ColumnNameOrAstrisk::Name(name),
+                name: Some(name),
                 table: Some(table),
                 schema: Some(schema),
             },
             sea_query::ColumnRef::TableColumn(table, name) => Self {
-                col: ColumnNameOrAstrisk::Name(name),
+                name: Some(name),
                 table: Some(table),
                 schema: None,
             },
             sea_query::ColumnRef::Column(name) => Self {
-                col: ColumnNameOrAstrisk::Name(name),
+                name: Some(name),
                 table: None,
                 schema: None,
             },
@@ -80,10 +124,11 @@ impl From<sea_query::ColumnRef> for PyColumnRef {
 impl FromStr for PyColumnRef {
     type Err = pyo3::PyErr;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s.trim().to_owned();
-        if s.is_empty() {
-            return Err(pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        let string = string.trim().to_owned();
+
+        if string.is_empty() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
                 "cannot parse an empty string",
             ));
         }
@@ -92,26 +137,24 @@ impl FromStr for PyColumnRef {
         //    name
         //    table.name
         //    schema.table.name
-        let mut s = s.split('.').map(String::from).collect::<Vec<String>>();
+        let mut string = string.split('.').map(String::from).collect::<Vec<String>>();
 
-        if s.len() > 3 {
-            return Err(pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "invalid format",
-            ));
+        if string.len() > 3 {
+            return Err(pyo3::exceptions::PyValueError::new_err("invalid format"));
         }
 
-        let name = s.pop().unwrap();
-        let table = s.pop();
-        let schema = s.pop();
+        let name = string.pop().unwrap();
+        let table = string.pop().map(|x| sea_query::Alias::new(x).into_iden());
+        let schema = string.pop().map(|x| sea_query::Alias::new(x).into_iden());
 
         Ok(Self {
-            col: if name == "*" {
-                ColumnNameOrAstrisk::Astrisk
+            name: if name == "*" {
+                None
             } else {
-                ColumnNameOrAstrisk::Name(sea_query::Alias::new(name).into_iden())
+                Some(sea_query::Alias::new(name).into_iden())
             },
-            table: table.map(|x| sea_query::Alias::new(x).into_iden()),
-            schema: schema.map(|x| sea_query::Alias::new(x).into_iden()),
+            table,
+            schema,
         })
     }
 }
@@ -120,37 +163,73 @@ impl FromStr for PyColumnRef {
 impl PyColumnRef {
     #[new]
     #[pyo3(signature=(name, table=None, schema=None))]
-    fn new(name: String, table: Option<String>, schema: Option<String>) -> Self {
-        Self {
-            col: ColumnNameOrAstrisk::Name(sea_query::Alias::new(name).into_iden()),
+    fn __new__(
+        name: &pyo3::Bound<'_, pyo3::PyAny>,
+        table: Option<String>,
+        schema: Option<String>,
+    ) -> pyo3::PyResult<Self> {
+        let name = unsafe {
+            if pyo3::ffi::Py_TYPE(name.as_ptr()) == crate::typeref::ASTERISK_TYPE {
+                None
+            } else if pyo3::ffi::PyUnicode_CheckExact(name.as_ptr()) == 1 {
+                Some(name.extract::<String>().unwrap_unchecked())
+            } else {
+                return Err(typeerror!(
+                    "expected str or AsteriskType for name, got {:?}",
+                    name.py(),
+                    name.as_ptr()
+                ));
+            }
+        };
+
+        Ok(Self {
+            name: name.map(|x| sea_query::Alias::new(x).into_iden()),
             table: table.map(|x| sea_query::Alias::new(x).into_iden()),
             schema: schema.map(|x| sea_query::Alias::new(x).into_iden()),
-        }
+        })
     }
 
+    /// @signature (self) -> str
     #[getter]
     fn name(&self) -> String {
-        match &self.col {
-            ColumnNameOrAstrisk::Astrisk => String::from("*"),
-            ColumnNameOrAstrisk::Name(x) => x.to_string(),
+        match &self.name {
+            None => String::from("*"),
+            Some(x) => x.to_string(),
         }
     }
 
+    /// @signature (self) -> str | None
     #[getter]
     fn table(&self) -> Option<String> {
         self.table.as_ref().map(|x| x.to_string())
     }
 
+    /// @signature (self) -> str | None
     #[getter]
     fn schema(&self) -> Option<String> {
         self.schema.as_ref().map(|x| x.to_string())
     }
 
+    /// Parse a string representation of a column reference.
+    ///
+    /// Supports formats like:
+    /// - "column_name"
+    /// - "table.column_name"
+    /// - "schema.table.column_name"
+    ///
+    /// @signature (cls, string: str) -> typing.Self
     #[classmethod]
     fn parse(_cls: &pyo3::Bound<'_, pyo3::types::PyType>, string: String) -> pyo3::PyResult<Self> {
         Self::from_str(&string)
     }
 
+    /// @signature (
+    ///     self,
+    ///     *,
+    ///     name: str | _AsteriskType | None = ...,
+    ///     table: str | None = ...,
+    ///     schema: str | None = ...,
+    /// ) -> typing.Self
     #[pyo3(signature=(**kwds))]
     fn copy_with(&self, kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>) -> pyo3::PyResult<Self> {
         use pyo3::types::PyDictMethods;
@@ -163,41 +242,53 @@ impl PyColumnRef {
         let kwds = unsafe { kwds.unwrap_unchecked() };
 
         for (key, val) in kwds.iter() {
-            #[cfg(debug_assertions)]
-            let key = key.extract::<String>().unwrap();
+            unsafe {
+                let key = key.extract::<String>().unwrap_unchecked();
 
-            #[cfg(not(debug_assertions))]
-            let key = unsafe { key.extract::<String>().unwrap_unchecked() };
+                if key == "name" {
+                    if pyo3::ffi::Py_IsNone(val.as_ptr()) == 1 {
+                        // Nothing to do here
+                    } else if pyo3::ffi::Py_TYPE(val.as_ptr()) == crate::typeref::ASTERISK_TYPE {
+                        cloned.name = None;
+                    } else if pyo3::ffi::PyUnicode_CheckExact(val.as_ptr()) == 1 {
+                        cloned.name = Some(
+                            sea_query::Alias::new(val.extract::<String>().unwrap_unchecked()).into_iden(),
+                        );
+                    } else {
+                        return Err(typeerror!(
+                            "expected str or None or _AsteriskType, got {:?}",
+                            val.py(),
+                            val.as_ptr()
+                        ));
+                    }
 
-            // All of values are Option<string>
-            let val = unsafe {
-                if pyo3::ffi::Py_IsNone(val.as_ptr()) == 1 {
-                    None
-                } else if pyo3::ffi::PyUnicode_CheckExact(val.as_ptr()) == 1 {
-                    Some(val.extract::<String>().unwrap_unchecked())
+                    continue;
+                }
+
+                let val: Option<String> = unsafe {
+                    if pyo3::ffi::Py_IsNone(val.as_ptr()) == 1 {
+                        None
+                    } else if pyo3::ffi::PyUnicode_CheckExact(val.as_ptr()) == 1 {
+                        Some(val.extract::<String>().unwrap_unchecked())
+                    } else {
+                        return Err(typeerror!(
+                            "expected str or None, got {:?}",
+                            val.py(),
+                            val.as_ptr()
+                        ));
+                    }
+                };
+
+                if key == "table" {
+                    cloned.table = val.map(|x| sea_query::Alias::new(x).into_iden());
+                } else if key == "schema" {
+                    cloned.schema = val.map(|x| sea_query::Alias::new(x).into_iden());
                 } else {
-                    return Err(typeerror!(
-                        "expected str or None, got {:?}",
-                        val.py(),
-                        val.as_ptr()
-                    ));
+                    return Err(typeerror!(format!(
+                        "got an unexpected keyword argument '{}'",
+                        key
+                    ),));
                 }
-            };
-
-            if key == "name" {
-                if let Some(x) = val {
-                    // Ignore name=None
-                    cloned.col = ColumnNameOrAstrisk::Name(sea_query::Alias::new(x).into_iden());
-                }
-            } else if key == "table" {
-                cloned.table = val.map(|x| sea_query::Alias::new(x).into_iden());
-            } else if key == "schema" {
-                cloned.schema = val.map(|x| sea_query::Alias::new(x).into_iden());
-            } else {
-                return Err(typeerror!(format!(
-                    "got an unexpected keyword argument '{}'",
-                    key
-                ),));
             }
         }
 
@@ -209,7 +300,7 @@ impl PyColumnRef {
             return true;
         }
 
-        slf.col == other.col && slf.schema == other.schema && slf.table == other.table
+        slf.name == other.name && slf.schema == other.schema && slf.table == other.table
     }
 
     fn __ne__(slf: pyo3::PyRef<'_, Self>, other: pyo3::PyRef<'_, Self>) -> bool {
@@ -217,14 +308,10 @@ impl PyColumnRef {
             return false;
         }
 
-        slf.col != other.col || slf.schema != other.schema || slf.table != other.table
+        slf.name != other.name || slf.schema != other.schema || slf.table != other.table
     }
 
     fn __copy__(&self) -> Self {
-        self.clone()
-    }
-
-    fn copy(&self) -> Self {
         self.clone()
     }
 
@@ -233,7 +320,11 @@ impl PyColumnRef {
 
         let mut s = Vec::new();
 
-        write!(s, "<ColumnRef {}", self.col).unwrap();
+        match &self.name {
+            Some(x) => write!(s, "<ColumnRef {:?}", x.to_string()).unwrap(),
+            None => write!(s, "<ColumnRef *").unwrap(),
+        }
+
         if let Some(x) = &self.table {
             write!(s, " table={:?}", x.to_string()).unwrap();
         }
@@ -245,15 +336,6 @@ impl PyColumnRef {
 
         unsafe { String::from_utf8_unchecked(s) }
     }
-}
-
-#[pyo3::pyclass(module = "rapidquery._lib", name = "TableName", frozen)]
-#[derive(Clone)]
-pub struct PyTableName {
-    pub name: sea_query::DynIden,
-    pub schema: Option<sea_query::DynIden>,
-    pub database: Option<sea_query::DynIden>,
-    pub alias: Option<sea_query::DynIden>,
 }
 
 impl sea_query::IntoTableRef for PyTableName {
@@ -321,6 +403,29 @@ impl TryFrom<sea_query::TableRef> for PyTableName {
     }
 }
 
+impl TryFrom<&pyo3::Bound<'_, pyo3::PyAny>> for PyTableName {
+    type Error = pyo3::PyErr;
+
+    fn try_from(value: &pyo3::Bound<'_, pyo3::PyAny>) -> Result<Self, Self::Error> {
+        unsafe {
+            if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::TABLE_NAME_TYPE {
+                let casted_value = value.cast_unchecked::<Self>();
+                return Ok(casted_value.get().clone());
+            }
+
+            if let Ok(x) = value.extract::<String>() {
+                return Self::from_str(&x);
+            }
+
+            Err(typeerror!(
+                "expected TableName or str, got {:?}",
+                value.py(),
+                value.as_ptr()
+            ))
+        }
+    }
+}
+
 impl FromStr for PyTableName {
     type Err = pyo3::PyErr;
 
@@ -357,26 +462,6 @@ impl FromStr for PyTableName {
     }
 }
 
-impl PyTableName {
-    pub fn from_pyobject(value: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<pyo3::Py<pyo3::PyAny>> {
-        unsafe {
-            if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::TABLE_NAME_TYPE {
-                Ok(value.clone().unbind())
-            } else if let Ok(x) = value.extract::<String>() {
-                let tb = crate::common::PyTableName::from_str(&x)?;
-
-                Ok(pyo3::Py::new(value.py(), tb)?.into_any())
-            } else {
-                Err(typeerror!(
-                    "expected TableName or str, got {:?}",
-                    value.py(),
-                    value.as_ptr()
-                ))
-            }
-        }
-    }
-}
-
 #[pyo3::pymethods]
 impl PyTableName {
     #[new]
@@ -390,31 +475,53 @@ impl PyTableName {
         }
     }
 
+    /// Parse a string representation of a table name.
+    ///
+    /// Supports formats like:
+    /// - "table_name"
+    /// - "schema.table_name"
+    /// - "database.schema.table_name"
+    ///
+    /// @signature (cls, string: str) -> typing.Self
     #[classmethod]
     fn parse(_cls: &pyo3::Bound<'_, pyo3::types::PyType>, string: String) -> pyo3::PyResult<Self> {
         Self::from_str(&string)
     }
 
+    /// @signature (self) -> str
     #[getter]
     fn name(&self) -> String {
         self.name.to_string()
     }
 
+    /// @signature (self) -> str | None
     #[getter]
     fn schema(&self) -> Option<String> {
         self.schema.as_ref().map(|x| x.to_string())
     }
 
+    /// @signature (self) -> str | None
     #[getter]
     fn database(&self) -> Option<String> {
         self.database.as_ref().map(|x| x.to_string())
     }
 
+    /// @signature (self) -> str | None
     #[getter]
     fn alias(&self) -> Option<String> {
         self.alias.as_ref().map(|x| x.to_string())
     }
 
+    /// Create a shallow copy of this TableName.
+    ///
+    /// @signature (
+    ///     self,
+    ///     *,
+    ///     name: str = ...,
+    ///     schema: str | None = ...,
+    ///     database: str | None = ...,
+    ///     alias: str | None = ...,
+    /// ) -> typing.Self
     #[pyo3(signature=(**kwds))]
     fn copy_with(&self, kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>) -> pyo3::PyResult<Self> {
         use pyo3::types::PyDictMethods;
@@ -492,10 +599,6 @@ impl PyTableName {
         self.clone()
     }
 
-    fn copy(&self) -> Self {
-        self.clone()
-    }
-
     fn __repr__(&self) -> String {
         use std::io::Write;
 
@@ -512,112 +615,6 @@ impl PyTableName {
             write!(s, " alias={:?}", x.to_string()).unwrap();
         }
         write!(s, ">").unwrap();
-
-        unsafe { String::from_utf8_unchecked(s) }
-    }
-}
-
-#[pyo3::pyclass(module = "rapidquery._lib", name = "IndexColumn", frozen)]
-#[derive(Clone)]
-pub struct PyIndexColumn {
-    pub name: String,
-    pub prefix: Option<u32>,
-    pub order: Option<sea_query::IndexOrder>,
-}
-
-impl sea_query::IntoIndexColumn for PyIndexColumn {
-    fn into_index_column(self) -> sea_query::IndexColumn {
-        match (self.prefix, self.order) {
-            (Some(p), Some(o)) => (sea_query::Alias::new(self.name), p, o).into_index_column(),
-            (Some(p), None) => (sea_query::Alias::new(self.name), p).into_index_column(),
-            (None, Some(o)) => (sea_query::Alias::new(self.name), o).into_index_column(),
-            (None, None) => sea_query::Alias::new(self.name).into_index_column(),
-        }
-    }
-}
-
-impl From<&str> for PyIndexColumn {
-    fn from(value: &str) -> Self {
-        Self {
-            name: value.to_owned(),
-            prefix: None,
-            order: None,
-        }
-    }
-}
-
-#[pyo3::pymethods]
-impl PyIndexColumn {
-    #[new]
-    #[pyo3(signature=(name, prefix=None, order=None))]
-    fn new(name: String, prefix: Option<u32>, order: Option<String>) -> pyo3::PyResult<Self> {
-        let order = {
-            if let Some(mut x) = order {
-                x.make_ascii_lowercase();
-
-                if x == "asc" {
-                    Some(sea_query::IndexOrder::Asc)
-                } else if x == "desc" {
-                    Some(sea_query::IndexOrder::Desc)
-                } else {
-                    return Err(pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                        "invalid order value, expected 'asc', 'desc' or None; got {x:?}"
-                    )));
-                }
-            } else {
-                None
-            }
-        };
-
-        Ok(Self { name, prefix, order })
-    }
-
-    #[getter]
-    fn name(&self) -> String {
-        self.name.clone()
-    }
-
-    #[getter]
-    fn prefix(&self) -> Option<u32> {
-        self.prefix
-    }
-
-    #[getter]
-    fn order(&self) -> Option<String> {
-        self.order
-            .clone()
-            .map(|x| match x {
-                sea_query::IndexOrder::Asc => "asc",
-                sea_query::IndexOrder::Desc => "desc",
-            })
-            .map(String::from)
-    }
-
-    fn __copy__(&self) -> Self {
-        self.clone()
-    }
-
-    fn copy(&self) -> Self {
-        self.clone()
-    }
-
-    fn __repr__(&self) -> String {
-        use std::io::Write;
-
-        let mut s = Vec::new();
-        write!(&mut s, "<IndexColumn {:?}", self.name).unwrap();
-
-        if let Some(x) = self.prefix {
-            write!(&mut s, " prefix={}", x).unwrap();
-        }
-        if let Some(x) = &self.order {
-            if matches!(x, sea_query::IndexOrder::Asc) {
-                write!(&mut s, " order='asc'").unwrap();
-            } else {
-                write!(&mut s, " order='desc'").unwrap();
-            }
-        }
-        write!(&mut s, ">").unwrap();
 
         unsafe { String::from_utf8_unchecked(s) }
     }

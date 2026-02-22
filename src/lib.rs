@@ -6,121 +6,174 @@
 #![warn(clippy::dbg_macro)]
 #![feature(likely_unlikely)]
 #![feature(optimize_attribute)]
+#![feature(once_cell_try)]
 
-/// Helper macros and some utilitize functions
 #[macro_use]
 mod macros;
 
-mod parameters;
-
-mod adaptation;
-mod backend;
 mod column;
 mod common;
 mod expression;
 mod foreign_key;
-mod index;
-mod query;
-mod table;
+mod parameters;
+mod sqltypes;
 mod typeref;
+mod value;
 
 /// RapidQuery core module written in Rust
 #[pyo3::pymodule(gil_used = false)]
 mod _lib {
     use pyo3::types::PyModuleMethods;
 
+    // sqltypes::abstracts
     #[pymodule_export]
-    use super::backend::{PyQueryStatement, PySchemaStatement};
+    use crate::sqltypes::PySQLTypeAbstract;
 
+    // sqltypes::binary
     #[pymodule_export]
-    use super::column::types::PyColumnTypeMeta;
+    use crate::sqltypes::PyBinaryType;
+    #[pymodule_export]
+    use crate::sqltypes::PyBitType;
+    #[pymodule_export]
+    use crate::sqltypes::PyBlobType;
+    #[pymodule_export]
+    use crate::sqltypes::PyVarBinaryType;
+    #[pymodule_export]
+    use crate::sqltypes::PyVarBitType;
 
+    // sqltypes::datetimes
     #[pymodule_export]
-    use super::column::types::{
-        PyArrayType, PyBigIntegerType, PyBigUnsignedType, PyBinaryType, PyBitType, PyBlobType, PyBooleanType,
-        PyCharType, PyCidrType, PyDateTimeType, PyDateType, PyDecimalType, PyDoubleType, PyEnumType,
-        PyFloatType, PyInetType, PyIntegerType, PyIntervalType, PyJsonBinaryType, PyJsonType, PyLTreeType,
-        PyMacAddressType, PyMoneyType, PySmallIntegerType, PySmallUnsignedType, PyStringType, PyTextType,
-        PyTimeType, PyTimestampType, PyTimestampWithTimeZoneType, PyTinyIntegerType, PyTinyUnsignedType,
-        PyUnsignedType, PyUuidType, PyVarBinaryType, PyVarBitType, PyVectorType, PyYearType,
-    };
+    use crate::sqltypes::PyDateTimeType;
+    #[pymodule_export]
+    use crate::sqltypes::PyDateType;
+    #[pymodule_export]
+    use crate::sqltypes::PyTimeType;
+    #[pymodule_export]
+    use crate::sqltypes::PyTimestampType;
 
+    // sqltypes::json
     #[pymodule_export]
-    use super::adaptation::PyAdaptedValue;
+    use crate::sqltypes::PyJSONBinaryType;
+    #[pymodule_export]
+    use crate::sqltypes::PyJSONType;
 
+    // sqltypes::vector
     #[pymodule_export]
-    use super::common::{PyAsteriskType, PyColumnRef, PyIndexColumn, PyTableName};
+    use crate::sqltypes::PyVectorType;
 
+    // sqltypes::others
     #[pymodule_export]
-    use super::expression::{all, any, not_, PyExpr, PyFunctionCall};
+    use crate::sqltypes::PyArrayType;
+    #[pymodule_export]
+    use crate::sqltypes::PyDecimalType;
+    #[pymodule_export]
+    use crate::sqltypes::PyEnumType;
+    #[pymodule_export]
+    use crate::sqltypes::PyINETType;
+    #[pymodule_export]
+    use crate::sqltypes::PyMacAddressType;
+    #[pymodule_export]
+    use crate::sqltypes::PyUUIDType;
 
+    // sqltypes::primitives
     #[pymodule_export]
-    use super::column::PyColumn;
+    use crate::sqltypes::PyBigIntegerType;
+    #[pymodule_export]
+    use crate::sqltypes::PyBigUnsignedType;
+    #[pymodule_export]
+    use crate::sqltypes::PyBooleanType;
+    #[pymodule_export]
+    use crate::sqltypes::PyCharType;
+    #[pymodule_export]
+    use crate::sqltypes::PyDoubleType;
+    #[pymodule_export]
+    use crate::sqltypes::PyFloatType;
+    #[pymodule_export]
+    use crate::sqltypes::PyIntegerType;
+    #[pymodule_export]
+    use crate::sqltypes::PySmallIntegerType;
+    #[pymodule_export]
+    use crate::sqltypes::PySmallUnsignedType;
+    #[pymodule_export]
+    use crate::sqltypes::PyStringType;
+    #[pymodule_export]
+    use crate::sqltypes::PyTextType;
+    #[pymodule_export]
+    use crate::sqltypes::PyTinyIntegerType;
+    #[pymodule_export]
+    use crate::sqltypes::PyTinyUnsignedType;
+    #[pymodule_export]
+    use crate::sqltypes::PyUnsignedType;
 
+    // value
     #[pymodule_export]
-    use super::foreign_key::PyForeignKey;
+    use crate::value::PyValue;
 
+    // common
     #[pymodule_export]
-    use super::index::{PyDropIndex, PyIndex};
+    use crate::common::PyColumnRef;
+    #[pymodule_export]
+    use crate::common::PyQueryStatement;
+    #[pymodule_export]
+    use crate::common::PySchemaStatement;
+    #[pymodule_export]
+    use crate::common::PyTableName;
+    #[pymodule_export]
+    use crate::common::Py_AsteriskType;
 
+    // expression
     #[pymodule_export]
-    use super::table::{
-        PyAliasedTable, PyAlterTable, PyAlterTableAddColumnOption, PyAlterTableAddForeignKeyOption,
-        PyAlterTableDropColumnOption, PyAlterTableDropForeignKeyOption, PyAlterTableModifyColumnOption,
-        PyAlterTableOptionMeta, PyAlterTableRenameColumnOption, PyDropTable, PyRenameTable, PyTable,
-        PyTruncateTable, Py_AliasedTableColumnsSequence, Py_TableColumnsSequence,
-    };
+    use crate::expression::all;
+    #[pymodule_export]
+    use crate::expression::any;
+    #[pymodule_export]
+    use crate::expression::not_;
+    #[pymodule_export]
+    use crate::expression::PyExpr;
+    #[pymodule_export]
+    use crate::expression::PyFunc;
 
+    // column
     #[pymodule_export]
-    use super::query::insert::PyInsert;
+    use crate::column::PyColumn;
 
+    // foreign_key
     #[pymodule_export]
-    use super::query::delete::PyDelete;
+    use crate::foreign_key::PyForeignKey;
 
+    /// @constant
     #[pymodule_export]
-    use super::query::update::PyUpdate;
+    const ASTERISK: Py_AsteriskType = Py_AsteriskType;
 
+    /// @constant
     #[pymodule_export]
-    use super::query::select::{PySelect, PySelectCol};
+    const COLUMN_OPT_PRIMARY_KEY: u8 = crate::column::COLUMN_OPT_PRIMARY_KEY;
 
+    /// @constant
     #[pymodule_export]
-    use super::query::on_conflict::PyOnConflict;
+    const COLUMN_OPT_UNIQUE_KEY: u8 = crate::column::COLUMN_OPT_UNIQUE_KEY;
 
+    /// @constant
     #[pymodule_export]
-    use super::query::case::PyCase;
+    const COLUMN_OPT_NULLABLE: u8 = crate::column::COLUMN_OPT_NULLABLE;
 
+    /// @constant
     #[pymodule_export]
-    use super::query::window::{PyWindow, PyWindowFrame};
+    const COLUMN_OPT_AUTO_INCREMENT: u8 = crate::column::COLUMN_OPT_AUTO_INCREMENT;
+
+    /// @constant
+    #[pymodule_export]
+    const COLUMN_OPT_STORED_GENERATED: u8 = crate::column::COLUMN_OPT_STORED_GENERATED;
 
     #[pymodule_init]
+    #[cold]
     fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
-        m.add("INTERVAL_YEAR", sea_query::PgInterval::Year as u8)?;
-        m.add("INTERVAL_MONTH", sea_query::PgInterval::Month as u8)?;
-        m.add("INTERVAL_DAY", sea_query::PgInterval::Day as u8)?;
-        m.add("INTERVAL_HOUR", sea_query::PgInterval::Hour as u8)?;
-        m.add("INTERVAL_MINUTE", sea_query::PgInterval::Minute as u8)?;
-        m.add("INTERVAL_SECOND", sea_query::PgInterval::Second as u8)?;
-        m.add("INTERVAL_YEAR_TO_MONTH", sea_query::PgInterval::YearToMonth as u8)?;
-        m.add("INTERVAL_DAY_TO_HOUR", sea_query::PgInterval::DayToHour as u8)?;
-        m.add("INTERVAL_DAY_TO_MINUTE", sea_query::PgInterval::DayToMinute as u8)?;
-        m.add("INTERVAL_DAY_TO_SECOND", sea_query::PgInterval::DayToSecond as u8)?;
         m.add(
-            "INTERVAL_HOUR_TO_MINUTE",
-            sea_query::PgInterval::HourToMinute as u8,
-        )?;
-        m.add(
-            "INTERVAL_HOUR_TO_SECOND",
-            sea_query::PgInterval::HourToSecond as u8,
-        )?;
-        m.add(
-            "INTERVAL_MINUTE_TO_SECOND",
-            sea_query::PgInterval::MinuteToSecond as u8,
+            "__stub_imports__",
+            vec!["import decimal", "import uuid", "import datetime", "import enum"],
         )?;
 
-        m.add("ASTERISK", PyAsteriskType {})?;
-
-        super::typeref::initialize_typeref(m.py());
-
+        crate::typeref::initialize_typeref(m.py());
         Ok(())
     }
 }

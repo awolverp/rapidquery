@@ -1,207 +1,178 @@
-use pyo3::types::PyAnyMethods;
+use crate::sqltypes::TypeEngine;
 
-/// Represents a SQL expression that can be built into SQL code.
-///
-/// A bridge between Python & [`sea_query::SimpleExpr`]
-#[pyo3::pyclass(module = "rapidquery._lib", name = "Expr", frozen)]
-pub struct PyExpr {
-    pub(crate) inner: sea_query::SimpleExpr,
+implement_pyclass! {
+    /// Represents a SQL expression that can be built into SQL code.
+    ///
+    /// This class provides a fluent interface for constructing complex SQL expressions
+    /// in a database-agnostic way. It supports arithmetic operations, comparisons,
+    /// logical operations, and database-specific functions.
+    ///
+    /// The class automatically handles SQL injection protection and proper quoting
+    /// when building the final SQL statement.
+    ///
+    /// Note: `Expr` is immutable, so by calling each method you will give a new instance
+    /// of it which includes new change(s).
+    #[derive(Debug, Clone)]
+    pub struct [] PyExpr as "Expr" (pub sea_query::SimpleExpr);
+}
+
+impl PyExpr {
+    pub fn try_from_specific_type(
+        value: &pyo3::Bound<'_, pyo3::PyAny>,
+        type_engine: Option<TypeEngine>,
+    ) -> pyo3::PyResult<Self> {
+        unsafe {
+            let py = value.py();
+            let type_ptr = pyo3::ffi::Py_TYPE(value.as_ptr());
+
+            if type_ptr == crate::typeref::EXPR_TYPE {
+                let casted_value = value.cast_unchecked::<Self>();
+
+                return Ok(Self(casted_value.get().0.clone()));
+            }
+
+            if type_ptr == crate::typeref::VALUE_TYPE {
+                let casted_value = value.cast_unchecked::<crate::value::PyValue>();
+                let unbound = casted_value.get();
+
+                return Ok(Self(unbound.0.lock().to_simple_expr(py)?));
+            }
+
+            if type_ptr == crate::typeref::ASTERISK_TYPE {
+                return Ok(Self(sea_query::Expr::column(sea_query::Asterisk)));
+            }
+
+            if type_ptr == crate::typeref::COLUMN_REF_TYPE {
+                let casted_value = value.cast_unchecked::<crate::common::PyColumnRef>();
+                let cloned = casted_value.get().clone();
+
+                return Ok(Self(sea_query::Expr::column(cloned)));
+            }
+
+            if type_ptr == crate::typeref::FUNC_TYPE {
+                let casted_value = value.cast_unchecked::<super::func::PyFunc>();
+                let cloned = casted_value.get().clone();
+
+                return Ok(Self(sea_query::SimpleExpr::FunctionCall(cloned.0)));
+            }
+
+            if type_ptr == crate::typeref::COLUMN_TYPE {
+                let casted_value = value.cast_unchecked::<crate::column::PyColumn>();
+                let inner_value = casted_value.get();
+
+                return Ok(Self(inner_value.0.lock().to_sea_query_column_ref().into()));
+            }
+
+            // TODO: PySelect
+            // TODO: PyCase
+
+            if pyo3::ffi::PyTuple_CheckExact(value.as_ptr()) == 1 {
+                use pyo3::types::PyTupleMethods;
+
+                let casted_value = value.cast_unchecked::<pyo3::types::PyTuple>();
+                let mut arr: Vec<Self> = Vec::new();
+
+                for item in casted_value.iter() {
+                    arr.push(Self::try_from(&item)?);
+                }
+
+                let result = sea_query::Expr::tuple(arr.into_iter().map(|x| x.0));
+                return Ok(Self(result.into()));
+            }
+
+            let type_engine = match type_engine {
+                Some(x) => x,
+                None => crate::sqltypes::TypeEngine::infer_pyobject(&value)?,
+            };
+
+            let result =
+                crate::value::ValueState::from_pyobject(type_engine, value.clone())?.to_simple_expr(py)?;
+
+            Ok(Self(result))
+        }
+    }
 }
 
 impl From<sea_query::SimpleExpr> for PyExpr {
     fn from(value: sea_query::SimpleExpr) -> Self {
-        Self { inner: value }
+        Self(value)
     }
 }
 
-impl PyExpr {
-    #[inline]
-    #[optimize(speed)]
-    pub fn from_bound_into_any(x: pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<pyo3::Py<pyo3::PyAny>> {
-        unsafe {
-            if pyo3::ffi::Py_TYPE(x.as_ptr()) == crate::typeref::EXPR_TYPE {
-                Ok(x.unbind())
-            } else {
-                let py = x.py();
-                let e = Self::try_from(x)?;
-                Ok(pyo3::Py::new(py, e)?.into_any())
-            }
-        }
-    }
-
-    #[inline]
-    #[optimize(speed)]
-    pub fn from_adapted_value(py: pyo3::Python, value: &crate::adaptation::PyAdaptedValue) -> Self {
-        let simple_expr = {
-            let mut lock = value.inner.lock();
-            lock.create_simple_expr(py)
-        };
-
-        simple_expr.into()
-    }
-
-    #[inline]
-    #[optimize(speed)]
-    pub fn from_function_call(value: &super::function::PyFunctionCall) -> Self {
-        let simple_expr = {
-            let lock = value.inner.lock();
-            sea_query::SimpleExpr::FunctionCall(lock.clone())
-        };
-
-        simple_expr.into()
-    }
-
-    #[inline]
-    #[optimize(speed)]
-    pub fn from_column_ref(value: sea_query::ColumnRef) -> Self {
-        sea_query::Expr::column(value).into()
-    }
-
-    #[inline]
-    #[optimize(speed)]
-    pub fn from_simple_expr(value: sea_query::SimpleExpr) -> Self {
-        Self { inner: value }
-    }
-
-    #[inline]
-    #[optimize(speed)]
-    pub fn from_tuple<I>(values: I) -> Self
-    where
-        I: IntoIterator<Item = sea_query::SimpleExpr>,
-    {
-        let values = sea_query::Expr::tuple(values);
-
-        Self { inner: values.into() }
-    }
-
-    pub fn try_with_specific_type(
-        value: pyo3::Bound<'_, pyo3::PyAny>,
-        r#type: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
-    ) -> pyo3::PyResult<Self> {
-        use sea_query::IntoColumnRef;
-
-        unsafe {
-            let type_ptr = pyo3::ffi::Py_TYPE(value.as_ptr());
-
-            if type_ptr == crate::typeref::EXPR_TYPE {
-                let value = value.cast_into_unchecked::<Self>();
-
-                Ok(Self {
-                    inner: value.get().inner.clone(),
-                })
-            } else if type_ptr == crate::typeref::ADAPTED_VALUE_TYPE {
-                let value = value.cast_into_unchecked::<crate::adaptation::PyAdaptedValue>();
-
-                Ok(Self::from_adapted_value(value.py(), value.get()))
-            } else if type_ptr == crate::typeref::ASTERISK_TYPE {
-                Ok(Self {
-                    inner: sea_query::Expr::column(sea_query::Asterisk),
-                })
-            } else if type_ptr == crate::typeref::COLUMN_REF_TYPE {
-                let value = value.cast_into_unchecked::<crate::common::PyColumnRef>();
-
-                Ok(Self::from_column_ref(value.get().clone().into_column_ref()))
-            } else if type_ptr == crate::typeref::COLUMN_TYPE {
-                let value = value.cast_into_unchecked::<crate::column::PyColumn>();
-                let mut lock = value.get().inner.lock();
-
-                Ok(Self::from_column_ref(lock.as_column_ref(value.py())))
-            } else if type_ptr == crate::typeref::FUNCTION_CALL_TYPE {
-                let value = value.cast_into_unchecked::<super::function::PyFunctionCall>();
-
-                Ok(Self::from_function_call(value.get()))
-            } else if type_ptr == crate::typeref::SELECT_STATEMENT_TYPE {
-                let value = value.cast_into_unchecked::<crate::query::select::PySelect>();
-                let stmt = value.get().inner.lock();
-                let stmt = stmt.as_statement(value.py());
-
-                Ok(Self::from_simple_expr(sea_query::SimpleExpr::SubQuery(
-                    None,
-                    Box::new(stmt.into_sub_query_statement()),
-                )))
-            } else if type_ptr == crate::typeref::CASE_STATEMENT_TYPE {
-                let value = value.cast_into_unchecked::<crate::query::case::PyCase>();
-                let stmt = value.get().inner.lock();
-                let stmt = Box::new(stmt.as_statement(value.py()));
-
-                Ok(Self::from_simple_expr(sea_query::SimpleExpr::Case(stmt)))
-            } else if pyo3::ffi::PyTuple_Check(value.as_ptr()) == 1 {
-                let value = value.cast_into_unchecked::<pyo3::types::PyTuple>();
-                let mut arr: Vec<Self> = Vec::new();
-
-                for x in value {
-                    arr.push(Self::try_from(x)?);
-                }
-
-                Ok(Self::from_tuple(arr.into_iter().map(|x| x.inner.clone())))
-            } else {
-                let py = value.py();
-                let mut value = crate::adaptation::ReturnableValue::from_bound(value, r#type)?;
-
-                Ok(value.create_simple_expr(py).into())
-            }
-        }
-    }
-}
-
-impl TryFrom<pyo3::Bound<'_, pyo3::PyAny>> for PyExpr {
+impl TryFrom<&pyo3::Bound<'_, pyo3::PyAny>> for PyExpr {
     type Error = pyo3::PyErr;
 
-    fn try_from(value: pyo3::Bound<'_, pyo3::PyAny>) -> Result<Self, Self::Error> {
-        Self::try_with_specific_type(value, None)
+    fn try_from(value: &pyo3::Bound<'_, pyo3::PyAny>) -> Result<Self, Self::Error> {
+        Self::try_from_specific_type(value, None)
     }
 }
 
 #[pyo3::pymethods]
 impl PyExpr {
     #[new]
-    #[pyo3(signature=(value, /))]
-    fn new(value: pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
-        // Go fast path when value is PyExpr
-        if let Ok(x) = value.cast::<Self>() {
-            return Ok(pyo3::PyClassInitializer::from(x.clone()));
-        }
-
-        Ok(pyo3::PyClassInitializer::from(Self::try_from(value)?))
+    #[pyo3(signature = (value, /), text_signature="(value: object, /)")]
+    fn __new__(value: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+        Self::try_from(value)
     }
 
+    /// Shorthand for `Expr(Value(value, sql_type))`
+    ///
+    /// @typevar I, O
+    /// @signature (cls, /, value: I | None, sql_type: SQLTypeAbstract[I, O] | None = ...) -> typing.Self
     #[classmethod]
+    #[pyo3(signature=(value, sql_type=None))]
     fn val(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
         value: &pyo3::Bound<'_, pyo3::PyAny>,
+        sql_type: Option<pyo3::Bound<'_, pyo3::PyAny>>,
     ) -> pyo3::PyResult<Self> {
         unsafe {
-            if pyo3::ffi::Py_TYPE(value.as_ptr()) != crate::typeref::ADAPTED_VALUE_TYPE {
-                return Err(typeerror!(
-                    "expected AdaptedValue, got {}",
-                    value.py(),
-                    value.as_ptr()
-                ));
+            if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::VALUE_TYPE {
+                let casted_value = value.cast_unchecked::<crate::value::PyValue>();
+                let unbound = casted_value.get();
+
+                return Ok(Self(unbound.0.lock().to_simple_expr(value.py())?));
             }
 
-            let x = value.cast_unchecked::<crate::adaptation::PyAdaptedValue>();
-            Ok(Self::from_adapted_value(value.py(), x.get()))
+            let type_engine = {
+                if let Some(sql_type) = sql_type {
+                    TypeEngine::new(&sql_type)?
+                } else {
+                    TypeEngine::infer_pyobject(&value)?
+                }
+            };
+
+            let result = crate::value::ValueState::from_pyobject(type_engine, value.clone())?
+                .to_simple_expr(value.py())?;
+
+            return Ok(Self(result));
         }
     }
 
+    /// Shorthand for `Expr(ColumnRef.parse(value))`
+    ///
+    /// @signature (cls, value: str | ColumnRef) -> typing.Self
     #[classmethod]
     fn col(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
         value: &pyo3::Bound<'_, pyo3::PyAny>,
     ) -> pyo3::PyResult<Self> {
-        use sea_query::IntoColumnRef;
+        use pyo3::types::PyAnyMethods;
         use std::str::FromStr;
 
         unsafe {
             if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::COLUMN_REF_TYPE {
-                let x = value.cast_unchecked::<crate::common::PyColumnRef>();
-                return Ok(Self::from_column_ref(x.get().clone().into_column_ref()));
+                let casted_value = value.cast_unchecked::<crate::common::PyColumnRef>();
+                let cloned = casted_value.get().clone();
+
+                return Ok(Self(sea_query::Expr::column(cloned)));
             }
 
             if pyo3::ffi::PyUnicode_CheckExact(value.as_ptr()) == 1 {
-                let x = value.extract::<&str>().unwrap_unchecked();
-                let colref = crate::common::PyColumnRef::from_str(x)?.into_column_ref();
-                return Ok(Self::from_column_ref(colref));
+                let extracted = value.extract::<&str>().unwrap_unchecked();
+                let colref = crate::common::PyColumnRef::from_str(extracted)?;
+
+                return Ok(Self(sea_query::Expr::column(colref)));
             }
 
             Err(typeerror!(
@@ -212,513 +183,301 @@ impl PyExpr {
         }
     }
 
-    #[classmethod]
-    fn tuple(
-        _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        value: &pyo3::Bound<'_, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
-        unsafe {
-            if pyo3::ffi::PyTuple_CheckExact(value.as_ptr()) == 1 {
-                let value = value.cast_unchecked::<pyo3::types::PyTuple>();
-                let mut values: Vec<pyo3::Bound<'_, Self>> = Vec::with_capacity(value.len()?);
-
-                for op in value {
-                    values.push(op.cast_into_exact::<Self>()?);
-                }
-
-                return Ok(Self::from_tuple(
-                    values.into_iter().map(|x| x.get().inner.clone()),
-                ));
-            }
-
-            if pyo3::ffi::PyList_CheckExact(value.as_ptr()) == 1 {
-                let value = value.cast_unchecked::<pyo3::types::PyList>();
-                let mut values: Vec<pyo3::Bound<'_, Self>> = Vec::with_capacity(value.len()?);
-
-                for op in value {
-                    values.push(op.cast_into_exact::<Self>()?);
-                }
-
-                return Ok(Self::from_tuple(
-                    values.into_iter().map(|x| x.get().inner.clone()),
-                ));
-            }
-
-            if pyo3::ffi::PySet_CheckExact(value.as_ptr()) == 1 {
-                let value = value.cast_unchecked::<pyo3::types::PyList>();
-                let mut values: Vec<pyo3::Bound<'_, Self>> = Vec::with_capacity(value.len()?);
-
-                for op in value {
-                    values.push(op.cast_into_exact::<Self>()?);
-                }
-
-                return Ok(Self::from_tuple(
-                    values.into_iter().map(|x| x.get().inner.clone()),
-                ));
-            }
-
-            Err(typeerror!(
-                "expected tuple/list/set of Exprs, got {}",
-                value.py(),
-                value.as_ptr()
-            ))
-        }
-    }
-
+    /// Shorthand for `Expr(ASTERISK)`
+    ///
+    /// @signature (cls) -> typing.Self
     #[classmethod]
     fn asterisk(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         sea_query::Expr::column(sea_query::Asterisk).into()
     }
 
+    /// Create an expression from a custom SQL string.
+    ///
+    /// Warning: This method does not escape the input, so it should only
+    /// be used with trusted strings to avoid SQL injection vulnerabilities.
+    ///
+    /// @signature (cls, value: str) -> typing.Self
     #[classmethod]
     fn custom(_cls: &pyo3::Bound<'_, pyo3::types::PyType>, value: String) -> Self {
         sea_query::SimpleExpr::Custom(value).into()
     }
 
+    /// Create an expression for the CURRENT_DATE SQL function.
+    ///
+    /// @signature (cls) -> typing.Self
     #[classmethod]
     fn current_date(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         sea_query::SimpleExpr::Keyword(sea_query::Keyword::CurrentDate).into()
     }
 
+    /// Create an expression for the CURRENT_TIME SQL function.
+    ///
+    /// @signature (cls) -> typing.Self
     #[classmethod]
     fn current_time(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         sea_query::SimpleExpr::Keyword(sea_query::Keyword::CurrentTime).into()
     }
 
+    /// Create an expression for the CURRENT_TIMESTAMP SQL function.
+    ///
+    /// @signature (cls) -> typing.Self
     #[classmethod]
     fn current_timestamp(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         sea_query::SimpleExpr::Keyword(sea_query::Keyword::CurrentTimestamp).into()
     }
 
+    /// Create an expression representing the NULL value.
+    ///
+    /// @signature (cls) -> typing.Self
     #[classmethod]
     fn null(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         sea_query::SimpleExpr::Keyword(sea_query::Keyword::Null).into()
     }
 
-    #[classmethod]
-    fn exists(
-        cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        stmt: &pyo3::Bound<'_, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
-        unsafe {
-            if pyo3::ffi::Py_TYPE(stmt.as_ptr()) != crate::typeref::SELECT_STATEMENT_TYPE {
-                return Err(typeerror!("expected Select, got {}", stmt.py(), stmt.as_ptr()));
-            }
+    // TODO: exists, any, some, all, in_subquery, not_in_subquery, in_, not_in
 
-            let stmt = {
-                let val = stmt.cast_unchecked::<crate::query::select::PySelect>();
-                let lock = val.get().inner.lock();
-                lock.as_statement(cls.py())
-            };
-
-            Ok(sea_query::Expr::exists(stmt).into())
-        }
-    }
-
-    #[classmethod]
-    fn any(
-        cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        stmt: &pyo3::Bound<'_, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
-        unsafe {
-            if pyo3::ffi::Py_TYPE(stmt.as_ptr()) != crate::typeref::SELECT_STATEMENT_TYPE {
-                return Err(typeerror!("expected Select, got {}", stmt.py(), stmt.as_ptr()));
-            }
-
-            let stmt = {
-                let val = stmt.cast_unchecked::<crate::query::select::PySelect>();
-                let lock = val.get().inner.lock();
-                lock.as_statement(cls.py())
-            };
-
-            Ok(sea_query::Expr::any(stmt).into())
-        }
-    }
-
-    #[classmethod]
-    fn some(
-        cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        stmt: &pyo3::Bound<'_, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
-        unsafe {
-            if pyo3::ffi::Py_TYPE(stmt.as_ptr()) != crate::typeref::SELECT_STATEMENT_TYPE {
-                return Err(typeerror!("expected Select, got {}", stmt.py(), stmt.as_ptr()));
-            }
-
-            let stmt = {
-                let val = stmt.cast_unchecked::<crate::query::select::PySelect>();
-                let lock = val.get().inner.lock();
-                lock.as_statement(cls.py())
-            };
-
-            Ok(sea_query::Expr::some(stmt).into())
-        }
-    }
-
-    #[classmethod]
-    fn all(
-        cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        stmt: &pyo3::Bound<'_, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
-        unsafe {
-            if pyo3::ffi::Py_TYPE(stmt.as_ptr()) != crate::typeref::SELECT_STATEMENT_TYPE {
-                return Err(typeerror!("expected Select, got {}", stmt.py(), stmt.as_ptr()));
-            }
-
-            let stmt = {
-                let val = stmt.cast_unchecked::<crate::query::select::PySelect>();
-                let lock = val.get().inner.lock();
-                lock.as_statement(cls.py())
-            };
-
-            Ok(sea_query::Expr::all(stmt).into())
-        }
-    }
-
+    /// Create a CAST expression to convert to a specific SQL type.
+    ///
+    /// @signature (self, value: str) -> typing.Self
     fn cast_as(slf: pyo3::PyRef<'_, Self>, value: String) -> Self {
-        slf.inner.clone().cast_as(sea_query::Alias::new(value)).into()
+        slf.0.clone().cast_as(sea_query::Alias::new(value)).into()
     }
 
+    /// Create a LIKE pattern matching expression.
+    ///
+    /// @signature (self, pattern: str, escape: str | None = ...) -> typing.Self
     #[pyo3(signature=(pattern, escape=None))]
     fn like(slf: pyo3::PyRef<'_, Self>, pattern: String, escape: Option<char>) -> Self {
         let e = sea_query::LikeExpr::new(pattern);
 
         if let Some(x) = escape {
-            sea_query::ExprTrait::like(slf.inner.clone(), e.escape(x)).into()
+            sea_query::ExprTrait::like(slf.0.clone(), e.escape(x)).into()
         } else {
-            sea_query::ExprTrait::like(slf.inner.clone(), e).into()
+            sea_query::ExprTrait::like(slf.0.clone(), e).into()
         }
     }
 
+    /// Create a NOT LIKE pattern matching expression.
+    ///
+    /// @signature (self, pattern: str, escape: str | None = ...) -> typing.Self
     #[pyo3(signature=(pattern, escape=None))]
     fn not_like(slf: pyo3::PyRef<'_, Self>, pattern: String, escape: Option<char>) -> Self {
         let e = sea_query::LikeExpr::new(pattern);
 
         if let Some(x) = escape {
-            sea_query::ExprTrait::not_like(slf.inner.clone(), e.escape(x)).into()
+            sea_query::ExprTrait::not_like(slf.0.clone(), e.escape(x)).into()
         } else {
-            sea_query::ExprTrait::not_like(slf.inner.clone(), e).into()
+            sea_query::ExprTrait::not_like(slf.0.clone(), e).into()
         }
     }
 
+    /// Create an equality comparison expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn __eq__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::eq(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::eq(slf.0.clone(), other.0).into())
     }
 
+    /// Create an inequality comparison expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn __ne__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::ne(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::ne(slf.0.clone(), other.0).into())
     }
 
+    /// Create a greater-than comparison expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn __gt__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::gt(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::gt(slf.0.clone(), other.0).into())
     }
 
+    /// Create a greater-than-or-equal comparison expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn __ge__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::gte(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::gte(slf.0.clone(), other.0).into())
     }
 
+    /// Create a less-than comparison expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn __lt__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::lt(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::lt(slf.0.clone(), other.0).into())
     }
 
+    /// Create a less-than-or-equal comparison expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn __le__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::lte(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::lte(slf.0.clone(), other.0).into())
     }
 
+    /// Create an addition expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn __add__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::add(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::add(slf.0.clone(), other.0).into())
     }
 
+    /// Create an subtraction expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn __sub__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::sub(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::sub(slf.0.clone(), other.0).into())
     }
 
+    /// Create a logical AND expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn __and__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::and(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::and(slf.0.clone(), other.0).into())
     }
 
+    /// @signature (self, other: object) -> typing.Self
     fn __neg__<'a>(slf: pyo3::PyRef<'a, Self>) -> pyo3::PyResult<Self> {
-        Ok(sea_query::ExprTrait::mul(slf.inner.clone(), -1).into())
+        Ok(sea_query::ExprTrait::mul(slf.0.clone(), -1).into())
     }
 
+    /// Create a logical OR expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn __or__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::or(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::or(slf.0.clone(), other.0).into())
     }
 
+    /// @signature (self, other: object) -> typing.Self
     fn bit_and<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::bit_and(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::bit_and(slf.0.clone(), other.0).into())
     }
 
+    /// @signature (self, other: object) -> typing.Self
     fn bit_or<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::bit_or(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::bit_or(slf.0.clone(), other.0).into())
     }
 
+    /// Create a division expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn __truediv__<'a>(
         slf: pyo3::PyRef<'a, Self>,
         other: &pyo3::Bound<'a, pyo3::PyAny>,
     ) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::div(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::div(slf.0.clone(), other.0).into())
     }
 
+    /// Create an IS comparison expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn is_<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::is(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::is(slf.0.clone(), other.0).into())
     }
 
+    /// Create an IS NOT comparison expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn is_not<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::is_not(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::is_not(slf.0.clone(), other.0).into())
     }
 
+    /// Create an IS NULL expression.
+    ///
+    /// @signature (self) -> typing.Self
     fn is_null(slf: pyo3::PyRef<'_, Self>) -> Self {
-        sea_query::ExprTrait::is_null(slf.inner.clone()).into()
+        sea_query::ExprTrait::is_null(slf.0.clone()).into()
     }
 
+    /// Create an IS NOT NULL expression.
+    ///
+    /// @signature (self) -> typing.Self
     fn is_not_null(slf: pyo3::PyRef<'_, Self>) -> Self {
-        sea_query::ExprTrait::is_not_null(slf.inner.clone()).into()
+        sea_query::ExprTrait::is_not_null(slf.0.clone()).into()
     }
 
+    /// Create a bitwise left shift expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn __lshift__<'a>(
         slf: pyo3::PyRef<'a, Self>,
         other: &pyo3::Bound<'a, pyo3::PyAny>,
     ) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::left_shift(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::left_shift(slf.0.clone(), other.0).into())
     }
 
+    /// Create a bitwise right shift expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn __rshift__<'a>(
         slf: pyo3::PyRef<'a, Self>,
         other: &pyo3::Bound<'a, pyo3::PyAny>,
     ) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::right_shift(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::right_shift(slf.0.clone(), other.0).into())
     }
 
+    /// Create a modulo expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn __mod__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::modulo(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::modulo(slf.0.clone(), other.0).into())
     }
 
+    /// Create a multiplication expression.
+    ///
+    /// @signature (self, other: object) -> typing.Self
     fn __mul__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::ExprTrait::mul(slf.inner.clone(), other.inner).into())
+        let other = Self::try_from(other)?;
+        Ok(sea_query::ExprTrait::mul(slf.0.clone(), other.0).into())
     }
 
-    fn sqlite_matches<'a>(
-        slf: pyo3::PyRef<'a, Self>,
-        other: &pyo3::Bound<'a, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::extension::sqlite::SqliteExpr::matches(slf.inner.clone(), other.inner).into())
-    }
+    // TODO: sqlite_*, pg_*, mysql_*
 
-    fn sqlite_glob<'a>(
-        slf: pyo3::PyRef<'a, Self>,
-        other: &pyo3::Bound<'a, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::extension::sqlite::SqliteExpr::glob(slf.inner.clone(), other.inner).into())
-    }
-
-    fn sqlite_get_json_field<'a>(
-        slf: pyo3::PyRef<'a, Self>,
-        other: &pyo3::Bound<'a, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::extension::sqlite::SqliteExpr::get_json_field(slf.inner.clone(), other.inner).into())
-    }
-
-    fn sqlite_cast_json_field<'a>(
-        slf: pyo3::PyRef<'a, Self>,
-        other: &pyo3::Bound<'a, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::extension::sqlite::SqliteExpr::cast_json_field(slf.inner.clone(), other.inner).into())
-    }
-
-    fn pg_concat<'a>(
-        slf: pyo3::PyRef<'a, Self>,
-        other: &pyo3::Bound<'a, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::extension::postgres::PgExpr::concat(slf.inner.clone(), other.inner).into())
-    }
-
-    fn pg_contained<'a>(
-        slf: pyo3::PyRef<'a, Self>,
-        other: &pyo3::Bound<'a, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::extension::postgres::PgExpr::contained(slf.inner.clone(), other.inner).into())
-    }
-
-    fn pg_get_json_field<'a>(
-        slf: pyo3::PyRef<'a, Self>,
-        other: &pyo3::Bound<'a, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::extension::postgres::PgExpr::get_json_field(slf.inner.clone(), other.inner).into())
-    }
-
-    fn pg_cast_json_field<'a>(
-        slf: pyo3::PyRef<'a, Self>,
-        other: &pyo3::Bound<'a, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::extension::postgres::PgExpr::cast_json_field(slf.inner.clone(), other.inner).into())
-    }
-
-    fn pg_contains<'a>(
-        slf: pyo3::PyRef<'a, Self>,
-        other: &pyo3::Bound<'a, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::extension::postgres::PgExpr::contains(slf.inner.clone(), other.inner).into())
-    }
-
-    fn pg_matches<'a>(
-        slf: pyo3::PyRef<'a, Self>,
-        other: &pyo3::Bound<'a, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
-        let other = Self::try_from(other.clone())?;
-        Ok(sea_query::extension::postgres::PgExpr::matches(slf.inner.clone(), other.inner).into())
-    }
-
-    #[pyo3(signature=(pattern, escape=None))]
-    fn pg_ilike(slf: pyo3::PyRef<'_, Self>, pattern: String, escape: Option<char>) -> Self {
-        let e = sea_query::LikeExpr::new(pattern);
-
-        if let Some(x) = escape {
-            sea_query::extension::postgres::PgExpr::ilike(slf.inner.clone(), e.escape(x)).into()
-        } else {
-            sea_query::extension::postgres::PgExpr::ilike(slf.inner.clone(), e).into()
-        }
-    }
-
-    #[pyo3(signature=(pattern, escape=None))]
-    fn pg_not_ilike(slf: pyo3::PyRef<'_, Self>, pattern: String, escape: Option<char>) -> Self {
-        let e = sea_query::LikeExpr::new(pattern);
-
-        if let Some(x) = escape {
-            sea_query::extension::postgres::PgExpr::not_ilike(slf.inner.clone(), e.escape(x)).into()
-        } else {
-            sea_query::extension::postgres::PgExpr::not_ilike(slf.inner.clone(), e).into()
-        }
-    }
-
+    /// Create a BETWEEN range comparison expression.
+    ///
+    /// @signature (self, a: object, b: object) -> typing.Self
     fn between<'a>(
         slf: pyo3::PyRef<'a, Self>,
         a: &pyo3::Bound<'a, pyo3::PyAny>,
         b: &pyo3::Bound<'a, pyo3::PyAny>,
     ) -> pyo3::PyResult<Self> {
-        let a = Self::try_from(a.clone())?;
-        let b = Self::try_from(b.clone())?;
+        let a = Self::try_from(a)?;
+        let b = Self::try_from(b)?;
 
-        Ok(sea_query::ExprTrait::between(slf.inner.clone(), a.inner, b.inner).into())
+        Ok(sea_query::ExprTrait::between(slf.0.clone(), a.0, b.0).into())
     }
 
+    /// Create a NOT BETWEEN range comparison expression.
+    ///
+    /// @signature (self, a: object, b: object) -> typing.Self
     fn not_between<'a>(
         slf: pyo3::PyRef<'a, Self>,
         a: &pyo3::Bound<'a, pyo3::PyAny>,
         b: &pyo3::Bound<'a, pyo3::PyAny>,
     ) -> pyo3::PyResult<Self> {
-        let a = Self::try_from(a.clone())?;
-        let b = Self::try_from(b.clone())?;
+        let a = Self::try_from(a)?;
+        let b = Self::try_from(b)?;
 
-        Ok(sea_query::ExprTrait::not_between(slf.inner.clone(), a.inner, b.inner).into())
-    }
-
-    fn in_subquery(slf: pyo3::PyRef<'_, Self>, stmt: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        unsafe {
-            if pyo3::ffi::Py_TYPE(stmt.as_ptr()) != crate::typeref::SELECT_STATEMENT_TYPE {
-                return Err(typeerror!("expected Select, got {}", stmt.py(), stmt.as_ptr()));
-            }
-
-            let stmt = {
-                let val = stmt.cast_unchecked::<crate::query::select::PySelect>();
-                let lock = val.get().inner.lock();
-                lock.as_statement(slf.py())
-            };
-
-            Ok(sea_query::ExprTrait::in_subquery(slf.inner.clone(), stmt).into())
-        }
-    }
-
-    fn not_in_subquery(
-        slf: pyo3::PyRef<'_, Self>,
-        stmt: &pyo3::Bound<'_, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
-        unsafe {
-            if pyo3::ffi::Py_TYPE(stmt.as_ptr()) != crate::typeref::SELECT_STATEMENT_TYPE {
-                return Err(typeerror!("expected Select, got {}", stmt.py(), stmt.as_ptr()));
-            }
-
-            let stmt = {
-                let val = stmt.cast_unchecked::<crate::query::select::PySelect>();
-                let lock = val.get().inner.lock();
-                lock.as_statement(slf.py())
-            };
-
-            Ok(sea_query::ExprTrait::not_in_subquery(slf.inner.clone(), stmt).into())
-        }
-    }
-
-    fn in_(slf: pyo3::PyRef<'_, Self>, other: Vec<pyo3::Py<pyo3::PyAny>>) -> pyo3::PyResult<Self> {
-        if other.is_empty() {
-            return Err(pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "`other` parameter cannot be an empty sequence",
-            ));
-        }
-
-        let mut exprs = Vec::with_capacity(other.len());
-        for exp in other.into_iter() {
-            let exp = Self::try_from(exp.into_bound(slf.py()))?;
-            exprs.push(exp.inner);
-        }
-
-        Ok(sea_query::ExprTrait::is_in(slf.inner.clone(), exprs).into())
-    }
-
-    fn not_in(slf: pyo3::PyRef<'_, Self>, other: Vec<pyo3::Py<pyo3::PyAny>>) -> pyo3::PyResult<Self> {
-        if other.is_empty() {
-            return Err(pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "`other` parameter cannot be an empty sequence",
-            ));
-        }
-
-        let mut exprs = Vec::with_capacity(other.len());
-        for exp in other.into_iter() {
-            let exp = Self::try_from(exp.into_bound(slf.py()))?;
-            exprs.push(exp.inner);
-        }
-
-        Ok(sea_query::ExprTrait::is_not_in(slf.inner.clone(), exprs).into())
-    }
-
-    fn to_sql(&self, backend: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<String> {
-        let mut sql = String::new();
-
-        prepare_sql!(
-            crate::backend::into_query_builder => backend => prepare_simple_expr(&self.inner, &mut sql)
-        )?;
-
-        Ok(sql)
+        Ok(sea_query::ExprTrait::not_between(slf.0.clone(), a.0, b.0).into())
     }
 
     fn __repr__(&self) -> String {
-        format!("<Expr {:?}>", self.inner)
+        format!("<Expr {:?}>", self.0)
     }
 }

@@ -26,7 +26,7 @@ Build your SQL queries faster, safer, and more efficiently than ever before. Rap
 ## Installation
 To install RapidQuery, run the following command:
 ```bash
-pip3 install rapidquery
+pip3 install 'rapidquery<1'
 ```
 
 > [!NOTE]\
@@ -247,6 +247,19 @@ query = (
         .from_table("users")
         .where(rq.Expr.col("name").like(r"%linus%"))
 )
+
+cte = (
+    rq.With(
+        rq.CommonTableExpression("a", query1, columns=["ali", "mmd"]),
+        rq.CommonTableExpression("b", query2, columns=["ali", "mmd"]),
+        rq.CommonTableExpression("c", query3, columns=["ali", "mmd"]),
+    )
+    .resursive(True)
+    .cycle(...)
+    .search(...)
+    .query()
+)
+
 sql, params = query.build("postgresql")
 # -> SELECT * FROM "users" WHERE "name" LIKE $1
 
