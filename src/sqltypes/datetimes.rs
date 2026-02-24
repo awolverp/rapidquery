@@ -75,7 +75,11 @@ impl NativeSQLType for PyDateTimeType {
         sea_query::ColumnType::DateTime
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         if pyo3::ffi::Py_TYPE(ptr) != crate::typeref::STD_DATETIME_TYPE {
             Err(typeerror!("expected datetime.datetime, got {:?}", py, ptr))
         } else {
@@ -110,7 +114,7 @@ impl NativeSQLType for PyDateTimeType {
                 Ok(pyobject.into_ptr())
             }
             sea_query::Value::ChronoDateTimeLocal(Some(x)) => {
-                let pyobject = x.to_utc().clone().into_pyobject(py)?;
+                let pyobject = x.to_utc().into_pyobject(py)?;
                 Ok(pyobject.into_ptr())
             }
             sea_query::Value::ChronoDateTime(None)
@@ -132,7 +136,11 @@ impl NativeSQLType for PyTimestampType {
         }
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         if pyo3::ffi::Py_TYPE(ptr) != crate::typeref::STD_DATETIME_TYPE
             && pyo3::ffi::PyLong_CheckExact(ptr) != 1
             && pyo3::ffi::PyFloat_CheckExact(ptr) != 1
@@ -165,7 +173,9 @@ impl NativeSQLType for PyTimestampType {
                     return Ok(sea_query::Value::ChronoDateTimeUtc(Some(Box::new(result))));
                 }
                 _ => {
-                    return Err(pyo3::exceptions::PyOverflowError::new_err("timestamp is invalid"));
+                    return Err(pyo3::exceptions::PyOverflowError::new_err(
+                        "timestamp is invalid",
+                    ));
                 }
             }
         }
@@ -173,12 +183,16 @@ impl NativeSQLType for PyTimestampType {
         if pyo3::ffi::PyFloat_CheckExact(ptr) == 1 {
             let num = pyo3::ffi::PyFloat_AsDouble(ptr);
 
-            match chrono::Utc.timestamp_opt(num.trunc() as i64, (num.fract() * 1_000_000_000.0) as u32) {
+            match chrono::Utc
+                .timestamp_opt(num.trunc() as i64, (num.fract() * 1_000_000_000.0) as u32)
+            {
                 chrono::offset::LocalResult::Single(result) => {
                     return Ok(sea_query::Value::ChronoDateTimeUtc(Some(Box::new(result))));
                 }
                 _ => {
-                    return Err(pyo3::exceptions::PyOverflowError::new_err("timestamp is invalid"));
+                    return Err(pyo3::exceptions::PyOverflowError::new_err(
+                        "timestamp is invalid",
+                    ));
                 }
             }
         }
@@ -218,7 +232,11 @@ impl NativeSQLType for PyDateType {
         sea_query::ColumnType::Date
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         if pyo3::ffi::Py_TYPE(ptr) != crate::typeref::STD_DATE_TYPE {
             Err(typeerror!("expected datetime.date, got {:?}", py, ptr))
         } else {
@@ -259,7 +277,11 @@ impl NativeSQLType for PyTimeType {
         sea_query::ColumnType::Time
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         if pyo3::ffi::Py_TYPE(ptr) != crate::typeref::STD_TIME_TYPE {
             Err(typeerror!("expected datetime.time, got {:?}", py, ptr))
         } else {

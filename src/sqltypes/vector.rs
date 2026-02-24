@@ -65,7 +65,7 @@ where
             }
 
             pyo3::ffi::Py_DECREF(item);
-            size = size / 2;
+            size /= 2;
         }
 
         return Ok(());
@@ -90,7 +90,7 @@ where
                 ));
             }
 
-            size = size / 2;
+            size /= 2;
         }
 
         return Ok(());
@@ -104,7 +104,11 @@ impl NativeSQLType for PyVectorType {
         sea_query::ColumnType::Vector(self.0)
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         _validate_iterable_ptr(py, ptr, |item| pyo3::ffi::PyFloat_CheckExact(item) == 1)
     }
 
@@ -186,7 +190,11 @@ impl NativeSQLType for PyArrayType {
         sea_query::ColumnType::Array(std::sync::Arc::new(self.0.to_sea_query_column_type()))
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         _validate_iterable_ptr(py, ptr, |item| self.0.validate(py, item).is_ok())
     }
 
@@ -283,7 +291,9 @@ super::abstracts::implement_native_pymethods!(
 #[pyo3::pymethods]
 impl PyArrayType {
     #[new]
-    fn __new__(element: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<(Self, PySQLTypeAbstract)> {
+    fn __new__(
+        element: &pyo3::Bound<'_, pyo3::PyAny>,
+    ) -> pyo3::PyResult<(Self, PySQLTypeAbstract)> {
         let type_engine = super::TypeEngine::new(element)?;
 
         Ok((Self(type_engine), PySQLTypeAbstract))

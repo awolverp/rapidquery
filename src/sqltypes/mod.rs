@@ -162,7 +162,11 @@ impl TypeEngine {
             let object_type_ptr = pyo3::ffi::Py_TYPE(object_ptr);
 
             if pyo3::ffi::PyLong_CheckExact(object_ptr) == 1 {
-                return Ok(wrap_typeengine!(object.py(), PyBigIntegerType, PyBigIntegerType));
+                return Ok(wrap_typeengine!(
+                    object.py(),
+                    PyBigIntegerType,
+                    PyBigIntegerType
+                ));
             }
 
             infer_rules!(
@@ -203,35 +207,53 @@ impl TypeEngine {
     pub fn infer_value(py: pyo3::Python<'_>, object: &sea_query::Value) -> Self {
         match object {
             sea_query::Value::Bool(_) => wrap_typeengine!(py, PyBooleanType, PyBooleanType),
-            sea_query::Value::TinyInt(_) => wrap_typeengine!(py, PyTinyIntegerType, PyTinyIntegerType),
-            sea_query::Value::SmallInt(_) => wrap_typeengine!(py, PySmallIntegerType, PySmallIntegerType),
+            sea_query::Value::TinyInt(_) => {
+                wrap_typeengine!(py, PyTinyIntegerType, PyTinyIntegerType)
+            }
+            sea_query::Value::SmallInt(_) => {
+                wrap_typeengine!(py, PySmallIntegerType, PySmallIntegerType)
+            }
             sea_query::Value::Int(_) => wrap_typeengine!(py, PyIntegerType, PyIntegerType),
             sea_query::Value::BigInt(_) => wrap_typeengine!(py, PyBigIntegerType, PyBigIntegerType),
-            sea_query::Value::TinyUnsigned(_) => wrap_typeengine!(py, PyTinyUnsignedType, PyTinyUnsignedType),
+            sea_query::Value::TinyUnsigned(_) => {
+                wrap_typeengine!(py, PyTinyUnsignedType, PyTinyUnsignedType)
+            }
             sea_query::Value::SmallUnsigned(_) => {
                 wrap_typeengine!(py, PySmallUnsignedType, PySmallUnsignedType)
             }
             sea_query::Value::Unsigned(_) => wrap_typeengine!(py, PyUnsignedType, PyUnsignedType),
-            sea_query::Value::BigUnsigned(_) => wrap_typeengine!(py, PyBigUnsignedType, PyBigUnsignedType),
+            sea_query::Value::BigUnsigned(_) => {
+                wrap_typeengine!(py, PyBigUnsignedType, PyBigUnsignedType)
+            }
             sea_query::Value::Float(_) => wrap_typeengine!(py, PyFloatType, PyFloatType),
             sea_query::Value::Double(_) => wrap_typeengine!(py, PyDoubleType, PyDoubleType),
-            sea_query::Value::String(_) => wrap_typeengine!(py, PyStringType(None), PyStringType(None)),
+            sea_query::Value::String(_) => {
+                wrap_typeengine!(py, PyStringType(None), PyStringType(None))
+            }
             sea_query::Value::Char(_) => wrap_typeengine!(py, PyCharType(None), PyCharType(None)),
             sea_query::Value::Bytes(_) => wrap_typeengine!(py, PyBlobType, PyBlobType),
             sea_query::Value::Json(_) => wrap_typeengine!(py, PyJSONType, PyJSONType),
             sea_query::Value::ChronoDate(_) => wrap_typeengine!(py, PyDateType, PyDateType),
             sea_query::Value::ChronoTime(_) => wrap_typeengine!(py, PyTimeType, PyTimeType),
-            sea_query::Value::ChronoDateTime(_) => wrap_typeengine!(py, PyDateTimeType, PyDateTimeType),
-            sea_query::Value::ChronoDateTimeUtc(_) => wrap_typeengine!(py, PyDateTimeType, PyDateTimeType),
-            sea_query::Value::ChronoDateTimeLocal(_) => wrap_typeengine!(py, PyDateTimeType, PyDateTimeType),
+            sea_query::Value::ChronoDateTime(_) => {
+                wrap_typeengine!(py, PyDateTimeType, PyDateTimeType)
+            }
+            sea_query::Value::ChronoDateTimeUtc(_) => {
+                wrap_typeengine!(py, PyDateTimeType, PyDateTimeType)
+            }
+            sea_query::Value::ChronoDateTimeLocal(_) => {
+                wrap_typeengine!(py, PyDateTimeType, PyDateTimeType)
+            }
             sea_query::Value::ChronoDateTimeWithTimeZone(_) => {
                 wrap_typeengine!(py, PyDateTimeType, PyDateTimeType)
             }
             sea_query::Value::Uuid(_) => wrap_typeengine!(py, PyUUIDType, PyUUIDType),
-            sea_query::Value::Decimal(_) => wrap_typeengine!(py, PyDecimalType(None), PyDecimalType(None)),
+            sea_query::Value::Decimal(_) => {
+                wrap_typeengine!(py, PyDecimalType(None), PyDecimalType(None))
+            }
             sea_query::Value::Array(_, Some(nested)) => {
                 let nested_type_engine = {
-                    if nested.len() == 0 {
+                    if nested.is_empty() {
                         // Vec is empty so the nested type is not important
                         wrap_typeengine!(py, PyBooleanType, PyBooleanType)
                     } else {
@@ -254,9 +276,13 @@ impl TypeEngine {
                     PyArrayType(nested_type_engine.clone())
                 )
             }
-            sea_query::Value::Vector(_) => wrap_typeengine!(py, PyVectorType(None), PyVectorType(None)),
+            sea_query::Value::Vector(_) => {
+                wrap_typeengine!(py, PyVectorType(None), PyVectorType(None))
+            }
             sea_query::Value::IpNetwork(_) => wrap_typeengine!(py, PyINETType, PyINETType),
-            sea_query::Value::MacAddress(_) => wrap_typeengine!(py, PyMacAddressType, PyMacAddressType),
+            sea_query::Value::MacAddress(_) => {
+                wrap_typeengine!(py, PyMacAddressType, PyMacAddressType)
+            }
         }
     }
 
@@ -270,7 +296,11 @@ impl NativeSQLType for TypeEngine {
         self.0.to_sea_query_column_type()
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         self.0.validate(py, ptr)
     }
 

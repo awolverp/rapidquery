@@ -30,8 +30,11 @@ implement_pyclass! {
 
 /// Import json module only once
 #[inline(always)]
-pub fn import_json_module(py: pyo3::Python<'_>) -> pyo3::PyResult<&pyo3::Bound<'_, pyo3::types::PyModule>> {
-    static JSON_CLS: std::sync::OnceLock<pyo3::Py<pyo3::types::PyModule>> = std::sync::OnceLock::new();
+pub fn import_json_module(
+    py: pyo3::Python<'_>,
+) -> pyo3::PyResult<&pyo3::Bound<'_, pyo3::types::PyModule>> {
+    static JSON_CLS: std::sync::OnceLock<pyo3::Py<pyo3::types::PyModule>> =
+        std::sync::OnceLock::new();
 
     let json = JSON_CLS.get_or_try_init(|| py.import("json").map(|x| x.unbind()));
     json.map(|x| x.bind(py))
@@ -113,7 +116,8 @@ unsafe fn _serialize_function(
 
         pyo3::ffi::Py_DECREF(serialized);
 
-        let val = val.map_err(|x| pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(x.to_string()))?;
+        let val =
+            val.map_err(|x| pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(x.to_string()))?;
 
         Ok(sea_query::Value::Json(Some(Box::new(val))))
     }
@@ -123,7 +127,7 @@ unsafe fn _serialize_function(
 #[cfg_attr(feature = "optimize", optimize(speed))]
 unsafe fn _deserialize_function(
     py: pyo3::Python,
-    value: &Box<serde_json::Value>,
+    value: &serde_json::Value,
 ) -> pyo3::PyResult<*mut pyo3::ffi::PyObject> {
     let encoded = serde_json::to_vec(value)
         .map_err(|x| pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(x.to_string()))?;
@@ -139,7 +143,11 @@ impl NativeSQLType for PyJSONType {
         sea_query::ColumnType::Json
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         _validate_json_object(py, ptr)
     }
 
@@ -169,7 +177,11 @@ impl NativeSQLType for PyJSONBinaryType {
         sea_query::ColumnType::JsonBinary
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         _validate_json_object(py, ptr)
     }
 

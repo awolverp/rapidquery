@@ -159,7 +159,7 @@ macro_rules! typeerror {
     ) => {{
         #[allow(unused_unsafe)]
         pyo3::exceptions::PyTypeError::new_err(
-            format!($message, unsafe { $crate::macros::get_type_name($py, $ptr) })
+            format!($message, unsafe { $crate::utils::get_type_name($py, $ptr) })
         )
     }};
 
@@ -173,7 +173,7 @@ macro_rules! typeerror {
             format!(
                 $message,
                 $(
-                    unsafe { $crate::macros::get_type_name($py, $ptr) },
+                    unsafe { $crate::utils::get_type_name($py, $ptr) },
                 )*
             )
         )
@@ -188,4 +188,52 @@ macro_rules! invalid_value_for_deserialize {
             $expected, $value
         )))
     };
+}
+
+pub enum OptionalParam<'a> {
+    Undefined,
+    Defined(pyo3::Bound<'a, pyo3::PyAny>),
+}
+
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for OptionalParam<'py> {
+    type Error = pyo3::PyErr;
+
+    fn extract(obj: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> Result<Self, Self::Error> {
+        Ok(Self::Defined(obj.to_owned()))
+    }
+}
+
+pub trait ToSeaQuery<Output> {
+    /// Convert to sea_query structures.
+    fn to_sea_query<'a>(&self, py: pyo3::Python<'a>) -> Output;
+}
+
+#[inline]
+pub fn get_schema_builder(
+    name: impl AsRef<str>,
+) -> pyo3::PyResult<Box<dyn sea_query::SchemaBuilder>> {
+    let name = name.as_ref();
+
+    if name == "sqlite" {
+        Ok(Box::new(sea_query::SqliteQueryBuilder))
+    } else if name == "mysql" {
+        Ok(Box::new(sea_query::MysqlQueryBuilder))
+    } else if name == "postgresql" || name == "postgres" {
+        Ok(Box::new(sea_query::PostgresQueryBuilder))
+    } else {
+        Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "invalid backend value, got {name}"
+        )))
+    }
+}
+
+#[macro_export]
+macro_rules! build_schema_statement {
+    ($backend:expr, $stmt:expr) => {{
+        let builder = $crate::utils::get_schema_builder($backend)?;
+        let assert_unwind = std::panic::AssertUnwindSafe(|| $stmt.build_any(&*builder));
+
+        std::panic::catch_unwind(assert_unwind)
+            .map_err(|_| pyo3::PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("build failed"))
+    }};
 }

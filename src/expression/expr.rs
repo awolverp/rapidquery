@@ -10,7 +10,7 @@ implement_pyclass! {
     /// The class automatically handles SQL injection protection and proper quoting
     /// when building the final SQL statement.
     ///
-    /// Note: `Expr` is immutable, so by calling each method you will give a new instance
+    /// NOTE: `Expr` is immutable, so by calling each method you will give a new instance
     /// of it which includes new change(s).
     #[derive(Debug, Clone)]
     pub struct [] PyExpr as "Expr" (pub sea_query::SimpleExpr);
@@ -35,7 +35,7 @@ impl PyExpr {
                 let casted_value = value.cast_unchecked::<crate::value::PyValue>();
                 let unbound = casted_value.get();
 
-                return Ok(Self(unbound.0.lock().to_simple_expr(py)?));
+                return Ok(Self(unbound.0.lock().simple_expr(py)?));
             }
 
             if type_ptr == crate::typeref::ASTERISK_TYPE {
@@ -82,11 +82,11 @@ impl PyExpr {
 
             let type_engine = match type_engine {
                 Some(x) => x,
-                None => crate::sqltypes::TypeEngine::infer_pyobject(&value)?,
+                None => crate::sqltypes::TypeEngine::infer_pyobject(value)?,
             };
 
-            let result =
-                crate::value::ValueState::from_pyobject(type_engine, value.clone())?.to_simple_expr(py)?;
+            let result = crate::value::ValueState::from_pyobject(type_engine, value.clone())?
+                .simple_expr(py)?;
 
             Ok(Self(result))
         }
@@ -110,7 +110,7 @@ impl TryFrom<&pyo3::Bound<'_, pyo3::PyAny>> for PyExpr {
 #[pyo3::pymethods]
 impl PyExpr {
     #[new]
-    #[pyo3(signature = (value, /), text_signature="(value: object, /)")]
+    #[pyo3(signature = (value, /))]
     fn __new__(value: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<Self> {
         Self::try_from(value)
     }
@@ -131,21 +131,21 @@ impl PyExpr {
                 let casted_value = value.cast_unchecked::<crate::value::PyValue>();
                 let unbound = casted_value.get();
 
-                return Ok(Self(unbound.0.lock().to_simple_expr(value.py())?));
+                return Ok(Self(unbound.0.lock().simple_expr(value.py())?));
             }
 
             let type_engine = {
                 if let Some(sql_type) = sql_type {
                     TypeEngine::new(&sql_type)?
                 } else {
-                    TypeEngine::infer_pyobject(&value)?
+                    TypeEngine::infer_pyobject(value)?
                 }
             };
 
             let result = crate::value::ValueState::from_pyobject(type_engine, value.clone())?
-                .to_simple_expr(value.py())?;
+                .simple_expr(value.py())?;
 
-            return Ok(Self(result));
+            Ok(Self(result))
         }
     }
 
@@ -274,7 +274,10 @@ impl PyExpr {
     /// Create an equality comparison expression.
     ///
     /// @signature (self, other: object) -> typing.Self
-    fn __eq__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    fn __eq__<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        other: &pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::eq(slf.0.clone(), other.0).into())
     }
@@ -282,7 +285,10 @@ impl PyExpr {
     /// Create an inequality comparison expression.
     ///
     /// @signature (self, other: object) -> typing.Self
-    fn __ne__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    fn __ne__<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        other: &pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::ne(slf.0.clone(), other.0).into())
     }
@@ -290,7 +296,10 @@ impl PyExpr {
     /// Create a greater-than comparison expression.
     ///
     /// @signature (self, other: object) -> typing.Self
-    fn __gt__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    fn __gt__<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        other: &pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::gt(slf.0.clone(), other.0).into())
     }
@@ -298,7 +307,10 @@ impl PyExpr {
     /// Create a greater-than-or-equal comparison expression.
     ///
     /// @signature (self, other: object) -> typing.Self
-    fn __ge__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    fn __ge__<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        other: &pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::gte(slf.0.clone(), other.0).into())
     }
@@ -306,7 +318,10 @@ impl PyExpr {
     /// Create a less-than comparison expression.
     ///
     /// @signature (self, other: object) -> typing.Self
-    fn __lt__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    fn __lt__<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        other: &pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::lt(slf.0.clone(), other.0).into())
     }
@@ -314,7 +329,10 @@ impl PyExpr {
     /// Create a less-than-or-equal comparison expression.
     ///
     /// @signature (self, other: object) -> typing.Self
-    fn __le__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    fn __le__<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        other: &pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::lte(slf.0.clone(), other.0).into())
     }
@@ -322,7 +340,10 @@ impl PyExpr {
     /// Create an addition expression.
     ///
     /// @signature (self, other: object) -> typing.Self
-    fn __add__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    fn __add__<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        other: &pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::add(slf.0.clone(), other.0).into())
     }
@@ -330,7 +351,10 @@ impl PyExpr {
     /// Create an subtraction expression.
     ///
     /// @signature (self, other: object) -> typing.Self
-    fn __sub__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    fn __sub__<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        other: &pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::sub(slf.0.clone(), other.0).into())
     }
@@ -338,7 +362,10 @@ impl PyExpr {
     /// Create a logical AND expression.
     ///
     /// @signature (self, other: object) -> typing.Self
-    fn __and__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    fn __and__<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        other: &pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::and(slf.0.clone(), other.0).into())
     }
@@ -351,19 +378,28 @@ impl PyExpr {
     /// Create a logical OR expression.
     ///
     /// @signature (self, other: object) -> typing.Self
-    fn __or__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    fn __or__<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        other: &pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::or(slf.0.clone(), other.0).into())
     }
 
     /// @signature (self, other: object) -> typing.Self
-    fn bit_and<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    fn bit_and<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        other: &pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::bit_and(slf.0.clone(), other.0).into())
     }
 
     /// @signature (self, other: object) -> typing.Self
-    fn bit_or<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    fn bit_or<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        other: &pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::bit_or(slf.0.clone(), other.0).into())
     }
@@ -382,7 +418,10 @@ impl PyExpr {
     /// Create an IS comparison expression.
     ///
     /// @signature (self, other: object) -> typing.Self
-    fn is_<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    fn is_<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        other: &pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::is(slf.0.clone(), other.0).into())
     }
@@ -390,7 +429,10 @@ impl PyExpr {
     /// Create an IS NOT comparison expression.
     ///
     /// @signature (self, other: object) -> typing.Self
-    fn is_not<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    fn is_not<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        other: &pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::is_not(slf.0.clone(), other.0).into())
     }
@@ -434,7 +476,10 @@ impl PyExpr {
     /// Create a modulo expression.
     ///
     /// @signature (self, other: object) -> typing.Self
-    fn __mod__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    fn __mod__<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        other: &pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::modulo(slf.0.clone(), other.0).into())
     }
@@ -442,7 +487,10 @@ impl PyExpr {
     /// Create a multiplication expression.
     ///
     /// @signature (self, other: object) -> typing.Self
-    fn __mul__<'a>(slf: pyo3::PyRef<'a, Self>, other: &pyo3::Bound<'a, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    fn __mul__<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        other: &pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::mul(slf.0.clone(), other.0).into())
     }
@@ -477,7 +525,7 @@ impl PyExpr {
         Ok(sea_query::ExprTrait::not_between(slf.0.clone(), a.0, b.0).into())
     }
 
-    fn __repr__(&self) -> String {
+    pub fn __repr__(&self) -> String {
         format!("<Expr {:?}>", self.0)
     }
 }

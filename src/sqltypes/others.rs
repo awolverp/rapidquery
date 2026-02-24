@@ -72,7 +72,11 @@ impl NativeSQLType for PyDecimalType {
         sea_query::ColumnType::Decimal(self.0)
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         if pyo3::ffi::PyLong_CheckExact(ptr) == 1 {
             let mut has_overflow: i32 = 0;
             let _ = pyo3::ffi::PyLong_AsLongLongAndOverflow(ptr, &mut has_overflow);
@@ -91,12 +95,14 @@ impl NativeSQLType for PyDecimalType {
         }
 
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
-            let val = super::primitives::_serialize_string(py, ptr)
-                .map_err(|x| pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(x.to_string()))?;
+            let val = super::primitives::_serialize_string(py, ptr).map_err(|x| {
+                pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(x.to_string())
+            })?;
 
             rust_decimal::Decimal::from_str_exact(&val).or_else(|_| {
-                rust_decimal::Decimal::from_scientific(&val)
-                    .map_err(|x| pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(x.to_string()))
+                rust_decimal::Decimal::from_scientific(&val).map_err(|x| {
+                    pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(x.to_string())
+                })
             })?;
         }
 
@@ -139,13 +145,15 @@ impl NativeSQLType for PyDecimalType {
         }
 
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
-            let val = super::primitives::_serialize_string(py, ptr)
-                .map_err(|x| pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(x.to_string()))?;
+            let val = super::primitives::_serialize_string(py, ptr).map_err(|x| {
+                pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(x.to_string())
+            })?;
 
             return rust_decimal::Decimal::from_str_exact(&val)
                 .or_else(|_| {
-                    rust_decimal::Decimal::from_scientific(&val)
-                        .map_err(|x| pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(x.to_string()))
+                    rust_decimal::Decimal::from_scientific(&val).map_err(|x| {
+                        pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(x.to_string())
+                    })
                 })
                 .map(|x| sea_query::Value::Decimal(Some(Box::new(x))));
         }
@@ -156,8 +164,9 @@ impl NativeSQLType for PyDecimalType {
 
             return rust_decimal::Decimal::from_str_radix(&val, 10)
                 .or_else(|_| {
-                    rust_decimal::Decimal::from_scientific(&val)
-                        .map_err(|x| pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(x.to_string()))
+                    rust_decimal::Decimal::from_scientific(&val).map_err(|x| {
+                        pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(x.to_string())
+                    })
                 })
                 .map(|x| sea_query::Value::Decimal(Some(Box::new(x))));
         }
@@ -190,7 +199,11 @@ impl NativeSQLType for PyUUIDType {
         sea_query::ColumnType::Uuid
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         if pyo3::ffi::Py_TYPE(ptr) != crate::typeref::STD_UUID_TYPE {
             Err(typeerror!("expected uuid.UUID, got {:?}", py, ptr))
         } else {
@@ -231,7 +244,11 @@ impl NativeSQLType for PyINETType {
         sea_query::ColumnType::Inet
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         let string = super::primitives::_serialize_string(py, ptr)?;
 
         ipnetwork::Ipv4Network::from_str(&string)
@@ -274,7 +291,11 @@ impl NativeSQLType for PyMacAddressType {
         sea_query::ColumnType::MacAddr
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         let string = super::primitives::_serialize_string(py, ptr)?;
 
         mac_address::MacAddress::from_str(&string)
@@ -312,7 +333,7 @@ impl NativeSQLType for PyMacAddressType {
     }
 }
 
-const ENUM_TYPE_VALUE: &'static std::ffi::CStr = c"value";
+const ENUM_TYPE_VALUE: &std::ffi::CStr = c"value";
 
 impl NativeSQLType for PyEnumType {
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
@@ -322,7 +343,11 @@ impl NativeSQLType for PyEnumType {
         }
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         // https://github.com/ijl/orjson/blob/master/src/util.rs#L55
         if (*pyo3::ffi::Py_TYPE(ptr)).ob_base.ob_base.ob_type == crate::typeref::STD_ENUM_TYPE {
             let attribute = pyo3::ffi::PyObject_GetAttrString(ptr, ENUM_TYPE_VALUE.as_ptr());
@@ -430,7 +455,7 @@ impl PyEnumType {
     /// @signature (self) -> typing.Sequence[str]
     #[getter]
     fn variants(&self) -> Vec<String> {
-        self.variants.iter().cloned().map(|x| x.to_string()).collect()
+        self.variants.iter().map(|x| x.to_string()).collect()
     }
 
     fn __repr__(&self) -> String {

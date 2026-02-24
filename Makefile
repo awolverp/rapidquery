@@ -14,7 +14,7 @@ help:
 	@echo -e "    stubgen       Use pyo3-inspection to generate stubfiles"
 
 build-dev:
-	$(BUILD_CMD) --uv
+	UV_OFFLINE=1 $(BUILD_CMD) --uv
 
 build-prod:
 	$(BUILD_CMD) --uv --release

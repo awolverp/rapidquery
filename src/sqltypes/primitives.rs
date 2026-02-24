@@ -161,7 +161,11 @@ impl NativeSQLType for PyBooleanType {
         sea_query::ColumnType::Boolean
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         if pyo3::ffi::PyBool_Check(ptr) != 1 {
             Err(typeerror!("expected bool, got {:?}", py, ptr))
         } else {
@@ -288,8 +292,8 @@ implement_numeric_NativeSQLType!(
     "int",
     BigInteger,
     BigInt,
-    PyLong_CheckExact,
     PyLong_AsLongLong,
+    PyLong_CheckExact,
     PyFloat_CheckExact,
 );
 implement_numeric_NativeSQLType!(
@@ -415,7 +419,11 @@ impl NativeSQLType for PyTextType {
         sea_query::ColumnType::Text
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 0 {
             Err(typeerror!("expected str, got {:?}", py, ptr))
         } else {
@@ -450,7 +458,11 @@ impl NativeSQLType for PyCharType {
         sea_query::ColumnType::Char(self.0)
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 0 {
             Err(typeerror!("expected str, got {:?}", py, ptr))
         } else {
@@ -484,11 +496,15 @@ impl NativeSQLType for PyStringType {
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::String(
             self.0
-                .map_or(sea_query::StringLen::None, |x| sea_query::StringLen::N(x)),
+                .map_or(sea_query::StringLen::None, sea_query::StringLen::N),
         )
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 0 {
             Err(typeerror!("expected str, got {:?}", py, ptr))
         } else {

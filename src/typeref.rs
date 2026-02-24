@@ -16,11 +16,14 @@ pub(crate) static mut INET_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr:
 pub(crate) static mut MAC_ADDRESS_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut BOOLEAN_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut TINY_INTEGER_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut SMALL_INTEGER_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut SMALL_INTEGER_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject =
+    std::ptr::null_mut();
 pub(crate) static mut INTEGER_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut BIG_INTEGER_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut TINY_UNSIGNED_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut SMALL_UNSIGNED_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut TINY_UNSIGNED_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject =
+    std::ptr::null_mut();
+pub(crate) static mut SMALL_UNSIGNED_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject =
+    std::ptr::null_mut();
 pub(crate) static mut UNSIGNED_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut BIG_UNSIGNED_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut FLOAT_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -39,6 +42,7 @@ pub(crate) static mut COLUMN_REF_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::
 pub(crate) static mut FUNC_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut TABLE_NAME_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut INDEX_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
 // Python standard libraries types
 pub(crate) static mut STD_DECIMAL_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -48,7 +52,9 @@ pub(crate) static mut STD_DATE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::nu
 pub(crate) static mut STD_TIME_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut STD_ENUM_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
-unsafe fn get_type_object_for<T: pyo3::PyTypeInfo>(py: pyo3::Python) -> *mut pyo3::ffi::PyTypeObject {
+unsafe fn get_type_object_for<T: pyo3::PyTypeInfo>(
+    py: pyo3::Python,
+) -> *mut pyo3::ffi::PyTypeObject {
     T::type_object_raw(py)
 }
 
@@ -116,6 +122,7 @@ fn _initialize_typeref(py: pyo3::Python) {
             crate::expression::PyExpr => EXPR_TYPE,
             crate::expression::PyFunc => FUNC_TYPE,
             crate::column::PyColumn => COLUMN_TYPE,
+            crate::index::PyIndexColumn => INDEX_COLUMN_TYPE,
         );
 
         STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");

@@ -9,13 +9,13 @@
 #![feature(once_cell_try)]
 
 #[macro_use]
-mod macros;
+mod utils;
 
 mod column;
 mod common;
 mod expression;
 mod foreign_key;
-mod parameters;
+mod index;
 mod sqltypes;
 mod typeref;
 mod value;
@@ -141,36 +141,26 @@ mod _lib {
     #[pymodule_export]
     use crate::foreign_key::PyForeignKey;
 
-    /// @constant
+    // index
+    #[pymodule_export]
+    use crate::index::PyIndex;
+    #[pymodule_export]
+    use crate::index::PyIndexColumn;
+
     #[pymodule_export]
     const ASTERISK: Py_AsteriskType = Py_AsteriskType;
-
-    /// @constant
-    #[pymodule_export]
-    const COLUMN_OPT_PRIMARY_KEY: u8 = crate::column::COLUMN_OPT_PRIMARY_KEY;
-
-    /// @constant
-    #[pymodule_export]
-    const COLUMN_OPT_UNIQUE_KEY: u8 = crate::column::COLUMN_OPT_UNIQUE_KEY;
-
-    /// @constant
-    #[pymodule_export]
-    const COLUMN_OPT_NULLABLE: u8 = crate::column::COLUMN_OPT_NULLABLE;
-
-    /// @constant
-    #[pymodule_export]
-    const COLUMN_OPT_AUTO_INCREMENT: u8 = crate::column::COLUMN_OPT_AUTO_INCREMENT;
-
-    /// @constant
-    #[pymodule_export]
-    const COLUMN_OPT_STORED_GENERATED: u8 = crate::column::COLUMN_OPT_STORED_GENERATED;
 
     #[pymodule_init]
     #[cold]
     fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
         m.add(
             "__stub_imports__",
-            vec!["import decimal", "import uuid", "import datetime", "import enum"],
+            vec![
+                "import decimal",
+                "import uuid",
+                "import datetime",
+                "import enum",
+            ],
         )?;
 
         crate::typeref::initialize_typeref(m.py());

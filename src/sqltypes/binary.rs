@@ -58,7 +58,9 @@ implement_pyclass! {
 }
 
 #[inline]
-unsafe fn _serialize_function(object: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<sea_query::Value> {
+unsafe fn _serialize_function(
+    object: *mut pyo3::ffi::PyObject,
+) -> pyo3::PyResult<sea_query::Value> {
     let buffer = pyo3::ffi::PyBytes_AsString(object) as *const u8;
     let size = pyo3::ffi::PyBytes_Size(object) as usize;
 
@@ -70,7 +72,10 @@ unsafe fn _serialize_function(object: *mut pyo3::ffi::PyObject) -> pyo3::PyResul
 }
 
 #[inline]
-unsafe fn _deserialize_function(py: pyo3::Python, value: &[u8]) -> pyo3::PyResult<*mut pyo3::ffi::PyObject> {
+unsafe fn _deserialize_function(
+    py: pyo3::Python,
+    value: &[u8],
+) -> pyo3::PyResult<*mut pyo3::ffi::PyObject> {
     let pyptr = pyo3::ffi::PyBytes_FromStringAndSize(std::ptr::null(), value.len() as isize);
 
     if pyptr.is_null() {
@@ -81,7 +86,7 @@ unsafe fn _deserialize_function(py: pyo3::Python, value: &[u8]) -> pyo3::PyResul
     debug_assert!(!buffer.is_null());
 
     let mutable = std::slice::from_raw_parts_mut(buffer, value.len());
-    mutable.copy_from_slice(&value);
+    mutable.copy_from_slice(value);
 
     Ok(pyptr)
 }
@@ -92,7 +97,11 @@ impl NativeSQLType for PyBlobType {
         sea_query::ColumnType::Blob
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         if pyo3::ffi::PyBytes_CheckExact(ptr) != 0 {
             Err(typeerror!("expected bytes, got {:?}", py, ptr))
         } else {
@@ -127,7 +136,11 @@ impl NativeSQLType for PyBinaryType {
         sea_query::ColumnType::Binary(self.0)
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         if pyo3::ffi::PyBytes_CheckExact(ptr) != 0 {
             Err(typeerror!("expected bytes, got {:?}", py, ptr))
         } else {
@@ -159,10 +172,17 @@ impl NativeSQLType for PyBinaryType {
 impl NativeSQLType for PyVarBinaryType {
     #[inline(always)]
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
-        sea_query::ColumnType::VarBinary(self.0.map_or(sea_query::StringLen::None, sea_query::StringLen::N))
+        sea_query::ColumnType::VarBinary(
+            self.0
+                .map_or(sea_query::StringLen::None, sea_query::StringLen::N),
+        )
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         if pyo3::ffi::PyBytes_CheckExact(ptr) != 0 {
             Err(typeerror!("expected bytes, got {:?}", py, ptr))
         } else {
@@ -197,7 +217,11 @@ impl NativeSQLType for PyBitType {
         sea_query::ColumnType::Bit(self.0)
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         if pyo3::ffi::PyBytes_CheckExact(ptr) != 0 {
             Err(typeerror!("expected bytes, got {:?}", py, ptr))
         } else {
@@ -232,7 +256,11 @@ impl NativeSQLType for PyVarBitType {
         sea_query::ColumnType::VarBit(self.0)
     }
 
-    unsafe fn validate(&self, py: pyo3::Python, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<()> {
+    unsafe fn validate(
+        &self,
+        py: pyo3::Python,
+        ptr: *mut pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()> {
         if pyo3::ffi::PyBytes_CheckExact(ptr) != 0 {
             Err(typeerror!("expected bytes, got {:?}", py, ptr))
         } else {

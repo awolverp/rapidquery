@@ -8,8 +8,9 @@ understanding and generating documents.
 - Uses `@return` (or `@signature`) tag in docstring to determine return type; but can automatically detect return
   type on special methods.
 - Detects @typing.final
-- Uses `__stub_imports__` attribute on module to detect imports
-- Uses `@readonly` to detect a readonly property
+- Uses `__stub_imports__` attribute on module to detect import
+- Uses `@setter` tag to understand that a property has setter.
+- Uses `@alias` tag to determine type aliases.
 """
 
 import dataclasses
@@ -72,6 +73,14 @@ class Docstring:
     @setter int
     """
 
+    aliases: list[str] = dataclasses.field(default_factory=list)
+    """
+    Type aliases.
+
+    Usage:
+    @alias TypeName = int | str
+    """
+
     @classmethod
     def parse(
         cls,
@@ -96,7 +105,7 @@ class Docstring:
 
         for line in docstring.splitlines():
             if pending_signature:
-                result.signature += line  # type: ignore
+                result.signature += line.strip()  # type: ignore
                 pending_signature = "->" not in result.signature and result.signature[-1] != ")"
                 continue
 
@@ -107,23 +116,40 @@ class Docstring:
                 continue
 
             tagname, tagval = match.group(1), match.group(2)
+            if tagval:
+                tagval = tagval.strip()
 
             if tagname == "extends":
                 result.extends.extend(_split_tag_values(tagval))
 
             elif tagname == "return":
-                if tagval:
-                    result.return_type = tagval.strip()
+                if not tagval:
+                    continue
+
+                result.return_type = tagval
 
             elif tagname == "signature":
-                if tagval:
-                    result.signature = tagval.strip()
-                    pending_signature = (
-                        "->" not in result.signature and result.signature[-1] != ")"  # type: ignore
-                    )
+                if not tagval:
+                    continue
+
+                result.signature = tagval
+                pending_signature = (
+                    "->" not in result.signature and result.signature[-1] != ")"  # type: ignore
+                )
 
             elif tagname == "setter":
-                result.setter_type = tagval.strip() if tagval else "Incomplete"
+                result.setter_type = tagval if tagval else "Incomplete"
+
+            elif tagname == "alias":
+                if not tagval:
+                    continue
+
+                # Append `: typing.TypeAlias` to tagval
+                position = tagval.find("=")
+                if position == -1:
+                    raise NotImplementedError(f"Invalid @alias tag detected. @alias {tagval}")
+
+                result.aliases.append(tagval[:position] + ": typing.TypeAlias" + tagval[position:])
 
         # Strip leading/trailing blank lines from the prose portion
         document = "\n".join(clean_document).strip()
@@ -576,7 +602,7 @@ class StubGenerator:
             "import typing",
             "from _typeshed import Incomplete",
         ]
-        self._typevar_lines: list[str] = []
+        self._types_lines: list[str] = []
         self._body_lines: list[str] = []
 
         # special members
@@ -604,7 +630,11 @@ class StubGenerator:
 
     def _append_typevars(self, names: typing.Iterable[str]) -> None:
         for name in names:
-            self._typevar_lines.append("%s = typing.TypeVar(%r)" % (name, name))
+            self._types_lines.append("%s = typing.TypeVar(%r)" % (name, name))
+
+    def _append_typealiases(self, aliases: typing.Iterable[str]) -> None:
+        for alias in aliases:
+            self._types_lines.append("%s" % alias)
 
     def _visit_module(self, module: types.ModuleType) -> None:
         for member_key, member_val in inspect.getmembers(module):
@@ -652,6 +682,7 @@ class StubGenerator:
         impl = Implementation.parse(function, custom_signature, custom_return_type)
 
         self._append_typevars(impl.typevars)
+        self._append_typealiases(impl.docstring.aliases)
 
         # Append newline only for formatting
         self._append_body_lines("")
@@ -706,6 +737,7 @@ class StubGenerator:
         impl = Implementation.parse(class_)
 
         self._append_typevars(impl.typevars)
+        self._append_typealiases(impl.docstring.aliases)
 
         # Append newline only for formatting
         self._append_body_lines("")
@@ -794,7 +826,7 @@ class StubGenerator:
 
         content += "\n".join(dict.fromkeys(self._import_lines))
         content += "\n\n"
-        content += "\n".join(dict.fromkeys(self._typevar_lines))
+        content += "\n".join(dict.fromkeys(self._types_lines))
         content += "\n\n"
         content += "\n".join(self._body_lines)
 

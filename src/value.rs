@@ -7,8 +7,6 @@ implement_state_pyclass! {
     /// This class handles validation, adaptation, and conversion between different
     /// type systems used in the application stack.
     ///
-    /// NOTE: this class is immutable and frozen.
-    ///
     /// It can automatically detects the type of your value and selects appropriate Rust and SQL types.
     /// For example:
     /// - Python `int` becomes `BIGINT` SQL type (`BigIntegerType`)
@@ -16,6 +14,8 @@ implement_state_pyclass! {
     /// - Python `float` becomes `DOUBLE` SQL type (`DoubleType`)
     ///
     /// However, for more accurate type selection, it's recommended to use the `sql_type` parameter.
+    ///
+    /// NOTE: this class is immutable and frozen.
     ///
     /// @extends typing.Generic[I,O]
     /// @signature (value: I | None, sql_type: SQLTypeAbstract[I, O] | None = ...)
@@ -40,7 +40,10 @@ impl ValueState {
         }
     }
 
-    pub fn from_pyobject(sql_type: TypeEngine, object: pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    pub fn from_pyobject(
+        sql_type: TypeEngine,
+        object: pyo3::Bound<'_, pyo3::PyAny>,
+    ) -> pyo3::PyResult<Self> {
         unsafe {
             if pyo3::ffi::Py_IsNone(object.as_ptr()) == 0 {
                 sql_type.validate(object.py(), object.as_ptr())?;
@@ -53,11 +56,14 @@ impl ValueState {
         }
     }
 
-    pub fn from_sea_query_value(sql_type: TypeEngine, value: sea_query::Value) -> pyo3::PyResult<Self> {
+    pub fn from_sea_query_value(
+        sql_type: TypeEngine,
+        value: sea_query::Value,
+    ) -> pyo3::PyResult<Self> {
         unsafe { Ok(Self::new_unchecked(sql_type, Some(value), None)) }
     }
 
-    pub fn to_simple_expr(&mut self, py: pyo3::Python) -> pyo3::PyResult<sea_query::SimpleExpr> {
+    pub fn simple_expr(&mut self, py: pyo3::Python) -> pyo3::PyResult<sea_query::SimpleExpr> {
         if let Some(x) = &self.serialized {
             return Ok(sea_query::SimpleExpr::Value(x.clone()));
         }
@@ -109,7 +115,7 @@ impl PyValue {
         };
 
         let result = ValueState::from_pyobject(type_engine, value)?;
-        return Ok(Self::from(result));
+        Ok(Self::from(result))
     }
 
     /// @signature (self) -> SQLTypeAbstract[I, O]

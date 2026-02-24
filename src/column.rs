@@ -1,7 +1,7 @@
 use sea_query::IntoIden;
 
-use crate::parameters::OptionalParam;
 use crate::sqltypes::TypeEngine;
+use crate::utils::OptionalParam;
 
 implement_state_pyclass! {
     /// Defines a table column with its properties and constraints.
@@ -38,12 +38,6 @@ implement_state_pyclass! {
     }
 }
 
-pub const COLUMN_OPT_PRIMARY_KEY: u8 = 1 << 0;
-pub const COLUMN_OPT_UNIQUE_KEY: u8 = 1 << 1;
-pub const COLUMN_OPT_NULLABLE: u8 = 1 << 2;
-pub const COLUMN_OPT_AUTO_INCREMENT: u8 = 1 << 3;
-pub const COLUMN_OPT_STORED_GENERATED: u8 = 1 << 4;
-
 impl ColumnState {
     #[inline]
     pub fn to_sea_query_column_ref(&self) -> sea_query::ColumnRef {
@@ -53,19 +47,36 @@ impl ColumnState {
 
 #[pyo3::pymethods]
 impl PyColumn {
+    #[classattr]
+    pub const OPT_PRIMARY_KEY: u8 = 1 << 0;
+
+    #[classattr]
+    pub const OPT_UNIQUE_KEY: u8 = 1 << 1;
+
+    #[classattr]
+    pub const OPT_NULLABLE: u8 = 1 << 2;
+
+    #[classattr]
+    pub const OPT_AUTO_INCREMENT: u8 = 1 << 3;
+
+    #[classattr]
+    pub const OPT_STORED_GENERATED: u8 = 1 << 4;
+
     #[new]
-    #[pyo3(
-        signature=(
-            name,
-            r#type,
-            options=0u8,
-            *,
-            extra=None,
-            comment=None,
-            default=OptionalParam::Undefined,
-            generated=OptionalParam::Undefined,
+    #[
+        pyo3(
+            signature=(
+                name,
+                r#type,
+                options=0u8,
+                *,
+                extra=None,
+                comment=None,
+                default=OptionalParam::Undefined,
+                generated=OptionalParam::Undefined,
+            )
         )
-    )]
+    ]
     fn __new__(
         name: String,
         r#type: &pyo3::Bound<'_, pyo3::PyAny>,
@@ -134,44 +145,44 @@ impl PyColumn {
         self.0.lock().options = value;
     }
 
-    /// Shorthand for `self.options & COLUMN_OPT_PRIMARY_KEY > 0`.
+    /// Shorthand for `self.options & OPT_PRIMARY_KEY > 0`.
     ///
     /// @signature (self) -> bool
     #[getter]
     fn is_primary_key(&self) -> bool {
-        self.0.lock().options & COLUMN_OPT_PRIMARY_KEY > 0
+        self.0.lock().options & Self::OPT_PRIMARY_KEY > 0
     }
 
-    /// Shorthand for `self.options & COLUMN_OPT_UNIQUE_KEY > 0`.
+    /// Shorthand for `self.options & OPT_UNIQUE_KEY > 0`.
     ///
     /// @signature (self) -> bool
     #[getter]
     fn is_unique_key(&self) -> bool {
-        self.0.lock().options & COLUMN_OPT_UNIQUE_KEY > 0
+        self.0.lock().options & Self::OPT_UNIQUE_KEY > 0
     }
 
-    /// Shorthand for `self.options & COLUMN_OPT_AUTO_INCREMENT > 0`.
+    /// Shorthand for `self.options & OPT_AUTO_INCREMENT > 0`.
     ///
     /// @signature (self) -> bool
     #[getter]
     fn is_auto_increment(&self) -> bool {
-        self.0.lock().options & COLUMN_OPT_AUTO_INCREMENT > 0
+        self.0.lock().options & Self::OPT_AUTO_INCREMENT > 0
     }
 
-    /// Shorthand for `self.options & COLUMN_OPT_NULLABLE > 0`.
+    /// Shorthand for `self.options & OPT_NULLABLE > 0`.
     ///
     /// @signature (self) -> bool
     #[getter]
     fn is_nullable(&self) -> bool {
-        self.0.lock().options & COLUMN_OPT_NULLABLE > 0
+        self.0.lock().options & Self::OPT_NULLABLE > 0
     }
 
-    /// Shorthand for `self.options & COLUMN_OPT_STORED_GENERATED > 0`.
+    /// Shorthand for `self.options & OPT_STORED_GENERATED > 0`.
     ///
     /// @signature (self) -> bool
     #[getter]
     fn is_stored_generated(&self) -> bool {
-        self.0.lock().options & COLUMN_OPT_STORED_GENERATED > 0
+        self.0.lock().options & Self::OPT_STORED_GENERATED > 0
     }
 
     /// Extra SQL specifications for this column.
@@ -262,20 +273,20 @@ impl PyColumn {
 
         write!(s, "<Column[{}] {:?}", lock.r#type, lock.name).unwrap();
 
-        if lock.options & COLUMN_OPT_PRIMARY_KEY > 0 {
-            write!(s, " primary_key").unwrap();
+        if lock.options & Self::OPT_PRIMARY_KEY > 0 {
+            write!(s, " OPT_PRIMARY_KEY").unwrap();
         }
-        if lock.options & COLUMN_OPT_UNIQUE_KEY > 0 {
-            write!(s, " unique_key").unwrap();
+        if lock.options & Self::OPT_UNIQUE_KEY > 0 {
+            write!(s, " OPT_UNIQUE_KEY").unwrap();
         }
-        if lock.options & COLUMN_OPT_AUTO_INCREMENT > 0 {
-            write!(s, " auto_increment").unwrap();
+        if lock.options & Self::OPT_AUTO_INCREMENT > 0 {
+            write!(s, " OPT_AUTO_INCREMENT").unwrap();
         }
-        if lock.options & COLUMN_OPT_NULLABLE > 0 {
-            write!(s, " nullable").unwrap();
+        if lock.options & Self::OPT_NULLABLE > 0 {
+            write!(s, " OPT_NULLABLE").unwrap();
         }
-        if lock.options & COLUMN_OPT_STORED_GENERATED > 0 {
-            write!(s, " stored_generated").unwrap();
+        if lock.options & Self::OPT_STORED_GENERATED > 0 {
+            write!(s, " OPT_STORED_GENERATED").unwrap();
         }
         if let Some(x) = &lock.extra {
             write!(s, " extra={x:?}").unwrap();

@@ -11,6 +11,11 @@ import enum
 
 I = typing.TypeVar("I")
 O = typing.TypeVar("O")
+_ForeignKeyActions: typing.TypeAlias = typing.Literal[
+    "CASCADE", "RESTRICT", "NO ACTION", "SET DEFAULT", "SET NULL"
+]
+_IndexColumnValue: typing.TypeAlias = IndexColumn | Column | ColumnRef | str
+_IndexColumnOrder: typing.TypeAlias = typing.Literal["ASC", "DESC"]
 
 ASTERISK: typing.Final[_AsteriskType] = ...
 
@@ -200,12 +205,6 @@ class BooleanType(SQLTypeAbstract[bool, bool]):
         """
         ...
 
-COLUMN_OPT_AUTO_INCREMENT: typing.Final[int] = ...
-COLUMN_OPT_NULLABLE: typing.Final[int] = ...
-COLUMN_OPT_PRIMARY_KEY: typing.Final[int] = ...
-COLUMN_OPT_STORED_GENERATED: typing.Final[int] = ...
-COLUMN_OPT_UNIQUE_KEY: typing.Final[int] = ...
-
 @typing.final
 class CharType(SQLTypeAbstract[str, str]):
     """
@@ -270,6 +269,11 @@ class Column(typing.Generic[I, O]):
         Create and return a new object.  See help(type) for accurate signature.
         """
         ...
+    OPT_AUTO_INCREMENT: typing.Final[int] = ...
+    OPT_NULLABLE: typing.Final[int] = ...
+    OPT_PRIMARY_KEY: typing.Final[int] = ...
+    OPT_STORED_GENERATED: typing.Final[int] = ...
+    OPT_UNIQUE_KEY: typing.Final[int] = ...
 
     def __repr__(self, /) -> str:
         """Return repr(self)."""
@@ -305,27 +309,27 @@ class Column(typing.Generic[I, O]):
     def generated(self, value: Expr | None) -> None: ...
     @property
     def is_auto_increment(self) -> bool:
-        """Shorthand for `self.options & COLUMN_OPT_AUTO_INCREMENT > 0`."""
+        """Shorthand for `self.options & OPT_AUTO_INCREMENT > 0`."""
         ...
 
     @property
     def is_nullable(self) -> bool:
-        """Shorthand for `self.options & COLUMN_OPT_NULLABLE > 0`."""
+        """Shorthand for `self.options & OPT_NULLABLE > 0`."""
         ...
 
     @property
     def is_primary_key(self) -> bool:
-        """Shorthand for `self.options & COLUMN_OPT_PRIMARY_KEY > 0`."""
+        """Shorthand for `self.options & OPT_PRIMARY_KEY > 0`."""
         ...
 
     @property
     def is_stored_generated(self) -> bool:
-        """Shorthand for `self.options & COLUMN_OPT_STORED_GENERATED > 0`."""
+        """Shorthand for `self.options & OPT_STORED_GENERATED > 0`."""
         ...
 
     @property
     def is_unique_key(self) -> bool:
-        """Shorthand for `self.options & COLUMN_OPT_UNIQUE_KEY > 0`."""
+        """Shorthand for `self.options & OPT_UNIQUE_KEY > 0`."""
         ...
 
     @property
@@ -351,6 +355,8 @@ class ColumnRef:
 
     This class is used to uniquely identify columns in SQL queries, supporting
     schema-qualified and table-qualified column references.
+
+    NOTE: this class is immutable and frozen.
     """
 
     def __new__(
@@ -564,11 +570,11 @@ class Expr:
     The class automatically handles SQL injection protection and proper quoting
     when building the final SQL statement.
 
-    Note: `Expr` is immutable, so by calling each method you will give a new instance
+    NOTE: `Expr` is immutable, so by calling each method you will give a new instance
     of it which includes new change(s).
     """
 
-    def __new__(cls, value: object, /) -> typing.Self:
+    def __new__(cls, value, /) -> typing.Self:
         """
         Create and return a new object.  See help(type) for accurate signature.
         """
@@ -803,18 +809,66 @@ class ForeignKey:
 
     def __new__(
         cls,
-        from_columns: typing.Sequence[str | ColumnRef | Column],
+        from_columns: typing.Iterable[str | ColumnRef | Column],
         to_table: TableName | str,
-        to_columns: typing.Sequence[str | ColumnRef | Column],
+        to_columns: typing.Iterable[str | ColumnRef | Column],
         name: str | None = None,
         *,
-        on_delete: str | None = None,
-        on_update: str | None = None,
+        on_delete: _ForeignKeyActions | None = None,
+        on_update: _ForeignKeyActions | None = None,
     ) -> typing.Self:
         """
         Create and return a new object.  See help(type) for accurate signature.
         """
         ...
+
+    def __copy__(self) -> typing.Self: ...
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @property
+    def from_columns(self) -> typing.Sequence[str]:
+        """Key columns."""
+        ...
+    @from_columns.setter
+    def from_columns(self, value: typing.Iterable[str | Column | ColumnRef]) -> None: ...
+    @property
+    def from_table(self) -> TableName | None:
+        """Key table, if specified."""
+        ...
+    @from_table.setter
+    def from_table(self, value: TableName | None) -> None: ...
+    @property
+    def name(self) -> str:
+        """Foreign key constraint name"""
+        ...
+    @name.setter
+    def name(self, value: str) -> None: ...
+    @property
+    def on_delete(self) -> _ForeignKeyActions | None:
+        """ON DELETE action."""
+        ...
+    @on_delete.setter
+    def on_delete(self, value: _ForeignKeyActions | None) -> None: ...
+    @property
+    def on_update(self) -> _ForeignKeyActions | None:
+        """ON UPDATE action."""
+        ...
+    @on_update.setter
+    def on_update(self, value: _ForeignKeyActions | None) -> None: ...
+    @property
+    def to_columns(self) -> typing.Sequence[str]:
+        """Referencing columns."""
+        ...
+    @to_columns.setter
+    def to_columns(self, value: typing.Iterable[str | Column | ColumnRef]) -> None: ...
+    @property
+    def to_table(self) -> TableName:
+        """Referencing table."""
+        ...
+    @to_table.setter
+    def to_table(self, value: TableName) -> None: ...
 
 @typing.final
 class Func:
@@ -982,6 +1036,154 @@ class INETType(SQLTypeAbstract[str, str]):
         ...
 
 @typing.final
+class Index(SchemaStatement):
+    """
+    Represents a database index specification.
+
+    This class defines the structure and properties of a database index,
+    including column definitions, uniqueness constraints, index type,
+    and partial indexing conditions.
+
+    You can use it to generate `CREATE INDEX` SQL expressions.
+    """
+
+    def __new__(
+        cls,
+        table: TableName | str,
+        columns: typing.Iterable[_IndexColumnValue],
+        name: str | None = None,
+        options: int = 0,
+        *,
+        index_type: str | None = None,
+        where: object | None = None,
+        include: typing.Iterable[str] = (),
+    ) -> typing.Self:
+        """
+        Create and return a new object.  See help(type) for accurate signature.
+        """
+        ...
+    OPT_IF_NOT_EXISTS: typing.Final[int] = ...
+    OPT_NULLS_NOT_DISTINCT: typing.Final[int] = ...
+    OPT_PRIMARY: typing.Final[int] = ...
+    OPT_UNIQUE: typing.Final[int] = ...
+
+    def __copy__(self) -> typing.Self: ...
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @property
+    def columns(self) -> typing.Sequence[IndexColumn]:
+        """The columns that make up this index."""
+        ...
+    @columns.setter
+    def columns(self, value: typing.Iterable[_IndexColumnValue]) -> None: ...
+    @property
+    def if_not_exists(self) -> bool:
+        """Whether to use IF NOT EXISTS clause."""
+        ...
+
+    @property
+    def include(self) -> typing.Sequence[str]:
+        """Additional columns to include in the index for covering queries."""
+        ...
+    @include.setter
+    def include(self, value: typing.Iterable[str]) -> None: ...
+    @property
+    def index_type(self) -> str | None:
+        """The type/algorithm for this index."""
+        ...
+    @index_type.setter
+    def index_type(self, value: str | None) -> None: ...
+    @property
+    def name(self) -> str:
+        """Index name"""
+        ...
+    @name.setter
+    def name(self, value: str) -> None: ...
+    @property
+    def nulls_not_distinct(self) -> bool:
+        """Whether NULL values should be considered equal for uniqueness."""
+        ...
+
+    @property
+    def options(self) -> int:
+        """Index specified options."""
+        ...
+    @options.setter
+    def options(self, value: int) -> None: ...
+    @property
+    def primary(self) -> bool:
+        """Whether this is a primary key constraint."""
+        ...
+
+    @property
+    def table(self) -> TableName:
+        """The table on which to create the index."""
+        ...
+    @table.setter
+    def table(self, value: TableName | str) -> None: ...
+    def to_sql(self, backend: str, /) -> str:
+        """Build a SQL string representation."""
+        ...
+
+    @property
+    def unique(self) -> bool:
+        """Whether this is a unique constraint."""
+        ...
+
+    @property
+    def where(self) -> Expr | None:
+        """Condition for partial indexing."""
+        ...
+    @where.setter
+    def where(self, value: object | None) -> None: ...
+
+@typing.final
+class IndexColumn:
+    """
+    Defines a column within an index specification.
+
+    Represents a single column's participation in an index, including:
+    - The column name
+    - Optional prefix length (for partial indexing)
+    - Sort order (ascending or descending)
+
+    Used within `Index` to specify which columns are indexed
+    and how they should be ordered.
+
+    NOTE: this class is immutable and frozen.
+    """
+
+    def __new__(
+        cls, name: str, order: _IndexColumnOrder | None = None, prefix: int | None = None
+    ) -> typing.Self:
+        """
+        Create and return a new object.  See help(type) for accurate signature.
+        """
+        ...
+
+    def __copy__(self) -> typing.Self: ...
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @property
+    def name(self) -> str:
+        """The name of the column to include in the index."""
+        ...
+
+    @property
+    def order(self) -> _IndexColumnOrder | None:
+        """Sort order for this column."""
+        ...
+
+    @property
+    def prefix(self) -> int | None:
+        """Number of characters to index for string columns (prefix indexing)."""
+        ...
+
+@typing.final
 class IntegerType(SQLTypeAbstract[int, int]):
     """
     Standard integer column type (INTEGER/INT).
@@ -1075,6 +1277,18 @@ class MacAddressType(SQLTypeAbstract[str, str]):
 class QueryStatement:
     """Subclass of query statements."""
 
+    def build(self, backend: str, /) -> tuple[str, tuple[Value, ...]]:
+        """Build the SQL statement with parameter values."""
+        ...
+
+    def to_sql(self, backend: str, /) -> str:
+        """
+        Build a SQL string representation.
+
+        **This method is unsafe and can cause SQL injection.** use `.build()` method instead.
+        """
+        ...
+
 class SQLTypeAbstract(typing.Generic[I, O]):
     """
     Base class for all SQL column data types.
@@ -1096,6 +1310,10 @@ class SQLTypeAbstract(typing.Generic[I, O]):
 
 class SchemaStatement:
     """Subclass of schema statements."""
+
+    def to_sql(self, backend: str, /) -> str:
+        """Build a SQL string representation."""
+        ...
 
 @typing.final
 class SmallIntegerType(SQLTypeAbstract[int, int]):
@@ -1185,6 +1403,8 @@ class TableName:
 
     The class provides parsing capabilities for string representations
     and supports comparison operations.
+
+    NOTE: this class is immutable and frozen.
     """
 
     def __new__(
@@ -1437,8 +1657,6 @@ class Value(typing.Generic[I, O]):
     This class handles validation, adaptation, and conversion between different
     type systems used in the application stack.
 
-    NOTE: this class is immutable and frozen.
-
     It can automatically detects the type of your value and selects appropriate Rust and SQL types.
     For example:
     - Python `int` becomes `BIGINT` SQL type (`BigIntegerType`)
@@ -1446,6 +1664,8 @@ class Value(typing.Generic[I, O]):
     - Python `float` becomes `DOUBLE` SQL type (`DoubleType`)
 
     However, for more accurate type selection, it's recommended to use the `sql_type` parameter.
+
+    NOTE: this class is immutable and frozen.
     """
 
     def __new__(cls, value: I | None, sql_type: SQLTypeAbstract[I, O] | None = ...) -> typing.Self:

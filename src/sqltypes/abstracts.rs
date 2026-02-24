@@ -9,7 +9,11 @@ pub trait NativeSQLType {
     fn to_sql_type_name(&self) -> String {
         let mut name = String::with_capacity(10);
         let builder = sea_query::PostgresQueryBuilder;
-        sea_query::TableBuilder::prepare_column_type(&builder, &self.to_sea_query_column_type(), &mut name);
+        sea_query::TableBuilder::prepare_column_type(
+            &builder,
+            &self.to_sea_query_column_type(),
+            &mut name,
+        );
         name
     }
 
@@ -18,7 +22,11 @@ pub trait NativeSQLType {
     ///
     /// ### Safety
     /// - The `ptr` should be borrowed.
-    unsafe fn validate(&self, py: ::pyo3::Python, ptr: *mut ::pyo3::ffi::PyObject) -> pyo3::PyResult<()>;
+    unsafe fn validate(
+        &self,
+        py: ::pyo3::Python,
+        ptr: *mut ::pyo3::ffi::PyObject,
+    ) -> pyo3::PyResult<()>;
 
     /// Converts PyObject into sea_query::Value
     ///

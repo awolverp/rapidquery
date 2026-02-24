@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use pyo3::types::PyAnyMethods;
+use pyo3::types::{PyAnyMethods, PyStringMethods};
 use sea_query::IntoIden;
 
 implement_pyclass! {
@@ -26,6 +26,8 @@ implement_pyclass! {
         /// This class is used to uniquely identify columns in SQL queries, supporting
         /// schema-qualified and table-qualified column references.
         ///
+        /// NOTE: this class is immutable and frozen.
+        ///
         /// @signature (name: str | _AsteriskType, table: str | None = ..., schema: str | None = ...)
         #[derive(Debug, Clone)]
         pub struct [] PyColumnRef as "ColumnRef" {
@@ -50,6 +52,8 @@ implement_pyclass! {
         /// The class provides parsing capabilities for string representations
         /// and supports comparison operations.
         ///
+        /// NOTE: this class is immutable and frozen.
+        ///
         /// @signature (
         ///     name: str,
         ///     schema: str | None = None,
@@ -73,11 +77,48 @@ implement_pyclass! {
     )
 }
 
+#[pyo3::pymethods]
+impl PySchemaStatement {
+    /// Build a SQL string representation.
+    ///
+    /// @signature (self, backend: str, /) -> str
+    #[pyo3(signature = (backend, /))]
+    #[allow(unused_variables)]
+    fn to_sql(&self, backend: String) -> pyo3::PyResult<String> {
+        Err(pyo3::exceptions::PyNotImplementedError::new_err(()))
+    }
+}
+
+#[pyo3::pymethods]
+impl PyQueryStatement {
+    /// Build a SQL string representation.
+    ///
+    /// **This method is unsafe and can cause SQL injection.** use `.build()` method instead.
+    ///
+    /// @signature (self, backend: str, /) -> str
+    #[pyo3(signature = (backend, /))]
+    #[allow(unused_variables)]
+    fn to_sql(&self, backend: String) -> pyo3::PyResult<String> {
+        Err(pyo3::exceptions::PyNotImplementedError::new_err(()))
+    }
+
+    /// Build the SQL statement with parameter values.
+    ///
+    /// @signature (self, backend: str, /) -> tuple[str, tuple[Value, ...]]
+    #[pyo3(signature = (backend, /))]
+    #[allow(unused_variables)]
+    fn build(&self, backend: String) -> pyo3::PyResult<(String, pyo3::Py<pyo3::PyAny>)> {
+        Err(pyo3::exceptions::PyNotImplementedError::new_err(()))
+    }
+}
+
 impl sea_query::IntoColumnRef for PyColumnRef {
     fn into_column_ref(self) -> sea_query::ColumnRef {
         if let Some(name) = self.name {
             match (self.table, self.schema) {
-                (Some(table), Some(schema)) => sea_query::ColumnRef::SchemaTableColumn(schema, table, name),
+                (Some(table), Some(schema)) => {
+                    sea_query::ColumnRef::SchemaTableColumn(schema, table, name)
+                }
                 (Some(table), None) => sea_query::ColumnRef::TableColumn(table, name),
                 _ => sea_query::ColumnRef::Column(name),
             }
@@ -85,38 +126,6 @@ impl sea_query::IntoColumnRef for PyColumnRef {
             sea_query::ColumnRef::TableAsterisk(table)
         } else {
             sea_query::ColumnRef::Asterisk
-        }
-    }
-}
-
-impl From<sea_query::ColumnRef> for PyColumnRef {
-    fn from(value: sea_query::ColumnRef) -> Self {
-        match value {
-            sea_query::ColumnRef::Asterisk => Self {
-                name: None,
-                table: None,
-                schema: None,
-            },
-            sea_query::ColumnRef::TableAsterisk(table) => Self {
-                name: None,
-                table: Some(table),
-                schema: None,
-            },
-            sea_query::ColumnRef::SchemaTableColumn(schema, table, name) => Self {
-                name: Some(name),
-                table: Some(table),
-                schema: Some(schema),
-            },
-            sea_query::ColumnRef::TableColumn(table, name) => Self {
-                name: Some(name),
-                table: Some(table),
-                schema: None,
-            },
-            sea_query::ColumnRef::Column(name) => Self {
-                name: Some(name),
-                table: None,
-                schema: None,
-            },
         }
     }
 }
@@ -156,6 +165,40 @@ impl FromStr for PyColumnRef {
             table,
             schema,
         })
+    }
+}
+
+impl TryFrom<&pyo3::Bound<'_, pyo3::PyAny>> for PyColumnRef {
+    type Error = pyo3::PyErr;
+
+    fn try_from(value: &pyo3::Bound<'_, pyo3::PyAny>) -> Result<Self, Self::Error> {
+        unsafe {
+            if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::COLUMN_REF_TYPE {
+                let casted_value = value.cast_unchecked::<Self>();
+                return Ok(casted_value.get().clone());
+            }
+
+            if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::COLUMN_TYPE {
+                let casted_value = value.cast_unchecked::<crate::column::PyColumn>();
+                let get_value = casted_value.get();
+
+                return Ok(Self {
+                    name: Some(sea_query::Alias::new(&get_value.0.lock().name).into_iden()),
+                    table: None,
+                    schema: None,
+                });
+            }
+
+            if let Ok(x) = value.cast_exact::<pyo3::types::PyString>() {
+                return Self::from_str(x.to_str()?);
+            }
+
+            Err(typeerror!(
+                "expected ColumnRef, Column or str, got {:?}",
+                value.py(),
+                value.as_ptr()
+            ))
+        }
     }
 }
 
@@ -231,7 +274,10 @@ impl PyColumnRef {
     ///     schema: str | None = ...,
     /// ) -> typing.Self
     #[pyo3(signature=(**kwds))]
-    fn copy_with(&self, kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>) -> pyo3::PyResult<Self> {
+    fn copy_with(
+        &self,
+        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> pyo3::PyResult<Self> {
         use pyo3::types::PyDictMethods;
 
         let mut cloned = self.clone();
@@ -252,7 +298,8 @@ impl PyColumnRef {
                         cloned.name = None;
                     } else if pyo3::ffi::PyUnicode_CheckExact(val.as_ptr()) == 1 {
                         cloned.name = Some(
-                            sea_query::Alias::new(val.extract::<String>().unwrap_unchecked()).into_iden(),
+                            sea_query::Alias::new(val.extract::<String>().unwrap_unchecked())
+                                .into_iden(),
                         );
                     } else {
                         return Err(typeerror!(
@@ -357,52 +404,6 @@ impl sea_query::IntoTableRef for PyTableName {
     }
 }
 
-impl TryFrom<sea_query::TableRef> for PyTableName {
-    type Error = ();
-
-    fn try_from(value: sea_query::TableRef) -> Result<Self, Self::Error> {
-        match value {
-            sea_query::TableRef::DatabaseSchemaTableAlias(db, schema, name, alias) => Ok(Self {
-                name,
-                schema: Some(schema),
-                database: Some(db),
-                alias: Some(alias),
-            }),
-            sea_query::TableRef::SchemaTableAlias(schema, name, alias) => Ok(Self {
-                name,
-                schema: Some(schema),
-                database: None,
-                alias: Some(alias),
-            }),
-            sea_query::TableRef::TableAlias(name, alias) => Ok(Self {
-                name,
-                schema: None,
-                database: None,
-                alias: Some(alias),
-            }),
-            sea_query::TableRef::DatabaseSchemaTable(db, schema, name) => Ok(Self {
-                name,
-                schema: Some(schema),
-                database: Some(db),
-                alias: None,
-            }),
-            sea_query::TableRef::SchemaTable(schema, name) => Ok(Self {
-                name,
-                schema: Some(schema),
-                database: None,
-                alias: None,
-            }),
-            sea_query::TableRef::Table(name) => Ok(Self {
-                name,
-                schema: None,
-                database: None,
-                alias: None,
-            }),
-            _ => Err(()),
-        }
-    }
-}
-
 impl TryFrom<&pyo3::Bound<'_, pyo3::PyAny>> for PyTableName {
     type Error = pyo3::PyErr;
 
@@ -449,7 +450,11 @@ impl FromStr for PyTableName {
             ));
         }
 
-        let name = s.pop().map(|x| sea_query::Alias::new(x).into_iden()).unwrap();
+        let name = s
+            .pop()
+            .map(|x| sea_query::Alias::new(x).into_iden())
+            .unwrap();
+
         let schema = s.pop().map(|x| sea_query::Alias::new(x).into_iden());
         let database = s.pop().map(|x| sea_query::Alias::new(x).into_iden());
 
@@ -466,7 +471,12 @@ impl FromStr for PyTableName {
 impl PyTableName {
     #[new]
     #[pyo3(signature=(name, schema=None, database=None, alias=None))]
-    fn new(name: String, schema: Option<String>, database: Option<String>, alias: Option<String>) -> Self {
+    fn new(
+        name: String,
+        schema: Option<String>,
+        database: Option<String>,
+        alias: Option<String>,
+    ) -> Self {
         Self {
             name: sea_query::Alias::new(name).into_iden(),
             schema: schema.map(|x| sea_query::Alias::new(x).into_iden()),
@@ -523,7 +533,10 @@ impl PyTableName {
     ///     alias: str | None = ...,
     /// ) -> typing.Self
     #[pyo3(signature=(**kwds))]
-    fn copy_with(&self, kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>) -> pyo3::PyResult<Self> {
+    fn copy_with(
+        &self,
+        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> pyo3::PyResult<Self> {
         use pyo3::types::PyDictMethods;
 
         let mut cloned = self.clone();
@@ -599,7 +612,7 @@ impl PyTableName {
         self.clone()
     }
 
-    fn __repr__(&self) -> String {
+    pub fn __repr__(&self) -> String {
         use std::io::Write;
 
         let mut s = Vec::new();

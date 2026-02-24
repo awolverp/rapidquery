@@ -15,7 +15,10 @@ implement_pyclass! {
 impl PyFunc {
     #[new]
     #[pyo3(signature=(name, *args))]
-    pub fn __new__(name: String, args: &pyo3::Bound<'_, pyo3::types::PyTuple>) -> pyo3::PyResult<Self> {
+    pub fn __new__(
+        name: String,
+        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+    ) -> pyo3::PyResult<Self> {
         let mut function_call = sea_query::Func::cust(sea_query::Alias::new(name));
 
         for item in args.iter() {
