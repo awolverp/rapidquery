@@ -9,6 +9,70 @@ import uuid
 import datetime
 import enum
 
+__all__ = [
+    "ASTERISK",
+    "AlterTable",
+    "AlterTableAddColumnOption",
+    "AlterTableAddForeignKeyOption",
+    "AlterTableBaseOption",
+    "AlterTableDropColumnOption",
+    "AlterTableDropForeignKeyOption",
+    "AlterTableModifyColumnOption",
+    "AlterTableRenameColumnOption",
+    "ArrayType",
+    "BigIntegerType",
+    "BigUnsignedType",
+    "BinaryType",
+    "BitType",
+    "BlobType",
+    "BooleanType",
+    "CharType",
+    "Column",
+    "ColumnRef",
+    "DateTimeType",
+    "DateType",
+    "DecimalType",
+    "DoubleType",
+    "DropIndex",
+    "DropTable",
+    "EnumType",
+    "Expr",
+    "FloatType",
+    "ForeignKey",
+    "Func",
+    "INETType",
+    "Index",
+    "IndexColumn",
+    "IntegerType",
+    "JSONBinaryType",
+    "JSONType",
+    "MacAddressType",
+    "QueryStatement",
+    "RenameTable",
+    "SQLTypeAbstract",
+    "SchemaStatement",
+    "SmallIntegerType",
+    "SmallUnsignedType",
+    "StringType",
+    "TableName",
+    "TextType",
+    "TimeType",
+    "TimestampType",
+    "TinyIntegerType",
+    "TinyUnsignedType",
+    "TruncateTable",
+    "UUIDType",
+    "UnsignedType",
+    "Value",
+    "VarBinaryType",
+    "VarBitType",
+    "VectorType",
+    "_AsteriskType",
+    "all",
+    "any",
+    "not_",
+]
+
 I = typing.TypeVar("I")
 O = typing.TypeVar("O")
 _ForeignKeyActions: typing.TypeAlias = typing.Literal[
@@ -18,6 +82,198 @@ _IndexColumnValue: typing.TypeAlias = IndexColumn | Column | ColumnRef | str
 _IndexColumnOrder: typing.TypeAlias = typing.Literal["ASC", "DESC"]
 
 ASTERISK: typing.Final[_AsteriskType] = ...
+
+@typing.final
+class AlterTable(SchemaStatement):
+    """
+    Represents an ALTER TABLE SQL statement.
+
+    Provides a flexible way to modify existing table structures by applying
+    one or more alteration operations such as adding/dropping columns,
+    modifying column definitions, or managing constraints.
+
+    Multiple operations can be batched together in a single ALTER TABLE
+    statement for efficiency.
+    """
+
+    def __new__(
+        cls, name: TableName | str, options: typing.Iterable[AlterTableBaseOption] = ()
+    ) -> typing.Self:
+        """
+        Create and return a new object.  See help(type) for accurate signature.
+        """
+        ...
+
+    def __copy__(self) -> typing.Self: ...
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    def add_option(self, opt: AlterTableBaseOption) -> typing.Self:
+        """Add an alteration operation to this ALTER TABLE statement."""
+        ...
+
+    @property
+    def name(self) -> TableName:
+        """The name of the table to alter."""
+        ...
+    @name.setter
+    def name(self, value: TableName | str) -> None: ...
+    @property
+    def options(self) -> typing.Sequence[AlterTableBaseOption]:
+        """The list of alteration operations to apply."""
+        ...
+    @options.setter
+    def options(self, value: typing.Iterable[AlterTableBaseOption]) -> None: ...
+    def to_sql(self, backend: str, /) -> str:
+        """Build a SQL string representation."""
+        ...
+
+@typing.final
+class AlterTableAddColumnOption(AlterTableBaseOption):
+    """
+    ALTER TABLE operation to add a new column.
+
+    Adds a column to an existing table with optional IF NOT EXISTS clause
+    to prevent errors if the column already exists.
+    """
+
+    def __new__(cls, column: Column, if_not_exists: bool = False) -> typing.Self:
+        """
+        Create and return a new object.  See help(type) for accurate signature.
+        """
+        ...
+
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @property
+    def column(self) -> Column: ...
+    @property
+    def if_not_exists(self) -> bool: ...
+
+@typing.final
+class AlterTableAddForeignKeyOption(AlterTableBaseOption):
+    """
+    ALTER TABLE operation to add a foreign key constraint.
+
+    Adds referential integrity between tables by creating a foreign key
+    relationship on an existing table.
+    """
+
+    def __new__(cls, foreign_key: ForeignKey) -> typing.Self:
+        """
+        Create and return a new object.  See help(type) for accurate signature.
+        """
+        ...
+
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @property
+    def foreign_key(self) -> ForeignKey: ...
+
+class AlterTableBaseOption:
+    """
+    Base class for all ALTER TABLE operation types.
+
+    This abstract base class represents the different types of modifications
+    that can be made to an existing table structure, such as adding/dropping
+    columns, modifying column definitions, or managing foreign keys.
+    """
+
+@typing.final
+class AlterTableDropColumnOption(AlterTableBaseOption):
+    """
+    ALTER TABLE operation to drop an existing column.
+
+    Removes a column from the table. This operation may fail if the column
+    is referenced by other database objects.
+    """
+
+    def __new__(cls, name: Column | ColumnRef | str) -> typing.Self:
+        """
+        Create and return a new object.  See help(type) for accurate signature.
+        """
+        ...
+
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @property
+    def name(self) -> str: ...
+
+@typing.final
+class AlterTableDropForeignKeyOption(AlterTableBaseOption):
+    """
+    ALTER TABLE operation to drop a foreign key constraint.
+
+    Removes a foreign key relationship by its constraint name.
+    """
+
+    def __new__(cls, name: ForeignKey | str) -> typing.Self:
+        """
+        Create and return a new object.  See help(type) for accurate signature.
+        """
+        ...
+
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @property
+    def name(self) -> str: ...
+
+@typing.final
+class AlterTableModifyColumnOption(AlterTableBaseOption):
+    """
+    ALTER TABLE operation to modify a column definition.
+
+    Changes properties of an existing column such as type, nullability,
+    default value, or other constraints.
+    """
+
+    def __new__(cls, column: Column) -> typing.Self:
+        """
+        Create and return a new object.  See help(type) for accurate signature.
+        """
+        ...
+
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @property
+    def column(self) -> Column: ...
+
+@typing.final
+class AlterTableRenameColumnOption(AlterTableBaseOption):
+    """
+    ALTER TABLE operation to rename a column.
+
+    Changes the name of an existing column without modifying its type
+    or constraints.
+    """
+
+    def __new__(
+        cls, from_name: Column | ColumnRef | str, to_name: Column | ColumnRef | str
+    ) -> typing.Self:
+        """
+        Create and return a new object.  See help(type) for accurate signature.
+        """
+        ...
+
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @property
+    def from_name(self) -> str: ...
+    @property
+    def to_name(self) -> str: ...
 
 @typing.final
 class ArrayType(SQLTypeAbstract[list[I] | tuple[I], list[O]]):
@@ -269,12 +525,13 @@ class Column(typing.Generic[I, O]):
         Create and return a new object.  See help(type) for accurate signature.
         """
         ...
-    OPT_AUTO_INCREMENT: typing.Final[int] = ...
-    OPT_NULLABLE: typing.Final[int] = ...
-    OPT_PRIMARY_KEY: typing.Final[int] = ...
-    OPT_STORED_GENERATED: typing.Final[int] = ...
-    OPT_UNIQUE_KEY: typing.Final[int] = ...
+    OPT_AUTO_INCREMENT: typing.ClassVar[int] = ...
+    OPT_NULLABLE: typing.ClassVar[int] = ...
+    OPT_PRIMARY_KEY: typing.ClassVar[int] = ...
+    OPT_STORED_GENERATED: typing.ClassVar[int] = ...
+    OPT_UNIQUE_KEY: typing.ClassVar[int] = ...
 
+    def __copy__(self) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -522,6 +779,105 @@ class DoubleType(SQLTypeAbstract[float | int, float]):
 
         It also may be a property. This function must NOT raise any error.
         """
+        ...
+
+@typing.final
+class DropIndex(SchemaStatement):
+    """
+    Represents a DROP INDEX SQL statement.
+
+    Builds index deletion statements with support for:
+    - Conditional deletion (IF EXISTS)
+    - Table-specific index dropping
+    """
+
+    def __new__(cls, name: str, table: TableName | str, if_exists: bool = False) -> typing.Self:
+        """
+        Create and return a new object.  See help(type) for accurate signature.
+        """
+        ...
+
+    def __copy__(self) -> typing.Self: ...
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @property
+    def if_exists(self) -> bool:
+        """Whether to use IF EXISTS clause to avoid errors."""
+        ...
+    @if_exists.setter
+    def if_exists(self, value: bool) -> None: ...
+    @property
+    def name(self) -> str:
+        """The name of the index to drop."""
+        ...
+    @name.setter
+    def name(self, value: str) -> None: ...
+    @property
+    def table(self) -> TableName:
+        """The table from which to drop the index."""
+        ...
+    @table.setter
+    def table(self, value: TableName | str) -> None: ...
+    def to_sql(self, backend: str, /) -> str:
+        """Build a SQL string representation."""
+        ...
+
+@typing.final
+class DropTable(SchemaStatement):
+    """
+    Represents a DROP TABLE SQL statement.
+
+    Builds table deletion statements with support for:
+    - Conditional deletion (IF EXISTS) to avoid errors
+    - CASCADE to drop dependent objects
+    - RESTRICT to prevent deletion if dependencies exist
+    """
+
+    def __new__(cls, name: TableName | str, options: int = 0) -> typing.Self:
+        """
+        Create and return a new object.  See help(type) for accurate signature.
+        """
+        ...
+    OPT_CASCADE: typing.ClassVar[int] = ...
+    OPT_IF_EXISTS: typing.ClassVar[int] = ...
+    OPT_RESTRICT: typing.ClassVar[int] = ...
+
+    def __copy__(self) -> typing.Self: ...
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @property
+    def cascade(self) -> bool:
+        """Shorthand for `self.options & OPT_CASCADE > 0`."""
+        ...
+
+    @property
+    def if_exists(self) -> bool:
+        """Shorthand for `self.options & OPT_IF_EXISTS > 0`."""
+        ...
+
+    @property
+    def name(self) -> TableName:
+        """The table name to drop."""
+        ...
+    @name.setter
+    def name(self, value: TableName | str) -> None: ...
+    @property
+    def options(self) -> int:
+        """Specified options."""
+        ...
+    @options.setter
+    def options(self, value: int) -> None: ...
+    @property
+    def restrict(self) -> bool:
+        """Shorthand for `self.options & OPT_RESTRICT > 0`."""
+        ...
+
+    def to_sql(self, backend: str, /) -> str:
+        """Build a SQL string representation."""
         ...
 
 @typing.final
@@ -1049,8 +1405,8 @@ class Index(SchemaStatement):
 
     def __new__(
         cls,
-        table: TableName | str,
         columns: typing.Iterable[_IndexColumnValue],
+        table: TableName | str | None = None,
         name: str | None = None,
         options: int = 0,
         *,
@@ -1062,10 +1418,10 @@ class Index(SchemaStatement):
         Create and return a new object.  See help(type) for accurate signature.
         """
         ...
-    OPT_IF_NOT_EXISTS: typing.Final[int] = ...
-    OPT_NULLS_NOT_DISTINCT: typing.Final[int] = ...
-    OPT_PRIMARY: typing.Final[int] = ...
-    OPT_UNIQUE: typing.Final[int] = ...
+    OPT_IF_NOT_EXISTS: typing.ClassVar[int] = ...
+    OPT_NULLS_NOT_DISTINCT: typing.ClassVar[int] = ...
+    OPT_PRIMARY: typing.ClassVar[int] = ...
+    OPT_UNIQUE: typing.ClassVar[int] = ...
 
     def __copy__(self) -> typing.Self: ...
     def __repr__(self, /) -> str:
@@ -1096,11 +1452,11 @@ class Index(SchemaStatement):
     @index_type.setter
     def index_type(self, value: str | None) -> None: ...
     @property
-    def name(self) -> str:
+    def name(self) -> str | None:
         """Index name"""
         ...
     @name.setter
-    def name(self, value: str) -> None: ...
+    def name(self, value: str | None) -> None: ...
     @property
     def nulls_not_distinct(self) -> bool:
         """Whether NULL values should be considered equal for uniqueness."""
@@ -1118,11 +1474,11 @@ class Index(SchemaStatement):
         ...
 
     @property
-    def table(self) -> TableName:
+    def table(self) -> TableName | None:
         """The table on which to create the index."""
         ...
     @table.setter
-    def table(self, value: TableName | str) -> None: ...
+    def table(self, value: TableName | str | None) -> None: ...
     def to_sql(self, backend: str, /) -> str:
         """Build a SQL string representation."""
         ...
@@ -1287,6 +1643,42 @@ class QueryStatement:
 
         **This method is unsafe and can cause SQL injection.** use `.build()` method instead.
         """
+        ...
+
+@typing.final
+class RenameTable(SchemaStatement):
+    """
+    Represents a RENAME TABLE SQL statement.
+
+    Changes the name of an existing table to a new name. Both names can be
+    schema-qualified if needed.
+    """
+
+    def __new__(cls, from_name: TableName | str, to_name: TableName | str) -> typing.Self:
+        """
+        Create and return a new object.  See help(type) for accurate signature.
+        """
+        ...
+
+    def __copy__(self) -> typing.Self: ...
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @property
+    def from_name(self) -> TableName:
+        """The current name of the table."""
+        ...
+    @from_name.setter
+    def from_name(self, value: TableName | str) -> None: ...
+    @property
+    def to_name(self) -> TableName:
+        """The new name for the table."""
+        ...
+    @to_name.setter
+    def to_name(self, value: TableName | str) -> None: ...
+    def to_sql(self, backend: str, /) -> str:
+        """Build a SQL string representation."""
         ...
 
 class SQLTypeAbstract(typing.Generic[I, O]):
@@ -1601,6 +1993,37 @@ class TinyUnsignedType(SQLTypeAbstract[int, int]):
 
         It also may be a property. This function must NOT raise any error.
         """
+        ...
+
+@typing.final
+class TruncateTable(SchemaStatement):
+    """
+    Represents a TRUNCATE TABLE SQL statement.
+
+    Quickly removes all rows from a table, typically faster than DELETE
+    and with different transaction and trigger behavior depending on the
+    database system.
+    """
+
+    def __new__(cls, name: TableName | str) -> typing.Self:
+        """
+        Create and return a new object.  See help(type) for accurate signature.
+        """
+        ...
+
+    def __copy__(self) -> typing.Self: ...
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @property
+    def name(self) -> TableName:
+        """The name of the table to truncate."""
+        ...
+    @name.setter
+    def name(self, value: TableName | str) -> None: ...
+    def to_sql(self, backend: str, /) -> str:
+        """Build a SQL string representation."""
         ...
 
 @typing.final

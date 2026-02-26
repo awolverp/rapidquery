@@ -605,6 +605,9 @@ class StubGenerator:
         self._types_lines: list[str] = []
         self._body_lines: list[str] = []
 
+        # __all__
+        self.__all__ = []
+
         # special members
         self.undefined_members: list[tuple[str, typing.Any]] = []
 
@@ -650,14 +653,17 @@ class StubGenerator:
             if member_type.is_class():
                 # Class definition
                 self._visit_class(member_val)
+                self.__all__.append(member_val.__name__)
 
             elif member_type.is_function():
                 # Function definition
                 self._visit_function(member_val)
+                self.__all__.append(member_val.__name__)
 
             elif member_key.isupper():
                 # Constant variable definition
                 self._visit_constant(member_key, member_val)
+                self.__all__.append(member_key)
 
             elif member_type.is_module():
                 # Module definition
@@ -793,7 +799,7 @@ class StubGenerator:
                     self._visit_getset_descriptor(attr_val)
 
             elif attr_key.isupper():
-                self._visit_constant(attr_key, attr_val)
+                self._visit_constant(attr_key, attr_val, classvar=True)
 
             else:
                 self.undefined_members.append(
@@ -808,8 +814,16 @@ class StubGenerator:
 
         self._indent -= 4
 
-    def _visit_constant(self, name: str, value: typing.Any) -> None:
-        self._append_body_lines("%s: typing.Final[%s] = ..." % (name, type(value).__name__))
+    def _visit_constant(
+        self,
+        name: str,
+        value: typing.Any,
+        classvar: bool = False,
+    ) -> None:
+        if classvar:
+            self._append_body_lines("%s: typing.ClassVar[%s] = ..." % (name, type(value).__name__))
+        else:
+            self._append_body_lines("%s: typing.Final[%s] = ..." % (name, type(value).__name__))
 
     def generate(self) -> typing.Self:
         self._visit_module(self.root)
@@ -825,6 +839,8 @@ class StubGenerator:
         content += "from __future__ import annotations\n"
 
         content += "\n".join(dict.fromkeys(self._import_lines))
+        content += "\n\n"
+        content += "__all__ = [{}]".format(",\n".join(repr(i) for i in self.__all__))
         content += "\n\n"
         content += "\n".join(dict.fromkeys(self._types_lines))
         content += "\n\n"

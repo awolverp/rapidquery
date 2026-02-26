@@ -70,9 +70,6 @@ macro_rules! implement_pyclass {
 /// implement_state_pyclass! {
 ///     /// A simple pyclass
 ///     pub struct [] PyMyClass(MyClassState) as "MyClass" { field: String }
-///
-///     /// A subclass and generic class
-///     pub struct [generic, subclass] PyMyClass(MyClassState) as "MyClass";
 /// }
 /// ```
 #[macro_export]
@@ -86,12 +83,12 @@ macro_rules! implement_state_pyclass {
 
         implement_pyclass! {
             $(#[$outer])*
-            pub struct [$($pyclass_args)*] $struct_name as $literal_name (pub ::parking_lot::Mutex<$state_name>);
+            pub struct [$($pyclass_args)*] $struct_name as $literal_name (pub std::sync::Arc<::parking_lot::Mutex<$state_name>>);
         }
 
         impl From<$state_name> for $struct_name {
             fn from(value: $state_name) -> Self {
-                $struct_name(::parking_lot::Mutex::new(value))
+                $struct_name(std::sync::Arc::new(::parking_lot::Mutex::new(value)))
             }
         }
     };
@@ -105,12 +102,12 @@ macro_rules! implement_state_pyclass {
 
         implement_pyclass! {
             $(#[$outer])*
-            pub struct [$($pyclass_args)*] $struct_name as $literal_name (pub ::parking_lot::Mutex<$state_name>);
+            pub struct [$($pyclass_args)*] $struct_name as $literal_name (pub std::sync::Arc<::parking_lot::Mutex<$state_name>>);
         }
 
         impl From<$state_name> for $struct_name {
             fn from(value: $state_name) -> Self {
-                $struct_name(::parking_lot::Mutex::new(value))
+                $struct_name(std::sync::Arc::new(::parking_lot::Mutex::new(value)))
             }
         }
     };

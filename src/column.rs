@@ -1,7 +1,8 @@
 use sea_query::IntoIden;
 
-use crate::sqltypes::TypeEngine;
-use crate::utils::OptionalParam;
+use crate::expression::PyExpr;
+use crate::sqltypes::{NativeSQLType, TypeEngine};
+use crate::utils::{OptionalParam, ToSeaQuery};
 
 implement_state_pyclass! {
     /// Defines a table column with its properties and constraints.
@@ -27,21 +28,80 @@ implement_state_pyclass! {
     ///     default: typing.Any = ...,
     ///     generated: typing.Any = ...,
     /// )
+    #[derive(Debug)]
     pub struct [] PyColumn(ColumnState) as "Column" {
         pub name: String,
         pub r#type: TypeEngine,
         pub options: u8,
-        pub default: Option<pyo3::Py<crate::expression::PyExpr>>,
-        pub generated: Option<pyo3::Py<crate::expression::PyExpr>>,
+        pub default: Option<PyExpr>,
+        pub generated: Option<PyExpr>,
         pub extra: Option<String>,
         pub comment: Option<String>,
     }
 }
 
-impl ColumnState {
+impl Clone for ColumnState {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            r#type: self.r#type.clone(),
+            options: self.options,
+            default: self.default.clone(),
+            generated: self.generated.clone(),
+            extra: self.extra.clone(),
+            comment: self.comment.clone(),
+        }
+    }
+}
+
+impl ToSeaQuery<sea_query::ColumnRef> for ColumnState {
     #[inline]
-    pub fn to_sea_query_column_ref(&self) -> sea_query::ColumnRef {
+    fn to_sea_query<'a>(&self, _py: pyo3::Python<'a>) -> sea_query::ColumnRef {
         sea_query::ColumnRef::Column(sea_query::Alias::new(&self.name).into_iden())
+    }
+}
+
+impl ToSeaQuery<sea_query::ColumnDef> for ColumnState {
+    #[inline]
+    fn to_sea_query<'a>(&self, _py: pyo3::Python<'a>) -> sea_query::ColumnDef {
+        let mut column_def = sea_query::ColumnDef::new_with_type(
+            sea_query::Alias::new(self.name.clone()),
+            self.r#type.to_sea_query_column_type(),
+        );
+
+        if self.options & PyColumn::OPT_PRIMARY_KEY > 0 {
+            column_def.primary_key();
+        }
+        if self.options & PyColumn::OPT_AUTO_INCREMENT > 0 {
+            column_def.auto_increment();
+        }
+        if self.options & PyColumn::OPT_NULLABLE > 0 {
+            column_def.null();
+        } else {
+            column_def.not_null();
+        }
+        if self.options & PyColumn::OPT_UNIQUE_KEY > 0 {
+            column_def.unique_key();
+        }
+
+        if let Some(x) = &self.default {
+            column_def.default(x.0.clone());
+        }
+        if let Some(x) = &self.generated {
+            column_def.generated(
+                x.0.clone(),
+                self.options & PyColumn::OPT_STORED_GENERATED > 0,
+            );
+        }
+
+        if let Some(x) = &self.extra {
+            column_def.extra(x);
+        }
+        if let Some(x) = &self.comment {
+            column_def.comment(x);
+        }
+
+        column_def
     }
 }
 
@@ -49,16 +109,12 @@ impl ColumnState {
 impl PyColumn {
     #[classattr]
     pub const OPT_PRIMARY_KEY: u8 = 1 << 0;
-
     #[classattr]
     pub const OPT_UNIQUE_KEY: u8 = 1 << 1;
-
     #[classattr]
     pub const OPT_NULLABLE: u8 = 1 << 2;
-
     #[classattr]
     pub const OPT_AUTO_INCREMENT: u8 = 1 << 3;
-
     #[classattr]
     pub const OPT_STORED_GENERATED: u8 = 1 << 4;
 
@@ -100,14 +156,12 @@ impl PyColumn {
             OptionalParam::Undefined => None,
         };
 
-        let py = r#type.py();
-
         let state = ColumnState {
             name,
             r#type: sql_type,
             options,
-            default: default_expr.map(|x| pyo3::Py::new(py, x).unwrap()),
-            generated: generated_expr.map(|x| pyo3::Py::new(py, x).unwrap()),
+            default: default_expr,
+            generated: generated_expr,
             extra,
             comment,
         };
@@ -220,9 +274,9 @@ impl PyColumn {
     /// @signature (self) -> Expr | None
     /// @setter Expr | None
     #[getter]
-    fn default(&self, py: pyo3::Python) -> Option<pyo3::Py<pyo3::PyAny>> {
+    fn default(&self) -> Option<PyExpr> {
         let lock = self.0.lock();
-        lock.default.as_ref().map(|x| x.clone_ref(py).into_any())
+        lock.default.clone()
     }
 
     #[setter]
@@ -231,7 +285,7 @@ impl PyColumn {
         let sql_type = lock.r#type.clone();
 
         let default = crate::expression::PyExpr::try_from_specific_type(val, Some(sql_type))?;
-        lock.default = Some(pyo3::Py::new(val.py(), default).unwrap());
+        lock.default = Some(default);
         Ok(())
     }
 
@@ -240,9 +294,9 @@ impl PyColumn {
     /// @signature (self) -> Expr | None
     /// @setter Expr | None
     #[getter]
-    fn generated(&self, py: pyo3::Python) -> Option<pyo3::Py<pyo3::PyAny>> {
+    fn generated(&self) -> Option<PyExpr> {
         let lock = self.0.lock();
-        lock.generated.as_ref().map(|x| x.clone_ref(py).into_any())
+        lock.generated.clone()
     }
 
     #[setter]
@@ -250,7 +304,7 @@ impl PyColumn {
         let mut lock = self.0.lock();
 
         let generated = crate::expression::PyExpr::try_from_specific_type(val, None)?;
-        lock.generated = Some(pyo3::Py::new(val.py(), generated).unwrap());
+        lock.generated = Some(generated);
         Ok(())
     }
 
@@ -265,7 +319,12 @@ impl PyColumn {
         Ok(result.into())
     }
 
-    fn __repr__(&self) -> String {
+    fn __copy__(&self) -> Self {
+        let lock = self.0.lock();
+        lock.clone().into()
+    }
+
+    pub fn __repr__(&self) -> String {
         use std::io::Write;
 
         let lock = self.0.lock();
@@ -295,10 +354,10 @@ impl PyColumn {
             write!(s, " comment={x:?}").unwrap();
         }
         if let Some(x) = &lock.default {
-            write!(s, " default={x}").unwrap();
+            write!(s, " default={}", x.__repr__()).unwrap();
         }
         if let Some(x) = &lock.generated {
-            write!(s, " generated={x}").unwrap();
+            write!(s, " generated={}", x.__repr__()).unwrap();
         }
         write!(s, ">").unwrap();
 

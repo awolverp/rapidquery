@@ -59,8 +59,8 @@ implement_state_pyclass! {
     ///
     /// @alias _IndexColumnValue = IndexColumn | Column | ColumnRef | str
     /// @signature (
-    ///     table: TableName | str,
     ///     columns: typing.Iterable[_IndexColumnValue],
+    ///     table: TableName | str | None = None,
     ///     name: str | None = None,
     ///     options: int = 0,
     ///     *,
@@ -70,13 +70,27 @@ implement_state_pyclass! {
     /// )
     #[derive(Debug)]
     pub struct [extends=PySchemaStatement] PyIndex(IndexState) as "Index" {
-        pub name: String,
+        pub name: Option<String>,
         pub columns: Vec<PyIndexColumn>,
-        pub table: PyTableName,
+        pub table: Option<PyTableName>,
         pub options: u8,
         pub index_type: Option<String>,
         pub r#where: Option<PyExpr>,
         pub include: Vec<String>,
+    }
+}
+implement_state_pyclass! {
+    /// Represents a DROP INDEX SQL statement.
+    ///
+    /// Builds index deletion statements with support for:
+    /// - Conditional deletion (IF EXISTS)
+    /// - Table-specific index dropping
+    ///
+    /// @signature (name: str, table: TableName | str, if_exists: bool = False)
+    pub struct [extends=PySchemaStatement] PyDropIndex(DropIndexState) as "DropIndex" {
+        pub name: String,
+        pub table: PyTableName,
+        pub if_exists: bool,
     }
 }
 
@@ -236,8 +250,13 @@ impl ToSeaQuery<sea_query::IndexCreateStatement> for IndexState {
     #[cfg_attr(feature = "optimize", optimize(speed))]
     fn to_sea_query<'a>(&self, _py: pyo3::Python<'a>) -> sea_query::IndexCreateStatement {
         let mut stmt = sea_query::IndexCreateStatement::new();
-        stmt.name(&self.name);
-        stmt.table(self.table.clone());
+
+        if let Some(x) = &self.name {
+            stmt.name(x);
+        }
+        if let Some(x) = &self.table {
+            stmt.table(x.clone());
+        }
 
         for col in self.columns.iter() {
             stmt.col(col.clone());
@@ -285,8 +304,8 @@ impl PyIndex {
     #[
         pyo3(
             signature = (
-                table,
                 columns,
+                table=None,
                 name=None,
                 options=0,
                 *,
@@ -297,15 +316,18 @@ impl PyIndex {
         )
     ]
     fn __new__(
-        table: &pyo3::Bound<'_, pyo3::PyAny>,
         columns: Vec<pyo3::Bound<'_, pyo3::PyAny>>,
+        table: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
         name: Option<String>,
         options: u8,
         index_type: Option<String>,
         r#where: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
         include: Vec<String>,
     ) -> pyo3::PyResult<(Self, PySchemaStatement)> {
-        let table = PyTableName::try_from(table)?;
+        let table = match table {
+            Some(x) => Some(PyTableName::try_from(x)?),
+            None => None,
+        };
 
         if columns.is_empty() {
             return Err(pyo3::exceptions::PyValueError::new_err(
@@ -318,20 +340,6 @@ impl PyIndex {
             cols.push(PyIndexColumn::try_from(&c)?);
         }
 
-        let name = match name {
-            Some(x) => x,
-            None => {
-                // ix_<table>_<column_names...>
-                format!(
-                    "ix_{}_{}",
-                    table.name.to_string(),
-                    cols.iter()
-                        .map(|x| x.name.as_str())
-                        .collect::<Vec<&str>>()
-                        .join("_")
-                )
-            }
-        };
         let r#where = match r#where {
             None => None,
             Some(x) => Some(PyExpr::try_from(x)?),
@@ -351,33 +359,36 @@ impl PyIndex {
 
     /// Index name
     ///
-    /// @signature (self) -> str
-    /// @setter str
+    /// @signature (self) -> str | None
+    /// @setter str | None
     #[getter]
-    fn name(&self) -> String {
+    fn name(&self) -> Option<String> {
         let lock = self.0.lock();
         lock.name.clone()
     }
 
     #[setter]
-    fn set_name(&self, val: String) {
+    fn set_name(&self, val: Option<String>) {
         let mut lock = self.0.lock();
         lock.name = val;
     }
 
     /// The table on which to create the index.
     ///
-    /// @signature (self) -> TableName
-    /// @setter TableName | str
+    /// @signature (self) -> TableName | None
+    /// @setter TableName | str | None
     #[getter]
-    fn table(&self) -> PyTableName {
+    fn table(&self) -> Option<PyTableName> {
         let lock = self.0.lock();
         lock.table.clone()
     }
 
     #[setter]
-    fn set_table(&self, val: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
-        let val = PyTableName::try_from(val)?;
+    fn set_table(&self, val: Option<&pyo3::Bound<'_, pyo3::PyAny>>) -> pyo3::PyResult<()> {
+        let val = match val {
+            Some(x) => Some(PyTableName::try_from(x)?),
+            None => None,
+        };
 
         let mut lock = self.0.lock();
         lock.table = val;
@@ -534,13 +545,16 @@ impl PyIndex {
         let lock = self.0.lock();
         let mut s = Vec::with_capacity(50);
 
-        write!(
-            s,
-            "<Index {:?} table={} columns=[",
-            lock.name,
-            lock.table.__repr__()
-        )
-        .unwrap();
+        write!(s, "<Index").unwrap();
+
+        if let Some(x) = &lock.name {
+            write!(s, " {:?}", x).unwrap();
+        }
+        if let Some(x) = &lock.table {
+            write!(s, " {}", x.__repr__()).unwrap();
+        }
+
+        write!(s, " columns=[").unwrap();
 
         let n = lock.columns.len() - 1;
         for (index, col) in lock.columns.iter().enumerate() {
@@ -574,6 +588,136 @@ impl PyIndex {
             write!(s, " where={}", x.__repr__()).unwrap();
         }
 
+        write!(s, ">").unwrap();
+
+        unsafe { String::from_utf8_unchecked(s) }
+    }
+}
+
+impl Clone for DropIndexState {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            table: self.table.clone(),
+            if_exists: self.if_exists,
+        }
+    }
+}
+
+impl ToSeaQuery<sea_query::IndexDropStatement> for DropIndexState {
+    fn to_sea_query<'a>(&self, _py: pyo3::Python<'a>) -> sea_query::IndexDropStatement {
+        let mut stmt = sea_query::IndexDropStatement::new();
+
+        stmt.name(&self.name);
+        stmt.table(self.table.clone());
+
+        if self.if_exists {
+            stmt.if_exists();
+        }
+        stmt
+    }
+}
+
+#[pyo3::pymethods]
+impl PyDropIndex {
+    #[new]
+    #[pyo3(signature = (name, table, if_exists=false))]
+    fn __new__(
+        name: String,
+        table: &pyo3::Bound<'_, pyo3::PyAny>,
+        if_exists: bool,
+    ) -> pyo3::PyResult<(Self, PySchemaStatement)> {
+        let table = PyTableName::try_from(table)?;
+
+        let state = DropIndexState {
+            name,
+            table,
+            if_exists,
+        };
+        Ok((state.into(), PySchemaStatement))
+    }
+
+    /// The name of the index to drop.
+    ///
+    /// @signature (self) -> str
+    /// @setter str
+    #[getter]
+    fn name(&self) -> String {
+        let lock = self.0.lock();
+        lock.name.clone()
+    }
+
+    #[setter]
+    fn set_name(&self, val: String) {
+        let mut lock = self.0.lock();
+        lock.name = val;
+    }
+
+    /// The table from which to drop the index.
+    ///
+    /// @signature (self) -> TableName
+    /// @setter TableName | str
+    #[getter]
+    fn table(&self) -> PyTableName {
+        let lock = self.0.lock();
+        lock.table.clone()
+    }
+
+    #[setter]
+    fn set_table(&self, val: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+        let val = PyTableName::try_from(val)?;
+
+        let mut lock = self.0.lock();
+        lock.table = val;
+        Ok(())
+    }
+
+    /// Whether to use IF EXISTS clause to avoid errors.
+    ///
+    /// @signature (self) -> bool
+    /// @setter bool
+    #[getter]
+    fn if_exists(slf: pyo3::PyRef<'_, Self>) -> bool {
+        slf.0.lock().if_exists
+    }
+
+    #[setter]
+    fn set_if_exists(slf: pyo3::PyRef<'_, Self>, val: bool) {
+        let mut lock = slf.0.lock();
+        lock.if_exists = val;
+    }
+
+    fn __copy__(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<pyo3::Py<Self>> {
+        let lock = self.0.lock();
+
+        pyo3::Py::new(py, (lock.clone().into(), PySchemaStatement))
+    }
+
+    fn to_sql(&self, py: pyo3::Python<'_>, backend: String) -> pyo3::PyResult<String> {
+        let lock = self.0.lock();
+        let stmt = lock.to_sea_query(py);
+        drop(lock);
+
+        build_schema_statement!(backend, stmt)
+    }
+
+    fn __repr__(&self) -> String {
+        use std::io::Write;
+
+        let lock = self.0.lock();
+        let mut s = Vec::with_capacity(50);
+
+        write!(
+            s,
+            "<DropIndex {:?} table={}",
+            lock.name,
+            lock.table.__repr__()
+        )
+        .unwrap();
+
+        if lock.if_exists {
+            write!(s, " if_exists=True").unwrap();
+        }
         write!(s, ">").unwrap();
 
         unsafe { String::from_utf8_unchecked(s) }

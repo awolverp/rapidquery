@@ -84,6 +84,7 @@ impl PySchemaStatement {
     /// @signature (self, backend: str, /) -> str
     #[pyo3(signature = (backend, /))]
     #[allow(unused_variables)]
+    #[allow(clippy::wrong_self_convention)]
     fn to_sql(&self, backend: String) -> pyo3::PyResult<String> {
         Err(pyo3::exceptions::PyNotImplementedError::new_err(()))
     }
@@ -98,6 +99,7 @@ impl PyQueryStatement {
     /// @signature (self, backend: str, /) -> str
     #[pyo3(signature = (backend, /))]
     #[allow(unused_variables)]
+    #[allow(clippy::wrong_self_convention)]
     fn to_sql(&self, backend: String) -> pyo3::PyResult<String> {
         Err(pyo3::exceptions::PyNotImplementedError::new_err(()))
     }

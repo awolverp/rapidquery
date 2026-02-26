@@ -1,4 +1,4 @@
-use crate::sqltypes::TypeEngine;
+use crate::{sqltypes::TypeEngine, utils::ToSeaQuery};
 
 implement_pyclass! {
     /// Represents a SQL expression that can be built into SQL code.
@@ -60,7 +60,10 @@ impl PyExpr {
                 let casted_value = value.cast_unchecked::<crate::column::PyColumn>();
                 let inner_value = casted_value.get();
 
-                return Ok(Self(inner_value.0.lock().to_sea_query_column_ref().into()));
+                let column_ref: sea_query::ColumnRef =
+                    inner_value.0.lock().to_sea_query(casted_value.py());
+
+                return Ok(Self(column_ref.into()));
             }
 
             // TODO: PySelect

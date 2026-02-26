@@ -51,6 +51,7 @@ implement_state_pyclass! {
     ///     on_delete: _ForeignKeyActions | None = None,
     ///     on_update: _ForeignKeyActions | None = None,
     /// )
+    #[derive(Debug)]
     pub struct [] PyForeignKey(ForeignKeyState) as "ForeignKey" {
         /// Foreign key constraint name
         pub name: String,
@@ -93,6 +94,34 @@ impl ToSeaQuery<sea_query::ForeignKeyCreateStatement> for ForeignKeyState {
     #[cfg_attr(feature = "optimize", optimize(speed))]
     fn to_sea_query<'a>(&self, _py: pyo3::Python<'a>) -> sea_query::ForeignKeyCreateStatement {
         let mut stmt = sea_query::ForeignKeyCreateStatement::new();
+        stmt.name(&self.name);
+        stmt.to_tbl(self.to_table.clone());
+
+        for c in &self.from_columns {
+            stmt.from_col(sea_query::Alias::new(c));
+        }
+        for c in &self.to_columns {
+            stmt.to_col(sea_query::Alias::new(c));
+        }
+
+        if let Some(x) = &self.from_table {
+            stmt.from_tbl(x.clone());
+        }
+        if let Some(x) = self.on_delete {
+            stmt.on_delete(x);
+        }
+        if let Some(x) = self.on_update {
+            stmt.on_update(x);
+        }
+
+        stmt
+    }
+}
+
+impl ToSeaQuery<sea_query::TableForeignKey> for ForeignKeyState {
+    #[cfg_attr(feature = "optimize", optimize(speed))]
+    fn to_sea_query<'a>(&self, _py: pyo3::Python<'a>) -> sea_query::TableForeignKey {
+        let mut stmt = sea_query::TableForeignKey::new();
         stmt.name(&self.name);
         stmt.to_tbl(self.to_table.clone());
 
@@ -425,7 +454,7 @@ impl PyForeignKey {
         lock.clone().into()
     }
 
-    fn __repr__(&self) -> String {
+    pub fn __repr__(&self) -> String {
         use std::io::Write;
 
         let lock = self.0.lock();

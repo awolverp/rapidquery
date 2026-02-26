@@ -17,6 +17,7 @@ mod expression;
 mod foreign_key;
 mod index;
 mod sqltypes;
+mod table;
 mod typeref;
 mod value;
 
@@ -143,9 +144,37 @@ mod _lib {
 
     // index
     #[pymodule_export]
+    use crate::index::PyDropIndex;
+    #[pymodule_export]
     use crate::index::PyIndex;
     #[pymodule_export]
     use crate::index::PyIndexColumn;
+
+    // table::operations
+    #[pymodule_export]
+    use crate::table::operations::PyDropTable;
+    #[pymodule_export]
+    use crate::table::operations::PyRenameTable;
+    #[pymodule_export]
+    use crate::table::operations::PyTruncateTable;
+
+    // table::alter
+    #[pymodule_export]
+    use crate::table::alter::PyAlterTable;
+    #[pymodule_export]
+    use crate::table::alter::PyAlterTableAddColumnOption;
+    #[pymodule_export]
+    use crate::table::alter::PyAlterTableAddForeignKeyOption;
+    #[pymodule_export]
+    use crate::table::alter::PyAlterTableBaseOption;
+    #[pymodule_export]
+    use crate::table::alter::PyAlterTableDropColumnOption;
+    #[pymodule_export]
+    use crate::table::alter::PyAlterTableDropForeignKeyOption;
+    #[pymodule_export]
+    use crate::table::alter::PyAlterTableModifyColumnOption;
+    #[pymodule_export]
+    use crate::table::alter::PyAlterTableRenameColumnOption;
 
     #[pymodule_export]
     const ASTERISK: Py_AsteriskType = Py_AsteriskType;
