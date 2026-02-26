@@ -54,6 +54,7 @@ __all__ = [
     "SmallIntegerType",
     "SmallUnsignedType",
     "StringType",
+    "Table",
     "TableName",
     "TextType",
     "TimeType",
@@ -97,7 +98,7 @@ class AlterTable(SchemaStatement):
     """
 
     def __new__(
-        cls, name: TableName | str, options: typing.Iterable[AlterTableBaseOption] = ()
+        cls, name: Table | TableName | str, options: typing.Iterable[AlterTableBaseOption] = ()
     ) -> typing.Self:
         """
         Create and return a new object.  See help(type) for accurate signature.
@@ -118,7 +119,7 @@ class AlterTable(SchemaStatement):
         """The name of the table to alter."""
         ...
     @name.setter
-    def name(self, value: TableName | str) -> None: ...
+    def name(self, value: Table | TableName | str) -> None: ...
     @property
     def options(self) -> typing.Sequence[AlterTableBaseOption]:
         """The list of alteration operations to apply."""
@@ -791,7 +792,9 @@ class DropIndex(SchemaStatement):
     - Table-specific index dropping
     """
 
-    def __new__(cls, name: str, table: TableName | str, if_exists: bool = False) -> typing.Self:
+    def __new__(
+        cls, name: str, table: Table | TableName | str, if_exists: bool = False
+    ) -> typing.Self:
         """
         Create and return a new object.  See help(type) for accurate signature.
         """
@@ -819,7 +822,7 @@ class DropIndex(SchemaStatement):
         """The table from which to drop the index."""
         ...
     @table.setter
-    def table(self, value: TableName | str) -> None: ...
+    def table(self, value: Table | TableName | str) -> None: ...
     def to_sql(self, backend: str, /) -> str:
         """Build a SQL string representation."""
         ...
@@ -835,7 +838,7 @@ class DropTable(SchemaStatement):
     - RESTRICT to prevent deletion if dependencies exist
     """
 
-    def __new__(cls, name: TableName | str, options: int = 0) -> typing.Self:
+    def __new__(cls, name: Table | TableName | str, options: int = 0) -> typing.Self:
         """
         Create and return a new object.  See help(type) for accurate signature.
         """
@@ -864,7 +867,7 @@ class DropTable(SchemaStatement):
         """The table name to drop."""
         ...
     @name.setter
-    def name(self, value: TableName | str) -> None: ...
+    def name(self, value: Table | TableName | str) -> None: ...
     @property
     def options(self) -> int:
         """Specified options."""
@@ -1166,7 +1169,7 @@ class ForeignKey:
     def __new__(
         cls,
         from_columns: typing.Iterable[str | ColumnRef | Column],
-        to_table: TableName | str,
+        to_table: Table | TableName | str,
         to_columns: typing.Iterable[str | ColumnRef | Column],
         name: str | None = None,
         *,
@@ -1194,7 +1197,7 @@ class ForeignKey:
         """Key table, if specified."""
         ...
     @from_table.setter
-    def from_table(self, value: TableName | None) -> None: ...
+    def from_table(self, value: Table | TableName | None) -> None: ...
     @property
     def name(self) -> str:
         """Foreign key constraint name"""
@@ -1406,8 +1409,8 @@ class Index(SchemaStatement):
     def __new__(
         cls,
         columns: typing.Iterable[_IndexColumnValue],
-        table: TableName | str | None = None,
         name: str | None = None,
+        table: Table | TableName | str | None = None,
         options: int = 0,
         *,
         index_type: str | None = None,
@@ -1436,7 +1439,9 @@ class Index(SchemaStatement):
     def columns(self, value: typing.Iterable[_IndexColumnValue]) -> None: ...
     @property
     def if_not_exists(self) -> bool:
-        """Whether to use IF NOT EXISTS clause."""
+        """
+        Whether to use IF NOT EXISTS clause. Shorthand for `self.options & self.OPT_IF_NOT_EXISTS > 0`.
+        """
         ...
 
     @property
@@ -1459,7 +1464,10 @@ class Index(SchemaStatement):
     def name(self, value: str | None) -> None: ...
     @property
     def nulls_not_distinct(self) -> bool:
-        """Whether NULL values should be considered equal for uniqueness."""
+        """
+        Whether NULL values should be considered equal for uniqueness.
+        Shorthand for `self.options & self.OPT_NULLS_NOT_DISTINCT > 0`.
+        """
         ...
 
     @property
@@ -1470,22 +1478,28 @@ class Index(SchemaStatement):
     def options(self, value: int) -> None: ...
     @property
     def primary(self) -> bool:
-        """Whether this is a primary key constraint."""
+        """
+        Whether this is a primary key constraint.
+        Shorthand for `self.options & self.OPT_PRIMARY > 0`.
+        """
         ...
 
     @property
-    def table(self) -> TableName | None:
+    def table(self) -> Table | TableName | None:
         """The table on which to create the index."""
         ...
     @table.setter
-    def table(self, value: TableName | str | None) -> None: ...
+    def table(self, value: Table | TableName | str | None) -> None: ...
     def to_sql(self, backend: str, /) -> str:
         """Build a SQL string representation."""
         ...
 
     @property
     def unique(self) -> bool:
-        """Whether this is a unique constraint."""
+        """
+        Whether this is a unique constraint.
+        Shorthand for `self.options & self.OPT_UNIQUE > 0`.
+        """
         ...
 
     @property
@@ -1654,7 +1668,9 @@ class RenameTable(SchemaStatement):
     schema-qualified if needed.
     """
 
-    def __new__(cls, from_name: TableName | str, to_name: TableName | str) -> typing.Self:
+    def __new__(
+        cls, from_name: Table | TableName | str, to_name: Table | TableName | str
+    ) -> typing.Self:
         """
         Create and return a new object.  See help(type) for accurate signature.
         """
@@ -1670,13 +1686,13 @@ class RenameTable(SchemaStatement):
         """The current name of the table."""
         ...
     @from_name.setter
-    def from_name(self, value: TableName | str) -> None: ...
+    def from_name(self, value: Table | TableName | str) -> None: ...
     @property
     def to_name(self) -> TableName:
         """The new name for the table."""
         ...
     @to_name.setter
-    def to_name(self, value: TableName | str) -> None: ...
+    def to_name(self, value: Table | TableName | str) -> None: ...
     def to_sql(self, backend: str, /) -> str:
         """Build a SQL string representation."""
         ...
@@ -1782,6 +1798,128 @@ class StringType(SQLTypeAbstract[str, str]):
 
     @property
     def length(self) -> int | None: ...
+
+@typing.final
+class Table(SchemaStatement):
+    """
+    Represents a complete database table definition.
+
+    This class encapsulates all aspects of a table structure including:
+    - Column definitions with their types and constraints
+    - Indexes for query optimization
+    - Foreign key relationships for referential integrity
+    - Check constraints for data validation
+    - Table-level options like engine, collation, and character set
+
+    Used to generate CREATE TABLE SQL statements with full schema specifications.
+    """
+
+    def __new__(
+        cls,
+        name: TableName | str,
+        *args: Column | Index | ForeignKey | Expr,
+        options: int = 0,
+        comment: str | None = None,
+        engine: str | None = None,
+        collate: str | None = None,
+        character_set: str | None = None,
+        extra: str | None = None,
+    ) -> typing.Self:
+        """
+        Create and return a new object.  See help(type) for accurate signature.
+        """
+        ...
+    OPT_IF_NOT_EXISTS: typing.ClassVar[int] = ...
+    OPT_TEMPORARY: typing.ClassVar[int] = ...
+
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @property
+    def character_set(self) -> str | None:
+        """Character set encoding for text data in this table."""
+        ...
+    @character_set.setter
+    def character_set(self, value: str | None) -> None: ...
+    @property
+    def checks(self) -> typing.Sequence[Expr]:
+        """Table check constraints."""
+        ...
+    @checks.setter
+    def checks(self, value: typing.Iterable[Expr]) -> None: ...
+    @property
+    def collate(self) -> str | None:
+        """Collation for string comparisons and sorting in this table."""
+        ...
+    @collate.setter
+    def collate(self, value: str | None) -> None: ...
+    @property
+    def columns(self) -> typing.Sequence[Column]:
+        """Table columns."""
+        ...
+    @columns.setter
+    def columns(self, value: typing.Iterable[Column]) -> None: ...
+    @property
+    def comment(self) -> str | None:
+        """Comment describing the purpose of this table."""
+        ...
+    @comment.setter
+    def comment(self, value: str | None) -> None: ...
+    @property
+    def engine(self) -> str | None:
+        """Storage engine for the table (e.g., InnoDB, MyISAM for MySQL)."""
+        ...
+    @engine.setter
+    def engine(self, value: str | None) -> None: ...
+    @property
+    def extra(self) -> str | None:
+        """Additional table-specific options for the CREATE TABLE statement."""
+        ...
+    @extra.setter
+    def extra(self, value: str | None) -> None: ...
+    @property
+    def foreign_keys(self) -> typing.Sequence[ForeignKey]:
+        """Table foreign keys."""
+        ...
+    @foreign_keys.setter
+    def foreign_keys(self, value: typing.Iterable[ForeignKey]) -> None: ...
+    @property
+    def if_not_exists(self) -> bool:
+        """
+        Whether to use IF NOT EXISTS clause to avoid errors if table exists.
+        Shorthand for `self.options & self.OPT_IF_NOT_EXISTS > 0`.
+        """
+        ...
+
+    @property
+    def indexes(self) -> typing.Sequence[Index]:
+        """Table indexes."""
+        ...
+    @indexes.setter
+    def indexes(self, value: typing.Iterable[Index]) -> None: ...
+    @property
+    def name(self) -> TableName:
+        """The name of this table."""
+        ...
+
+    @property
+    def options(self) -> int:
+        """Specified options."""
+        ...
+    @options.setter
+    def options(self, value: int) -> None: ...
+    @property
+    def temporary(self) -> bool:
+        """
+        Whether this is a temporary table that exists only for the session.
+        Shorthand for `self.options & self.OPT_TEMPORARY > 0`.
+        """
+        ...
+
+    def to_sql(self, backend: str, /) -> str:
+        """Build a SQL string representation."""
+        ...
 
 @typing.final
 class TableName:
@@ -2005,7 +2143,7 @@ class TruncateTable(SchemaStatement):
     database system.
     """
 
-    def __new__(cls, name: TableName | str) -> typing.Self:
+    def __new__(cls, name: Table | TableName | str) -> typing.Self:
         """
         Create and return a new object.  See help(type) for accurate signature.
         """
@@ -2021,7 +2159,7 @@ class TruncateTable(SchemaStatement):
         """The name of the table to truncate."""
         ...
     @name.setter
-    def name(self, value: TableName | str) -> None: ...
+    def name(self, value: Table | TableName | str) -> None: ...
     def to_sql(self, backend: str, /) -> str:
         """Build a SQL string representation."""
         ...

@@ -176,6 +176,10 @@ mod _lib {
     #[pymodule_export]
     use crate::table::alter::PyAlterTableRenameColumnOption;
 
+    // table
+    #[pymodule_export]
+    use crate::table::PyTable;
+
     #[pymodule_export]
     const ASTERISK: Py_AsteriskType = Py_AsteriskType;
 

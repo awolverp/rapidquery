@@ -43,7 +43,9 @@ pub(crate) static mut FUNC_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_m
 pub(crate) static mut COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut TABLE_NAME_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut INDEX_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut INDEX_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut FOREIGN_KEY_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut TABLE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
 // Python standard libraries types
 pub(crate) static mut STD_DECIMAL_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -124,7 +126,9 @@ fn _initialize_typeref(py: pyo3::Python) {
             crate::expression::PyFunc => FUNC_TYPE,
             crate::column::PyColumn => COLUMN_TYPE,
             crate::index::PyIndexColumn => INDEX_COLUMN_TYPE,
+            crate::index::PyIndex => INDEX_TYPE,
             crate::foreign_key::PyForeignKey => FOREIGN_KEY_TYPE,
+            crate::table::PyTable => TABLE_TYPE,
         );
 
         STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");

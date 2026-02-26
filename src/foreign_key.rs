@@ -44,7 +44,7 @@ implement_state_pyclass! {
     /// @alias _ForeignKeyActions = typing.Literal["CASCADE", "RESTRICT", "NO ACTION", "SET DEFAULT", "SET NULL"]
     /// @signature (
     ///     from_columns: typing.Iterable[str | ColumnRef | Column],
-    ///     to_table: TableName | str,
+    ///     to_table: Table | TableName | str,
     ///     to_columns: typing.Iterable[str | ColumnRef | Column],
     ///     name: str | None = None,
     ///     *,
@@ -289,7 +289,7 @@ impl PyForeignKey {
     /// Key table, if specified.
     ///
     /// @signature (self) -> TableName | None
-    /// @setter TableName | None
+    /// @setter Table | TableName | None
     #[getter]
     #[allow(clippy::wrong_self_convention)]
     fn from_table(&self) -> Option<PyTableName> {

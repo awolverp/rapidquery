@@ -101,7 +101,7 @@ implement_state_pyclass! {
     /// Multiple operations can be batched together in a single ALTER TABLE
     /// statement for efficiency.
     ///
-    /// @signature (name: TableName | str, options: typing.Iterable[AlterTableBaseOption] = ())
+    /// @signature (name: Table | TableName | str, options: typing.Iterable[AlterTableBaseOption] = ())
     #[derive(Debug)]
     pub struct [extends=PySchemaStatement] PyAlterTable(AlterTableState) as "AlterTable" {
         name: crate::common::PyTableName,
@@ -424,7 +424,7 @@ impl PyAlterTable {
     /// The name of the table to alter.
     ///
     /// @signature (self) -> TableName
-    /// @setter TableName | str
+    /// @setter Table | TableName | str
     #[getter]
     fn name(&self) -> crate::common::PyTableName {
         self.0.lock().name.clone()

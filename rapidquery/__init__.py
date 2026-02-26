@@ -42,6 +42,7 @@ from ._lib import SmallIntegerType as SmallIntegerType
 from ._lib import SmallUnsignedType as SmallUnsignedType
 from ._lib import SQLTypeAbstract as SQLTypeAbstract
 from ._lib import StringType as StringType
+from ._lib import Table as Table
 from ._lib import TableName as TableName
 from ._lib import TextType as TextType
 from ._lib import TimestampType as TimestampType

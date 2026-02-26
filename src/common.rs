@@ -416,6 +416,11 @@ impl TryFrom<&pyo3::Bound<'_, pyo3::PyAny>> for PyTableName {
                 return Ok(casted_value.get().clone());
             }
 
+            if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::TABLE_TYPE {
+                let casted_value = value.cast_unchecked::<crate::table::PyTable>();
+                return Ok(casted_value.get().0.lock().name.clone());
+            }
+
             if let Ok(x) = value.extract::<String>() {
                 return Self::from_str(&x);
             }

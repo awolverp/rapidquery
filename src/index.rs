@@ -60,8 +60,8 @@ implement_state_pyclass! {
     /// @alias _IndexColumnValue = IndexColumn | Column | ColumnRef | str
     /// @signature (
     ///     columns: typing.Iterable[_IndexColumnValue],
-    ///     table: TableName | str | None = None,
     ///     name: str | None = None,
+    ///     table: Table | TableName | str | None = None,
     ///     options: int = 0,
     ///     *,
     ///     index_type: str | None = None,
@@ -86,7 +86,7 @@ implement_state_pyclass! {
     /// - Conditional deletion (IF EXISTS)
     /// - Table-specific index dropping
     ///
-    /// @signature (name: str, table: TableName | str, if_exists: bool = False)
+    /// @signature (name: str, table: Table | TableName | str, if_exists: bool = False)
     pub struct [extends=PySchemaStatement] PyDropIndex(DropIndexState) as "DropIndex" {
         pub name: String,
         pub table: PyTableName,
@@ -305,8 +305,8 @@ impl PyIndex {
         pyo3(
             signature = (
                 columns,
-                table=None,
                 name=None,
+                table=None,
                 options=0,
                 *,
                 index_type=None,
@@ -317,8 +317,8 @@ impl PyIndex {
     ]
     fn __new__(
         columns: Vec<pyo3::Bound<'_, pyo3::PyAny>>,
-        table: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
         name: Option<String>,
+        table: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
         options: u8,
         index_type: Option<String>,
         r#where: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
@@ -375,8 +375,8 @@ impl PyIndex {
 
     /// The table on which to create the index.
     ///
-    /// @signature (self) -> TableName | None
-    /// @setter TableName | str | None
+    /// @signature (self) -> Table | TableName | None
+    /// @setter Table | TableName | str | None
     #[getter]
     fn table(&self) -> Option<PyTableName> {
         let lock = self.0.lock();
@@ -411,6 +411,7 @@ impl PyIndex {
     }
 
     /// Whether this is a primary key constraint.
+    /// Shorthand for `self.options & self.OPT_PRIMARY > 0`.
     ///
     /// @signature (self) -> bool
     #[getter]
@@ -419,6 +420,7 @@ impl PyIndex {
     }
 
     /// Whether this is a unique constraint.
+    /// Shorthand for `self.options & self.OPT_UNIQUE > 0`.
     ///
     /// @signature (self) -> bool
     #[getter]
@@ -427,6 +429,7 @@ impl PyIndex {
     }
 
     /// Whether NULL values should be considered equal for uniqueness.
+    /// Shorthand for `self.options & self.OPT_NULLS_NOT_DISTINCT > 0`.
     ///
     /// @signature (self) -> bool
     #[getter]
@@ -434,7 +437,7 @@ impl PyIndex {
         self.0.lock().options & Self::OPT_NULLS_NOT_DISTINCT > 0
     }
 
-    /// Whether to use IF NOT EXISTS clause.
+    /// Whether to use IF NOT EXISTS clause. Shorthand for `self.options & self.OPT_IF_NOT_EXISTS > 0`.
     ///
     /// @signature (self) -> bool
     #[getter]
@@ -539,7 +542,7 @@ impl PyIndex {
         build_schema_statement!(backend, stmt)
     }
 
-    fn __repr__(&self) -> String {
+    pub fn __repr__(&self) -> String {
         use std::io::Write;
 
         let lock = self.0.lock();
@@ -656,7 +659,7 @@ impl PyDropIndex {
     /// The table from which to drop the index.
     ///
     /// @signature (self) -> TableName
-    /// @setter TableName | str
+    /// @setter Table | TableName | str
     #[getter]
     fn table(&self) -> PyTableName {
         let lock = self.0.lock();

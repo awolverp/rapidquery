@@ -11,7 +11,7 @@ implement_state_pyclass! {
     /// - CASCADE to drop dependent objects
     /// - RESTRICT to prevent deletion if dependencies exist
     ///
-    /// @signature (name: TableName | str, options: int = 0)
+    /// @signature (name: Table | TableName | str, options: int = 0)
     pub struct [extends=PySchemaStatement] PyDropTable(DropTableState) as "DropTable" {
         name: PyTableName,
         options: u8,
@@ -23,7 +23,7 @@ implement_state_pyclass! {
     /// Changes the name of an existing table to a new name. Both names can be
     /// schema-qualified if needed.
     ///
-    /// @signature (from_name: TableName | str, to_name: TableName | str)
+    /// @signature (from_name: Table | TableName | str, to_name: Table | TableName | str)
     pub struct [extends=PySchemaStatement] PyRenameTable(RenameTableState) as "RenameTable" {
         from_name: PyTableName,
         to_name: PyTableName,
@@ -36,7 +36,7 @@ implement_state_pyclass! {
     /// and with different transaction and trigger behavior depending on the
     /// database system.
     ///
-    /// @signature (name: TableName | str)
+    /// @signature (name: Table | TableName | str)
     pub struct [extends=PySchemaStatement] PyTruncateTable(TruncateTableState) as "TruncateTable" {
         name: PyTableName,
     }
@@ -94,7 +94,7 @@ impl PyDropTable {
     /// The table name to drop.
     ///
     /// @signature (self) -> TableName
-    /// @setter TableName | str
+    /// @setter Table | TableName | str
     #[getter]
     fn name(&self) -> PyTableName {
         let lock = self.0.lock();
@@ -220,7 +220,7 @@ impl PyRenameTable {
     /// The current name of the table.
     ///
     /// @signature (self) -> TableName
-    /// @setter TableName | str
+    /// @setter Table | TableName | str
     #[getter]
     #[allow(clippy::wrong_self_convention)]
     fn from_name(&self) -> PyTableName {
@@ -240,7 +240,7 @@ impl PyRenameTable {
     /// The new name for the table.
     ///
     /// @signature (self) -> TableName
-    /// @setter TableName | str
+    /// @setter Table | TableName | str
     #[getter]
     fn to_name(&self) -> PyTableName {
         let lock = self.0.lock();
@@ -309,7 +309,7 @@ impl PyTruncateTable {
     /// The name of the table to truncate.
     ///
     /// @signature (self) -> TableName
-    /// @setter TableName | str
+    /// @setter Table | TableName | str
     #[getter]
     fn name(&self) -> PyTableName {
         let lock = self.0.lock();
