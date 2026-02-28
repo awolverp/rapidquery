@@ -144,6 +144,7 @@ impl TypeEngine {
                 PyStringType => STRING_COLUMN_TYPE,
                 PyVectorType => VECTOR_COLUMN_TYPE,
                 PyArrayType => ARRAY_COLUMN_TYPE,
+                PyEnumType => ENUM_COLUMN_TYPE,
             );
 
             Err(typeerror!(

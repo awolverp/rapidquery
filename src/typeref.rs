@@ -33,6 +33,7 @@ pub(crate) static mut CHAR_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr:
 pub(crate) static mut STRING_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut VECTOR_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut ARRAY_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut ENUM_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
 // Useful types
 pub(crate) static mut VALUE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -118,6 +119,7 @@ fn _initialize_typeref(py: pyo3::Python) {
             crate::sqltypes::PyStringType => STRING_COLUMN_TYPE,
             crate::sqltypes::PyVectorType => VECTOR_COLUMN_TYPE,
             crate::sqltypes::PyArrayType => ARRAY_COLUMN_TYPE,
+            crate::sqltypes::PyEnumType => ENUM_COLUMN_TYPE,
             crate::value::PyValue => VALUE_TYPE,
             crate::common::Py_AsteriskType => ASTERISK_TYPE,
             crate::common::PyColumnRef => COLUMN_REF_TYPE,

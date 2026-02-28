@@ -10,8 +10,7 @@ implement_pyclass! {
         /// Vector column type for storing mathematical vectors.
         ///
         /// Specialized type for storing vector data, often used in machine learning,
-        /// similarity search, or mathematical applications. The length parameter
-        /// typically specifies the vector dimension.
+        /// similarity search, or mathematical applications.
         ///
         /// @extends SQLTypeAbstract[list | tuple, list]
         /// @signature (length: int | None = None)
@@ -109,7 +108,9 @@ impl NativeSQLType for PyVectorType {
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
     ) -> pyo3::PyResult<()> {
-        _validate_iterable_ptr(py, ptr, |item| pyo3::ffi::PyFloat_CheckExact(item) == 1)
+        _validate_iterable_ptr(py, ptr, |item| {
+            pyo3::ffi::PyFloat_CheckExact(item) == 1 || pyo3::ffi::PyLong_CheckExact(item) == 1
+        })
     }
 
     #[cfg_attr(feature = "optimize", optimize(speed))]
@@ -125,11 +126,13 @@ impl NativeSQLType for PyVectorType {
             let mut values: Vec<f32> = Vec::with_capacity(list.len());
 
             for item in list.iter() {
-                if pyo3::ffi::PyFloat_CheckExact(item.as_ptr()) == 0 {
+                if pyo3::ffi::PyFloat_CheckExact(item.as_ptr()) == 0
+                    && pyo3::ffi::PyLong_CheckExact(item.as_ptr()) == 0
+                {
                     return Err(typeerror!(
                         "expected a list of floats, found {:?} in the list",
                         py,
-                        ptr
+                        item.as_ptr()
                     ));
                 }
 
@@ -146,11 +149,13 @@ impl NativeSQLType for PyVectorType {
             let mut values: Vec<f32> = Vec::with_capacity(list.len());
 
             for item in list.iter() {
-                if pyo3::ffi::PyFloat_CheckExact(item.as_ptr()) == 0 {
+                if pyo3::ffi::PyFloat_CheckExact(item.as_ptr()) == 0
+                    && pyo3::ffi::PyLong_CheckExact(item.as_ptr()) == 0
+                {
                     return Err(typeerror!(
                         "expected a tuple of floats, found {:?} in the tuple",
                         py,
-                        ptr
+                        item.as_ptr()
                     ));
                 }
 

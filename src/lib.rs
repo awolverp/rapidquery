@@ -16,6 +16,7 @@ mod common;
 mod expression;
 mod foreign_key;
 mod index;
+mod query;
 mod sqltypes;
 mod table;
 mod typeref;
@@ -179,6 +180,10 @@ mod _lib {
     // table
     #[pymodule_export]
     use crate::table::PyTable;
+
+    // query::on_conflict
+    #[pymodule_export]
+    use crate::query::on_conflict::PyOnConflict;
 
     #[pymodule_export]
     const ASTERISK: Py_AsteriskType = Py_AsteriskType;

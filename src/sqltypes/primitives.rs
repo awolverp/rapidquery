@@ -294,7 +294,6 @@ implement_numeric_NativeSQLType!(
     BigInt,
     PyLong_AsLongLong,
     PyLong_CheckExact,
-    PyFloat_CheckExact,
 );
 implement_numeric_NativeSQLType!(
     PyIntegerType,
@@ -304,7 +303,6 @@ implement_numeric_NativeSQLType!(
     Int,
     PyLong_AsLongLong,
     PyLong_CheckExact,
-    PyFloat_CheckExact,
 );
 implement_numeric_NativeSQLType!(
     PySmallIntegerType,
@@ -314,7 +312,6 @@ implement_numeric_NativeSQLType!(
     SmallInt,
     PyLong_AsLongLong,
     PyLong_CheckExact,
-    PyFloat_CheckExact,
 );
 implement_numeric_NativeSQLType!(
     PyTinyIntegerType,
@@ -324,7 +321,6 @@ implement_numeric_NativeSQLType!(
     TinyInt,
     PyLong_AsLongLong,
     PyLong_CheckExact,
-    PyFloat_CheckExact,
 );
 implement_numeric_NativeSQLType!(
     PyBigUnsignedType,
@@ -332,9 +328,8 @@ implement_numeric_NativeSQLType!(
     "int",
     BigUnsigned,
     BigUnsigned,
-    PyLong_AsLongLong,
+    PyLong_AsUnsignedLongLong,
     PyLong_CheckExact,
-    PyFloat_CheckExact,
 );
 implement_numeric_NativeSQLType!(
     PyUnsignedType,
@@ -342,9 +337,8 @@ implement_numeric_NativeSQLType!(
     "int",
     Unsigned,
     Unsigned,
-    PyLong_AsLongLong,
+    PyLong_AsUnsignedLong,
     PyLong_CheckExact,
-    PyFloat_CheckExact,
 );
 implement_numeric_NativeSQLType!(
     PySmallUnsignedType,
@@ -352,9 +346,8 @@ implement_numeric_NativeSQLType!(
     "int",
     SmallUnsigned,
     SmallUnsigned,
-    PyLong_AsLongLong,
+    PyLong_AsUnsignedLong,
     PyLong_CheckExact,
-    PyFloat_CheckExact,
 );
 implement_numeric_NativeSQLType!(
     PyTinyUnsignedType,
@@ -362,9 +355,8 @@ implement_numeric_NativeSQLType!(
     "int",
     TinyUnsigned,
     TinyUnsigned,
-    PyLong_AsLongLong,
+    PyLong_AsUnsignedLong,
     PyLong_CheckExact,
-    PyFloat_CheckExact,
 );
 implement_numeric_NativeSQLType!(
     PyFloatType,

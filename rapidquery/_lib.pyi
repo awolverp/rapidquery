@@ -3,6 +3,7 @@ RapidQuery core module written in Rust
 """
 
 from __future__ import annotations
+
 import typing
 import decimal
 import uuid
@@ -47,6 +48,7 @@ __all__ = [
     "JSONBinaryType",
     "JSONType",
     "MacAddressType",
+    "OnConflict",
     "QueryStatement",
     "RenameTable",
     "SQLTypeAbstract",
@@ -99,12 +101,7 @@ class AlterTable(SchemaStatement):
 
     def __new__(
         cls, name: Table | TableName | str, options: typing.Iterable[AlterTableBaseOption] = ()
-    ) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    ) -> typing.Self: ...
     def __copy__(self) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
@@ -139,12 +136,7 @@ class AlterTableAddColumnOption(AlterTableBaseOption):
     to prevent errors if the column already exists.
     """
 
-    def __new__(cls, column: Column, if_not_exists: bool = False) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, column: Column, if_not_exists: bool = False) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -163,12 +155,7 @@ class AlterTableAddForeignKeyOption(AlterTableBaseOption):
     relationship on an existing table.
     """
 
-    def __new__(cls, foreign_key: ForeignKey) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, foreign_key: ForeignKey) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -194,12 +181,7 @@ class AlterTableDropColumnOption(AlterTableBaseOption):
     is referenced by other database objects.
     """
 
-    def __new__(cls, name: Column | ColumnRef | str) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, name: Column | ColumnRef | str) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -215,12 +197,7 @@ class AlterTableDropForeignKeyOption(AlterTableBaseOption):
     Removes a foreign key relationship by its constraint name.
     """
 
-    def __new__(cls, name: ForeignKey | str) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, name: ForeignKey | str) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -237,12 +214,7 @@ class AlterTableModifyColumnOption(AlterTableBaseOption):
     default value, or other constraints.
     """
 
-    def __new__(cls, column: Column) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, column: Column) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -261,12 +233,7 @@ class AlterTableRenameColumnOption(AlterTableBaseOption):
 
     def __new__(
         cls, from_name: Column | ColumnRef | str, to_name: Column | ColumnRef | str
-    ) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    ) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -286,12 +253,7 @@ class ArrayType(SQLTypeAbstract[list[I] | tuple[I], list[O]]):
     for storing lists of values in a single column.
     """
 
-    def __new__(cls, element: SQLTypeAbstract[I, O]) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, element: SQLTypeAbstract[I, O]) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -364,12 +326,7 @@ class BinaryType(SQLTypeAbstract[bytes, bytes]):
     data with consistent length.
     """
 
-    def __new__(cls, length: int = 255) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, length: int = 255) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -395,12 +352,7 @@ class BitType(SQLTypeAbstract[bytes, bytes]):
     or binary data where individual bits have meaning.
     """
 
-    def __new__(cls, length: int) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, length: int) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -472,12 +424,7 @@ class CharType(SQLTypeAbstract[str, str]):
     with consistent, known lengths like country codes or status flags.
     """
 
-    def __new__(cls, length: int | None = ...) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, length: int | None = ...) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -521,11 +468,7 @@ class Column(typing.Generic[I, O]):
         comment: str | None = ...,
         default: typing.Any = ...,
         generated: typing.Any = ...,
-    ) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
+    ) -> typing.Self: ...
     OPT_AUTO_INCREMENT: typing.ClassVar[int] = ...
     OPT_NULLABLE: typing.ClassVar[int] = ...
     OPT_PRIMARY_KEY: typing.ClassVar[int] = ...
@@ -619,12 +562,7 @@ class ColumnRef:
 
     def __new__(
         cls, name: str | _AsteriskType, table: str | None = ..., schema: str | None = ...
-    ) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    ) -> typing.Self: ...
     def __copy__(self) -> typing.Self: ...
     def __eq__(self, value, /) -> bool:
         """Return self==value."""
@@ -737,12 +675,7 @@ class DecimalType(SQLTypeAbstract[decimal.Decimal | int | float | str, decimal.D
     decimal representation is required without floating-point approximation.
     """
 
-    def __new__(cls, context: tuple[int, int] | None) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, context: tuple[int, int] | None = None) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -794,12 +727,7 @@ class DropIndex(SchemaStatement):
 
     def __new__(
         cls, name: str, table: Table | TableName | str, if_exists: bool = False
-    ) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    ) -> typing.Self: ...
     def __copy__(self) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
@@ -838,11 +766,7 @@ class DropTable(SchemaStatement):
     - RESTRICT to prevent deletion if dependencies exist
     """
 
-    def __new__(cls, name: Table | TableName | str, options: int = 0) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
+    def __new__(cls, name: Table | TableName | str, options: int = 0) -> typing.Self: ...
     OPT_CASCADE: typing.ClassVar[int] = ...
     OPT_IF_EXISTS: typing.ClassVar[int] = ...
     OPT_RESTRICT: typing.ClassVar[int] = ...
@@ -893,12 +817,7 @@ class EnumType(SQLTypeAbstract[str | enum.Enum, str]):
     with a fixed set of possible values.
     """
 
-    def __new__(cls, name: str, variants: typing.Iterable[str]) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, name: str, variants: typing.Iterable[str]) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -933,12 +852,7 @@ class Expr:
     of it which includes new change(s).
     """
 
-    def __new__(cls, value, /) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, value, /) -> typing.Self: ...
     def __add__(self, other: object) -> typing.Self:
         """Create an addition expression."""
         ...
@@ -964,7 +878,7 @@ class Expr:
         ...
 
     def __lshift__(self, other: object) -> typing.Self:
-        """Create a bitwise left shift expression."""
+        """Create a bitwise left-shift expression."""
         ...
 
     def __lt__(self, other: object) -> typing.Self:  # type: ignore[override]
@@ -1004,7 +918,7 @@ class Expr:
         ...
 
     def __rlshift__(self, other: object) -> typing.Self:
-        """Create a bitwise left shift expression."""
+        """Create a bitwise left-shift expression."""
         ...
 
     def __rmod__(self, other: object) -> typing.Self:
@@ -1020,11 +934,11 @@ class Expr:
         ...
 
     def __rrshift__(self, other: object) -> typing.Self:
-        """Create a bitwise right shift expression."""
+        """Create a bitwise right-shift expression."""
         ...
 
     def __rshift__(self, other: object) -> typing.Self:
-        """Create a bitwise right shift expression."""
+        """Create a bitwise right-shift expression."""
         ...
 
     def __rsub__(self, other: object) -> typing.Self:
@@ -1175,12 +1089,7 @@ class ForeignKey:
         *,
         on_delete: _ForeignKeyActions | None = None,
         on_update: _ForeignKeyActions | None = None,
-    ) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    ) -> typing.Self: ...
     def __copy__(self) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
@@ -1238,12 +1147,7 @@ class Func:
     with proper argument handling and database dialect support.
     """
 
-    def __new__(cls, name: str, *args: object) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, name: str, *args: object) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -1416,11 +1320,7 @@ class Index(SchemaStatement):
         index_type: str | None = None,
         where: object | None = None,
         include: typing.Iterable[str] = (),
-    ) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
+    ) -> typing.Self: ...
     OPT_IF_NOT_EXISTS: typing.ClassVar[int] = ...
     OPT_NULLS_NOT_DISTINCT: typing.ClassVar[int] = ...
     OPT_PRIMARY: typing.ClassVar[int] = ...
@@ -1527,12 +1427,7 @@ class IndexColumn:
 
     def __new__(
         cls, name: str, order: _IndexColumnOrder | None = None, prefix: int | None = None
-    ) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    ) -> typing.Self: ...
     def __copy__(self) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
@@ -1644,6 +1539,57 @@ class MacAddressType(SQLTypeAbstract[str, str]):
         """
         ...
 
+@typing.final
+class OnConflict:
+    """
+    Specifies conflict resolution behavior for INSERT statements.
+
+    Handles situations where an INSERT would violate a unique constraint
+    or primary key. Supports various strategies:
+    - DO NOTHING: Skip the conflicting row
+    - DO UPDATE: Update the existing row with new values
+
+    This corresponds to INSERT ... ON CONFLICT in PostgreSQL and
+    INSERT ... ON DUPLICATE KEY UPDATE in MySQL.
+    """
+
+    def __new__(cls, *targets: Column | ColumnRef | str) -> typing.Self: ...
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    def action_where(self, condition: Expr) -> typing.Self:
+        """Add a WHERE clause to the conflict action (conditional update)."""
+        ...
+
+    def do_nothing(self, *keys: Column | ColumnRef | str) -> typing.Self:
+        """
+        Specify DO NOTHING action for conflicts.
+
+        When a conflict occurs, the conflicting row will be skipped.
+
+        `keys` parameter provides primary keys if you are using MySQL, for MySQL specific polyfill.
+        """
+        ...
+
+    @typing.overload
+    def do_update(self, *args: Column | ColumnRef | str) -> typing.Self:
+        """
+        Specify DO UPDATE action for conflicts using column names, or with explicit values.
+        """
+        ...
+
+    @typing.overload
+    def do_update(self, **kwds: object) -> typing.Self:
+        """
+        Specify DO UPDATE action for conflicts using column names, or with explicit values.
+        """
+        ...
+
+    def target_where(self, condition: Expr) -> typing.Self:
+        """Add a WHERE clause to the conflict target (partial unique index)."""
+        ...
+
 class QueryStatement:
     """Subclass of query statements."""
 
@@ -1670,12 +1616,7 @@ class RenameTable(SchemaStatement):
 
     def __new__(
         cls, from_name: Table | TableName | str, to_name: Table | TableName | str
-    ) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    ) -> typing.Self: ...
     def __copy__(self) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
@@ -1777,12 +1718,7 @@ class StringType(SQLTypeAbstract[str, str]):
     like names, descriptions, or user input.
     """
 
-    def __new__(cls, length: int | None = ...) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, length: int | None = ...) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -1824,11 +1760,7 @@ class Table(SchemaStatement):
         collate: str | None = None,
         character_set: str | None = None,
         extra: str | None = None,
-    ) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
+    ) -> typing.Self: ...
     OPT_IF_NOT_EXISTS: typing.ClassVar[int] = ...
     OPT_TEMPORARY: typing.ClassVar[int] = ...
 
@@ -1943,12 +1875,7 @@ class TableName:
         schema: str | None = None,
         database: str | None = None,
         alias: str | None = None,
-    ) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    ) -> typing.Self: ...
     def __copy__(self) -> typing.Self: ...
     def __eq__(self, value, /) -> bool:
         """Return self==value."""
@@ -2067,12 +1994,7 @@ class TimestampType(SQLTypeAbstract[datetime.datetime | int | float, datetime.da
     Behavior varies by database system.
     """
 
-    def __new__(cls, timezone=False) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, timezone=False) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -2143,12 +2065,7 @@ class TruncateTable(SchemaStatement):
     database system.
     """
 
-    def __new__(cls, name: Table | TableName | str) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, name: Table | TableName | str) -> typing.Self: ...
     def __copy__(self) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
@@ -2229,12 +2146,9 @@ class Value(typing.Generic[I, O]):
     NOTE: this class is immutable and frozen.
     """
 
-    def __new__(cls, value: I | None, sql_type: SQLTypeAbstract[I, O] | None = ...) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(
+        cls, value: I | None, sql_type: SQLTypeAbstract[I, O] | None = ...
+    ) -> typing.Self: ...
     def __hash__(self, /) -> int:
         """Return hash(self)."""
         ...
@@ -2259,12 +2173,7 @@ class VarBinaryType(SQLTypeAbstract[bytes, bytes]):
     More storage-efficient than BINARY for binary data of varying lengths.
     """
 
-    def __new__(cls, length=None) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, length=None) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -2290,12 +2199,7 @@ class VarBitType(SQLTypeAbstract[bytes, bytes]):
     than fixed BIT type for bit strings of varying lengths.
     """
 
-    def __new__(cls, length=255) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, length=255) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -2318,16 +2222,10 @@ class VectorType(SQLTypeAbstract[list | tuple, list]):
     Vector column type for storing mathematical vectors.
 
     Specialized type for storing vector data, often used in machine learning,
-    similarity search, or mathematical applications. The length parameter
-    typically specifies the vector dimension.
+    similarity search, or mathematical applications.
     """
 
-    def __new__(cls, length: int | None = None) -> typing.Self:
-        """
-        Create and return a new object.  See help(type) for accurate signature.
-        """
-        ...
-
+    def __new__(cls, length: int | None = None) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...

@@ -102,7 +102,7 @@ impl NativeSQLType for PyBlobType {
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
     ) -> pyo3::PyResult<()> {
-        if pyo3::ffi::PyBytes_CheckExact(ptr) != 0 {
+        if pyo3::ffi::PyBytes_CheckExact(ptr) != 1 {
             Err(typeerror!("expected bytes, got {:?}", py, ptr))
         } else {
             Ok(())
@@ -141,7 +141,7 @@ impl NativeSQLType for PyBinaryType {
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
     ) -> pyo3::PyResult<()> {
-        if pyo3::ffi::PyBytes_CheckExact(ptr) != 0 {
+        if pyo3::ffi::PyBytes_CheckExact(ptr) != 1 {
             Err(typeerror!("expected bytes, got {:?}", py, ptr))
         } else {
             Ok(())
@@ -183,7 +183,7 @@ impl NativeSQLType for PyVarBinaryType {
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
     ) -> pyo3::PyResult<()> {
-        if pyo3::ffi::PyBytes_CheckExact(ptr) != 0 {
+        if pyo3::ffi::PyBytes_CheckExact(ptr) != 1 {
             Err(typeerror!("expected bytes, got {:?}", py, ptr))
         } else {
             Ok(())
@@ -222,7 +222,7 @@ impl NativeSQLType for PyBitType {
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
     ) -> pyo3::PyResult<()> {
-        if pyo3::ffi::PyBytes_CheckExact(ptr) != 0 {
+        if pyo3::ffi::PyBytes_CheckExact(ptr) != 1 {
             Err(typeerror!("expected bytes, got {:?}", py, ptr))
         } else {
             Ok(())
@@ -261,7 +261,7 @@ impl NativeSQLType for PyVarBitType {
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
     ) -> pyo3::PyResult<()> {
-        if pyo3::ffi::PyBytes_CheckExact(ptr) != 0 {
+        if pyo3::ffi::PyBytes_CheckExact(ptr) != 1 {
             Err(typeerror!("expected bytes, got {:?}", py, ptr))
         } else {
             Ok(())

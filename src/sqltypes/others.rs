@@ -15,7 +15,7 @@ implement_pyclass! {
         /// decimal representation is required without floating-point approximation.
         ///
         /// @extends SQLTypeAbstract[decimal.Decimal | int | float | str,decimal.Decimal]
-        /// @signature (cls, context: tuple[int, int] | None)
+        /// @signature (cls, context: tuple[int, int] | None = None)
         #[derive(Debug, Clone, Copy)]
         pub struct [extends=PySQLTypeAbstract] PyDecimalType as "DecimalType" (pub Option<(u32, u32)>);
     )
@@ -89,7 +89,7 @@ impl NativeSQLType for PyDecimalType {
         }
 
         if pyo3::ffi::Py_TYPE(ptr) == crate::typeref::STD_DECIMAL_TYPE
-            && pyo3::ffi::PyFloat_CheckExact(ptr) == 1
+            || pyo3::ffi::PyFloat_CheckExact(ptr) == 1
         {
             return Ok(());
         }
@@ -104,6 +104,7 @@ impl NativeSQLType for PyDecimalType {
                     pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(x.to_string())
                 })
             })?;
+            return Ok(());
         }
 
         Err(typeerror!(
