@@ -81,7 +81,6 @@ impl ToSeaQuery<sea_query::OnConflict> for OnConflictState {
 
 impl OnConflictState {
     #[inline]
-    #[cfg_attr(feature = "optimize", optimize(speed))]
     fn update_from_dictionary(
         &mut self,
         kwds: pyo3::Bound<'_, pyo3::types::PyDict>,
@@ -103,7 +102,6 @@ impl OnConflictState {
     }
 
     #[inline]
-    #[cfg_attr(feature = "optimize", optimize(speed))]
     fn update_from_tuple(
         &mut self,
         args: pyo3::Bound<'_, pyo3::types::PyTuple>,
@@ -290,7 +288,7 @@ impl PyOnConflict {
         Ok(slf)
     }
 
-    fn __repr__(&self) -> String {
+    pub fn __repr__(&self) -> String {
         use std::io::Write;
 
         let lock = self.0.lock();

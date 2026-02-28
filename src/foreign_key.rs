@@ -209,7 +209,8 @@ impl PyForeignKey {
         }
 
         // Convert from_columns
-        let mut from_columns_str: Vec<String> = Vec::with_capacity(from_columns.len());
+        let mut from_columns_str = Vec::with_capacity(from_columns.len());
+
         for col in from_columns.into_iter() {
             let col_ref = crate::common::PyColumnRef::try_from(&col)?;
 
@@ -224,7 +225,8 @@ impl PyForeignKey {
         }
 
         // Convert to_columns
-        let mut to_columns_str: Vec<String> = Vec::with_capacity(to_columns.len());
+        let mut to_columns_str = Vec::with_capacity(to_columns.len());
+
         for col in to_columns.into_iter() {
             let col_ref = crate::common::PyColumnRef::try_from(&col)?;
 
@@ -349,7 +351,7 @@ impl PyForeignKey {
             )));
         }
 
-        let mut from_columns_str: Vec<String> = Vec::with_capacity(val.len());
+        let mut from_columns_str = Vec::with_capacity(val.len());
         for col in val.into_iter() {
             let col_ref = crate::common::PyColumnRef::try_from(&col)?;
 
@@ -393,7 +395,7 @@ impl PyForeignKey {
             )));
         }
 
-        let mut to_columns_str: Vec<String> = Vec::with_capacity(val.len());
+        let mut to_columns_str = Vec::with_capacity(val.len());
         for col in val.into_iter() {
             let col_ref = crate::common::PyColumnRef::try_from(&col)?;
 

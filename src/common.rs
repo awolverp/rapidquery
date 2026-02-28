@@ -3,6 +3,14 @@ use std::str::FromStr;
 use pyo3::types::{PyAnyMethods, PyStringMethods};
 use sea_query::IntoIden;
 
+#[derive(Debug, Default)]
+pub enum ReturningClause {
+    #[default]
+    None,
+    All,
+    Columns(Vec<String>),
+}
+
 implement_pyclass! {
     (
         /// Asterisk `"*"`
@@ -12,11 +20,15 @@ implement_pyclass! {
     )
     (
         /// Subclass of schema statements.
+        ///
+        /// @alias _BackendName = typing.Literal["sqlite", "postgresql", "postgres", "mysql"]
         #[derive(Debug, Clone, Copy)]
         pub struct [subclass] PySchemaStatement as "SchemaStatement";
     )
     (
         /// Subclass of query statements.
+        ///
+        /// @alias _BackendName = typing.Literal["sqlite", "postgresql", "postgres", "mysql"]
         #[derive(Debug, Clone, Copy)]
         pub struct [subclass] PyQueryStatement as "QueryStatement";
     )
@@ -81,7 +93,7 @@ implement_pyclass! {
 impl PySchemaStatement {
     /// Build a SQL string representation.
     ///
-    /// @signature (self, backend: str, /) -> str
+    /// @signature (self, backend: _BackendName, /) -> str
     #[pyo3(signature = (backend, /))]
     #[allow(unused_variables)]
     #[allow(clippy::wrong_self_convention)]
@@ -96,20 +108,24 @@ impl PyQueryStatement {
     ///
     /// **This method is unsafe and can cause SQL injection.** use `.build()` method instead.
     ///
-    /// @signature (self, backend: str, /) -> str
+    /// @signature (self, backend: _BackendName, /) -> str
     #[pyo3(signature = (backend, /))]
     #[allow(unused_variables)]
     #[allow(clippy::wrong_self_convention)]
-    fn to_sql(&self, backend: String) -> pyo3::PyResult<String> {
+    fn to_sql(&self, py: pyo3::Python<'_>, backend: String) -> pyo3::PyResult<String> {
         Err(pyo3::exceptions::PyNotImplementedError::new_err(()))
     }
 
     /// Build the SQL statement with parameter values.
     ///
-    /// @signature (self, backend: str, /) -> tuple[str, tuple[Value, ...]]
+    /// @signature (self, backend: _BackendName, /) -> tuple[str, tuple[Value, ...]]
     #[pyo3(signature = (backend, /))]
     #[allow(unused_variables)]
-    fn build(&self, backend: String) -> pyo3::PyResult<(String, pyo3::Py<pyo3::PyAny>)> {
+    fn build<'a>(
+        &self,
+        py: pyo3::Python<'a>,
+        backend: String,
+    ) -> pyo3::PyResult<(String, pyo3::Bound<'a, pyo3::PyAny>)> {
         Err(pyo3::exceptions::PyNotImplementedError::new_err(()))
     }
 }
@@ -148,7 +164,7 @@ impl FromStr for PyColumnRef {
         //    name
         //    table.name
         //    schema.table.name
-        let mut string = string.split('.').map(String::from).collect::<Vec<String>>();
+        let mut string: Vec<String> = string.split('.').map(String::from).collect();
 
         if string.len() > 3 {
             return Err(pyo3::exceptions::PyValueError::new_err("invalid format"));
@@ -449,7 +465,7 @@ impl FromStr for PyTableName {
         //    name
         //    schema.name
         //    database.schema.name
-        let mut s = s.split('.').map(String::from).collect::<Vec<String>>();
+        let mut s: Vec<String> = s.split('.').map(String::from).collect();
 
         if s.len() > 3 {
             return Err(pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(

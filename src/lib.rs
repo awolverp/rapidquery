@@ -185,6 +185,10 @@ mod _lib {
     #[pymodule_export]
     use crate::query::on_conflict::PyOnConflict;
 
+    // query::insert
+    #[pymodule_export]
+    use crate::query::insert::PyInsert;
+
     #[pymodule_export]
     const ASTERISK: Py_AsteriskType = Py_AsteriskType;
 

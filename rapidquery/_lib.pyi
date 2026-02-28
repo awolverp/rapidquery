@@ -44,6 +44,7 @@ __all__ = [
     "INETType",
     "Index",
     "IndexColumn",
+    "Insert",
     "IntegerType",
     "JSONBinaryType",
     "JSONType",
@@ -83,6 +84,7 @@ _ForeignKeyActions: typing.TypeAlias = typing.Literal[
 ]
 _IndexColumnValue: typing.TypeAlias = IndexColumn | Column | ColumnRef | str
 _IndexColumnOrder: typing.TypeAlias = typing.Literal["ASC", "DESC"]
+_BackendName: typing.TypeAlias = typing.Literal["sqlite", "postgresql", "postgres", "mysql"]
 
 ASTERISK: typing.Final[_AsteriskType] = ...
 
@@ -123,7 +125,7 @@ class AlterTable(SchemaStatement):
         ...
     @options.setter
     def options(self, value: typing.Iterable[AlterTableBaseOption]) -> None: ...
-    def to_sql(self, backend: str, /) -> str:
+    def to_sql(self, backend: _BackendName, /) -> str:
         """Build a SQL string representation."""
         ...
 
@@ -751,7 +753,7 @@ class DropIndex(SchemaStatement):
         ...
     @table.setter
     def table(self, value: Table | TableName | str) -> None: ...
-    def to_sql(self, backend: str, /) -> str:
+    def to_sql(self, backend: _BackendName, /) -> str:
         """Build a SQL string representation."""
         ...
 
@@ -803,7 +805,7 @@ class DropTable(SchemaStatement):
         """Shorthand for `self.options & OPT_RESTRICT > 0`."""
         ...
 
-    def to_sql(self, backend: str, /) -> str:
+    def to_sql(self, backend: _BackendName, /) -> str:
         """Build a SQL string representation."""
         ...
 
@@ -1390,7 +1392,7 @@ class Index(SchemaStatement):
         ...
     @table.setter
     def table(self, value: Table | TableName | str | None) -> None: ...
-    def to_sql(self, backend: str, /) -> str:
+    def to_sql(self, backend: _BackendName, /) -> str:
         """Build a SQL string representation."""
         ...
 
@@ -1446,6 +1448,93 @@ class IndexColumn:
     @property
     def prefix(self) -> int | None:
         """Number of characters to index for string columns (prefix indexing)."""
+        ...
+
+@typing.final
+class Insert(QueryStatement):
+    """
+    Builds INSERT SQL statements with a fluent interface.
+
+    Provides a chainable API for constructing INSERT queries with support for:
+    - Single or multiple row insertion
+    - Conflict resolution (UPSERT)
+    - RETURNING clauses
+    - REPLACE functionality
+    - Default values
+    """
+
+    def __new__(cls, table: Table | TableName | str) -> typing.Self: ...
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    def build(self, backend: _BackendName, /) -> tuple[str, tuple[Value, ...]]:
+        """Build the SQL statement with parameter values."""
+        ...
+
+    def columns(self, *args: Column | ColumnRef | str) -> typing.Self:
+        """
+        Specify the columns for insertion.
+
+        There's no need to use this method when you're specifying column
+        names in `.values` method.
+        """
+        ...
+
+    def into(self, table: Table | TableName | str) -> typing.Self:
+        """Specify the target table for insertion."""
+        ...
+
+    def on_conflict(self, action: OnConflict) -> typing.Self:
+        """Specify conflict resolution behavior (UPSERT)."""
+        ...
+
+    def or_default_values(self, rows: int = 1) -> typing.Self:
+        """
+        Use DEFAULT VALUES if no values were specified. The `rows`
+        Specifies number of rows to insert with default values.
+        """
+        ...
+
+    def replace(self) -> typing.Self:
+        """
+        Convert this INSERT to a REPLACE statement.
+
+        REPLACE will delete existing rows that conflict with the new row
+        before inserting.
+        """
+        ...
+
+    def returning(self, *args: Column | ColumnRef | str) -> typing.Self:
+        """Specify columns to return from the inserted rows."""
+        ...
+
+    def returning_all(self) -> typing.Self:
+        """
+        Return all columns from the inserted rows. Same as `self.returning("*")`.
+        """
+        ...
+
+    def to_sql(self, backend: _BackendName, /) -> str:
+        """
+        Build a SQL string representation.
+
+        **This method is unsafe and can cause SQL injection.** use `.build()` method instead.
+        """
+        ...
+
+    @typing.overload
+    def values(self, *args: object) -> typing.Self:
+        """
+        Specify values to insert. Also you can specify columns using keyword arguments.
+        """
+        ...
+
+    @typing.overload
+    def values(self, **kwds: object) -> typing.Self:
+        """
+        Specify values to insert. Also you can specify columns using keyword arguments.
+        """
         ...
 
 @typing.final
@@ -1593,11 +1682,11 @@ class OnConflict:
 class QueryStatement:
     """Subclass of query statements."""
 
-    def build(self, backend: str, /) -> tuple[str, tuple[Value, ...]]:
+    def build(self, backend: _BackendName, /) -> tuple[str, tuple[Value, ...]]:
         """Build the SQL statement with parameter values."""
         ...
 
-    def to_sql(self, backend: str, /) -> str:
+    def to_sql(self, backend: _BackendName, /) -> str:
         """
         Build a SQL string representation.
 
@@ -1634,7 +1723,7 @@ class RenameTable(SchemaStatement):
         ...
     @to_name.setter
     def to_name(self, value: Table | TableName | str) -> None: ...
-    def to_sql(self, backend: str, /) -> str:
+    def to_sql(self, backend: _BackendName, /) -> str:
         """Build a SQL string representation."""
         ...
 
@@ -1660,7 +1749,7 @@ class SQLTypeAbstract(typing.Generic[I, O]):
 class SchemaStatement:
     """Subclass of schema statements."""
 
-    def to_sql(self, backend: str, /) -> str:
+    def to_sql(self, backend: _BackendName, /) -> str:
         """Build a SQL string representation."""
         ...
 
@@ -1849,7 +1938,7 @@ class Table(SchemaStatement):
         """
         ...
 
-    def to_sql(self, backend: str, /) -> str:
+    def to_sql(self, backend: _BackendName, /) -> str:
         """Build a SQL string representation."""
         ...
 
@@ -2077,7 +2166,7 @@ class TruncateTable(SchemaStatement):
         ...
     @name.setter
     def name(self, value: Table | TableName | str) -> None: ...
-    def to_sql(self, backend: str, /) -> str:
+    def to_sql(self, backend: _BackendName, /) -> str:
         """Build a SQL string representation."""
         ...
 

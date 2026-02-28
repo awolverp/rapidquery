@@ -56,11 +56,10 @@ impl ValueState {
         }
     }
 
-    pub fn from_sea_query_value(
-        sql_type: TypeEngine,
-        value: sea_query::Value,
-    ) -> pyo3::PyResult<Self> {
-        unsafe { Ok(Self::new_unchecked(sql_type, Some(value), None)) }
+    pub fn from_sea_query_value(py: pyo3::Python, value: sea_query::Value) -> Self {
+        let sql_type = TypeEngine::infer_value(py, &value);
+
+        unsafe { Self::new_unchecked(sql_type, Some(value), None) }
     }
 
     pub fn simple_expr(&mut self, py: pyo3::Python) -> pyo3::PyResult<sea_query::SimpleExpr> {

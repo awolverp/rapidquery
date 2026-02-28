@@ -73,7 +73,7 @@ impl PyExpr {
                 use pyo3::types::PyTupleMethods;
 
                 let casted_value = value.cast_unchecked::<pyo3::types::PyTuple>();
-                let mut arr: Vec<Self> = Vec::new();
+                let mut arr = Vec::with_capacity(casted_value.len());
 
                 for item in casted_value.iter() {
                     arr.push(Self::try_from(&item)?);

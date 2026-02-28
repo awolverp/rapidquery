@@ -442,6 +442,8 @@ impl PyTable {
         self.0.lock().extra = val;
     }
 
+    #[pyo3(signature = (backend, /))]
+    #[allow(clippy::wrong_self_convention)]
     fn to_sql(&self, py: pyo3::Python<'_>, backend: String) -> pyo3::PyResult<String> {
         let lock = self.0.lock();
         let stmt = lock.to_sea_query(py);

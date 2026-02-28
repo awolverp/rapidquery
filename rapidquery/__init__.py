@@ -31,10 +31,12 @@ from ._lib import Func as Func
 from ._lib import Index as Index
 from ._lib import IndexColumn as IndexColumn
 from ._lib import INETType as INETType
+from ._lib import Insert as Insert
 from ._lib import IntegerType as IntegerType
 from ._lib import JSONBinaryType as JSONBinaryType
 from ._lib import JSONType as JSONType
 from ._lib import MacAddressType as MacAddressType
+from ._lib import OnConflict as OnConflict
 from ._lib import QueryStatement as QueryStatement
 from ._lib import RenameTable as RenameTable
 from ._lib import SchemaStatement as SchemaStatement

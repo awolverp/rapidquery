@@ -245,3 +245,10 @@ class TestSQLType:
                 return
 
             raise e
+
+        assert val.sql_type is case.data_type
+        assert val.value == case.value
+
+    @pytest.mark.parametrize("case", TEST_CASES)
+    def test_type_name(self, case: Case):
+        assert case.data_type.__type_name__
