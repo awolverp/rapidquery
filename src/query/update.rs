@@ -1,22 +1,28 @@
-use super::clauses::{OrderClause, ReturningClause};
+use pyo3::types::{PyAnyMethods, PyDictMethods};
+use sea_query::IntoIden;
+
 use crate::{
     common::{PyQueryStatement, PyTableName},
     expression::PyExpr,
+    query::clauses::{OrderClause, ReturningClause},
     utils::ToSeaQuery,
 };
 
 implement_state_pyclass! {
-    /// Builds DELETE SQL statements with a fluent interface.
+    /// Builds UPDATE SQL statements with a fluent interface.
     ///
-    /// Provides a chainable API for constructing DELETE queries with support for:
+    /// Provides a chainable API for constructing UPDATE queries with support for:
+    /// - Setting column values
     /// - WHERE conditions for filtering
-    /// - LIMIT for restricting deletion count
-    /// - ORDER BY for determining deletion order
-    /// - RETURNING clauses for getting deleted data
+    /// - LIMIT for restricting update count
+    /// - ORDER BY for determining update order
+    /// - RETURNING clauses for getting updated data
     ///
     /// @signature (table: Table | TableName | str)
-    pub struct [extends=PyQueryStatement] PyDelete(DeleteState) as "Delete" {
+    pub struct [extends=PyQueryStatement] PyUpdate(UpdateState) as "Update" {
         pub table: PyTableName,
+        pub from_table: Option<PyTableName>,
+        pub values: Vec<(sea_query::DynIden, PyExpr)>,
         pub r#where: Option<PyExpr>,
         pub limit: Option<u64>,
         pub returning_clause: ReturningClause,
@@ -24,14 +30,20 @@ implement_state_pyclass! {
     }
 }
 
-impl ToSeaQuery<sea_query::DeleteStatement> for DeleteState {
-    fn to_sea_query<'a>(&self, _py: pyo3::Python<'a>) -> sea_query::DeleteStatement {
-        let mut stmt = sea_query::DeleteStatement::new();
-        stmt.from_table(self.table.clone());
+impl ToSeaQuery<sea_query::UpdateStatement> for UpdateState {
+    fn to_sea_query<'a>(&self, _py: pyo3::Python<'a>) -> sea_query::UpdateStatement {
+        let mut stmt = sea_query::UpdateStatement::new();
+        stmt.table(self.table.clone());
+
+        if let Some(x) = &self.from_table {
+            stmt.from(x.clone());
+        }
+        stmt.values(self.values.iter().map(|(x, y)| (x.clone(), y.0.clone())));
 
         if let Some(x) = &self.r#where {
             stmt.and_where(x.0.clone());
         }
+
         if let Some(x) = self.limit {
             stmt.limit(x);
         }
@@ -63,13 +75,15 @@ impl ToSeaQuery<sea_query::DeleteStatement> for DeleteState {
 }
 
 #[pyo3::pymethods]
-impl PyDelete {
+impl PyUpdate {
     #[new]
     fn __new__(table: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<(Self, PyQueryStatement)> {
         let table = PyTableName::try_from(table)?;
 
-        let state = DeleteState {
+        let state = UpdateState {
             table,
+            from_table: None,
+            values: vec![],
             r#where: None,
             limit: None,
             returning_clause: ReturningClause::None,
@@ -78,11 +92,10 @@ impl PyDelete {
         Ok((state.into(), PyQueryStatement))
     }
 
-    /// Specify the table to delete from.
+    /// Specify the table to update.
     ///
     /// @signature (self, table: Table | TableName | str) -> typing.Self
-    #[allow(clippy::wrong_self_convention)]
-    fn from_table<'a>(
+    fn table<'a>(
         slf: pyo3::PyRef<'a, Self>,
         table: &'a pyo3::Bound<'_, pyo3::PyAny>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
@@ -95,7 +108,27 @@ impl PyDelete {
         Ok(slf)
     }
 
-    /// Limit the number of rows to delete.
+    /// Update using data from another table (`UPDATE .. FROM ..`).
+    ///
+    /// MySQL doesn't support the UPDATE FROM syntax. And the current implementation attempt to
+    /// tranform it to the UPDATE JOIN syntax, which only works for one join target.
+    ///
+    /// @signature (self, table: Table | TableName | str) -> typing.Self
+    #[allow(clippy::wrong_self_convention)]
+    fn from_table<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        table: &'a pyo3::Bound<'_, pyo3::PyAny>,
+    ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
+        let table = PyTableName::try_from(table)?;
+
+        {
+            let mut lock = slf.0.lock();
+            lock.from_table = Some(table);
+        }
+        Ok(slf)
+    }
+
+    /// Limit the number of rows to update.
     ///
     /// @signature (self, n: int) -> typing.Self
     fn limit(slf: pyo3::PyRef<'_, Self>, n: u64) -> pyo3::PyRef<'_, Self> {
@@ -107,7 +140,7 @@ impl PyDelete {
         slf
     }
 
-    /// Specify columns to return from the deleted rows.
+    /// Specify columns to return from the updated rows.
     ///
     /// @signature (self, *args: Column | ColumnRef | str) -> typing.Self
     #[pyo3(signature=(*args))]
@@ -122,7 +155,7 @@ impl PyDelete {
         Ok(slf)
     }
 
-    /// Return all columns from the deleted rows. Same as `self.returning("*")`.
+    /// Return all columns from the updated rows. Same as `self.returning("*")`.
     ///
     /// @signature (self) -> typing.Self
     fn returning_all(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyRef<'_, Self> {
@@ -133,7 +166,7 @@ impl PyDelete {
         slf
     }
 
-    /// Add a WHERE condition to filter rows to delete.
+    /// Add a WHERE condition to filter rows to update.
     ///
     /// @signature (self, condition: Expr) -> typing.Self
     fn r#where<'a>(
@@ -177,8 +210,8 @@ impl PyDelete {
         slf
     }
 
-    /// Specify the order in which to delete rows. Typically used with
-    /// `.limit` method to delete specific rows.
+    /// Specify the order in which to update rows. Typically used with
+    /// `.limit` method to update specific rows.
     ///
     /// @signature (
     ///     self,
@@ -203,12 +236,36 @@ impl PyDelete {
         Ok(slf)
     }
 
-    /// Remove orders from statement.
+    /// Specify columns and their new values.
     ///
-    /// @signature (self) -> typing.Self
-    fn clear_order_by(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyRef<'_, Self> {
-        slf.0.lock().orders.clear();
-        slf
+    /// @signature (self, **kwds: object) -> typing.Self
+    #[pyo3(signature=(**kwds))]
+    fn values<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        kwds: Option<&'a pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
+        if kwds.is_none() {
+            return Ok(slf);
+        }
+
+        let kwds = unsafe { kwds.unwrap_unchecked() };
+        let mut values = Vec::with_capacity(kwds.len());
+
+        unsafe {
+            for (key, value) in kwds.iter() {
+                let key = key.extract::<String>().unwrap_unchecked();
+                values.push((
+                    (sea_query::Alias::new(key).into_iden()),
+                    PyExpr::try_from(&value)?,
+                ));
+            }
+        }
+
+        {
+            let mut lock = slf.0.lock();
+            lock.values = values;
+        }
+        Ok(slf)
     }
 
     #[pyo3(signature = (backend, /))]
@@ -240,8 +297,11 @@ impl PyDelete {
         let lock = self.0.lock();
         let mut s = Vec::<u8>::with_capacity(30);
 
-        write!(s, "<Delete from_table={}", lock.table.__repr__()).unwrap();
+        write!(s, "<Update table={}", lock.table.__repr__()).unwrap();
 
+        if let Some(x) = &lock.from_table {
+            write!(s, " from_table={}", x.__repr__()).unwrap();
+        }
         if let Some(x) = lock.limit {
             write!(s, " limit={x}").unwrap();
         }
@@ -271,7 +331,18 @@ impl PyDelete {
             }
         }
 
-        write!(s, ">").unwrap();
+        write!(s, " values=[").unwrap();
+
+        let n = lock.values.len();
+        for (index, expr) in lock.values.iter().enumerate() {
+            if index + 1 == n {
+                write!(s, "({}, {})", expr.0.to_string(), expr.1.__repr__()).unwrap();
+            } else {
+                write!(s, "({}, {}), ", expr.0.to_string(), expr.1.__repr__()).unwrap();
+            }
+        }
+
+        write!(s, "]>").unwrap();
         unsafe { String::from_utf8_unchecked(s) }
     }
 }

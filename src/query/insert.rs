@@ -1,6 +1,5 @@
 use super::clauses::ReturningClause;
 use pyo3::types::{PyAnyMethods, PyDictMethods, PyTupleMethods};
-use sea_query::IntoIden;
 
 use crate::{
     common::{PyQueryStatement, PyTableName},
@@ -80,8 +79,7 @@ impl ToSeaQuery<sea_query::InsertStatement> for InsertState {
             ReturningClause::Columns(x) => {
                 stmt.returning(sea_query::ReturningClause::Columns(
                     x.iter()
-                        .map(sea_query::Alias::new)
-                        .map(|x| sea_query::ColumnRef::Column(x.into_iden()))
+                        .map(|x| sea_query::ColumnRef::Column(x.clone()))
                         .collect(),
                 ));
             }

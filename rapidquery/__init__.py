@@ -54,6 +54,7 @@ from ._lib import TinyIntegerType as TinyIntegerType
 from ._lib import TinyUnsignedType as TinyUnsignedType
 from ._lib import TruncateTable as TruncateTable
 from ._lib import UnsignedType as UnsignedType
+from ._lib import Update as Update
 from ._lib import UUIDType as UUIDType
 from ._lib import Value as Value
 from ._lib import VarBinaryType as VarBinaryType

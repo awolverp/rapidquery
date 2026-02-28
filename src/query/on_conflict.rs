@@ -1,17 +1,18 @@
 use pyo3::types::{PyAnyMethods, PyDictMethods, PyTupleMethods};
+use sea_query::IntoIden;
 
 use crate::{expression::PyExpr, utils::ToSeaQuery};
 
 #[derive(Debug)]
 pub enum OnConflictUpdate {
-    Column(String),
-    Expr(String, PyExpr),
+    Column(sea_query::DynIden),
+    Expr(sea_query::DynIden, PyExpr),
 }
 
 #[derive(Debug)]
 pub enum OnConflictAction {
     None,
-    DoNothing(Vec<String>),
+    DoNothing(Vec<sea_query::DynIden>),
     DoUpdate(Vec<OnConflictUpdate>),
 }
 
@@ -47,7 +48,7 @@ impl ToSeaQuery<sea_query::OnConflict> for OnConflictState {
                 if x.is_empty() {
                     stmt.do_nothing();
                 } else {
-                    stmt.do_nothing_on(x.iter().map(sea_query::Alias::new));
+                    stmt.do_nothing_on(x.iter().cloned());
                 }
             }
             OnConflictAction::DoUpdate(x) => {
@@ -56,9 +57,9 @@ impl ToSeaQuery<sea_query::OnConflict> for OnConflictState {
 
                 for val in x.iter() {
                     match val {
-                        OnConflictUpdate::Column(name) => columns.push(sea_query::Alias::new(name)),
+                        OnConflictUpdate::Column(name) => columns.push(name.clone()),
                         OnConflictUpdate::Expr(name, expr) => {
-                            exprs.push((sea_query::Alias::new(name), expr.0.clone()));
+                            exprs.push((name.clone(), expr.0.clone()));
                         }
                     }
                 }
@@ -91,8 +92,10 @@ impl OnConflictState {
             unsafe {
                 let val = crate::expression::PyExpr::try_from(&val)?;
 
-                let action =
-                    OnConflictUpdate::Expr(key.extract::<String>().unwrap_unchecked(), val);
+                let action = OnConflictUpdate::Expr(
+                    sea_query::Alias::new(key.extract::<String>().unwrap_unchecked()).into_iden(),
+                    val,
+                );
                 actions.push(action);
             }
         }
@@ -111,7 +114,7 @@ impl OnConflictState {
         for key in args.iter() {
             let column_ref = crate::common::PyColumnRef::try_from(&key)?;
             match column_ref.name {
-                Some(x) => actions.push(OnConflictUpdate::Column(x.to_string())),
+                Some(x) => actions.push(OnConflictUpdate::Column(x)),
                 None => {
                     return Err(pyo3::exceptions::PyValueError::new_err(
                         "OnConflict cannot accept asterisk '*' as column",
@@ -182,11 +185,11 @@ impl PyOnConflict {
             return Ok(slf);
         }
 
-        let mut normalized_keys: Vec<String> = Vec::with_capacity(keys.len());
+        let mut normalized_keys: Vec<sea_query::DynIden> = Vec::with_capacity(keys.len());
         for item in keys.iter() {
             let column_ref = crate::common::PyColumnRef::try_from(&item)?;
             match column_ref.name {
-                Some(x) => normalized_keys.push(x.to_string()),
+                Some(x) => normalized_keys.push(x),
                 None => {
                     return Err(pyo3::exceptions::PyValueError::new_err(
                         "OnConflict cannot accept asterisk '*' as column",

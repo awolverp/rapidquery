@@ -8,7 +8,7 @@ pub enum ReturningClause {
     #[default]
     None,
     All,
-    Columns(Vec<String>),
+    Columns(Vec<sea_query::DynIden>),
 }
 
 #[derive(Debug)]
@@ -27,7 +27,7 @@ impl ReturningClause {
             let column_ref = crate::common::PyColumnRef::try_from(&col)?;
 
             match column_ref.name {
-                Some(x) => columns.push(x.to_string()),
+                Some(x) => columns.push(x),
                 None => {
                     return Ok(ReturningClause::All);
                 }

@@ -76,8 +76,6 @@ def format_allocation_results(results: typing.Dict[str, int]) -> str:
     if not results:
         return "No results to display"
 
-    print(results)
-
     minimum = min(results.values())
 
     lines = []
@@ -149,9 +147,7 @@ def bench_insert_rapidquery():
     query.to_sql("postgresql")
 
 
-sa_glyph = sa.table(
-    "glyph", sa.column("aspect", sa.Float), sa.column("image", sa.String)
-)
+sa_glyph = sa.table("glyph", sa.column("aspect", sa.Float), sa.column("image", sa.String))
 
 
 def bench_insert_sqlalchemy():
@@ -163,10 +159,7 @@ def bench_insert_sqlalchemy():
 
 def bench_insert_pypika():
     query = (
-        pypika.Query.into("glyph")
-        .columns("aspect", "image")
-        .insert(5.15, "12A")
-        .insert(16, "14A")
+        pypika.Query.into("glyph").columns("aspect", "image").insert(5.15, "12A").insert(16, "14A")
     )
     str(query)
 
@@ -174,37 +167,34 @@ def bench_insert_pypika():
 # UPDATE Query Benchmarks
 
 
-# def bench_update_rapidquery():
-#     query = (
-#         rq.Update()
-#         .table("wallets")
-#         .values(amount=rq.Expr.col("amount") + 10)
-#         .where(rq.Expr.col("id").between(10, 30))
-#     )
-#     query.to_sql("postgresql")
+def bench_update_rapidquery():
+    query = (
+        rq.Update("wallets")
+        .values(amount=rq.Expr.col("amount") + 10)
+        .where(rq.Expr.col("id").between(10, 30))
+    )
+    query.to_sql("postgresql")
 
 
-# sa_wallets = sa.table(
-#     "wallets", sa.column("amount", sa.Integer), sa.column("id", sa.Integer)
-# )
+sa_wallets = sa.table("wallets", sa.column("amount", sa.Integer), sa.column("id", sa.Integer))
 
 
-# def bench_update_sqlalchemy():
-#     query = (
-#         sa.update(sa_wallets)
-#         .values(amount=sa_wallets.c.amount + 10)
-#         .where(sa.between(sa_wallets.c.id, 10, 30))
-#     )
-#     str(query.compile(dialect=SA_DIALECT, compile_kwargs={"literal_binds": True}))
+def bench_update_sqlalchemy():
+    query = (
+        sa.update(sa_wallets)
+        .values(amount=sa_wallets.c.amount + 10)
+        .where(sa.between(sa_wallets.c.id, 10, 30))
+    )
+    str(query.compile(dialect=SA_DIALECT, compile_kwargs={"literal_binds": True}))
 
 
-# def bench_update_pypika():
-#     query = (
-#         pypika.Query.update("wallets")
-#         .set("amount", pypika.Field("amount") + 10)
-#         .where(pypika.Field("id").between(10, 30))
-#     )
-#     str(query)
+def bench_update_pypika():
+    query = (
+        pypika.Query.update("wallets")
+        .set("amount", pypika.Field("amount") + 10)
+        .where(pypika.Field("id").between(10, 30))
+    )
+    str(query)
 
 
 # DELETE Query Benchmarks
@@ -266,13 +256,21 @@ def run_benchmarks():
     }
     print(format_allocation_results(results))
 
-    # print("\n📊 UPDATE Query Benchmark")
-    # results = {
-    #     "RapidQuery": benchmark(bench_update_rapidquery),
-    #     "SQLAlchemy": benchmark(bench_update_sqlalchemy),
-    #     "PyPika": benchmark(bench_update_pypika),
-    # }
-    # print(format_results(results))
+    print("\n📊 UPDATE Query Benchmark")
+    results = {
+        "RapidQuery": benchmark(bench_update_rapidquery),
+        "SQLAlchemy": benchmark(bench_update_sqlalchemy),
+        "PyPika": benchmark(bench_update_pypika),
+    }
+    print(format_results(results))
+
+    print("\n📊 UPDATE Query Benchmark (Allocation)")
+    results = {
+        "RapidQuery": benchmark_allocation(bench_update_rapidquery),
+        "SQLAlchemy": benchmark_allocation(bench_update_sqlalchemy),
+        "PyPika": benchmark_allocation(bench_update_pypika),
+    }
+    print(format_allocation_results(results))
 
     print("\n📊 DELETE Query Benchmark")
     results = {

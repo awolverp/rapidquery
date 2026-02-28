@@ -5,7 +5,6 @@ RapidQuery core module written in Rust
 from __future__ import annotations
 
 import typing
-from _typeshed import Incomplete
 import decimal
 import uuid
 import datetime
@@ -69,6 +68,7 @@ __all__ = [
     "TruncateTable",
     "UUIDType",
     "UnsignedType",
+    "Update",
     "Value",
     "VarBinaryType",
     "VarBitType",
@@ -725,7 +725,6 @@ class Delete(QueryStatement):
         """Remove where conditions from statement."""
         ...
 
-    @classmethod
     def from_table(self, table: Table | TableName | str) -> typing.Self:
         """Specify the table to delete from."""
         ...
@@ -739,7 +738,7 @@ class Delete(QueryStatement):
         target: Expr | Column | ColumnRef | str,
         order: typing.Literal["ASC", "DESC"] = "ASC",
         null_ordering: typing.Literal["FIRST", "LAST"] | None = None,
-    ) -> Incomplete:
+    ) -> typing.Self:
         """
         Specify the order in which to delete rows. Typically used with
         `.limit` method to delete specific rows.
@@ -747,12 +746,12 @@ class Delete(QueryStatement):
         ...
 
     def returning(self, *args: Column | ColumnRef | str) -> typing.Self:
-        """Specify columns to return from the inserted rows."""
+        """Specify columns to return from the deleted rows."""
         ...
 
     def returning_all(self) -> typing.Self:
         """
-        Return all columns from the inserted rows. Same as `self.returning("*")`.
+        Return all columns from the deleted rows. Same as `self.returning("*")`.
         """
         ...
 
@@ -2288,6 +2287,87 @@ class UnsignedType(SQLTypeAbstract[int, int]):
 
         It also may be a property. This function must NOT raise any error.
         """
+        ...
+
+@typing.final
+class Update(QueryStatement):
+    """
+    Builds UPDATE SQL statements with a fluent interface.
+
+    Provides a chainable API for constructing UPDATE queries with support for:
+    - Setting column values
+    - WHERE conditions for filtering
+    - LIMIT for restricting update count
+    - ORDER BY for determining update order
+    - RETURNING clauses for getting updated data
+    """
+
+    def __new__(cls, table: Table | TableName | str) -> typing.Self: ...
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    def build(self, backend: _BackendName, /) -> tuple[str, tuple[Value, ...]]:
+        """Build the SQL statement with parameter values."""
+        ...
+
+    def clear_where(self) -> typing.Self:
+        """Remove where conditions from statement."""
+        ...
+
+    def from_table(self, table: Table | TableName | str) -> typing.Self:
+        """
+        Update using data from another table (`UPDATE .. FROM ..`).
+
+        MySQL doesn't support the UPDATE FROM syntax. And the current implementation attempt to
+        tranform it to the UPDATE JOIN syntax, which only works for one join target.
+        """
+        ...
+
+    def limit(self, n: int) -> typing.Self:
+        """Limit the number of rows to update."""
+        ...
+
+    def order_by(
+        self,
+        target: Expr | Column | ColumnRef | str,
+        order: typing.Literal["ASC", "DESC"] = "ASC",
+        null_ordering: typing.Literal["FIRST", "LAST"] | None = None,
+    ) -> typing.Self:
+        """
+        Specify the order in which to update rows. Typically used with
+        `.limit` method to update specific rows.
+        """
+        ...
+
+    def returning(self, *args: Column | ColumnRef | str) -> typing.Self:
+        """Specify columns to return from the updated rows."""
+        ...
+
+    def returning_all(self) -> typing.Self:
+        """
+        Return all columns from the updated rows. Same as `self.returning("*")`.
+        """
+        ...
+
+    def table(self, table: Table | TableName | str) -> typing.Self:
+        """Specify the table to update."""
+        ...
+
+    def to_sql(self, backend: _BackendName, /) -> str:
+        """
+        Build a SQL string representation.
+
+        **This method is unsafe and can cause SQL injection.** use `.build()` method instead.
+        """
+        ...
+
+    def values(self, **kwds: object) -> typing.Self:
+        """Specify columns and their new values."""
+        ...
+
+    def where(self, condition: Expr) -> typing.Self:
+        """Add a WHERE condition to filter rows to update."""
         ...
 
 @typing.final

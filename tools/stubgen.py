@@ -553,12 +553,7 @@ class Implementation:
 
 def _is_classmethod(class_: type, member: object) -> bool:
     sig: str = getattr(member, "__text_signature__", "") or ""
-    return (
-        getattr(member, "__self__", None) is class_
-        or getattr(member, "__name__", "").startswith("from_")  # type: ignore[union-attr]
-        or "(cls" in sig
-        or "$cls" in sig
-    )
+    return getattr(member, "__self__", None) is class_ or "(cls" in sig or "$cls" in sig
 
 
 # ---------------------------------------------------------------------------
