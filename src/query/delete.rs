@@ -1,0 +1,280 @@
+use sea_query::IntoIden;
+
+use super::clauses::{OrderClause, ReturningClause};
+use crate::{
+    common::{PyQueryStatement, PyTableName},
+    expression::PyExpr,
+    utils::ToSeaQuery,
+};
+
+implement_state_pyclass! {
+    /// Builds DELETE SQL statements with a fluent interface.
+    ///
+    /// Provides a chainable API for constructing DELETE queries with support for:
+    /// - WHERE conditions for filtering
+    /// - LIMIT for restricting deletion count
+    /// - ORDER BY for determining deletion order
+    /// - RETURNING clauses for getting deleted data
+    ///
+    /// @signature (table: Table | TableName | str)
+    pub struct [extends=PyQueryStatement] PyDelete(DeleteState) as "Delete" {
+        pub table: PyTableName,
+        pub r#where: Option<PyExpr>,
+        pub limit: Option<u64>,
+        pub returning_clause: ReturningClause,
+        pub orders: Vec<OrderClause>,
+    }
+}
+
+impl ToSeaQuery<sea_query::DeleteStatement> for DeleteState {
+    fn to_sea_query<'a>(&self, _py: pyo3::Python<'a>) -> sea_query::DeleteStatement {
+        let mut stmt = sea_query::DeleteStatement::new();
+        stmt.from_table(self.table.clone());
+
+        if let Some(x) = &self.r#where {
+            stmt.and_where(x.0.clone());
+        }
+        if let Some(x) = self.limit {
+            stmt.limit(x);
+        }
+
+        match &self.returning_clause {
+            ReturningClause::None => (),
+            ReturningClause::All => {
+                stmt.returning_all();
+            }
+            ReturningClause::Columns(x) => {
+                stmt.returning(sea_query::ReturningClause::Columns(
+                    x.iter()
+                        .map(sea_query::Alias::new)
+                        .map(|x| sea_query::ColumnRef::Column(x.into_iden()))
+                        .collect(),
+                ));
+            }
+        }
+
+        for order in self.orders.iter() {
+            if let Some(x) = order.null_order {
+                stmt.order_by_expr_with_nulls(order.target.0.clone(), order.order.clone(), x);
+            } else {
+                stmt.order_by_expr(order.target.0.clone(), order.order.clone());
+            }
+        }
+
+        stmt
+    }
+}
+
+#[pyo3::pymethods]
+impl PyDelete {
+    #[new]
+    fn __new__(table: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<(Self, PyQueryStatement)> {
+        let table = PyTableName::try_from(table)?;
+
+        let state = DeleteState {
+            table,
+            r#where: None,
+            limit: None,
+            returning_clause: ReturningClause::None,
+            orders: vec![],
+        };
+        Ok((state.into(), PyQueryStatement))
+    }
+
+    /// Specify the table to delete from.
+    ///
+    /// @signature (self, table: Table | TableName | str) -> typing.Self
+    #[allow(clippy::wrong_self_convention)]
+    fn from_table<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        table: &'a pyo3::Bound<'_, pyo3::PyAny>,
+    ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
+        let table = PyTableName::try_from(table)?;
+
+        {
+            let mut lock = slf.0.lock();
+            lock.table = table;
+        }
+        Ok(slf)
+    }
+
+    /// Limit the number of rows to delete.
+    ///
+    /// @signature (self, n: int) -> typing.Self
+    fn limit(slf: pyo3::PyRef<'_, Self>, n: u64) -> pyo3::PyRef<'_, Self> {
+        {
+            let mut lock = slf.0.lock();
+            lock.limit = Some(n);
+        }
+
+        slf
+    }
+
+    /// Specify columns to return from the inserted rows.
+    ///
+    /// @signature (self, *args: Column | ColumnRef | str) -> typing.Self
+    #[pyo3(signature=(*args))]
+    fn returning<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        args: pyo3::Bound<'_, pyo3::types::PyTuple>,
+    ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
+        {
+            let mut lock = slf.0.lock();
+            lock.returning_clause = ReturningClause::new(args)?;
+        }
+        Ok(slf)
+    }
+
+    /// Return all columns from the inserted rows. Same as `self.returning("*")`.
+    ///
+    /// @signature (self) -> typing.Self
+    fn returning_all(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyRef<'_, Self> {
+        {
+            let mut lock = slf.0.lock();
+            lock.returning_clause = ReturningClause::All;
+        }
+        slf
+    }
+
+    /// Add a WHERE condition to filter rows to delete.
+    ///
+    /// @signature (self, condition: Expr) -> typing.Self
+    fn r#where<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        condition: &'a pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
+        unsafe {
+            if pyo3::ffi::Py_TYPE(condition.as_ptr()) != crate::typeref::EXPR_TYPE {
+                return Err(typeerror!(
+                    "expected Expr, got {:?}",
+                    condition.py(),
+                    condition.as_ptr()
+                ));
+            }
+
+            let condition = condition
+                .cast_unchecked::<crate::expression::PyExpr>()
+                .get()
+                .clone();
+
+            let mut lock = slf.0.lock();
+
+            match std::mem::take(&mut lock.r#where) {
+                None => {
+                    lock.r#where = Some(condition);
+                }
+                Some(x) => {
+                    lock.r#where = Some(PyExpr(x.0.and(condition.0)));
+                }
+            }
+        }
+
+        Ok(slf)
+    }
+
+    /// Remove where conditions from statement.
+    ///
+    /// @signature (self) -> typing.Self
+    fn clear_where(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyRef<'_, Self> {
+        slf.0.lock().r#where = None;
+        slf
+    }
+
+    /// Specify the order in which to delete rows. Typically used with
+    /// `.limit` method to delete specific rows.
+    ///
+    /// @signature (
+    ///     self,
+    ///     target: Expr | Column | ColumnRef | str,
+    ///     order: typing.Literal["ASC", "DESC"] = "ASC",
+    ///     null_ordering: typing.Literal["FIRST", "LAST"] | None = None,
+    /// )
+    #[pyo3(signature=(target, order = String::from("ASC"), null_order=None))]
+    fn order_by<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        target: pyo3::Bound<'_, pyo3::PyAny>,
+        order: String,
+        null_order: Option<String>,
+    ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
+        let order = OrderClause::new(&target, order, null_order)?;
+
+        {
+            let mut lock = slf.0.lock();
+            lock.orders.push(order);
+        }
+
+        Ok(slf)
+    }
+
+    /// Remove orders from statement.
+    ///
+    /// @signature (self) -> typing.Self
+    fn clear_order_by(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyRef<'_, Self> {
+        slf.0.lock().orders.clear();
+        slf
+    }
+
+    #[pyo3(signature = (backend, /))]
+    #[allow(clippy::wrong_self_convention)]
+    fn to_sql(&self, py: pyo3::Python<'_>, backend: String) -> pyo3::PyResult<String> {
+        let lock = self.0.lock();
+        let stmt = lock.to_sea_query(py);
+        drop(lock);
+
+        build_query_statement!(backend, stmt)
+    }
+
+    #[pyo3(signature = (backend, /))]
+    fn build<'a>(
+        &self,
+        py: pyo3::Python<'a>,
+        backend: String,
+    ) -> pyo3::PyResult<(String, pyo3::Bound<'a, pyo3::PyAny>)> {
+        let lock = self.0.lock();
+        let stmt = lock.to_sea_query(py);
+        drop(lock);
+
+        build_query_parts!(py, backend, stmt)
+    }
+
+    fn __repr__(&self) -> String {
+        use std::io::Write;
+
+        let lock = self.0.lock();
+        let mut s = Vec::<u8>::with_capacity(30);
+
+        write!(s, "<Delete from_table={}", lock.table.__repr__()).unwrap();
+
+        if let Some(x) = lock.limit {
+            write!(s, " limit={x}").unwrap();
+        }
+
+        if let Some(x) = &lock.r#where {
+            write!(s, " where={}", x.__repr__()).unwrap();
+        }
+
+        write!(s, " orders=[").unwrap();
+
+        let n = lock.orders.len();
+        for (index, expr) in lock.orders.iter().enumerate() {
+            if index + 1 == n {
+                write!(s, "{expr}]").unwrap();
+            } else {
+                write!(s, "{expr}, ").unwrap();
+            }
+        }
+
+        match &lock.returning_clause {
+            ReturningClause::None => (),
+            ReturningClause::All => {
+                write!(s, " returning_all").unwrap();
+            }
+            ReturningClause::Columns(x) => {
+                write!(s, " returning={x:?}").unwrap();
+            }
+        }
+
+        write!(s, ">").unwrap();
+        unsafe { String::from_utf8_unchecked(s) }
+    }
+}

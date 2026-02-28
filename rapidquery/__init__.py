@@ -20,6 +20,7 @@ from ._lib import ColumnRef as ColumnRef
 from ._lib import DateTimeType as DateTimeType
 from ._lib import DateType as DateType
 from ._lib import DecimalType as DecimalType
+from ._lib import Delete as Delete
 from ._lib import DoubleType as DoubleType
 from ._lib import DropIndex as DropIndex
 from ._lib import DropTable as DropTable

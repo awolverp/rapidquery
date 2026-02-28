@@ -1,8 +1,9 @@
+use super::clauses::ReturningClause;
 use pyo3::types::{PyAnyMethods, PyDictMethods, PyTupleMethods};
 use sea_query::IntoIden;
 
 use crate::{
-    common::{PyQueryStatement, PyTableName, ReturningClause},
+    common::{PyQueryStatement, PyTableName},
     expression::PyExpr,
     query::on_conflict::PyOnConflict,
     utils::ToSeaQuery,
@@ -314,31 +315,11 @@ impl PyInsert {
     #[pyo3(signature=(*args))]
     fn returning<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        args: &'a pyo3::Bound<'_, pyo3::types::PyTuple>,
+        args: pyo3::Bound<'_, pyo3::types::PyTuple>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
-        let mut columns = Vec::with_capacity(args.len());
-        let mut returning_all = false;
-
-        for col in args.iter() {
-            let column_ref = crate::common::PyColumnRef::try_from(&col)?;
-
-            match column_ref.name {
-                Some(x) => columns.push(x.to_string()),
-                None => {
-                    returning_all = true;
-                    break;
-                }
-            }
-        }
-
         {
             let mut lock = slf.0.lock();
-
-            if returning_all {
-                lock.returning_clause = ReturningClause::All;
-            } else {
-                lock.returning_clause = ReturningClause::Columns(columns);
-            }
+            lock.returning_clause = ReturningClause::new(args)?;
         }
         Ok(slf)
     }

@@ -3,14 +3,6 @@ use std::str::FromStr;
 use pyo3::types::{PyAnyMethods, PyStringMethods};
 use sea_query::IntoIden;
 
-#[derive(Debug, Default)]
-pub enum ReturningClause {
-    #[default]
-    None,
-    All,
-    Columns(Vec<String>),
-}
-
 implement_pyclass! {
     (
         /// Asterisk `"*"`

@@ -189,6 +189,10 @@ mod _lib {
     #[pymodule_export]
     use crate::query::insert::PyInsert;
 
+    // query::delete
+    #[pymodule_export]
+    use crate::query::delete::PyDelete;
+
     #[pymodule_export]
     const ASTERISK: Py_AsteriskType = Py_AsteriskType;
 

@@ -1,5 +1,6 @@
 import sys
 import time
+import tracemalloc
 import typing
 
 import pypika
@@ -13,8 +14,24 @@ import rapidquery as rq
 SA_DIALECT = dialect()
 
 # Benchmark configuration
-ITERATIONS = 100_000
-WARMUP_ITERATIONS = 1000
+ITERATIONS = 10_000
+WARMUP_ITERATIONS = 100
+
+
+def benchmark_allocation(func: typing.Callable, number=ITERATIONS) -> int:
+    for _ in range(min(WARMUP_ITERATIONS, number // 10)):
+        func()
+
+    tracemalloc.start()
+    alloc = tracemalloc.get_traced_memory()[1]
+
+    for _ in range(number):
+        func()
+
+    alloc = tracemalloc.get_traced_memory()[1] - alloc
+    tracemalloc.stop()
+
+    return alloc
 
 
 def benchmark(func: typing.Callable, number=ITERATIONS) -> float:
@@ -50,6 +67,33 @@ def format_results(results: typing.Dict[str, float]) -> str:
             status = ""
 
         lines.append(f"{lib:<20} {time_ms:>10.2f}     {ratio:<15} {status}")
+
+    lines.append("-" * 70)
+    return "\n".join(lines)
+
+
+def format_allocation_results(results: typing.Dict[str, int]) -> str:
+    if not results:
+        return "No results to display"
+
+    print(results)
+
+    minimum = min(results.values())
+
+    lines = []
+    lines.append("-" * 70)
+    lines.append(f"{'Library':<20} {'Mem (B)':<15} {'vs Lowest':<15} {'Status':<20}")
+    lines.append("-" * 70)
+
+    for lib, alloc in sorted(results.items(), key=lambda x: x[1]):
+        if alloc == minimum:
+            ratio = "1.00x (LOWEST)"
+            status = "🏆"
+        else:
+            ratio = f"{alloc / minimum:.2f}x"
+            status = ""
+
+        lines.append(f"{lib:<20} {alloc:>10.2f}     {ratio:<15} {status}")
 
     lines.append("-" * 70)
     return "\n".join(lines)
@@ -166,35 +210,31 @@ def bench_insert_pypika():
 # DELETE Query Benchmarks
 
 
-# def bench_delete_rapidquery():
-#     query = (
-#         rq.Delete()
-#         .from_table("users")
-#         .where(
-#             rq.all(
-#                 rq.Expr.col("id") > 10,
-#                 rq.Expr.col("id") < 30,
-#             )
-#         )
-#     )
-#     query.to_sql("postgresql")
+def bench_delete_rapidquery():
+    query = rq.Delete("users").where(
+        rq.all(
+            rq.Expr.col("id") > 10,
+            rq.Expr.col("id") < 30,
+        )
+    )
+    query.to_sql("postgresql")
 
 
-# sa_users = sa.table("users", sa.column("id", sa.Integer))
+sa_users = sa.table("users", sa.column("id", sa.Integer))
 
 
-# def bench_delete_sqlalchemy():
-#     query = sa.delete(sa_users).where(sa.and_(sa_users.c.id > 10, sa_users.c.id < 30))
-#     str(query.compile(dialect=SA_DIALECT, compile_kwargs={"literal_binds": True}))
+def bench_delete_sqlalchemy():
+    query = sa.delete(sa_users).where(sa.and_(sa_users.c.id > 10, sa_users.c.id < 30))
+    str(query.compile(dialect=SA_DIALECT, compile_kwargs={"literal_binds": True}))
 
 
-# def bench_delete_pypika():
-#     query = (
-#         pypika.Query.from_("users")
-#         .where((pypika.Field("id") > 10) & (pypika.Field("id") < 30))
-#         .delete()
-#     )
-#     str(query)
+def bench_delete_pypika():
+    query = (
+        pypika.Query.from_("users")
+        .where((pypika.Field("id") > 10) & (pypika.Field("id") < 30))
+        .delete()
+    )
+    str(query)
 
 
 def run_benchmarks():
@@ -218,6 +258,14 @@ def run_benchmarks():
     }
     print(format_results(results))
 
+    print("\n📊 INSERT Query Benchmark (Allocation)")
+    results = {
+        "RapidQuery": benchmark_allocation(bench_insert_rapidquery),
+        "SQLAlchemy": benchmark_allocation(bench_insert_sqlalchemy),
+        "PyPika": benchmark_allocation(bench_insert_pypika),
+    }
+    print(format_allocation_results(results))
+
     # print("\n📊 UPDATE Query Benchmark")
     # results = {
     #     "RapidQuery": benchmark(bench_update_rapidquery),
@@ -226,13 +274,21 @@ def run_benchmarks():
     # }
     # print(format_results(results))
 
-    # print("\n📊 DELETE Query Benchmark")
-    # results = {
-    #     "RapidQuery": benchmark(bench_delete_rapidquery),
-    #     "SQLAlchemy": benchmark(bench_delete_sqlalchemy),
-    #     "PyPika": benchmark(bench_delete_pypika),
-    # }
-    # print(format_results(results))
+    print("\n📊 DELETE Query Benchmark")
+    results = {
+        "RapidQuery": benchmark(bench_delete_rapidquery),
+        "SQLAlchemy": benchmark(bench_delete_sqlalchemy),
+        "PyPika": benchmark(bench_delete_pypika),
+    }
+    print(format_results(results))
+
+    print("\n📊 DELETE Query Benchmark (Allocation)")
+    results = {
+        "RapidQuery": benchmark_allocation(bench_delete_rapidquery),
+        "SQLAlchemy": benchmark_allocation(bench_delete_sqlalchemy),
+        "PyPika": benchmark_allocation(bench_delete_pypika),
+    }
+    print(format_allocation_results(results))
 
 
 if __name__ == "__main__":
