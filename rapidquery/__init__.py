@@ -20,7 +20,7 @@ from ._lib import ColumnRef as ColumnRef
 from ._lib import DateTimeType as DateTimeType
 from ._lib import DateType as DateType
 from ._lib import DecimalType as DecimalType
-from ._lib import Delete as Delete
+from ._lib import DeleteStatement as DeleteStatement
 from ._lib import DoubleType as DoubleType
 from ._lib import DropIndex as DropIndex
 from ._lib import DropTable as DropTable
@@ -32,16 +32,16 @@ from ._lib import Func as Func
 from ._lib import Index as Index
 from ._lib import IndexColumn as IndexColumn
 from ._lib import INETType as INETType
-from ._lib import Insert as Insert
+from ._lib import InsertStatement as InsertStatement
 from ._lib import IntegerType as IntegerType
 from ._lib import JSONBinaryType as JSONBinaryType
 from ._lib import JSONType as JSONType
 from ._lib import MacAddressType as MacAddressType
 from ._lib import OnConflict as OnConflict
-from ._lib import OrderingClause as OrderingClause
+from ._lib import Ordering as Ordering
 from ._lib import QueryStatement as QueryStatement
 from ._lib import RenameTable as RenameTable
-from ._lib import ReturningClause as ReturningClause
+from ._lib import Returning as Returning
 from ._lib import SchemaStatement as SchemaStatement
 from ._lib import SmallIntegerType as SmallIntegerType
 from ._lib import SmallUnsignedType as SmallUnsignedType
@@ -56,7 +56,7 @@ from ._lib import TinyIntegerType as TinyIntegerType
 from ._lib import TinyUnsignedType as TinyUnsignedType
 from ._lib import TruncateTable as TruncateTable
 from ._lib import UnsignedType as UnsignedType
-from ._lib import Update as Update
+from ._lib import UpdateStatement as UpdateStatement
 from ._lib import UUIDType as UUIDType
 from ._lib import Value as Value
 from ._lib import VarBinaryType as VarBinaryType
@@ -66,4 +66,7 @@ from ._lib import __all__ as __all__
 from ._lib import _AsteriskType as _AsteriskType
 from ._lib import all as all
 from ._lib import any as any
+from ._lib import delete as delete
+from ._lib import insert as insert
 from ._lib import not_ as not_
+from ._lib import update as update

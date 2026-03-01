@@ -1,6 +1,7 @@
 use sea_query::IntoColumnRef;
 
-use crate::{common::PyColumnRef, expression::PyExpr};
+use crate::common::PyColumnRef;
+use crate::expression::PyExpr;
 
 #[inline]
 fn map_order_to_str(order: &sea_query::Order) -> String {
@@ -29,7 +30,7 @@ implement_pyclass! {
     ///     null_ordering: typing.Literal["FIRST", "LAST"] | None = None,
     /// )
     #[derive(Debug, Clone)]
-    pub struct [] PyOrderingClause as "OrderingClause" {
+    pub struct [] PyOrdering as "Ordering" {
         pub target: PyExpr,
         pub order: sea_query::Order,
         pub null_order: Option<sea_query::NullOrdering>,
@@ -37,7 +38,7 @@ implement_pyclass! {
 }
 
 #[pyo3::pymethods]
-impl PyOrderingClause {
+impl PyOrdering {
     #[new]
     #[pyo3(signature=(target, order = String::from("ASC"), null_order=None))]
     fn __new__(

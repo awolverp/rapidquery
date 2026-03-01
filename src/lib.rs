@@ -187,23 +187,31 @@ mod _lib {
 
     // query::insert
     #[pymodule_export]
-    use crate::query::insert::PyInsert;
+    use crate::query::insert::PyInsertStatement;
 
     // query::delete
     #[pymodule_export]
-    use crate::query::delete::PyDelete;
+    use crate::query::delete::PyDeleteStatement;
 
     // query::update
     #[pymodule_export]
-    use crate::query::update::PyUpdate;
+    use crate::query::update::PyUpdateStatement;
 
     // query::returning
     #[pymodule_export]
-    use crate::query::returning::PyReturningClause;
+    use crate::query::returning::PyReturning;
 
     // query::ordering
     #[pymodule_export]
-    use crate::query::ordering::PyOrderingClause;
+    use crate::query::ordering::PyOrdering;
+
+    // query
+    #[pymodule_export]
+    use crate::query::py_delete;
+    #[pymodule_export]
+    use crate::query::py_insert;
+    #[pymodule_export]
+    use crate::query::py_update;
 
     #[pymodule_export]
     const ASTERISK: Py_AsteriskType = Py_AsteriskType;

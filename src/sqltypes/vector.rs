@@ -178,7 +178,6 @@ impl NativeSQLType for PyVectorType {
         py: pyo3::Python,
         value: &sea_query::Value,
     ) -> pyo3::PyResult<*mut pyo3::ffi::PyObject> {
-        // TODO: support multiple demontions
         match value {
             sea_query::Value::Vector(Some(x)) => {
                 let list = x.as_slice().into_pyobject(py)?;

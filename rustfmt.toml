@@ -1,0 +1,4 @@
+format_strings = true
+format_macro_matchers = true
+format_macro_bodies = true
+imports_granularity = "Item"

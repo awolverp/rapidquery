@@ -1,7 +1,6 @@
-use crate::{
-    common::{PySchemaStatement, PyTableName},
-    utils::ToSeaQuery,
-};
+use crate::common::PySchemaStatement;
+use crate::common::PyTableName;
+use crate::utils::ToSeaQuery;
 
 implement_state_pyclass! {
     /// Represents a DROP TABLE SQL statement.

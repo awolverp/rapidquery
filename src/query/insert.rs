@@ -1,11 +1,13 @@
-use pyo3::types::{PyAnyMethods, PyDictMethods, PyTupleMethods};
+use pyo3::types::PyAnyMethods;
+use pyo3::types::PyDictMethods;
+use pyo3::types::PyTupleMethods;
 
-use crate::{
-    common::{PyQueryStatement, PyTableName},
-    expression::PyExpr,
-    query::{on_conflict::PyOnConflict, returning::PyReturningClause},
-    utils::ToSeaQuery,
-};
+use crate::common::PyQueryStatement;
+use crate::common::PyTableName;
+use crate::expression::PyExpr;
+use crate::query::on_conflict::PyOnConflict;
+use crate::query::returning::PyReturning;
+use crate::utils::ToSeaQuery;
 
 #[derive(Debug, Default)]
 pub enum InsertValueSource {
@@ -28,18 +30,18 @@ implement_state_pyclass! {
     /// - Default values
     ///
     /// @signature (table: Table | TableName | str)
-    pub struct [extends=PyQueryStatement] PyInsert(InsertState) as "Insert" {
+    pub struct [extends=PyQueryStatement] PyInsertStatement(InsertStatementState) as "InsertStatement" {
         pub replace: bool,
         pub table: PyTableName,
         pub columns: Vec<String>,
         pub source: InsertValueSource,
         pub on_conflict: Option<PyOnConflict>,
-        pub returning_clause: Option<PyReturningClause>,
+        pub returning_clause: Option<PyReturning>,
         pub default_values: Option<u32>,
     }
 }
 
-impl ToSeaQuery<sea_query::InsertStatement> for InsertState {
+impl ToSeaQuery<sea_query::InsertStatement> for InsertStatementState {
     fn to_sea_query<'a>(&self, py: pyo3::Python<'a>) -> sea_query::InsertStatement {
         let mut stmt = sea_query::InsertStatement::new();
         stmt.into_table(self.table.clone());
@@ -76,18 +78,17 @@ impl ToSeaQuery<sea_query::InsertStatement> for InsertState {
     }
 }
 
-impl InsertState {
+impl InsertStatementState {
     #[inline]
     fn values_from_dictionary(
         &mut self,
         kwds: pyo3::Bound<'_, pyo3::types::PyDict>,
     ) -> pyo3::PyResult<()> {
         if !self.columns.is_empty() && self.columns.len() != kwds.len() {
-            return Err(
-                pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "values length isn't equal to columns length - this occurres when you're calling `.values()` method multiple times with different columns."
-                )
-            );
+            return Err(pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "values length isn't equal to columns length - this occurres when you're calling \
+                 `.values()` method multiple times with different columns.",
+            ));
         }
 
         let mut cols = Vec::with_capacity(kwds.len());
@@ -153,12 +154,14 @@ impl InsertState {
 }
 
 #[pyo3::pymethods]
-impl PyInsert {
+impl PyInsertStatement {
     #[new]
-    fn __new__(table: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<(Self, PyQueryStatement)> {
+    pub fn __new__(
+        table: &pyo3::Bound<'_, pyo3::PyAny>,
+    ) -> pyo3::PyResult<(Self, PyQueryStatement)> {
         let table = PyTableName::try_from(table)?;
 
-        let state = InsertState {
+        let state = InsertStatementState {
             replace: false,
             table,
             columns: vec![],
@@ -297,11 +300,11 @@ impl PyInsert {
 
     /// Specify columns to return from the inserted rows.
     ///
-    /// @signature (self, clause: ReturningClause) -> typing.Self
+    /// @signature (self, clause: Returning) -> typing.Self
     #[pyo3(signature=(clause))]
     fn returning<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        clause: pyo3::Bound<'_, PyReturningClause>,
+        clause: pyo3::Bound<'_, PyReturning>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         {
             let mut lock = slf.0.lock();

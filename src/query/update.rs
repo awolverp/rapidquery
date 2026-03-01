@@ -1,12 +1,13 @@
-use pyo3::types::{PyAnyMethods, PyDictMethods};
+use pyo3::types::PyAnyMethods;
+use pyo3::types::PyDictMethods;
 use sea_query::IntoIden;
 
-use crate::{
-    common::{PyQueryStatement, PyTableName},
-    expression::PyExpr,
-    query::{ordering::PyOrderingClause, returning::PyReturningClause},
-    utils::ToSeaQuery,
-};
+use crate::common::PyQueryStatement;
+use crate::common::PyTableName;
+use crate::expression::PyExpr;
+use crate::query::ordering::PyOrdering;
+use crate::query::returning::PyReturning;
+use crate::utils::ToSeaQuery;
 
 implement_state_pyclass! {
     /// Builds UPDATE SQL statements with a fluent interface.
@@ -19,18 +20,18 @@ implement_state_pyclass! {
     /// - RETURNING clauses for getting updated data
     ///
     /// @signature (table: Table | TableName | str)
-    pub struct [extends=PyQueryStatement] PyUpdate(UpdateState) as "Update" {
+    pub struct [extends=PyQueryStatement] PyUpdateStatement(UpdateStatementState) as "UpdateStatement" {
         pub table: PyTableName,
         pub from_table: Option<PyTableName>,
         pub values: Vec<(sea_query::DynIden, PyExpr)>,
         pub r#where: Option<PyExpr>,
         pub limit: Option<u64>,
-        pub returning_clause: Option<PyReturningClause>,
-        pub orders: Vec<PyOrderingClause>,
+        pub returning_clause: Option<PyReturning>,
+        pub orders: Vec<PyOrdering>,
     }
 }
 
-impl ToSeaQuery<sea_query::UpdateStatement> for UpdateState {
+impl ToSeaQuery<sea_query::UpdateStatement> for UpdateStatementState {
     fn to_sea_query<'a>(&self, py: pyo3::Python<'a>) -> sea_query::UpdateStatement {
         let mut stmt = sea_query::UpdateStatement::new();
         stmt.table(self.table.clone());
@@ -63,12 +64,14 @@ impl ToSeaQuery<sea_query::UpdateStatement> for UpdateState {
 }
 
 #[pyo3::pymethods]
-impl PyUpdate {
+impl PyUpdateStatement {
     #[new]
-    fn __new__(table: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<(Self, PyQueryStatement)> {
+    pub fn __new__(
+        table: &pyo3::Bound<'_, pyo3::PyAny>,
+    ) -> pyo3::PyResult<(Self, PyQueryStatement)> {
         let table = PyTableName::try_from(table)?;
 
-        let state = UpdateState {
+        let state = UpdateStatementState {
             table,
             from_table: None,
             values: vec![],
@@ -130,11 +133,11 @@ impl PyUpdate {
 
     /// Specify columns to return from the inserted rows.
     ///
-    /// @signature (self, clause: ReturningClause) -> typing.Self
+    /// @signature (self, clause: Returning) -> typing.Self
     #[pyo3(signature=(clause))]
     fn returning<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        clause: pyo3::Bound<'_, PyReturningClause>,
+        clause: pyo3::Bound<'_, PyReturning>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         {
             let mut lock = slf.0.lock();
@@ -190,11 +193,11 @@ impl PyUpdate {
     /// Specify the order in which to delete rows. Typically used with
     /// `.limit` method to delete specific rows.
     ///
-    /// @signature (self, clause: OrderingClause) -> typing.Self
+    /// @signature (self, clause: Ordering) -> typing.Self
     #[pyo3(signature=(clause))]
     fn order_by<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        clause: pyo3::Bound<'_, PyOrderingClause>,
+        clause: pyo3::Bound<'_, PyOrdering>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         {
             let mut lock = slf.0.lock();

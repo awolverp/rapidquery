@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
-use pyo3::types::{PyAnyMethods, PyStringMethods};
+use pyo3::types::PyAnyMethods;
+use pyo3::types::PyStringMethods;
 use sea_query::IntoIden;
 
 implement_pyclass! {

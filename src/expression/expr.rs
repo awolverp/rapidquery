@@ -1,4 +1,5 @@
-use crate::{sqltypes::TypeEngine, utils::ToSeaQuery};
+use crate::sqltypes::TypeEngine;
+use crate::utils::ToSeaQuery;
 
 implement_pyclass! {
     /// Represents a SQL expression that can be built into SQL code.

@@ -33,7 +33,7 @@ __all__ = [
     "DateTimeType",
     "DateType",
     "DecimalType",
-    "Delete",
+    "DeleteStatement",
     "DoubleType",
     "DropIndex",
     "DropTable",
@@ -45,16 +45,16 @@ __all__ = [
     "INETType",
     "Index",
     "IndexColumn",
-    "Insert",
+    "InsertStatement",
     "IntegerType",
     "JSONBinaryType",
     "JSONType",
     "MacAddressType",
     "OnConflict",
-    "OrderingClause",
+    "Ordering",
     "QueryStatement",
     "RenameTable",
-    "ReturningClause",
+    "Returning",
     "SQLTypeAbstract",
     "SchemaStatement",
     "SmallIntegerType",
@@ -70,7 +70,7 @@ __all__ = [
     "TruncateTable",
     "UUIDType",
     "UnsignedType",
-    "Update",
+    "UpdateStatement",
     "Value",
     "VarBinaryType",
     "VarBitType",
@@ -78,7 +78,10 @@ __all__ = [
     "_AsteriskType",
     "all",
     "any",
+    "delete",
+    "insert",
     "not_",
+    "update",
 ]
 
 I = typing.TypeVar("I")
@@ -699,7 +702,7 @@ class DecimalType(SQLTypeAbstract[decimal.Decimal | int | float | str, decimal.D
     def context(self) -> tuple[int, int] | None: ...
 
 @typing.final
-class Delete(QueryStatement):
+class DeleteStatement(QueryStatement):
     """
     Builds DELETE SQL statements with a fluent interface.
 
@@ -735,14 +738,14 @@ class Delete(QueryStatement):
         """Limit the number of rows to delete."""
         ...
 
-    def order_by(self, clause: OrderingClause) -> typing.Self:
+    def order_by(self, clause: Ordering) -> typing.Self:
         """
         Specify the order in which to delete rows. Typically used with
         `.limit` method to delete specific rows.
         """
         ...
 
-    def returning(self, clause: ReturningClause) -> typing.Self:
+    def returning(self, clause: Returning) -> typing.Self:
         """Specify columns to return from the inserted rows."""
         ...
 
@@ -1515,7 +1518,7 @@ class IndexColumn:
         ...
 
 @typing.final
-class Insert(QueryStatement):
+class InsertStatement(QueryStatement):
     """
     Builds INSERT SQL statements with a fluent interface.
 
@@ -1569,7 +1572,7 @@ class Insert(QueryStatement):
         """
         ...
 
-    def returning(self, clause: ReturningClause) -> typing.Self:
+    def returning(self, clause: Returning) -> typing.Self:
         """Specify columns to return from the inserted rows."""
         ...
 
@@ -1692,9 +1695,7 @@ class OnConflict:
     Specifies conflict resolution behavior for INSERT statements.
 
     Handles situations where an INSERT would violate a unique constraint
-    or primary key. Supports various strategies:
-    - DO NOTHING: Skip the conflicting row
-    - DO UPDATE: Update the existing row with new values
+    or primary key.
 
     This corresponds to INSERT ... ON CONFLICT in PostgreSQL and
     INSERT ... ON DUPLICATE KEY UPDATE in MySQL.
@@ -1738,7 +1739,9 @@ class OnConflict:
         ...
 
 @typing.final
-class OrderingClause:
+class Ordering:
+    """Specifies ordering behavior for UPDATE, DELETE, and SELECT statements."""
+
     def __new__(
         cls,
         target: Expr | Column | ColumnRef | str,
@@ -1754,7 +1757,9 @@ class OrderingClause:
     @property
     def order(self) -> typing.Literal["ASC", "DESC"]: ...
     @property
-    def target(self) -> Expr: ...
+    def target(self) -> Expr:
+        """Target expression."""
+        ...
 
 class QueryStatement:
     """Subclass of query statements."""
@@ -1805,15 +1810,28 @@ class RenameTable(SchemaStatement):
         ...
 
 @typing.final
-class ReturningClause:
+class Returning:
+    """
+    RETURNING clause.
+
+    Works on PostgreSQL and SQLite>=3.35.0.
+
+    Use `.all()` or `.columns()` classmethod to use this type.
+    """
+
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
 
     @classmethod
-    def all(cls) -> typing.Self: ...
+    def all(cls) -> typing.Self:
+        """Return all columns. Same as `self.columns("*")`."""
+        ...
+
     @classmethod
-    def columns(cls, *args: Column | ColumnRef | str) -> typing.Self: ...
+    def columns(cls, *args: Column | ColumnRef | str) -> typing.Self:
+        """Specify columns you need to return."""
+        ...
 
 class SQLTypeAbstract(typing.Generic[I, O]):
     """
@@ -2305,7 +2323,7 @@ class UnsignedType(SQLTypeAbstract[int, int]):
         ...
 
 @typing.final
-class Update(QueryStatement):
+class UpdateStatement(QueryStatement):
     """
     Builds UPDATE SQL statements with a fluent interface.
 
@@ -2343,14 +2361,14 @@ class Update(QueryStatement):
         """Limit the number of rows to update."""
         ...
 
-    def order_by(self, clause: OrderingClause) -> typing.Self:
+    def order_by(self, clause: Ordering) -> typing.Self:
         """
         Specify the order in which to delete rows. Typically used with
         `.limit` method to delete specific rows.
         """
         ...
 
-    def returning(self, clause: ReturningClause) -> typing.Self:
+    def returning(self, clause: Returning) -> typing.Self:
         """Specify columns to return from the inserted rows."""
         ...
 
@@ -2509,6 +2527,18 @@ def any(arg1: Expr, *args: Expr) -> Expr:
     """
     ...
 
+def delete(table: Table | TableName | str) -> DeleteStatement:
+    """Create a new `DeleteStatement`."""
+    ...
+
+def insert(table: Table | TableName | str) -> InsertStatement:
+    """Create a new `InsertStatement`."""
+    ...
+
 def not_(arg: Expr) -> Expr:
     """Create a logical NOT."""
+    ...
+
+def update(table: Table | TableName | str) -> UpdateStatement:
+    """Create a new `UpdateStatement`."""
     ...

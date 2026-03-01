@@ -1,5 +1,7 @@
-use crate::{common::PySchemaStatement, utils::ToSeaQuery};
-use pyo3::{types::PyAnyMethods, PyTypeInfo};
+use crate::common::PySchemaStatement;
+use crate::utils::ToSeaQuery;
+use pyo3::types::PyAnyMethods;
+use pyo3::PyTypeInfo;
 
 implement_pyclass! {
     (

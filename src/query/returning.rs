@@ -3,7 +3,7 @@ use pyo3::types::PyTupleMethods;
 use crate::utils::ToSeaQuery;
 
 #[derive(Debug, Clone)]
-pub enum ReturningClauseState {
+pub enum ReturningState {
     All,
     Columns(Vec<sea_query::DynIden>),
 }
@@ -15,10 +15,10 @@ implement_pyclass! {
     ///
     /// Use `.all()` or `.columns()` classmethod to use this type.
     #[derive(Debug, Clone)]
-    pub struct [] PyReturningClause as "ReturningClause" (pub ReturningClauseState);
+    pub struct [] PyReturning as "Returning" (pub ReturningState);
 }
 
-impl ToSeaQuery<sea_query::ReturningClause> for ReturningClauseState {
+impl ToSeaQuery<sea_query::ReturningClause> for ReturningState {
     fn to_sea_query<'a>(&self, _py: pyo3::Python<'a>) -> sea_query::ReturningClause {
         match self {
             Self::All => sea_query::ReturningClause::All,
@@ -32,13 +32,13 @@ impl ToSeaQuery<sea_query::ReturningClause> for ReturningClauseState {
 }
 
 #[pyo3::pymethods]
-impl PyReturningClause {
+impl PyReturning {
     /// Return all columns. Same as `self.columns("*")`.
     ///
     /// @signature (cls) -> typing.Self
     #[classmethod]
     fn all(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
-        Self(ReturningClauseState::All)
+        Self(ReturningState::All)
     }
 
     /// Specify columns you need to return.
@@ -58,12 +58,12 @@ impl PyReturningClause {
             match column_ref.name {
                 Some(x) => columns.push(x),
                 None => {
-                    return Ok(Self(ReturningClauseState::All));
+                    return Ok(Self(ReturningState::All));
                 }
             }
         }
 
-        Ok(Self(ReturningClauseState::Columns(columns)))
+        Ok(Self(ReturningState::Columns(columns)))
     }
 
     pub fn __repr__(&self) -> String {
@@ -74,8 +74,8 @@ impl PyReturningClause {
         write!(s, "<Returning").unwrap();
 
         match &self.0 {
-            ReturningClauseState::All => write!(s, " ALL").unwrap(),
-            ReturningClauseState::Columns(x) => {
+            ReturningState::All => write!(s, " ALL").unwrap(),
+            ReturningState::Columns(x) => {
                 write!(s, " [").unwrap();
 
                 let n = x.len();

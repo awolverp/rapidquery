@@ -1,7 +1,10 @@
-use pyo3::types::{PyAnyMethods, PyDictMethods, PyTupleMethods};
+use pyo3::types::PyAnyMethods;
+use pyo3::types::PyDictMethods;
+use pyo3::types::PyTupleMethods;
 use sea_query::IntoIden;
 
-use crate::{expression::PyExpr, utils::ToSeaQuery};
+use crate::expression::PyExpr;
+use crate::utils::ToSeaQuery;
 
 #[derive(Debug)]
 pub enum OnConflictUpdate {

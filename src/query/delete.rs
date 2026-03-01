@@ -1,9 +1,9 @@
-use crate::{
-    common::{PyQueryStatement, PyTableName},
-    expression::PyExpr,
-    query::{ordering::PyOrderingClause, returning::PyReturningClause},
-    utils::ToSeaQuery,
-};
+use crate::common::PyQueryStatement;
+use crate::common::PyTableName;
+use crate::expression::PyExpr;
+use crate::query::ordering::PyOrdering;
+use crate::query::returning::PyReturning;
+use crate::utils::ToSeaQuery;
 
 implement_state_pyclass! {
     /// Builds DELETE SQL statements with a fluent interface.
@@ -15,16 +15,16 @@ implement_state_pyclass! {
     /// - RETURNING clauses for getting deleted data
     ///
     /// @signature (table: Table | TableName | str)
-    pub struct [extends=PyQueryStatement] PyDelete(DeleteState) as "Delete" {
+    pub struct [extends=PyQueryStatement] PyDeleteStatement(DeleteStatementState) as "DeleteStatement" {
         pub table: PyTableName,
         pub r#where: Option<PyExpr>,
         pub limit: Option<u64>,
-        pub returning_clause: Option<PyReturningClause>,
-        pub orders: Vec<PyOrderingClause>,
+        pub returning_clause: Option<PyReturning>,
+        pub orders: Vec<PyOrdering>,
     }
 }
 
-impl ToSeaQuery<sea_query::DeleteStatement> for DeleteState {
+impl ToSeaQuery<sea_query::DeleteStatement> for DeleteStatementState {
     fn to_sea_query<'a>(&self, py: pyo3::Python<'a>) -> sea_query::DeleteStatement {
         let mut stmt = sea_query::DeleteStatement::new();
         stmt.from_table(self.table.clone());
@@ -53,12 +53,14 @@ impl ToSeaQuery<sea_query::DeleteStatement> for DeleteState {
 }
 
 #[pyo3::pymethods]
-impl PyDelete {
+impl PyDeleteStatement {
     #[new]
-    fn __new__(table: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<(Self, PyQueryStatement)> {
+    pub fn __new__(
+        table: &pyo3::Bound<'_, pyo3::PyAny>,
+    ) -> pyo3::PyResult<(Self, PyQueryStatement)> {
         let table = PyTableName::try_from(table)?;
 
-        let state = DeleteState {
+        let state = DeleteStatementState {
             table,
             r#where: None,
             limit: None,
@@ -99,11 +101,11 @@ impl PyDelete {
 
     /// Specify columns to return from the inserted rows.
     ///
-    /// @signature (self, clause: ReturningClause) -> typing.Self
+    /// @signature (self, clause: Returning) -> typing.Self
     #[pyo3(signature=(clause))]
     fn returning<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        clause: pyo3::Bound<'_, PyReturningClause>,
+        clause: pyo3::Bound<'_, PyReturning>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         {
             let mut lock = slf.0.lock();
@@ -159,11 +161,11 @@ impl PyDelete {
     /// Specify the order in which to delete rows. Typically used with
     /// `.limit` method to delete specific rows.
     ///
-    /// @signature (self, clause: OrderingClause) -> typing.Self
+    /// @signature (self, clause: Ordering) -> typing.Self
     #[pyo3(signature=(clause))]
     fn order_by<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        clause: pyo3::Bound<'_, PyOrderingClause>,
+        clause: pyo3::Bound<'_, PyOrdering>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         {
             let mut lock = slf.0.lock();

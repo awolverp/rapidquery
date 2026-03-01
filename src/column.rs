@@ -1,8 +1,10 @@
 use sea_query::IntoIden;
 
 use crate::expression::PyExpr;
-use crate::sqltypes::{NativeSQLType, TypeEngine};
-use crate::utils::{OptionalParam, ToSeaQuery};
+use crate::sqltypes::NativeSQLType;
+use crate::sqltypes::TypeEngine;
+use crate::utils::OptionalParam;
+use crate::utils::ToSeaQuery;
 
 implement_state_pyclass! {
     /// Defines a table column with its properties and constraints.
