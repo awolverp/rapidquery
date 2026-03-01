@@ -51,8 +51,10 @@ __all__ = [
     "JSONType",
     "MacAddressType",
     "OnConflict",
+    "OrderingClause",
     "QueryStatement",
     "RenameTable",
+    "ReturningClause",
     "SQLTypeAbstract",
     "SchemaStatement",
     "SmallIntegerType",
@@ -733,26 +735,15 @@ class Delete(QueryStatement):
         """Limit the number of rows to delete."""
         ...
 
-    def order_by(
-        self,
-        target: Expr | Column | ColumnRef | str,
-        order: typing.Literal["ASC", "DESC"] = "ASC",
-        null_ordering: typing.Literal["FIRST", "LAST"] | None = None,
-    ) -> typing.Self:
+    def order_by(self, clause: OrderingClause) -> typing.Self:
         """
         Specify the order in which to delete rows. Typically used with
         `.limit` method to delete specific rows.
         """
         ...
 
-    def returning(self, *args: Column | ColumnRef | str) -> typing.Self:
-        """Specify columns to return from the deleted rows."""
-        ...
-
-    def returning_all(self) -> typing.Self:
-        """
-        Return all columns from the deleted rows. Same as `self.returning("*")`.
-        """
+    def returning(self, clause: ReturningClause) -> typing.Self:
+        """Specify columns to return from the inserted rows."""
         ...
 
     def to_sql(self, backend: _BackendName, /) -> str:
@@ -1578,14 +1569,8 @@ class Insert(QueryStatement):
         """
         ...
 
-    def returning(self, *args: Column | ColumnRef | str) -> typing.Self:
+    def returning(self, clause: ReturningClause) -> typing.Self:
         """Specify columns to return from the inserted rows."""
-        ...
-
-    def returning_all(self) -> typing.Self:
-        """
-        Return all columns from the inserted rows. Same as `self.returning("*")`.
-        """
         ...
 
     def to_sql(self, backend: _BackendName, /) -> str:
@@ -1752,6 +1737,25 @@ class OnConflict:
         """Add a WHERE clause to the conflict target (partial unique index)."""
         ...
 
+@typing.final
+class OrderingClause:
+    def __new__(
+        cls,
+        target: Expr | Column | ColumnRef | str,
+        order: typing.Literal["ASC", "DESC"] = "ASC",
+        null_ordering: typing.Literal["FIRST", "LAST"] | None = None,
+    ) -> typing.Self: ...
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @property
+    def null_order(self) -> typing.Literal["FIRST", "LAST"] | None: ...
+    @property
+    def order(self) -> typing.Literal["ASC", "DESC"]: ...
+    @property
+    def target(self) -> Expr: ...
+
 class QueryStatement:
     """Subclass of query statements."""
 
@@ -1799,6 +1803,17 @@ class RenameTable(SchemaStatement):
     def to_sql(self, backend: _BackendName, /) -> str:
         """Build a SQL string representation."""
         ...
+
+@typing.final
+class ReturningClause:
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @classmethod
+    def all(cls) -> typing.Self: ...
+    @classmethod
+    def columns(cls, *args: Column | ColumnRef | str) -> typing.Self: ...
 
 class SQLTypeAbstract(typing.Generic[I, O]):
     """
@@ -2328,26 +2343,15 @@ class Update(QueryStatement):
         """Limit the number of rows to update."""
         ...
 
-    def order_by(
-        self,
-        target: Expr | Column | ColumnRef | str,
-        order: typing.Literal["ASC", "DESC"] = "ASC",
-        null_ordering: typing.Literal["FIRST", "LAST"] | None = None,
-    ) -> typing.Self:
+    def order_by(self, clause: OrderingClause) -> typing.Self:
         """
-        Specify the order in which to update rows. Typically used with
-        `.limit` method to update specific rows.
+        Specify the order in which to delete rows. Typically used with
+        `.limit` method to delete specific rows.
         """
         ...
 
-    def returning(self, *args: Column | ColumnRef | str) -> typing.Self:
-        """Specify columns to return from the updated rows."""
-        ...
-
-    def returning_all(self) -> typing.Self:
-        """
-        Return all columns from the updated rows. Same as `self.returning("*")`.
-        """
+    def returning(self, clause: ReturningClause) -> typing.Self:
+        """Specify columns to return from the inserted rows."""
         ...
 
     def table(self, table: Table | TableName | str) -> typing.Self:

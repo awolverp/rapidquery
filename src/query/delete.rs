@@ -1,7 +1,7 @@
-use super::clauses::{OrderClause, ReturningClause};
 use crate::{
     common::{PyQueryStatement, PyTableName},
     expression::PyExpr,
+    query::{ordering::PyOrderingClause, returning::PyReturningClause},
     utils::ToSeaQuery,
 };
 
@@ -19,13 +19,13 @@ implement_state_pyclass! {
         pub table: PyTableName,
         pub r#where: Option<PyExpr>,
         pub limit: Option<u64>,
-        pub returning_clause: ReturningClause,
-        pub orders: Vec<OrderClause>,
+        pub returning_clause: Option<PyReturningClause>,
+        pub orders: Vec<PyOrderingClause>,
     }
 }
 
 impl ToSeaQuery<sea_query::DeleteStatement> for DeleteState {
-    fn to_sea_query<'a>(&self, _py: pyo3::Python<'a>) -> sea_query::DeleteStatement {
+    fn to_sea_query<'a>(&self, py: pyo3::Python<'a>) -> sea_query::DeleteStatement {
         let mut stmt = sea_query::DeleteStatement::new();
         stmt.from_table(self.table.clone());
 
@@ -36,18 +36,8 @@ impl ToSeaQuery<sea_query::DeleteStatement> for DeleteState {
             stmt.limit(x);
         }
 
-        match &self.returning_clause {
-            ReturningClause::None => (),
-            ReturningClause::All => {
-                stmt.returning_all();
-            }
-            ReturningClause::Columns(x) => {
-                stmt.returning(sea_query::ReturningClause::Columns(
-                    x.iter()
-                        .map(|x| sea_query::ColumnRef::Column(x.clone()))
-                        .collect(),
-                ));
-            }
+        if let Some(x) = &self.returning_clause {
+            stmt.returning(x.0.to_sea_query(py));
         }
 
         for order in self.orders.iter() {
@@ -72,7 +62,7 @@ impl PyDelete {
             table,
             r#where: None,
             limit: None,
-            returning_clause: ReturningClause::None,
+            returning_clause: None,
             orders: vec![],
         };
         Ok((state.into(), PyQueryStatement))
@@ -107,30 +97,19 @@ impl PyDelete {
         slf
     }
 
-    /// Specify columns to return from the deleted rows.
+    /// Specify columns to return from the inserted rows.
     ///
-    /// @signature (self, *args: Column | ColumnRef | str) -> typing.Self
-    #[pyo3(signature=(*args))]
+    /// @signature (self, clause: ReturningClause) -> typing.Self
+    #[pyo3(signature=(clause))]
     fn returning<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        args: pyo3::Bound<'_, pyo3::types::PyTuple>,
+        clause: pyo3::Bound<'_, PyReturningClause>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         {
             let mut lock = slf.0.lock();
-            lock.returning_clause = ReturningClause::new(args)?;
+            lock.returning_clause = Some(clause.get().clone());
         }
         Ok(slf)
-    }
-
-    /// Return all columns from the deleted rows. Same as `self.returning("*")`.
-    ///
-    /// @signature (self) -> typing.Self
-    fn returning_all(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyRef<'_, Self> {
-        {
-            let mut lock = slf.0.lock();
-            lock.returning_clause = ReturningClause::All;
-        }
-        slf
     }
 
     /// Add a WHERE condition to filter rows to delete.
@@ -180,24 +159,15 @@ impl PyDelete {
     /// Specify the order in which to delete rows. Typically used with
     /// `.limit` method to delete specific rows.
     ///
-    /// @signature (
-    ///     self,
-    ///     target: Expr | Column | ColumnRef | str,
-    ///     order: typing.Literal["ASC", "DESC"] = "ASC",
-    ///     null_ordering: typing.Literal["FIRST", "LAST"] | None = None,
-    /// ) -> typing.Self
-    #[pyo3(signature=(target, order = String::from("ASC"), null_order=None))]
+    /// @signature (self, clause: OrderingClause) -> typing.Self
+    #[pyo3(signature=(clause))]
     fn order_by<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        target: pyo3::Bound<'_, pyo3::PyAny>,
-        order: String,
-        null_order: Option<String>,
+        clause: pyo3::Bound<'_, PyOrderingClause>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
-        let order = OrderClause::new(&target, order, null_order)?;
-
         {
             let mut lock = slf.0.lock();
-            lock.orders.push(order);
+            lock.orders.push(clause.get().clone());
         }
 
         Ok(slf)
@@ -240,7 +210,7 @@ impl PyDelete {
         let lock = self.0.lock();
         let mut s = Vec::<u8>::with_capacity(30);
 
-        write!(s, "<Delete from_table={}", lock.table.__repr__()).unwrap();
+        write!(s, "<Delete {}", lock.table.__repr__()).unwrap();
 
         if let Some(x) = lock.limit {
             write!(s, " limit={x}").unwrap();
@@ -255,20 +225,14 @@ impl PyDelete {
         let n = lock.orders.len();
         for (index, expr) in lock.orders.iter().enumerate() {
             if index + 1 == n {
-                write!(s, "{expr}]").unwrap();
+                write!(s, "{}]", expr.__repr__()).unwrap();
             } else {
-                write!(s, "{expr}, ").unwrap();
+                write!(s, "{}, ", expr.__repr__()).unwrap();
             }
         }
 
-        match &lock.returning_clause {
-            ReturningClause::None => (),
-            ReturningClause::All => {
-                write!(s, " returning_all").unwrap();
-            }
-            ReturningClause::Columns(x) => {
-                write!(s, " returning={x:?}").unwrap();
-            }
+        if let Some(x) = &lock.returning_clause {
+            write!(s, " returning={}", x.__repr__()).unwrap();
         }
 
         write!(s, ">").unwrap();

@@ -2,18 +2,15 @@ use crate::common::PyTableName;
 use crate::utils::ToSeaQuery;
 
 #[inline]
-fn map_str_to_foreign_key_action(
-    value: impl AsRef<str>,
-) -> pyo3::PyResult<sea_query::ForeignKeyAction> {
-    match value.as_ref() {
-        "cascade" | "CASCADE" => Ok(sea_query::ForeignKeyAction::Cascade),
-        "no action" | "NO ACTION" => Ok(sea_query::ForeignKeyAction::NoAction),
-        "restrict" | "RESTRICT" => Ok(sea_query::ForeignKeyAction::Restrict),
-        "set default" | "SET DEFAULT" => Ok(sea_query::ForeignKeyAction::SetDefault),
-        "set null" | "SET NULL" => Ok(sea_query::ForeignKeyAction::SetNull),
+fn map_str_to_foreign_key_action(value: String) -> pyo3::PyResult<sea_query::ForeignKeyAction> {
+    match value.to_lowercase().as_str() {
+        "cascade" => Ok(sea_query::ForeignKeyAction::Cascade),
+        "no action" => Ok(sea_query::ForeignKeyAction::NoAction),
+        "restrict" => Ok(sea_query::ForeignKeyAction::Restrict),
+        "set default" => Ok(sea_query::ForeignKeyAction::SetDefault),
+        "set null" => Ok(sea_query::ForeignKeyAction::SetNull),
         _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
-            "unknown foreign key action: {}",
-            value.as_ref()
+            "unknown foreign key action: {value}",
         ))),
     }
 }

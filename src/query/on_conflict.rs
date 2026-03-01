@@ -20,9 +20,7 @@ implement_state_pyclass! {
     /// Specifies conflict resolution behavior for INSERT statements.
     ///
     /// Handles situations where an INSERT would violate a unique constraint
-    /// or primary key. Supports various strategies:
-    /// - DO NOTHING: Skip the conflicting row
-    /// - DO UPDATE: Update the existing row with new values
+    /// or primary key.
     ///
     /// This corresponds to INSERT ... ON CONFLICT in PostgreSQL and
     /// INSERT ... ON DUPLICATE KEY UPDATE in MySQL.

@@ -38,8 +38,10 @@ from ._lib import JSONBinaryType as JSONBinaryType
 from ._lib import JSONType as JSONType
 from ._lib import MacAddressType as MacAddressType
 from ._lib import OnConflict as OnConflict
+from ._lib import OrderingClause as OrderingClause
 from ._lib import QueryStatement as QueryStatement
 from ._lib import RenameTable as RenameTable
+from ._lib import ReturningClause as ReturningClause
 from ._lib import SchemaStatement as SchemaStatement
 from ._lib import SmallIntegerType as SmallIntegerType
 from ._lib import SmallUnsignedType as SmallUnsignedType

@@ -197,6 +197,14 @@ mod _lib {
     #[pymodule_export]
     use crate::query::update::PyUpdate;
 
+    // query::returning
+    #[pymodule_export]
+    use crate::query::returning::PyReturningClause;
+
+    // query::ordering
+    #[pymodule_export]
+    use crate::query::ordering::PyOrderingClause;
+
     #[pymodule_export]
     const ASTERISK: Py_AsteriskType = Py_AsteriskType;
 

@@ -1,10 +1,9 @@
-use super::clauses::ReturningClause;
 use pyo3::types::{PyAnyMethods, PyDictMethods, PyTupleMethods};
 
 use crate::{
     common::{PyQueryStatement, PyTableName},
     expression::PyExpr,
-    query::on_conflict::PyOnConflict,
+    query::{on_conflict::PyOnConflict, returning::PyReturningClause},
     utils::ToSeaQuery,
 };
 
@@ -35,7 +34,7 @@ implement_state_pyclass! {
         pub columns: Vec<String>,
         pub source: InsertValueSource,
         pub on_conflict: Option<PyOnConflict>,
-        pub returning_clause: ReturningClause,
+        pub returning_clause: Option<PyReturningClause>,
         pub default_values: Option<u32>,
     }
 }
@@ -66,24 +65,13 @@ impl ToSeaQuery<sea_query::InsertStatement> for InsertState {
             let lock = x.0.lock();
             stmt.on_conflict(lock.to_sea_query(py));
         }
-
         if let Some(rows) = self.default_values {
             stmt.or_default_values_many(rows);
         }
-
-        match &self.returning_clause {
-            ReturningClause::None => (),
-            ReturningClause::All => {
-                stmt.returning_all();
-            }
-            ReturningClause::Columns(x) => {
-                stmt.returning(sea_query::ReturningClause::Columns(
-                    x.iter()
-                        .map(|x| sea_query::ColumnRef::Column(x.clone()))
-                        .collect(),
-                ));
-            }
+        if let Some(x) = &self.returning_clause {
+            stmt.returning(x.0.to_sea_query(py));
         }
+
         stmt
     }
 }
@@ -176,7 +164,7 @@ impl PyInsert {
             columns: vec![],
             source: InsertValueSource::None,
             on_conflict: None,
-            returning_clause: ReturningClause::None,
+            returning_clause: None,
             default_values: None,
         };
         Ok((state.into(), PyQueryStatement))
@@ -309,28 +297,17 @@ impl PyInsert {
 
     /// Specify columns to return from the inserted rows.
     ///
-    /// @signature (self, *args: Column | ColumnRef | str) -> typing.Self
-    #[pyo3(signature=(*args))]
+    /// @signature (self, clause: ReturningClause) -> typing.Self
+    #[pyo3(signature=(clause))]
     fn returning<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        args: pyo3::Bound<'_, pyo3::types::PyTuple>,
+        clause: pyo3::Bound<'_, PyReturningClause>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         {
             let mut lock = slf.0.lock();
-            lock.returning_clause = ReturningClause::new(args)?;
+            lock.returning_clause = Some(clause.get().clone());
         }
         Ok(slf)
-    }
-
-    /// Return all columns from the inserted rows. Same as `self.returning("*")`.
-    ///
-    /// @signature (self) -> typing.Self
-    fn returning_all(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyRef<'_, Self> {
-        {
-            let mut lock = slf.0.lock();
-            lock.returning_clause = ReturningClause::All;
-        }
-        slf
     }
 
     #[pyo3(signature = (backend, /))]
@@ -416,14 +393,8 @@ impl PyInsert {
             }
         }
 
-        match &lock.returning_clause {
-            ReturningClause::None => (),
-            ReturningClause::All => {
-                write!(s, " returning_all").unwrap();
-            }
-            ReturningClause::Columns(x) => {
-                write!(s, " returning={x:?}").unwrap();
-            }
+        if let Some(x) = &lock.returning_clause {
+            write!(s, " returning={}", x.__repr__()).unwrap();
         }
 
         write!(s, ">").unwrap();
