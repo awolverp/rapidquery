@@ -3,23 +3,24 @@ use pyo3::types::PyDictMethods;
 use pyo3::types::PyTupleMethods;
 use sea_query::IntoIden;
 
-use crate::expression::PyExpr;
-use crate::utils::ToSeaQuery;
+use crate::common::column_ref::PyColumnRef;
+use crate::common::expression::PyExpr;
+use crate::internal::statements::ToSeaQuery;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum OnConflictUpdate {
     Column(sea_query::DynIden),
     Expr(sea_query::DynIden, PyExpr),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum OnConflictAction {
     None,
     DoNothing(Vec<sea_query::DynIden>),
     DoUpdate(Vec<OnConflictUpdate>),
 }
 
-implement_state_pyclass! {
+crate::implement_pyclass! {
     /// Specifies conflict resolution behavior for INSERT statements.
     ///
     /// Handles situations where an INSERT would violate a unique constraint
@@ -28,9 +29,9 @@ implement_state_pyclass! {
     /// This corresponds to INSERT ... ON CONFLICT in PostgreSQL and
     /// INSERT ... ON DUPLICATE KEY UPDATE in MySQL.
     ///
-    /// @signature (*targets: Column | ColumnRef | str)
-    #[derive(Debug)]
-    pub struct [] PyOnConflict(OnConflictState) as "OnConflict" {
+    /// @signature (self, *targets: Column | ColumnRef | str)
+    #[derive(Debug, Clone)]
+    mutable [subclass] PyOnConflict(OnConflictState) as "OnConflict" {
         targets: Vec<sea_query::DynIden>,
         action: OnConflictAction,
         target_where: Option<PyExpr>,
@@ -91,7 +92,7 @@ impl OnConflictState {
 
         for (key, val) in kwds.iter() {
             unsafe {
-                let val = crate::expression::PyExpr::try_from(&val)?;
+                let val = PyExpr::try_from(&val)?;
 
                 let action = OnConflictUpdate::Expr(
                     sea_query::Alias::new(key.extract::<String>().unwrap_unchecked()).into_iden(),
@@ -113,7 +114,7 @@ impl OnConflictState {
         let mut actions = Vec::with_capacity(args.len());
 
         for key in args.iter() {
-            let column_ref = crate::common::PyColumnRef::try_from(&key)?;
+            let column_ref = PyColumnRef::try_from(&key)?;
             match column_ref.name {
                 Some(x) => actions.push(OnConflictUpdate::Column(x)),
                 None => {
@@ -132,8 +133,17 @@ impl OnConflictState {
 #[pyo3::pymethods]
 impl PyOnConflict {
     #[new]
+    #[allow(unused_variables)]
+    #[pyo3(signature=(*args, **kwds))]
+    fn __new__(
+        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> Self {
+        Self::uninit()
+    }
+
     #[pyo3(signature=(*targets))]
-    fn __new__(targets: &pyo3::Bound<'_, pyo3::types::PyTuple>) -> pyo3::PyResult<Self> {
+    fn __init__(&self, targets: &pyo3::Bound<'_, pyo3::types::PyTuple>) -> pyo3::PyResult<()> {
         if targets.is_empty() {
             let state = OnConflictState {
                 targets: vec![],
@@ -141,12 +151,14 @@ impl PyOnConflict {
                 target_where: None,
                 action_where: None,
             };
-            return Ok(state.into());
+
+            self.0.set(state);
+            return Ok(());
         }
 
         let mut normalized_targets = Vec::with_capacity(targets.len());
         for item in targets.iter() {
-            let column_ref = crate::common::PyColumnRef::try_from(&item)?;
+            let column_ref = PyColumnRef::try_from(&item)?;
             match column_ref.name {
                 Some(x) => normalized_targets.push(x),
                 None => {
@@ -163,7 +175,8 @@ impl PyOnConflict {
             target_where: None,
             action_where: None,
         };
-        Ok(state.into())
+        self.0.set(state);
+        Ok(())
     }
 
     /// Specify DO NOTHING action for conflicts.
@@ -188,7 +201,7 @@ impl PyOnConflict {
 
         let mut normalized_keys: Vec<sea_query::DynIden> = Vec::with_capacity(keys.len());
         for item in keys.iter() {
-            let column_ref = crate::common::PyColumnRef::try_from(&item)?;
+            let column_ref = PyColumnRef::try_from(&item)?;
             match column_ref.name {
                 Some(x) => normalized_keys.push(x),
                 None => {
@@ -203,7 +216,7 @@ impl PyOnConflict {
         lock.action = OnConflictAction::DoNothing(normalized_keys);
         drop(lock);
 
-        return Ok(slf);
+        Ok(slf)
     }
 
     /// Specify DO UPDATE action for conflicts using column names, or with explicit values.
@@ -218,9 +231,10 @@ impl PyOnConflict {
         kwds: Option<&'a pyo3::Bound<'_, pyo3::types::PyDict>>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         if !PyTupleMethods::is_empty(args) && kwds.is_some() {
-            return Err(typeerror!(
-                "cannot use both args and kwargs at the same time",
-            ));
+            return crate::new_error!(
+                PyTypeError,
+                "cannot use both args and kwargs at the same time"
+            );
         }
 
         if !PyTupleMethods::is_empty(args) {
@@ -229,8 +243,6 @@ impl PyOnConflict {
         } else if kwds.is_some() {
             let mut lock = slf.0.lock();
             lock.update_from_dictionary(kwds.unwrap().clone())?;
-        } else {
-            return Err(typeerror!("no arguments provided"));
         }
 
         Ok(slf)
@@ -245,20 +257,15 @@ impl PyOnConflict {
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         unsafe {
             if pyo3::ffi::Py_TYPE(condition.as_ptr()) != crate::typeref::EXPR_TYPE {
-                return Err(typeerror!(
-                    "expected Expr, got {:?}",
-                    condition.py(),
-                    condition.as_ptr()
-                ));
+                return crate::new_error!(
+                    PyTypeError,
+                    "expected Expr, got {}",
+                    crate::internal::get_type_name(slf.py(), condition.as_ptr())
+                );
             }
 
             let mut lock = slf.0.lock();
-            lock.target_where = Some(
-                condition
-                    .cast_unchecked::<crate::expression::PyExpr>()
-                    .get()
-                    .clone(),
-            );
+            lock.target_where = Some(condition.cast_unchecked::<PyExpr>().get().clone());
         }
 
         Ok(slf)
@@ -273,20 +280,15 @@ impl PyOnConflict {
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         unsafe {
             if pyo3::ffi::Py_TYPE(condition.as_ptr()) != crate::typeref::EXPR_TYPE {
-                return Err(typeerror!(
-                    "expected Expr, got {:?}",
-                    condition.py(),
-                    condition.as_ptr()
-                ));
+                return crate::new_error!(
+                    PyTypeError,
+                    "expected Expr, got {}",
+                    crate::internal::get_type_name(slf.py(), condition.as_ptr())
+                );
             }
 
             let mut lock = slf.0.lock();
-            lock.action_where = Some(
-                condition
-                    .cast_unchecked::<crate::expression::PyExpr>()
-                    .get()
-                    .clone(),
-            );
+            lock.action_where = Some(condition.cast_unchecked::<PyExpr>().get().clone());
         }
 
         Ok(slf)

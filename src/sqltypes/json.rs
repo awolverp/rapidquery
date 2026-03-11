@@ -1,31 +1,29 @@
-use crate::sqltypes::abstracts::NativeSQLType;
 use crate::sqltypes::abstracts::PySQLTypeAbstract;
+use crate::sqltypes::abstracts::SQLTypeTrait;
 
 use pyo3::types::PyAnyMethods;
 
-implement_pyclass! {
-    (
-        /// JSON data column type (JSON).
-        ///
-        /// Stores JSON documents with validation and indexing capabilities.
-        /// Allows for flexible schema design and complex nested data structures
-        /// while maintaining some query capabilities.
-        ///
-        /// @extends SQLTypeAbstract[typing.Any,typing.Any]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyJSONType as "JSONType";
-    )
-    (
-        /// Binary JSON column type (JSONB).
-        ///
-        /// Stores JSON documents in a binary format for improved performance.
-        /// Provides faster query and manipulation operations compared to text-based
-        /// JSON storage, with additional indexing capabilities.
-        ///
-        /// @extends SQLTypeAbstract[typing.Any,typing.Any]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyJSONBinaryType as "JSONBinaryType";
-    )
+crate::implement_pyclass! {
+    /// JSON data column type (JSON).
+    ///
+    /// Stores JSON documents with validation and indexing capabilities.
+    /// Allows for flexible schema design and complex nested data structures
+    /// while maintaining some query capabilities.
+    ///
+    /// @extends SQLTypeAbstract[typing.Any]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyJSONType as "JSON";
+}
+crate::implement_pyclass! {
+    /// Binary JSON column type (JSONB).
+    ///
+    /// Stores JSON documents in a binary format for improved performance.
+    /// Provides faster query and manipulation operations compared to text-based
+    /// JSON storage, with additional indexing capabilities.
+    ///
+    /// @extends SQLTypeAbstract[typing.Any]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyJSONBinaryType as "JSONBinary";
 }
 
 /// Import json module only once
@@ -77,7 +75,7 @@ pub fn _deserialize_object_with_pyjson(
 /// Try to serialize pyobject to validate pyobject is JSON-serializable
 #[inline]
 #[cfg_attr(feature = "optimize", optimize(speed))]
-pub(super) fn _validate_json_object(
+pub fn _validate_json_object(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
 ) -> pyo3::PyResult<()> {
@@ -138,7 +136,7 @@ unsafe fn _deserialize_function(
     Ok(val)
 }
 
-impl NativeSQLType for PyJSONType {
+impl SQLTypeTrait for PyJSONType {
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::Json
     }
@@ -167,12 +165,17 @@ impl NativeSQLType for PyJSONType {
         match value {
             sea_query::Value::Json(Some(x)) => _deserialize_function(py, x),
             sea_query::Value::Json(None) => Ok(pyo3::ffi::Py_None()),
-            _ => invalid_value_for_deserialize!("json", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected json for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
-impl NativeSQLType for PyJSONBinaryType {
+impl SQLTypeTrait for PyJSONBinaryType {
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::JsonBinary
     }
@@ -201,10 +204,15 @@ impl NativeSQLType for PyJSONBinaryType {
         match value {
             sea_query::Value::Json(Some(x)) => _deserialize_function(py, x),
             sea_query::Value::Json(None) => Ok(pyo3::ffi::Py_None()),
-            _ => invalid_value_for_deserialize!("json", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected json for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
-super::abstracts::implement_native_pymethods!(PyJSONType);
-super::abstracts::implement_native_pymethods!(PyJSONBinaryType);
+super::abstracts::implement_sqltype_pymethods!(PyJSONType);
+super::abstracts::implement_sqltype_pymethods!(PyJSONBinaryType);

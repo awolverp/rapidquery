@@ -1,7 +1,7 @@
-use crate::sqltypes::NativeSQLType;
-use crate::sqltypes::TypeEngine;
+use crate::internal::type_engine::TypeEngine;
+use crate::sqltypes::SQLTypeTrait;
 
-implement_state_pyclass! {
+crate::implement_pyclass! {
     /// Bridges Python types, Rust types, and SQL types for seamless data conversion.
     ///
     /// This class handles validation, adaptation, and conversion between different
@@ -17,9 +17,9 @@ implement_state_pyclass! {
     ///
     /// NOTE: this class is immutable and frozen.
     ///
-    /// @extends typing.Generic[I,O]
-    /// @signature (value: I | None, sql_type: SQLTypeAbstract[I, O] | None = ...)
-    pub struct [] PyValue(ValueState) as "Value" {
+    /// @extends typing.Generic[T]
+    /// @signature (self, value: T | None, sql_type: SQLTypeAbstract[T] | None = ...)
+    mutable [subclass] PyValue(ValueState) as "Value" {
         sql_type: TypeEngine,
         serialized: Option<sea_query::Value>,
         deserialized: Option<pyo3::Py<pyo3::PyAny>>,
@@ -67,15 +67,18 @@ impl ValueState {
             return Ok(sea_query::SimpleExpr::Value(x.clone()));
         }
 
-        // SAFETY:
-        // The `self.deserialized` has validated by `.validate` method before.
-        let serialized = unsafe {
-            self.sql_type
-                .serialize(py, self.deserialized.as_ref().unwrap_unchecked().as_ptr())?
-        };
-        self.serialized = Some(serialized.clone());
+        let result = unsafe {
+            let deserialized = self.deserialized.as_ref().unwrap_unchecked();
 
-        Ok(sea_query::SimpleExpr::Value(serialized))
+            if pyo3::ffi::Py_IsNone(deserialized.as_ptr()) == 1 {
+                sea_query::Value::Bool(None)
+            } else {
+                self.sql_type.serialize(py, deserialized.as_ptr())?
+            }
+        };
+
+        self.serialized = Some(result.clone());
+        Ok(sea_query::SimpleExpr::Value(result))
     }
 
     pub fn clone_ref(&self, py: pyo3::Python) -> Self {
@@ -90,18 +93,30 @@ impl ValueState {
 #[pyo3::pymethods]
 impl PyValue {
     #[new]
-    #[pyo3(signature=(value, sql_type=None))]
+    #[allow(unused_variables)]
+    #[pyo3(signature=(*args, **kwds))]
     fn __new__(
+        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> Self {
+        Self::uninit()
+    }
+
+    #[pyo3(signature=(value, sql_type=None))]
+    fn __init__(
+        &self,
         value: pyo3::Bound<'_, pyo3::PyAny>,
         sql_type: Option<pyo3::Bound<'_, pyo3::PyAny>>,
-    ) -> pyo3::PyResult<Self> {
+    ) -> pyo3::PyResult<()> {
         unsafe {
-            if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::VALUE_TYPE {
+            if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::VALUE_TYPE) == 1 {
                 let py = value.py();
 
                 let casted_value = value.cast_into_unchecked::<Self>();
                 let state = casted_value.get().0.lock().clone_ref(py);
-                return Ok(state.into());
+
+                self.0.set(state);
+                return Ok(());
             }
         }
 
@@ -114,10 +129,11 @@ impl PyValue {
         };
 
         let result = ValueState::from_pyobject(type_engine, value)?;
-        Ok(Self::from(result))
+        self.0.set(result);
+        Ok(())
     }
 
-    /// @signature (self) -> SQLTypeAbstract[I, O]
+    /// @signature (self) -> SQLTypeAbstract[T]
     #[getter]
     fn sql_type<'a>(&self, py: pyo3::Python<'a>) -> pyo3::Bound<'a, pyo3::PyAny> {
         let lock = self.0.lock();
@@ -126,7 +142,7 @@ impl PyValue {
 
     /// Converts the adapted value back to a Python type.
     ///
-    /// @signature (self) -> I | O
+    /// @signature (self) -> T | None
     #[getter]
     fn value<'py>(&self, py: pyo3::Python<'py>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::PyAny>> {
         let mut lock = self.0.lock();

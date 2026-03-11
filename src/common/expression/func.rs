@@ -1,6 +1,9 @@
 use pyo3::types::PyTupleMethods;
 
-implement_pyclass! {
+crate::implement_pyclass! {
+    // NOTE: SQLTypes, PyExpr, PyFunc, PyTableName & PyColumnRef could never mark as subclass.
+    // these should be immutable and final types.
+
     /// Represents a SQL function call that can be used in expressions.
     ///
     /// This class provides a type-safe way to construct SQL function calls
@@ -8,7 +11,7 @@ implement_pyclass! {
     ///
     /// @signature (name: str, *args: object)
     #[derive(Debug, Clone)]
-    pub struct [] PyFunc as "Func" (pub sea_query::FunctionCall);
+    [] PyFunc as "Func" (pub sea_query::FunctionCall);
 }
 
 #[pyo3::pymethods]

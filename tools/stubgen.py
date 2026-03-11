@@ -33,6 +33,7 @@ import re
 import sys
 import types
 import typing
+from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -239,8 +240,9 @@ def _normalize_signature(sig: str, obj: object) -> str:
     if inspect.isclass(obj):
         if sig == "()":
             return "(cls)"
-        if not sig.startswith("(cls"):
-            return "(cls, " + sig[1:]
+
+        if "self" not in sig and "cls" not in sig:
+            sig = "(cls, " + sig[1:]
 
     return sig
 
@@ -533,15 +535,15 @@ class Implementation:
         result.typevars = list(seen)
 
         # --- type: ignore[override] when return type diverges from the dunder table ---
-        if sig.return_type and sig.return_type != "Incomplete":
-            name = getattr(obj, "__name__", "")
-            expected = (
-                _SPECIAL_RETURN.get(name, sig.return_type)
-                if impl_type.is_function()
-                else _SPECIAL_RETURN.get("__new__", sig.return_type)
-            )
-            if sig.return_type != expected:
-                result.type_ignore = "# type: ignore[override]"
+        # if sig.return_type and sig.return_type != "Incomplete":
+        #     name = getattr(obj, "__name__", "")
+        #     expected = (
+        #         _SPECIAL_RETURN.get(name, sig.return_type)
+        #         if impl_type.is_function()
+        #         else _SPECIAL_RETURN.get("__new__", sig.return_type)
+        #     )
+        #     if sig.return_type != expected:
+        #         result.type_ignore = "# type: ignore[override]"
 
         return result
 
@@ -561,16 +563,24 @@ def _is_classmethod(class_: type, member: object) -> bool:
 # ---------------------------------------------------------------------------
 
 
+@dataclasses.dataclass
+class File:
+    document: str | None = None
+    import_lines: list[str] = dataclasses.field(
+        default_factory=lambda: ["import typing", "from _typeshed import Incomplete"]
+    )
+    types_lines: list[str] = dataclasses.field(default_factory=list)
+    body_lines: list[str] = dataclasses.field(default_factory=list)
+    __all__: list[str] = dataclasses.field(default_factory=list)
+
+
 class StubGenerator:
     def __init__(self, root: types.ModuleType) -> None:
         self.root = root
-        self._import_lines: list[str] = [
-            "import typing",
-            "from _typeshed import Incomplete",
-        ]
-        self._types_lines: list[str] = []
-        self._body_lines: list[str] = []
-        self.__all__: list[str] = []
+
+        self._file_name = ""
+        self._files: dict[str, File] = {}
+
         self.undefined_members: list[tuple[str, object]] = []
         self._indent = 0
 
@@ -580,7 +590,7 @@ class StubGenerator:
 
     def _emit(self, *lines: str) -> None:
         pad = " " * self._indent
-        self._body_lines.extend(pad + line for line in lines)
+        self._files[self._file_name].body_lines.extend(pad + line for line in lines)
 
     def _emit_docstring(self, text: str | None) -> None:
         if not text:
@@ -595,35 +605,47 @@ class StubGenerator:
 
     def _emit_typevars(self, names: typing.Iterable[str]) -> None:
         for name in names:
-            self._types_lines.append(f"{name} = typing.TypeVar({name!r})")
+            self._files[self._file_name].types_lines.append(f"{name} = typing.TypeVar({name!r})")
 
     def _emit_typealiases(self, aliases: typing.Iterable[str]) -> None:
-        self._types_lines.extend(aliases)
+        self._files[self._file_name].types_lines.extend(aliases)
 
     # ------------------------------------------------------------------
     # Visitors
     # ------------------------------------------------------------------
 
-    def _visit_module(self, module: types.ModuleType) -> None:
-        for key, val in inspect.getmembers(module):
+    def _visit_module(self, name: str, module: types.ModuleType) -> None:
+        self._file_name = name + ".pyi"
+        self._files[self._file_name] = File()
+
+        module_doc = Docstring.parse(self.root)
+        if module_doc.document:
+            self._files[self._file_name].document = '"""\n{}\n"""\n'.format(module_doc.document)
+
+        for key, val in sorted(
+            inspect.getmembers(module),
+            key=lambda x: inspect.ismodule(x[1]),
+        ):
             if key == "__stub_imports__":
-                self._import_lines.extend(val)
+                self._files[self._file_name].import_lines.extend(val)
                 continue
+
             if key.startswith("__"):
                 continue
 
             kind = ImplementationType.guess(val)
             if kind.is_class():
                 self._visit_class(val)
-                self.__all__.append(val.__name__)
+                self._files[self._file_name].__all__.append(val.__name__)
             elif kind.is_function():
                 self._visit_function(val)
-                self.__all__.append(val.__name__)
+                self._files[self._file_name].__all__.append(val.__name__)
             elif key.isupper():
                 self._visit_constant(key, val)
-                self.__all__.append(key)
+                self._files[self._file_name].__all__.append(key)
             elif kind.is_module():
-                raise NotImplementedError("Nested module re-export is not supported.")
+                self._files[self._file_name].import_lines.append(f"from . import {key}")
+                self._visit_module(key, val)
             else:
                 self.undefined_members.append((key, val))
 
@@ -716,20 +738,33 @@ class StubGenerator:
         self._indent += 4
         self._emit_docstring(impl.docstring.document)
 
-        # Emit __new__ when the class has a meaningful signature
+        # Emit __new__ (or __init__) when the class has a meaningful signature
         sig = impl.docstring.signature
         if sig.parameters and sig.parameters != "(cls)":
-            self._visit_function(
-                cls.__new__,
-                custom_signature=sig.parameters,
-                custom_return_type=sig.return_type,
-            )
+            if impl.final:
+                self._visit_function(
+                    cls.__new__,
+                    custom_signature=sig.parameters,
+                    custom_return_type="typing.Self",
+                )
+            else:
+                self._visit_function(
+                    cls.__init__,
+                    custom_signature=sig.parameters,
+                    custom_return_type="None",
+                )
 
         hash_is_none = False
         for attr_key, attr_val in inspect.getmembers(cls):
             attr_kind = ImplementationType.guess(attr_val)
 
-            if attr_key in ("__new__", "__doc__", "__class__", "__module__"):
+            if attr_key in (
+                "__new__",
+                "__init__",
+                "__doc__",
+                "__class__",
+                "__module__",
+            ):
                 continue
 
             if attr_key == "__hash__" and attr_val is None:
@@ -776,29 +811,30 @@ class StubGenerator:
     # ------------------------------------------------------------------
 
     def generate(self) -> typing.Self:
-        self._visit_module(self.root)
+        self._visit_module("__init__", self.root)
         return self
 
-    def result(self) -> str:
-        parts: list[str] = []
+    def result(self) -> dict[str, str]:
+        res: dict[str, str] = {}
 
-        root_doc = Docstring.parse(self.root)
-        if root_doc.document:
-            parts.append(f'"""\n{root_doc.document}\n"""\n')
+        for name, file in self._files.items():
+            parts: list[str] = []
 
-        parts.append("from __future__ import annotations\n")
-        parts.append("\n".join(dict.fromkeys(self._import_lines)))
-        parts.append("\n")
-        parts.append(
-            "__all__ = [\n{}\n]".format(",\n".join(f"    {name!r}" for name in self.__all__))
-        )
-        parts.append("\n")
-        if self._types_lines:
-            parts.append("\n".join(dict.fromkeys(self._types_lines)))
+            parts.append("from __future__ import annotations\n")
+            parts.append("\n".join(dict.fromkeys(file.import_lines)))
             parts.append("\n")
-        parts.append("\n".join(self._body_lines))
+            parts.append(
+                "__all__ = [\n{}\n]".format(",\n".join(f"    {name!r}" for name in file.__all__))
+            )
+            parts.append("\n")
+            if file.types_lines:
+                parts.append("\n".join(dict.fromkeys(file.types_lines)))
+                parts.append("\n")
+            parts.append("\n".join(file.body_lines))
 
-        return "\n".join(parts)
+            res[name] = "\n".join(parts)
+
+        return res
 
 
 # ---------------------------------------------------------------------------
@@ -815,9 +851,15 @@ def main() -> None:
     stub = StubGenerator(module).generate()
 
     for key, val in stub.undefined_members:
-        print(f"Warning: undefined member: {key}\n\t{val!r}", file=sys.stderr)
+        print(f"! Warning: undefined member: {key}\n\t{val!r}", file=sys.stderr)
 
-    print(stub.result())
+    output = Path(sys.argv[1].replace(".", "/"))
+    output.mkdir(exist_ok=False)
+
+    for name, body in stub.result().items():
+        file = output / name
+        print(f"* Writing {file}")
+        file.write_text(body)
 
 
 if __name__ == "__main__":

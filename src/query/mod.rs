@@ -1,50 +1,52 @@
+pub mod base;
 pub mod delete;
 pub mod insert;
 pub mod on_conflict;
 pub mod ordering;
 pub mod returning;
-pub mod select;
 pub mod update;
 pub mod window;
 
-/// Create a new `DeleteStatement`.
-///
-/// @signature (table: Table | TableName | str) -> DeleteStatement
-#[pyo3::pyfunction]
-#[pyo3(name = "delete")]
-#[inline(always)]
-pub fn py_delete<'a>(
-    table: &pyo3::Bound<'a, pyo3::PyAny>,
-) -> pyo3::PyResult<pyo3::Bound<'a, delete::PyDeleteStatement>> {
-    let value = delete::PyDeleteStatement::__new__(table)?;
+#[pyo3::pymodule(name = "query")]
+pub mod query_module {
+    use pyo3::types::PyModuleMethods;
 
-    pyo3::Bound::new(table.py(), value)
-}
+    #[pymodule_export]
+    use super::base::PyQueryStatement;
 
-/// Create a new `InsertStatement`.
-///
-/// @signature (table: Table | TableName | str) -> InsertStatement
-#[pyo3::pyfunction]
-#[pyo3(name = "insert")]
-#[inline(always)]
-pub fn py_insert<'a>(
-    table: &pyo3::Bound<'a, pyo3::PyAny>,
-) -> pyo3::PyResult<pyo3::Bound<'a, insert::PyInsertStatement>> {
-    let value = insert::PyInsertStatement::__new__(table)?;
+    #[pymodule_export]
+    use super::on_conflict::PyOnConflict;
 
-    pyo3::Bound::new(table.py(), value)
-}
+    #[pymodule_export]
+    use super::returning::PyReturning;
 
-/// Create a new `UpdateStatement`.
-///
-/// @signature (table: Table | TableName | str) -> UpdateStatement
-#[pyo3::pyfunction]
-#[pyo3(name = "update")]
-#[inline(always)]
-pub fn py_update<'a>(
-    table: &pyo3::Bound<'a, pyo3::PyAny>,
-) -> pyo3::PyResult<pyo3::Bound<'a, update::PyUpdateStatement>> {
-    let value = update::PyUpdateStatement::__new__(table)?;
+    #[pymodule_export]
+    use super::insert::PyInsertStatement;
 
-    pyo3::Bound::new(table.py(), value)
+    #[pymodule_export]
+    use super::ordering::PyOrdering;
+
+    #[pymodule_export]
+    use super::delete::PyDeleteStatement;
+
+    #[pymodule_export]
+    use super::update::PyUpdateStatement;
+
+    #[pymodule_export]
+    use super::window::PyFrame;
+
+    #[pymodule_export]
+    use super::window::PyWindowStatement;
+
+    #[pymodule_init]
+    #[cold]
+    fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
+        m.add(
+            "__stub_imports__",
+            vec![
+                "from .common import Value, Expr, Column, ColumnRef, TableName",
+                "from .schema import Table",
+            ],
+        )
+    }
 }

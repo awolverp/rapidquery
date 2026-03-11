@@ -1,0 +1,313 @@
+use std::str::FromStr;
+
+use pyo3::types::PyAnyMethods;
+use pyo3::types::PyStringMethods;
+use sea_query::IntoIden;
+
+crate::implement_pyclass! {
+    // NOTE: SQLTypes, PyExpr, PyFunc, PyTableName & PyColumnRef could never mark as subclass.
+    // these should be immutable and final types.
+
+    /// Represents a reference to a database column with optional table and schema qualification.
+    ///
+    /// This class is used to uniquely identify columns in SQL queries, supporting
+    /// schema-qualified and table-qualified column references.
+    ///
+    /// NOTE: this class is immutable and frozen.
+    ///
+    /// @signature (name: str, table: str | None = ..., schema: str | None = ...)
+    #[derive(Debug, Clone)]
+    [] PyColumnRef as "ColumnRef" {
+        /// Name of the referenced column. [`Option::None`] means '*'.
+        pub name: Option<sea_query::DynIden>,
+        pub table: Option<sea_query::DynIden>,
+        pub schema: Option<sea_query::DynIden>,
+    }
+}
+
+impl sea_query::IntoColumnRef for PyColumnRef {
+    fn into_column_ref(self) -> sea_query::ColumnRef {
+        if let Some(name) = self.name {
+            match (self.table, self.schema) {
+                (Some(table), Some(schema)) => {
+                    sea_query::ColumnRef::SchemaTableColumn(schema, table, name)
+                }
+                (Some(table), None) => sea_query::ColumnRef::TableColumn(table, name),
+                _ => sea_query::ColumnRef::Column(name),
+            }
+        } else if let Some(table) = self.table {
+            sea_query::ColumnRef::TableAsterisk(table)
+        } else {
+            sea_query::ColumnRef::Asterisk
+        }
+    }
+}
+
+impl FromStr for PyColumnRef {
+    type Err = pyo3::PyErr;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        let string = string.trim().to_owned();
+
+        if string.is_empty() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "cannot parse an empty string",
+            ));
+        }
+
+        // Possible formats:
+        //    name
+        //    table.name
+        //    schema.table.name
+        let mut string: Vec<String> = string.split('.').map(String::from).collect();
+
+        if string.len() > 3 {
+            return Err(pyo3::exceptions::PyValueError::new_err("invalid format"));
+        }
+
+        let name = string.pop().unwrap();
+        let table = string.pop().map(|x| sea_query::Alias::new(x).into_iden());
+        let schema = string.pop().map(|x| sea_query::Alias::new(x).into_iden());
+
+        Ok(Self {
+            name: if name == "*" {
+                None
+            } else {
+                Some(sea_query::Alias::new(name).into_iden())
+            },
+            table,
+            schema,
+        })
+    }
+}
+
+impl TryFrom<&pyo3::Bound<'_, pyo3::PyAny>> for PyColumnRef {
+    type Error = pyo3::PyErr;
+
+    fn try_from(value: &pyo3::Bound<'_, pyo3::PyAny>) -> Result<Self, Self::Error> {
+        const PROPERTY_NAME: &std::ffi::CStr = c"__column_ref__";
+
+        unsafe {
+            if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::COLUMN_REF_TYPE {
+                let casted_value = value.cast_unchecked::<Self>();
+                return Ok(casted_value.get().clone());
+            }
+
+            if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::COLUMN_TYPE) == 1 {
+                let casted_value = value.cast_unchecked::<super::column::PyColumn>();
+                let get_value = casted_value.get();
+
+                return Ok(Self {
+                    name: Some(sea_query::Alias::new(&get_value.0.lock().name).into_iden()),
+                    table: None,
+                    schema: None,
+                });
+            }
+
+            if let Ok(x) = value.cast_exact::<pyo3::types::PyString>() {
+                return Self::from_str(x.to_str()?);
+            }
+
+            if value.hasattr(PROPERTY_NAME)? {
+                let property = value.getattr(PROPERTY_NAME)?;
+
+                if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::COLUMN_REF_TYPE {
+                    let casted_value = value.cast_unchecked::<Self>();
+                    return Ok(casted_value.get().clone());
+                }
+
+                if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::COLUMN_TYPE) == 1 {
+                    let casted_value = value.cast_unchecked::<super::column::PyColumn>();
+                    let get_value = casted_value.get();
+
+                    return Ok(Self {
+                        name: Some(sea_query::Alias::new(&get_value.0.lock().name).into_iden()),
+                        table: None,
+                        schema: None,
+                    });
+                }
+
+                if let Ok(x) = value.cast_exact::<pyo3::types::PyString>() {
+                    return Self::from_str(x.to_str()?);
+                }
+
+                return crate::new_error!(
+                    PyTypeError,
+                    "__column_ref__ property returns something other than Column or ColumnRef or \
+                     str; returns {}",
+                    crate::internal::get_type_name(property.py(), property.as_ptr())
+                );
+            }
+
+            crate::new_error!(
+                PyTypeError,
+                "expected ColumnRef, Column, str, or object.__column_ref__ property, got {}",
+                crate::internal::get_type_name(value.py(), value.as_ptr())
+            )
+        }
+    }
+}
+
+#[pyo3::pymethods]
+impl PyColumnRef {
+    #[new]
+    #[pyo3(signature=(name, table=None, schema=None))]
+    fn new(name: String, table: Option<String>, schema: Option<String>) -> pyo3::PyResult<Self> {
+        let name = unsafe {
+            if name == "*" {
+                None
+            } else {
+                Some(name)
+            }
+        };
+
+        Ok(Self {
+            name: name.map(|x| sea_query::Alias::new(x).into_iden()),
+            table: table.map(|x| sea_query::Alias::new(x).into_iden()),
+            schema: schema.map(|x| sea_query::Alias::new(x).into_iden()),
+        })
+    }
+
+    /// @signature (self) -> str
+    #[getter]
+    fn name(&self) -> String {
+        match &self.name {
+            None => String::from("*"),
+            Some(x) => x.to_string(),
+        }
+    }
+
+    /// @signature (self) -> str | None
+    #[getter]
+    fn table(&self) -> Option<String> {
+        self.table.as_ref().map(|x| x.to_string())
+    }
+
+    /// @signature (self) -> str | None
+    #[getter]
+    fn schema(&self) -> Option<String> {
+        self.schema.as_ref().map(|x| x.to_string())
+    }
+
+    /// Parse a string representation of a column reference.
+    ///
+    /// Supports formats like:
+    /// - "column_name"
+    /// - "table.column_name"
+    /// - "schema.table.column_name"
+    ///
+    /// @signature (cls, string: str) -> typing.Self
+    #[classmethod]
+    fn parse(_cls: &pyo3::Bound<'_, pyo3::types::PyType>, string: String) -> pyo3::PyResult<Self> {
+        Self::from_str(&string)
+    }
+
+    /// @signature (
+    ///     self,
+    ///     *,
+    ///     name: str | None = ...,
+    ///     table: str | None = ...,
+    ///     schema: str | None = ...,
+    /// ) -> typing.Self
+    #[pyo3(signature=(**kwds))]
+    fn copy_with(
+        &self,
+        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> pyo3::PyResult<Self> {
+        use pyo3::types::PyDictMethods;
+
+        let mut cloned = self.clone();
+        if kwds.is_none() {
+            return Ok(cloned);
+        }
+
+        let kwds = unsafe { kwds.unwrap_unchecked() };
+
+        for (key, val) in kwds.iter() {
+            unsafe {
+                let key = key.extract::<String>().unwrap_unchecked();
+
+                let val: Option<String> = unsafe {
+                    if pyo3::ffi::Py_IsNone(val.as_ptr()) == 1 {
+                        None
+                    } else if pyo3::ffi::PyUnicode_CheckExact(val.as_ptr()) == 1 {
+                        Some(val.extract::<String>().unwrap_unchecked())
+                    } else {
+                        return crate::new_error!(
+                            PyTypeError,
+                            "expected str or None, got {}",
+                            crate::internal::get_type_name(val.py(), val.as_ptr())
+                        );
+                    }
+                };
+
+                if key == "name" {
+                    if val.is_none() {
+                        return crate::new_error!(PyTypeError, "expected str for name, got None");
+                    }
+
+                    let val_str = unsafe { val.unwrap_unchecked() };
+                    if val_str == "*" {
+                        cloned.name = None;
+                    } else {
+                        cloned.name = Some(sea_query::Alias::new(val_str).into_iden());
+                    }
+                } else if key == "table" {
+                    cloned.table = val.map(|x| sea_query::Alias::new(x).into_iden());
+                } else if key == "schema" {
+                    cloned.schema = val.map(|x| sea_query::Alias::new(x).into_iden());
+                } else {
+                    return crate::new_error!(
+                        PyTypeError,
+                        "got an unexpected keyword argument '{}'",
+                        key
+                    );
+                }
+            }
+        }
+
+        Ok(cloned)
+    }
+
+    fn __eq__(slf: pyo3::PyRef<'_, Self>, other: pyo3::PyRef<'_, Self>) -> bool {
+        if slf.as_ptr() == other.as_ptr() {
+            return true;
+        }
+
+        slf.name == other.name && slf.schema == other.schema && slf.table == other.table
+    }
+
+    fn __ne__(slf: pyo3::PyRef<'_, Self>, other: pyo3::PyRef<'_, Self>) -> bool {
+        if slf.as_ptr() == other.as_ptr() {
+            return false;
+        }
+
+        slf.name != other.name || slf.schema != other.schema || slf.table != other.table
+    }
+
+    fn __copy__(&self) -> Self {
+        self.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        use std::io::Write;
+
+        let mut s = Vec::new();
+
+        match &self.name {
+            Some(x) => write!(s, "<ColumnRef {:?}", x.to_string()).unwrap(),
+            None => write!(s, "<ColumnRef *").unwrap(),
+        }
+
+        if let Some(x) = &self.table {
+            write!(s, " table={:?}", x.to_string()).unwrap();
+        }
+        if let Some(x) = &self.schema {
+            write!(s, " schema={:?}", x.to_string()).unwrap();
+        }
+
+        write!(s, ">").unwrap();
+
+        unsafe { String::from_utf8_unchecked(s) }
+    }
+}

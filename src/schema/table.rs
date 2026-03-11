@@ -1,17 +1,13 @@
-pub mod alter;
-pub mod operations;
+use super::base::PySchemaStatement;
+use crate::common::table_ref::PyTableName;
+use crate::internal::statements::ToSeaQuery;
 
 use pyo3::types::PyTupleMethods;
 
-use crate::column::PyColumn;
-use crate::common::PySchemaStatement;
-use crate::common::PyTableName;
-use crate::expression::PyExpr;
-use crate::foreign_key::PyForeignKey;
-use crate::index::PyIndex;
-use crate::utils::ToSeaQuery;
+pub const OPT_IF_NOT_EXISTS: u8 = 1 << 0;
+pub const OPT_TEMPORARY: u8 = 1 << 1;
 
-implement_state_pyclass! {
+crate::implement_pyclass! {
     /// Represents a complete database table definition.
     ///
     /// This class encapsulates all aspects of a table structure including:
@@ -24,6 +20,7 @@ implement_state_pyclass! {
     /// Used to generate CREATE TABLE SQL statements with full schema specifications.
     ///
     /// @signature (
+    ///     self,
     ///     name: TableName | str,
     ///     *args: Column | Index | ForeignKey | Expr,
     ///     options: int = 0,
@@ -33,12 +30,21 @@ implement_state_pyclass! {
     ///     character_set: str | None = None,
     ///     extra: str | None = None,
     /// )
-    pub struct [extends=PySchemaStatement] PyTable(TableState) as "Table" {
+    mutable [subclass, extends=PySchemaStatement] PyTable(TableState) as "Table" {
         pub name: PyTableName,
-        pub columns: Vec<PyColumn>,
-        pub indexes: Vec<PyIndex>,
-        pub foreign_keys: Vec<PyForeignKey>,
-        pub checks: Vec<PyExpr>,
+
+        /// Always is `Vec<PyColumn>`
+        pub columns: Vec<pyo3::Py<pyo3::PyAny>>,
+
+        /// Always is `Vec<PyIndex>`
+        pub indexes: Vec<pyo3::Py<pyo3::PyAny>>,
+
+        /// Always is `Vec<PyForeignKey>`
+        pub foreign_keys: Vec<pyo3::Py<pyo3::PyAny>>,
+
+        /// Always is `Vec<PyExpr>`
+        pub checks: Vec<pyo3::Py<pyo3::PyAny>>,
+
         pub options: u8,
         pub comment: Option<String>,
         pub engine: Option<String>,
@@ -54,29 +60,49 @@ impl ToSeaQuery<sea_query::TableCreateStatement> for TableState {
         let mut stmt = sea_query::TableCreateStatement::new();
         stmt.table(self.name.clone());
 
-        for col in self.columns.iter() {
-            let column_def: sea_query::ColumnDef = col.0.lock().to_sea_query(py);
+        // Add columns
+        for column in self.columns.iter() {
+            let col = unsafe { column.cast_bound_unchecked::<crate::common::column::PyColumn>(py) };
+
+            let column_def: sea_query::ColumnDef = col.get().0.lock().to_sea_query(py);
             stmt.col(column_def);
         }
-        for ix in self.indexes.iter() {
-            let lock = ix.0.lock();
-            if lock.options & PyIndex::OPT_PRIMARY > 0 || lock.options & PyIndex::OPT_UNIQUE > 0 {
+
+        // Add primary and unique indexes
+        for index in self.indexes.iter() {
+            let ix = unsafe { index.cast_bound_unchecked::<super::index::PyIndex>(py) };
+
+            let lock = ix.get().0.lock();
+            if lock.options & super::index::OPT_PRIMARY > 0
+                || lock.options & super::index::OPT_UNIQUE > 0
+            {
                 let mut index_stmt = lock.to_sea_query(py);
                 stmt.index(&mut index_stmt);
             }
         }
-        for fk in self.foreign_keys.iter() {
-            let mut fk_stmt = fk.0.lock().to_sea_query(py);
+
+        // Add foreign keys
+        for foreign_key in self.foreign_keys.iter() {
+            let fk = unsafe {
+                foreign_key.cast_bound_unchecked::<crate::common::foreign_key::PyForeignKey>(py)
+            };
+
+            let mut fk_stmt = fk.get().0.lock().to_sea_query(py);
             stmt.foreign_key(&mut fk_stmt);
         }
+
+        // Add check constraints
         for check in self.checks.iter() {
-            stmt.check(check.0.clone());
+            let simple_expr =
+                unsafe { check.cast_bound_unchecked::<crate::common::expression::PyExpr>(py) };
+
+            stmt.check(simple_expr.get().0.clone());
         }
 
-        if self.options & PyTable::OPT_IF_NOT_EXISTS > 0 {
+        if self.options & OPT_IF_NOT_EXISTS > 0 {
             stmt.if_not_exists();
         }
-        if self.options & PyTable::OPT_TEMPORARY > 0 {
+        if self.options & OPT_TEMPORARY > 0 {
             stmt.temporary();
         }
 
@@ -102,67 +128,90 @@ impl ToSeaQuery<sea_query::TableCreateStatement> for TableState {
 
 #[pyo3::pymethods]
 impl PyTable {
-    #[classattr]
-    pub const OPT_IF_NOT_EXISTS: u8 = 1 << 0;
-    #[classattr]
-    pub const OPT_TEMPORARY: u8 = 1 << 1;
-
     #[new]
-    #[
-        pyo3(
-            signature=(
-                name,
-                *args,
-                options=0,
-                comment=None,
-                engine=None,
-                collate=None,
-                character_set=None,
-                extra=None,
-            )
-        )
-    ]
+    #[allow(unused_variables)]
+    #[pyo3(signature=(*args, **kwds))]
     fn __new__(
+        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> (Self, PySchemaStatement) {
+        (Self::uninit(), PySchemaStatement)
+    }
+
+    #[
+            pyo3(
+                signature=(
+                    name,
+                    *args,
+                    if_not_exists=false,
+                    temporary=false,
+                    comment=None,
+                    engine=None,
+                    collate=None,
+                    character_set=None,
+                    extra=None,
+                )
+            )
+        ]
+    fn __init__(
+        &self,
         name: &pyo3::Bound<'_, pyo3::PyAny>,
         args: pyo3::Bound<'_, pyo3::types::PyTuple>,
-        options: u8,
+        if_not_exists: bool,
+        temporary: bool,
         comment: Option<String>,
         engine: Option<String>,
         collate: Option<String>,
         character_set: Option<String>,
         extra: Option<String>,
-    ) -> pyo3::PyResult<(Self, PySchemaStatement)> {
+    ) -> pyo3::PyResult<()> {
         let name = PyTableName::try_from(name)?;
 
-        let mut columns: Vec<PyColumn> = Vec::new();
-        let mut indexes: Vec<PyIndex> = Vec::new();
-        let mut foreign_keys: Vec<PyForeignKey> = Vec::new();
-        let mut checks: Vec<PyExpr> = Vec::new();
+        let mut columns = Vec::new();
+        let mut indexes = Vec::new();
+        let mut foreign_keys = Vec::new();
+        let mut checks = Vec::new();
 
         for object in args.iter() {
             unsafe {
-                let type_ptr = pyo3::ffi::Py_TYPE(object.as_ptr());
-
-                if type_ptr == crate::typeref::COLUMN_TYPE {
-                    let item = object.cast_into_unchecked::<PyColumn>();
-                    columns.push(PyColumn(std::sync::Arc::clone(&item.get().0)));
-                } else if type_ptr == crate::typeref::INDEX_TYPE {
-                    let item = object.cast_into_unchecked::<PyIndex>();
-                    indexes.push(PyIndex(std::sync::Arc::clone(&item.get().0)));
-                } else if type_ptr == crate::typeref::FOREIGN_KEY_TYPE {
-                    let item = object.cast_into_unchecked::<PyForeignKey>();
-                    foreign_keys.push(PyForeignKey(std::sync::Arc::clone(&item.get().0)));
-                } else if type_ptr == crate::typeref::EXPR_TYPE {
-                    let item = object.cast_into_unchecked::<PyExpr>();
-                    checks.push(item.get().clone());
+                // columns
+                if pyo3::ffi::PyObject_TypeCheck(object.as_ptr(), crate::typeref::COLUMN_TYPE) == 1
+                {
+                    columns.push(object.unbind());
+                }
+                // indexes
+                else if pyo3::ffi::PyObject_TypeCheck(object.as_ptr(), crate::typeref::INDEX_TYPE)
+                    == 1
+                {
+                    indexes.push(object.unbind());
+                }
+                // foreign keys
+                else if pyo3::ffi::PyObject_TypeCheck(
+                    object.as_ptr(),
+                    crate::typeref::FOREIGN_KEY_TYPE,
+                ) == 1
+                {
+                    foreign_keys.push(object.unbind());
+                }
+                // expressions (check constraints)
+                else if pyo3::ffi::Py_TYPE(object.as_ptr()) == crate::typeref::EXPR_TYPE {
+                    checks.push(object.unbind());
                 } else {
-                    return Err(typeerror!(
-                        "expected Column, Index, ForeignKey, or Expr, got {:?}",
-                        object.py(),
-                        object.as_ptr()
-                    ));
+                    return crate::new_error!(
+                        PyTypeError,
+                        "expected Column, Index, ForeignKey, or Expr, got {}",
+                        crate::internal::get_type_name(object.py(), object.as_ptr())
+                    );
                 }
             }
+        }
+
+        let mut options = 0u8;
+        if if_not_exists {
+            options |= OPT_IF_NOT_EXISTS;
+        }
+        if temporary {
+            options |= OPT_TEMPORARY;
         }
 
         let state = TableState {
@@ -178,7 +227,8 @@ impl PyTable {
             character_set,
             extra,
         };
-        Ok((state.into(), PySchemaStatement))
+        self.0.set(state);
+        Ok(())
     }
 
     /// The name of this table.
@@ -195,33 +245,28 @@ impl PyTable {
     /// @signature (self) -> typing.Sequence[Column]
     /// @setter typing.Iterable[Column]
     #[getter]
-    fn columns(&self) -> Vec<PyColumn> {
+    fn columns(&self, py: pyo3::Python) -> Vec<pyo3::Py<pyo3::PyAny>> {
         let lock = self.0.lock();
-        lock.columns
-            .iter()
-            .map(|x| PyColumn(std::sync::Arc::clone(&x.0)))
-            .collect()
+        lock.columns.iter().map(|x| x.clone_ref(py)).collect()
     }
 
     #[setter]
     fn set_columns(&self, val: Vec<pyo3::Bound<'_, pyo3::PyAny>>) -> pyo3::PyResult<()> {
-        let mut columns: Vec<PyColumn> = Vec::new();
+        let mut columns = Vec::new();
 
-        for object in val.iter() {
+        for object in val.into_iter() {
             unsafe {
-                let type_ptr = pyo3::ffi::Py_TYPE(object.as_ptr());
-
-                if type_ptr == crate::typeref::COLUMN_TYPE {
-                    let item = object.cast_unchecked::<PyColumn>();
-                    columns.push(PyColumn(std::sync::Arc::clone(&item.get().0)));
-                } else {
-                    return Err(typeerror!(
-                        "expected typing.Iterable[Column], got typing.Iterable[{:?}]",
-                        object.py(),
-                        object.as_ptr()
-                    ));
+                if pyo3::ffi::PyObject_TypeCheck(object.as_ptr(), crate::typeref::COLUMN_TYPE) == 0
+                {
+                    return crate::new_error!(
+                        PyTypeError,
+                        "expected iterable of Column, found {}",
+                        crate::internal::get_type_name(object.py(), object.as_ptr())
+                    );
                 }
             }
+
+            columns.push(object.unbind());
         }
 
         self.0.lock().columns = columns;
@@ -233,34 +278,27 @@ impl PyTable {
     /// @signature (self) -> typing.Sequence[Index]
     /// @setter typing.Iterable[Index]
     #[getter]
-    fn indexes(&self, py: pyo3::Python) -> Vec<pyo3::Py<PyIndex>> {
+    fn indexes(&self, py: pyo3::Python) -> Vec<pyo3::Py<pyo3::PyAny>> {
         let lock = self.0.lock();
-        lock.indexes
-            .iter()
-            .map(|x| PyIndex(std::sync::Arc::clone(&x.0)))
-            .map(|x| pyo3::Py::new(py, (x, PySchemaStatement)).unwrap())
-            .collect()
+        lock.indexes.iter().map(|x| x.clone_ref(py)).collect()
     }
 
     #[setter]
     fn set_indexes(&self, val: Vec<pyo3::Bound<'_, pyo3::PyAny>>) -> pyo3::PyResult<()> {
-        let mut indexes: Vec<PyIndex> = Vec::new();
+        let mut indexes = Vec::new();
 
-        for object in val.iter() {
+        for object in val.into_iter() {
             unsafe {
-                let type_ptr = pyo3::ffi::Py_TYPE(object.as_ptr());
-
-                if type_ptr == crate::typeref::INDEX_TYPE {
-                    let item = object.cast_unchecked::<PyIndex>();
-                    indexes.push(PyIndex(std::sync::Arc::clone(&item.get().0)));
-                } else {
-                    return Err(typeerror!(
-                        "expected typing.Iterable[Index], got typing.Iterable[{:?}]",
-                        object.py(),
-                        object.as_ptr()
-                    ));
+                if pyo3::ffi::PyObject_TypeCheck(object.as_ptr(), crate::typeref::INDEX_TYPE) == 0 {
+                    return crate::new_error!(
+                        PyTypeError,
+                        "expected iterable of Index, found {}",
+                        crate::internal::get_type_name(object.py(), object.as_ptr())
+                    );
                 }
             }
+
+            indexes.push(object.unbind());
         }
 
         self.0.lock().indexes = indexes;
@@ -272,33 +310,29 @@ impl PyTable {
     /// @signature (self) -> typing.Sequence[ForeignKey]
     /// @setter typing.Iterable[ForeignKey]
     #[getter]
-    fn foreign_keys(&self) -> Vec<PyForeignKey> {
+    fn foreign_keys(&self, py: pyo3::Python) -> Vec<pyo3::Py<pyo3::PyAny>> {
         let lock = self.0.lock();
-        lock.foreign_keys
-            .iter()
-            .map(|x| PyForeignKey(std::sync::Arc::clone(&x.0)))
-            .collect()
+        lock.foreign_keys.iter().map(|x| x.clone_ref(py)).collect()
     }
 
     #[setter]
     fn set_foreign_keys(&self, val: Vec<pyo3::Bound<'_, pyo3::PyAny>>) -> pyo3::PyResult<()> {
-        let mut foreign_keys: Vec<PyForeignKey> = Vec::new();
+        let mut foreign_keys = Vec::new();
 
-        for object in val.iter() {
+        for object in val.into_iter() {
             unsafe {
-                let type_ptr = pyo3::ffi::Py_TYPE(object.as_ptr());
-
-                if type_ptr == crate::typeref::FOREIGN_KEY_TYPE {
-                    let item = object.cast_unchecked::<PyForeignKey>();
-                    foreign_keys.push(PyForeignKey(std::sync::Arc::clone(&item.get().0)));
-                } else {
-                    return Err(typeerror!(
-                        "expected typing.Iterable[ForeignKey], got typing.Iterable[{:?}]",
-                        object.py(),
-                        object.as_ptr()
-                    ));
+                if pyo3::ffi::PyObject_TypeCheck(object.as_ptr(), crate::typeref::FOREIGN_KEY_TYPE)
+                    == 0
+                {
+                    return crate::new_error!(
+                        PyTypeError,
+                        "expected iterable of ForeignKey, found {}",
+                        crate::internal::get_type_name(object.py(), object.as_ptr())
+                    );
                 }
             }
+
+            foreign_keys.push(object.unbind());
         }
 
         self.0.lock().foreign_keys = foreign_keys;
@@ -310,66 +344,47 @@ impl PyTable {
     /// @signature (self) -> typing.Sequence[Expr]
     /// @setter typing.Iterable[Expr]
     #[getter]
-    fn checks(&self) -> Vec<PyExpr> {
+    fn checks(&self, py: pyo3::Python) -> Vec<pyo3::Py<pyo3::PyAny>> {
         let lock = self.0.lock();
-        lock.checks.clone()
+        lock.checks.iter().map(|x| x.clone_ref(py)).collect()
     }
 
     #[setter]
     fn set_checks(&self, val: Vec<pyo3::Bound<'_, pyo3::PyAny>>) -> pyo3::PyResult<()> {
-        let mut checks: Vec<PyExpr> = Vec::new();
+        let mut checks = Vec::new();
 
-        for object in val.iter() {
+        for object in val.into_iter() {
             unsafe {
-                let type_ptr = pyo3::ffi::Py_TYPE(object.as_ptr());
-
-                if type_ptr == crate::typeref::FOREIGN_KEY_TYPE {
-                    let item = object.cast_unchecked::<PyExpr>();
-                    checks.push(item.get().clone());
-                } else {
-                    return Err(typeerror!(
-                        "expected typing.Iterable[Expr], got typing.Iterable[{:?}]",
-                        object.py(),
-                        object.as_ptr()
-                    ));
+                if pyo3::ffi::Py_TYPE(object.as_ptr()) != crate::typeref::EXPR_TYPE {
+                    return crate::new_error!(
+                        PyTypeError,
+                        "expected iterable of Expr, found {}",
+                        crate::internal::get_type_name(object.py(), object.as_ptr())
+                    );
                 }
             }
+
+            checks.push(object.unbind());
         }
 
         self.0.lock().checks = checks;
         Ok(())
     }
 
-    /// Specified options.
-    ///
-    /// @signature (self) -> int
-    /// @setter int
-    #[getter]
-    fn options(&self) -> u8 {
-        self.0.lock().options
-    }
-
-    #[setter]
-    fn set_options(&self, val: u8) {
-        self.0.lock().options = val;
-    }
-
     /// Whether to use IF NOT EXISTS clause to avoid errors if table exists.
-    /// Shorthand for `self.options & self.OPT_IF_NOT_EXISTS > 0`.
     ///
     /// @signature (self) -> bool
     #[getter]
     fn if_not_exists(&self) -> bool {
-        self.0.lock().options & Self::OPT_IF_NOT_EXISTS > 0
+        self.0.lock().options & OPT_IF_NOT_EXISTS > 0
     }
 
     /// Whether this is a temporary table that exists only for the session.
-    /// Shorthand for `self.options & self.OPT_TEMPORARY > 0`.
     ///
     /// @signature (self) -> bool
     #[getter]
     fn temporary(&self) -> bool {
-        self.0.lock().options & Self::OPT_TEMPORARY > 0
+        self.0.lock().options & OPT_TEMPORARY > 0
     }
 
     /// Comment describing the purpose of this table.
@@ -448,13 +463,14 @@ impl PyTable {
         let lock = self.0.lock();
         let stmt = lock.to_sea_query(py);
 
-        let mut sqls = vec![build_schema_statement!(&backend, stmt)?];
+        let mut sqls = vec![crate::build_schema_statement!(&backend, stmt)?];
 
-        for ix in lock.indexes.iter() {
-            let ix_lock = ix.0.lock();
+        for index in lock.indexes.iter() {
+            let ix = unsafe { index.cast_bound_unchecked::<super::index::PyIndex>(py) };
+            let ix_lock = ix.get().0.lock();
 
-            if ix_lock.options & PyIndex::OPT_PRIMARY > 0
-                || ix_lock.options & PyIndex::OPT_UNIQUE > 0
+            if ix_lock.options & super::index::OPT_PRIMARY > 0
+                || ix_lock.options & super::index::OPT_UNIQUE > 0
             {
                 continue;
             }
@@ -469,7 +485,7 @@ impl PyTable {
             let mut index_stmt = ix_lock.to_sea_query(py);
             index_stmt.table(lock.name.clone());
 
-            sqls.push(build_schema_statement!(&backend, index_stmt)?);
+            sqls.push(crate::build_schema_statement!(&backend, index_stmt)?);
         }
 
         Ok(sqls.join(";\n"))
@@ -486,9 +502,9 @@ impl PyTable {
         let n = lock.columns.len();
         for (index, col) in lock.columns.iter().enumerate() {
             if index + 1 == n {
-                write!(s, "{}", col.__repr__()).unwrap();
+                write!(s, "{}", col).unwrap();
             } else {
-                write!(s, "{}, ", col.__repr__()).unwrap();
+                write!(s, "{}, ", col).unwrap();
             }
         }
 
@@ -497,9 +513,9 @@ impl PyTable {
         let n = lock.indexes.len();
         for (index, ix) in lock.indexes.iter().enumerate() {
             if index + 1 == n {
-                write!(s, "{}", ix.__repr__()).unwrap();
+                write!(s, "{}", ix).unwrap();
             } else {
-                write!(s, "{}, ", ix.__repr__()).unwrap();
+                write!(s, "{}, ", ix).unwrap();
             }
         }
 
@@ -508,9 +524,9 @@ impl PyTable {
         let n = lock.foreign_keys.len();
         for (index, fk) in lock.foreign_keys.iter().enumerate() {
             if index + 1 == n {
-                write!(s, "{}", fk.__repr__()).unwrap();
+                write!(s, "{}", fk).unwrap();
             } else {
-                write!(s, "{}, ", fk.__repr__()).unwrap();
+                write!(s, "{}, ", fk).unwrap();
             }
         }
 
@@ -519,31 +535,31 @@ impl PyTable {
         let n = lock.checks.len();
         for (index, expr) in lock.checks.iter().enumerate() {
             if index + 1 == n {
-                write!(s, "{}", expr.__repr__()).unwrap();
+                write!(s, "{}", expr).unwrap();
             } else {
-                write!(s, "{}, ", expr.__repr__()).unwrap();
+                write!(s, "{}, ", expr).unwrap();
             }
         }
         write!(s, "]").unwrap();
 
-        if lock.options & Self::OPT_IF_NOT_EXISTS > 0 {
-            write!(s, " OPT_IF_NOT_EXISTS").unwrap();
+        if lock.options & OPT_IF_NOT_EXISTS > 0 {
+            write!(s, " if_not_exists=True").unwrap();
         }
-        if lock.options & Self::OPT_TEMPORARY > 0 {
-            write!(s, " OPT_TEMPORARY").unwrap();
+        if lock.options & OPT_TEMPORARY > 0 {
+            write!(s, " temporary=True").unwrap();
         }
 
         if let Some(x) = &lock.comment {
-            write!(s, " comment={x}").unwrap();
+            write!(s, " comment={x:?}").unwrap();
         }
         if let Some(x) = &lock.engine {
-            write!(s, " engine={x}").unwrap();
+            write!(s, " engine={x:?}").unwrap();
         }
         if let Some(x) = &lock.collate {
-            write!(s, " collate={x}").unwrap();
+            write!(s, " collate={x:?}").unwrap();
         }
         if let Some(x) = &lock.character_set {
-            write!(s, " character_set={x}").unwrap();
+            write!(s, " character_set={x:?}").unwrap();
         }
 
         write!(s, ">").unwrap();

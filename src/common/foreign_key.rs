@@ -1,5 +1,5 @@
-use crate::common::PyTableName;
-use crate::utils::ToSeaQuery;
+use super::table_ref::PyTableName;
+use crate::internal::statements::ToSeaQuery;
 
 #[inline]
 fn map_str_to_foreign_key_action(value: String) -> pyo3::PyResult<sea_query::ForeignKeyAction> {
@@ -26,7 +26,7 @@ fn map_foreign_key_action_to_str(value: sea_query::ForeignKeyAction) -> String {
     }
 }
 
-implement_state_pyclass! {
+crate::implement_pyclass! {
     /// Specifies a foreign key relationship between tables.
     ///
     /// Defines referential integrity constraints including:
@@ -40,16 +40,17 @@ implement_state_pyclass! {
     ///
     /// @alias _ForeignKeyActions = typing.Literal["CASCADE", "RESTRICT", "NO ACTION", "SET DEFAULT", "SET NULL"]
     /// @signature (
+    ///     self,
     ///     from_columns: typing.Iterable[str | ColumnRef | Column],
-    ///     to_table: Table | TableName | str,
     ///     to_columns: typing.Iterable[str | ColumnRef | Column],
+    ///     to_table: Table | TableName | str,
     ///     name: str | None = None,
     ///     *,
     ///     on_delete: _ForeignKeyActions | None = None,
     ///     on_update: _ForeignKeyActions | None = None,
     /// )
-    #[derive(Debug)]
-    pub struct [] PyForeignKey(ForeignKeyState) as "ForeignKey" {
+    #[derive(Debug, Clone)]
+    mutable [subclass] PyForeignKey(ForeignKeyState) as "ForeignKey" {
         /// Foreign key constraint name
         pub name: String,
 
@@ -70,20 +71,6 @@ implement_state_pyclass! {
 
         /// On update action
         pub on_update: Option<sea_query::ForeignKeyAction>,
-    }
-}
-
-impl Clone for ForeignKeyState {
-    fn clone(&self) -> Self {
-        Self {
-            name: self.name.clone(),
-            to_table: self.to_table.clone(),
-            to_columns: self.to_columns.clone(),
-            from_table: self.from_table.clone(),
-            from_columns: self.from_columns.clone(),
-            on_delete: self.on_delete,
-            on_update: self.on_update,
-        }
     }
 }
 
@@ -146,6 +133,15 @@ impl ToSeaQuery<sea_query::TableForeignKey> for ForeignKeyState {
 #[pyo3::pymethods]
 impl PyForeignKey {
     #[new]
+    #[allow(unused_variables)]
+    #[pyo3(signature=(*args, **kwds))]
+    fn __new__(
+        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> Self {
+        Self::uninit()
+    }
+
     #[
         pyo3(
             signature=(
@@ -160,7 +156,8 @@ impl PyForeignKey {
             )
         )
     ]
-    fn new(
+    fn __init__(
+        &self,
         from_columns: Vec<pyo3::Bound<'_, pyo3::PyAny>>,
         to_columns: Vec<pyo3::Bound<'_, pyo3::PyAny>>,
         to_table: &pyo3::Bound<'_, pyo3::PyAny>,
@@ -168,7 +165,7 @@ impl PyForeignKey {
         name: Option<String>,
         on_delete: Option<String>,
         on_update: Option<String>,
-    ) -> pyo3::PyResult<Self> {
+    ) -> pyo3::PyResult<()> {
         // Validate & convert actions
         let on_delete = match on_delete {
             None => None,
@@ -209,7 +206,7 @@ impl PyForeignKey {
         let mut from_columns_str = Vec::with_capacity(from_columns.len());
 
         for col in from_columns.into_iter() {
-            let col_ref = crate::common::PyColumnRef::try_from(&col)?;
+            let col_ref = super::column_ref::PyColumnRef::try_from(&col)?;
 
             match col_ref.name {
                 Some(x) => from_columns_str.push(x.to_string()),
@@ -225,7 +222,7 @@ impl PyForeignKey {
         let mut to_columns_str = Vec::with_capacity(to_columns.len());
 
         for col in to_columns.into_iter() {
-            let col_ref = crate::common::PyColumnRef::try_from(&col)?;
+            let col_ref = super::column_ref::PyColumnRef::try_from(&col)?;
 
             match col_ref.name {
                 Some(x) => to_columns_str.push(x.to_string()),
@@ -267,7 +264,8 @@ impl PyForeignKey {
             on_delete,
             on_update,
         };
-        Ok(result.into())
+        self.0.set(result);
+        Ok(())
     }
 
     /// Foreign key constraint name
@@ -300,7 +298,7 @@ impl PyForeignKey {
         let mut lock = self.0.lock();
         lock.from_table = match value {
             None => None,
-            Some(x) => Some(crate::common::PyTableName::try_from(x)?),
+            Some(x) => Some(super::table_ref::PyTableName::try_from(x)?),
         };
         Ok(())
     }
@@ -317,7 +315,7 @@ impl PyForeignKey {
     #[setter]
     fn set_to_table(&self, value: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
         let mut lock = self.0.lock();
-        lock.to_table = crate::common::PyTableName::try_from(value)?;
+        lock.to_table = super::table_ref::PyTableName::try_from(value)?;
         Ok(())
     }
 
@@ -350,7 +348,7 @@ impl PyForeignKey {
 
         let mut from_columns_str = Vec::with_capacity(val.len());
         for col in val.into_iter() {
-            let col_ref = crate::common::PyColumnRef::try_from(&col)?;
+            let col_ref = super::column_ref::PyColumnRef::try_from(&col)?;
 
             match col_ref.name {
                 Some(x) => from_columns_str.push(x.to_string()),
@@ -394,7 +392,7 @@ impl PyForeignKey {
 
         let mut to_columns_str = Vec::with_capacity(val.len());
         for col in val.into_iter() {
-            let col_ref = crate::common::PyColumnRef::try_from(&col)?;
+            let col_ref = super::column_ref::PyColumnRef::try_from(&col)?;
 
             match col_ref.name {
                 Some(x) => to_columns_str.push(x.to_string()),

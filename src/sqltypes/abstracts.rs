@@ -1,7 +1,7 @@
 /// All of native SQL types should implement this trait.
 ///
 /// This is useful for generic typing.
-pub trait NativeSQLType {
+pub trait SQLTypeTrait {
     /// Returns the related sea_query column type
     fn to_sea_query_column_type(&self) -> ::sea_query::ColumnType;
 
@@ -51,7 +51,7 @@ pub trait NativeSQLType {
     ) -> pyo3::PyResult<*mut ::pyo3::ffi::PyObject>;
 }
 
-implement_pyclass! {
+crate::implement_pyclass! {
     /// Base class for all SQL column data types.
     ///
     /// This abstract base class represents SQL data types that can be used in
@@ -59,9 +59,9 @@ implement_pyclass! {
     /// with its particular characteristics, constraints, and backend-specific
     /// representations.
     ///
-    /// @extends typing.Generic[I, O]
+    /// @extends typing.Generic[T]
     #[derive(Debug, Clone, Copy)]
-    pub struct [subclass, generic] PySQLTypeAbstract as "SQLTypeAbstract";
+    [subclass, generic] PySQLTypeAbstract as "SQLTypeAbstract";
 }
 
 #[pyo3::pymethods]
@@ -78,7 +78,7 @@ impl PySQLTypeAbstract {
 }
 
 #[macro_export]
-macro_rules! implement_native_pymethods {
+macro_rules! implement_sqltype_pymethods {
     ($name:ident) => {
         #[pyo3::pymethods]
         impl $name {
@@ -144,4 +144,4 @@ macro_rules! implement_native_pymethods {
         }
     };
 }
-pub(super) use implement_native_pymethods;
+pub(super) use implement_sqltype_pymethods;

@@ -3,71 +3,69 @@ use pyo3::IntoPyObject;
 use sea_query::IntoIden;
 use std::str::FromStr;
 
-use crate::sqltypes::abstracts::NativeSQLType;
 use crate::sqltypes::abstracts::PySQLTypeAbstract;
+use crate::sqltypes::abstracts::SQLTypeTrait;
 
-implement_pyclass! {
-    (
-        /// Exact numeric decimal column type (DECIMAL/NUMERIC).
-        ///
-        /// Stores exact numeric values with fixed precision and scale. Essential for
-        /// financial calculations, currency values, or any situation where exact
-        /// decimal representation is required without floating-point approximation.
-        ///
-        /// @extends SQLTypeAbstract[decimal.Decimal | int | float | str,decimal.Decimal]
-        /// @signature (cls, context: tuple[int, int] | None = None)
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyDecimalType as "DecimalType" (pub Option<(u32, u32)>);
-    )
-    (
-        /// UUID column type (UUID).
-        ///
-        /// Stores universally unique identifiers. Ideal for distributed systems,
-        /// primary keys, or any situation where globally unique identifiers are
-        /// needed without central coordination.
-        ///
-        /// @extends SQLTypeAbstract[uuid.UUID,uuid.UUID]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyUUIDType as "UUIDType";
-    )
-    (
-        /// Internet address column type (INET).
-        ///
-        /// Stores IPv4 or IPv6 addresses, with or without subnet specification.
-        /// More flexible than CIDR type, allowing both host addresses and network ranges.
-        ///
-        /// @extends SQLTypeAbstract[str,str]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyINETType as "INETType";
-    )
-    (
-        /// MAC address column type (MACADDR).
-        ///
-        /// Stores MAC (Media Access Control) addresses for network devices.
-        /// Provides validation and formatting for 6-byte MAC addresses.
-        ///
-        /// @extends SQLTypeAbstract[str,str]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyMacAddressType as "MacAddressType";
-    )
-    (
-        /// Enumeration column type (ENUM).
-        ///
-        /// Stores one value from a predefined set of allowed string values.
-        /// Provides type safety and storage efficiency for categorical data
-        /// with a fixed set of possible values.
-        ///
-        /// @extends SQLTypeAbstract[str | enum.Enum,str]
-        /// @signature (name: str, variants: typing.Iterable[str])
-        #[derive(Debug, Clone)]
-        pub struct [extends=PySQLTypeAbstract] PyEnumType as "EnumType" {
-            pub name: sea_query::DynIden,
-            pub variants: Vec<sea_query::DynIden>,
-        }
-    )
+crate::implement_pyclass! {
+    /// Exact numeric decimal column type (DECIMAL/NUMERIC).
+    ///
+    /// Stores exact numeric values with fixed precision and scale. Essential for
+    /// financial calculations, currency values, or any situation where exact
+    /// decimal representation is required without floating-point approximation.
+    ///
+    /// @extends SQLTypeAbstract[decimal.Decimal | int | float | str]
+    /// @signature (cls, context: tuple[int, int] | None = None)
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyDecimalType as "Decimal" (pub Option<(u32, u32)>);
+}
+crate::implement_pyclass! {
+    /// UUID column type (UUID).
+    ///
+    /// Stores universally unique identifiers. Ideal for distributed systems,
+    /// primary keys, or any situation where globally unique identifiers are
+    /// needed without central coordination.
+    ///
+    /// @extends SQLTypeAbstract[uuid.UUID]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyUUIDType as "UUID";
+}
+crate::implement_pyclass! {
+    /// Internet address column type (INET).
+    ///
+    /// Stores IPv4 or IPv6 addresses, with or without subnet specification.
+    /// More flexible than CIDR type, allowing both host addresses and network ranges.
+    ///
+    /// @extends SQLTypeAbstract[str]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyINETType as "INET";
+}
+crate::implement_pyclass! {
+    /// MAC address column type (MACADDR).
+    ///
+    /// Stores MAC (Media Access Control) addresses for network devices.
+    /// Provides validation and formatting for 6-byte MAC addresses.
+    ///
+    /// @extends SQLTypeAbstract[str]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyMacAddressType as "MacAddress";
+}
+crate::implement_pyclass! {
+    /// Enumeration column type (ENUM).
+    ///
+    /// Stores one value from a predefined set of allowed string values.
+    /// Provides type safety and storage efficiency for categorical data
+    /// with a fixed set of possible values.
+    ///
+    /// @extends SQLTypeAbstract[str | enum.Enum]
+    /// @signature (name: str, variants: typing.Iterable[str])
+    #[derive(Debug, Clone)]
+    [extends=PySQLTypeAbstract] PyEnumType as "Enum" {
+        pub name: sea_query::DynIden,
+        pub variants: Vec<sea_query::DynIden>,
+    }
 }
 
-impl NativeSQLType for PyDecimalType {
+impl SQLTypeTrait for PyDecimalType {
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::Decimal(self.0)
     }
@@ -107,11 +105,12 @@ impl NativeSQLType for PyDecimalType {
             return Ok(());
         }
 
-        Err(typeerror!(
-            "expected decimal.Decimal or int or float or str, got {:?}",
-            py,
-            ptr
-        ))
+        crate::new_error!(
+            PyTypeError,
+            "expected decimal.Decimal/int/float/str for {} serialization, got {}",
+            self.to_sql_type_name(),
+            crate::internal::get_type_name(py, ptr)
+        )
     }
 
     unsafe fn serialize(
@@ -172,11 +171,12 @@ impl NativeSQLType for PyDecimalType {
                 .map(|x| sea_query::Value::Decimal(Some(Box::new(x))));
         }
 
-        Err(typeerror!(
-            "expected decimal.Decimal or int or float or str, got {:?}",
-            py,
-            ptr
-        ))
+        crate::new_error!(
+            PyTypeError,
+            "expected decimal.Decimal/int/float/str for {} serialization, got {}",
+            self.to_sql_type_name(),
+            crate::internal::get_type_name(py, ptr)
+        )
     }
 
     unsafe fn deserialize(
@@ -189,13 +189,17 @@ impl NativeSQLType for PyDecimalType {
         match value {
             sea_query::Value::Decimal(Some(x)) => x.into_pyobject(py).map(|x| x.into_ptr()),
             sea_query::Value::Decimal(None) => Ok(pyo3::ffi::Py_None()),
-
-            _ => invalid_value_for_deserialize!("decimal", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected decimal for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
-impl NativeSQLType for PyUUIDType {
+impl SQLTypeTrait for PyUUIDType {
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::Uuid
     }
@@ -206,7 +210,12 @@ impl NativeSQLType for PyUUIDType {
         ptr: *mut pyo3::ffi::PyObject,
     ) -> pyo3::PyResult<()> {
         if pyo3::ffi::Py_TYPE(ptr) != crate::typeref::STD_UUID_TYPE {
-            Err(typeerror!("expected uuid.UUID, got {:?}", py, ptr))
+            crate::new_error!(
+                PyTypeError,
+                "expected uuid.UUID for {} serialization, got {}",
+                self.to_sql_type_name(),
+                crate::internal::get_type_name(py, ptr)
+            )
         } else {
             Ok(())
         }
@@ -235,12 +244,17 @@ impl NativeSQLType for PyUUIDType {
                 Ok(result.into_ptr())
             }
             sea_query::Value::Uuid(None) => Ok(pyo3::ffi::Py_None()),
-            _ => invalid_value_for_deserialize!("uuid", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected uuid for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
-impl NativeSQLType for PyINETType {
+impl SQLTypeTrait for PyINETType {
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::Inet
     }
@@ -282,12 +296,17 @@ impl NativeSQLType for PyINETType {
             sea_query::Value::IpNetwork(None) => Ok(pyo3::ffi::Py_None()),
             sea_query::Value::String(Some(x)) => super::primitives::_deserialize_string(py, x),
             sea_query::Value::String(None) => Ok(pyo3::ffi::Py_None()),
-            _ => invalid_value_for_deserialize!("ipnetwork or str", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected ipnetwork/str for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
-impl NativeSQLType for PyMacAddressType {
+impl SQLTypeTrait for PyMacAddressType {
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::MacAddr
     }
@@ -329,14 +348,19 @@ impl NativeSQLType for PyMacAddressType {
             sea_query::Value::MacAddress(None) => Ok(pyo3::ffi::Py_None()),
             sea_query::Value::String(Some(x)) => super::primitives::_deserialize_string(py, x),
             sea_query::Value::String(None) => Ok(pyo3::ffi::Py_None()),
-            _ => invalid_value_for_deserialize!("macaddress or str", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected mac_address/str for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
 const ENUM_TYPE_VALUE: &std::ffi::CStr = c"value";
 
-impl NativeSQLType for PyEnumType {
+impl SQLTypeTrait for PyEnumType {
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::Enum {
             name: self.name.clone(),
@@ -358,13 +382,23 @@ impl NativeSQLType for PyEnumType {
             }
 
             if pyo3::ffi::PyUnicode_CheckExact(attribute) == 0 {
-                let type_error = typeerror!("Enum value wasn't str, was {}", py, attribute);
+                let type_error = crate::new_error!(
+                    PyTypeError,
+                    "Enum value wasn't str for {} serialization, was {}",
+                    self.to_sql_type_name(),
+                    crate::internal::get_type_name(py, attribute)
+                );
 
                 pyo3::ffi::Py_DECREF(attribute);
-                return Err(type_error);
+                return type_error;
             }
         } else if pyo3::ffi::PyUnicode_CheckExact(ptr) == 0 {
-            return Err(typeerror!("expected Enum or str, got {:?}", py, ptr));
+            return crate::new_error!(
+                PyTypeError,
+                "expected Enum/str for {} serialization, got {}",
+                self.to_sql_type_name(),
+                crate::internal::get_type_name(py, ptr)
+            );
         }
 
         Ok(())
@@ -407,15 +441,20 @@ impl NativeSQLType for PyEnumType {
         match value {
             sea_query::Value::String(Some(x)) => super::primitives::_deserialize_string(py, x),
             sea_query::Value::String(None) => Ok(pyo3::ffi::Py_None()),
-            _ => invalid_value_for_deserialize!("str", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected str for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
-super::abstracts::implement_native_pymethods!(PyUUIDType);
-super::abstracts::implement_native_pymethods!(PyINETType);
-super::abstracts::implement_native_pymethods!(PyMacAddressType);
-super::abstracts::implement_native_pymethods!(
+super::abstracts::implement_sqltype_pymethods!(PyUUIDType);
+super::abstracts::implement_sqltype_pymethods!(PyINETType);
+super::abstracts::implement_sqltype_pymethods!(PyMacAddressType);
+super::abstracts::implement_sqltype_pymethods!(
     PyDecimalType,
     init(|context: Option<(u32, u32)>| Self(context)),
     "tuple[int, int] | None",

@@ -7,7 +7,7 @@ import pypika
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import dialect
 
-import rapidquery as rq
+import rapidquery._lib as rq
 
 # Postgres dialect is faster than other dialects (according to benchmarks)
 # and also providing dialect in SQLALchemy can make it faster
@@ -111,15 +111,15 @@ def format_allocation_results(results: typing.Dict[str, int]) -> str:
 #     query.to_sql("postgresql")
 
 
-# def bench_select_sqlalchemy():
-#     query = (
-#         sa.select(sa.text("*"))
-#         .select_from(sa.table("users"))
-#         .where(sa.column("name").like(r"%linus%"))
-#         .offset(20)
-#         .limit(20)
-#     )
-#     str(query.compile(dialect=SA_DIALECT, compile_kwargs={"literal_binds": True}))
+def bench_select_sqlalchemy():
+    query = (
+        sa.select(sa.text("*"))
+        .select_from(sa.table("users"))
+        .where(sa.column("name").like(r"%linus%"))
+        .offset(20)
+        .limit(20)
+    )
+    str(query.compile(dialect=SA_DIALECT, compile_kwargs={"literal_binds": True}))
 
 
 # def bench_select_pypika():
@@ -138,16 +138,18 @@ def format_allocation_results(results: typing.Dict[str, int]) -> str:
 
 def bench_insert_rapidquery():
     query = (
-        rq.Insert("glyph")
+        rq.insert("glyph")
         .columns("aspect", "image")
         .values(5.15, "12A")
         .values(16, "14A")
-        .returning("id")
+        .returning(rq.query.Returning("id"))
     )
     query.to_sql("postgresql")
 
 
-sa_glyph = sa.table("glyph", sa.column("aspect", sa.Float), sa.column("image", sa.String))
+sa_glyph = sa.table(
+    "glyph", sa.column("aspect", sa.Float), sa.column("image", sa.String)
+)
 
 
 def bench_insert_sqlalchemy():
@@ -159,7 +161,10 @@ def bench_insert_sqlalchemy():
 
 def bench_insert_pypika():
     query = (
-        pypika.Query.into("glyph").columns("aspect", "image").insert(5.15, "12A").insert(16, "14A")
+        pypika.Query.into("glyph")
+        .columns("aspect", "image")
+        .insert(5.15, "12A")
+        .insert(16, "14A")
     )
     str(query)
 
@@ -169,14 +174,16 @@ def bench_insert_pypika():
 
 def bench_update_rapidquery():
     query = (
-        rq.Update("wallets")
-        .values(amount=rq.Expr.col("amount") + 10)
-        .where(rq.Expr.col("id").between(10, 30))
+        rq.update("wallets")
+        .values(amount=rq.common.Expr.col("amount") + 10)
+        .where(rq.common.Expr.col("id").between(10, 30))
     )
     query.to_sql("postgresql")
 
 
-sa_wallets = sa.table("wallets", sa.column("amount", sa.Integer), sa.column("id", sa.Integer))
+sa_wallets = sa.table(
+    "wallets", sa.column("amount", sa.Integer), sa.column("id", sa.Integer)
+)
 
 
 def bench_update_sqlalchemy():
@@ -201,10 +208,10 @@ def bench_update_pypika():
 
 
 def bench_delete_rapidquery():
-    query = rq.Delete("users").where(
-        rq.all(
-            rq.Expr.col("id") > 10,
-            rq.Expr.col("id") < 30,
+    query = rq.delete("users").where(
+        rq.common.all(
+            rq.common.Expr.col("id") > 10,
+            rq.common.Expr.col("id") < 30,
         )
     )
     query.to_sql("postgresql")

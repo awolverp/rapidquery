@@ -1,15 +1,13 @@
-use pyo3::types::PyAnyMethods;
-use pyo3::types::PyDictMethods;
 use sea_query::IntoIden;
 
-use crate::common::PyQueryStatement;
-use crate::common::PyTableName;
-use crate::expression::PyExpr;
-use crate::query::ordering::PyOrdering;
-use crate::query::returning::PyReturning;
-use crate::utils::ToSeaQuery;
+use super::base::PyQueryStatement;
+use super::ordering::PyOrdering;
+use super::returning::PyReturning;
+use crate::common::expression::PyExpr;
+use crate::common::table_ref::PyTableName;
+use crate::internal::statements::ToSeaQuery;
 
-implement_state_pyclass! {
+crate::implement_pyclass! {
     /// Builds UPDATE SQL statements with a fluent interface.
     ///
     /// Provides a chainable API for constructing UPDATE queries with support for:
@@ -19,8 +17,8 @@ implement_state_pyclass! {
     /// - ORDER BY for determining update order
     /// - RETURNING clauses for getting updated data
     ///
-    /// @signature (table: Table | TableName | str)
-    pub struct [extends=PyQueryStatement] PyUpdateStatement(UpdateStatementState) as "UpdateStatement" {
+    /// @signature (self, table: Table | TableName | str)
+    mutable [subclass, extends=PyQueryStatement] PyUpdateStatement(UpdateStatementState) as "UpdateStatement" {
         pub table: PyTableName,
         pub from_table: Option<PyTableName>,
         pub values: Vec<(sea_query::DynIden, PyExpr)>,
@@ -66,9 +64,16 @@ impl ToSeaQuery<sea_query::UpdateStatement> for UpdateStatementState {
 #[pyo3::pymethods]
 impl PyUpdateStatement {
     #[new]
-    pub fn __new__(
-        table: &pyo3::Bound<'_, pyo3::PyAny>,
-    ) -> pyo3::PyResult<(Self, PyQueryStatement)> {
+    #[allow(unused_variables)]
+    #[pyo3(signature=(*args, **kwds))]
+    fn __new__(
+        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> (Self, PyQueryStatement) {
+        (Self::uninit(), PyQueryStatement)
+    }
+
+    pub fn __init__(&self, table: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
         let table = PyTableName::try_from(table)?;
 
         let state = UpdateStatementState {
@@ -80,7 +85,8 @@ impl PyUpdateStatement {
             returning_clause: None,
             orders: vec![],
         };
-        Ok((state.into(), PyQueryStatement))
+        self.0.set(state);
+        Ok(())
     }
 
     /// Specify the table to update.
@@ -155,18 +161,14 @@ impl PyUpdateStatement {
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         unsafe {
             if pyo3::ffi::Py_TYPE(condition.as_ptr()) != crate::typeref::EXPR_TYPE {
-                return Err(typeerror!(
-                    "expected Expr, got {:?}",
-                    condition.py(),
-                    condition.as_ptr()
-                ));
+                return crate::new_error!(
+                    PyTypeError,
+                    "expected Expr, got {}",
+                    crate::internal::get_type_name(condition.py(), condition.as_ptr())
+                );
             }
 
-            let condition = condition
-                .cast_unchecked::<crate::expression::PyExpr>()
-                .get()
-                .clone();
-
+            let condition = condition.cast_unchecked::<PyExpr>().get().clone();
             let mut lock = slf.0.lock();
 
             match std::mem::take(&mut lock.r#where) {
@@ -215,6 +217,9 @@ impl PyUpdateStatement {
         slf: pyo3::PyRef<'a, Self>,
         kwds: Option<&'a pyo3::Bound<'_, pyo3::types::PyDict>>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
+        use pyo3::types::PyAnyMethods;
+        use pyo3::types::PyDictMethods;
+
         if kwds.is_none() {
             return Ok(slf);
         }
@@ -246,7 +251,7 @@ impl PyUpdateStatement {
         let stmt = lock.to_sea_query(py);
         drop(lock);
 
-        build_query_statement!(backend, stmt)
+        crate::build_query_statement!(backend, stmt)
     }
 
     #[pyo3(signature = (backend, /))]
@@ -259,7 +264,7 @@ impl PyUpdateStatement {
         let stmt = lock.to_sea_query(py);
         drop(lock);
 
-        build_query_parts!(py, backend, stmt)
+        crate::build_query_parts!(py, backend, stmt)
     }
 
     fn __repr__(&self) -> String {

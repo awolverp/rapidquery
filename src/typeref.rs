@@ -35,18 +35,19 @@ pub(crate) static mut VECTOR_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::pt
 pub(crate) static mut ARRAY_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut ENUM_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
-// Useful types
 pub(crate) static mut VALUE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut ASTERISK_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut EXPR_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut COLUMN_REF_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut TABLE_NAME_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut EXPR_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut FUNC_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut TABLE_NAME_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut INDEX_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut INDEX_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut FOREIGN_KEY_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut TABLE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut ON_CONFLICT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut ALTER_TABLE_BASE_OPTION_TYPE: *mut pyo3::ffi::PyTypeObject =
+    std::ptr::null_mut();
 
 // Python standard libraries types
 pub(crate) static mut STD_DECIMAL_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -120,17 +121,18 @@ fn _initialize_typeref(py: pyo3::Python) {
             crate::sqltypes::PyVectorType => VECTOR_COLUMN_TYPE,
             crate::sqltypes::PyArrayType => ARRAY_COLUMN_TYPE,
             crate::sqltypes::PyEnumType => ENUM_COLUMN_TYPE,
-            crate::value::PyValue => VALUE_TYPE,
-            crate::common::Py_AsteriskType => ASTERISK_TYPE,
-            crate::common::PyColumnRef => COLUMN_REF_TYPE,
-            crate::common::PyTableName => TABLE_NAME_TYPE,
-            crate::expression::PyExpr => EXPR_TYPE,
-            crate::expression::PyFunc => FUNC_TYPE,
-            crate::column::PyColumn => COLUMN_TYPE,
-            crate::index::PyIndexColumn => INDEX_COLUMN_TYPE,
-            crate::index::PyIndex => INDEX_TYPE,
-            crate::foreign_key::PyForeignKey => FOREIGN_KEY_TYPE,
-            crate::table::PyTable => TABLE_TYPE,
+            crate::common::value::PyValue => VALUE_TYPE,
+            crate::common::table_ref::PyTableName => TABLE_NAME_TYPE,
+            crate::common::column_ref::PyColumnRef => COLUMN_REF_TYPE,
+            crate::common::expression::PyExpr => EXPR_TYPE,
+            crate::common::expression::PyFunc => FUNC_TYPE,
+            crate::common::column::PyColumn => COLUMN_TYPE,
+            crate::common::foreign_key::PyForeignKey => FOREIGN_KEY_TYPE,
+            crate::schema::index::PyIndexColumn => INDEX_COLUMN_TYPE,
+            crate::schema::index::PyIndex => INDEX_TYPE,
+            crate::schema::alter_table::PyAlterTableBaseOption => ALTER_TABLE_BASE_OPTION_TYPE,
+            crate::schema::table::PyTable => TABLE_TYPE,
+            crate::query::on_conflict::PyOnConflict => ON_CONFLICT_TYPE,
         );
 
         STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");

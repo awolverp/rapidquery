@@ -1,8 +1,12 @@
-use crate::common::PySchemaStatement;
-use crate::common::PyTableName;
-use crate::utils::ToSeaQuery;
+use super::base::PySchemaStatement;
+use crate::common::table_ref::PyTableName;
+use crate::internal::statements::ToSeaQuery;
 
-implement_state_pyclass! {
+pub const DROP_OPT_IF_EXISTS: u8 = 1 << 0;
+pub const DROP_OPT_CASCADE: u8 = 1 << 1;
+pub const DROP_OPT_RESTRICT: u8 = 1 << 2;
+
+crate::implement_pyclass! {
     /// Represents a DROP TABLE SQL statement.
     ///
     /// Builds table deletion statements with support for:
@@ -10,33 +14,40 @@ implement_state_pyclass! {
     /// - CASCADE to drop dependent objects
     /// - RESTRICT to prevent deletion if dependencies exist
     ///
-    /// @signature (name: Table | TableName | str, options: int = 0)
-    pub struct [extends=PySchemaStatement] PyDropTable(DropTableState) as "DropTable" {
+    /// @signature (
+    ///     self,
+    ///     name: Table | TableName | str,
+    ///     *,
+    ///     if_exists: bool = False,
+    ///     cascade: bool = False,
+    ///     restrict: bool = False,
+    /// )
+    mutable [subclass, extends=PySchemaStatement] PyDropTable(DropTableState) as "DropTable" {
         name: PyTableName,
         options: u8,
     }
 }
-implement_state_pyclass! {
+crate::implement_pyclass! {
     /// Represents a RENAME TABLE SQL statement.
     ///
     /// Changes the name of an existing table to a new name. Both names can be
     /// schema-qualified if needed.
     ///
-    /// @signature (from_name: Table | TableName | str, to_name: Table | TableName | str)
-    pub struct [extends=PySchemaStatement] PyRenameTable(RenameTableState) as "RenameTable" {
+    /// @signature (self, from_name: Table | TableName | str, to_name: Table | TableName | str)
+    mutable [subclass, extends=PySchemaStatement] PyRenameTable(RenameTableState) as "RenameTable" {
         from_name: PyTableName,
         to_name: PyTableName,
     }
 }
-implement_state_pyclass! {
+crate::implement_pyclass! {
     /// Represents a TRUNCATE TABLE SQL statement.
     ///
     /// Quickly removes all rows from a table, typically faster than DELETE
     /// and with different transaction and trigger behavior depending on the
     /// database system.
     ///
-    /// @signature (name: Table | TableName | str)
-    pub struct [extends=PySchemaStatement] PyTruncateTable(TruncateTableState) as "TruncateTable" {
+    /// @signature (self, name: Table | TableName | str)
+    mutable [subclass, extends=PySchemaStatement] PyTruncateTable(TruncateTableState) as "TruncateTable" {
         name: PyTableName,
     }
 }
@@ -55,13 +66,13 @@ impl ToSeaQuery<sea_query::TableDropStatement> for DropTableState {
         let mut stmt = sea_query::TableDropStatement::new();
         stmt.table(self.name.clone());
 
-        if self.options & PyDropTable::OPT_IF_EXISTS > 0 {
+        if self.options & DROP_OPT_IF_EXISTS > 0 {
             stmt.if_exists();
         }
-        if self.options & PyDropTable::OPT_RESTRICT > 0 {
+        if self.options & DROP_OPT_RESTRICT > 0 {
             stmt.restrict();
         }
-        if self.options & PyDropTable::OPT_CASCADE > 0 {
+        if self.options & DROP_OPT_CASCADE > 0 {
             stmt.cascade();
         }
 
@@ -71,23 +82,40 @@ impl ToSeaQuery<sea_query::TableDropStatement> for DropTableState {
 
 #[pyo3::pymethods]
 impl PyDropTable {
-    #[classattr]
-    pub const OPT_IF_EXISTS: u8 = 1 << 0;
-    #[classattr]
-    pub const OPT_CASCADE: u8 = 1 << 1;
-    #[classattr]
-    pub const OPT_RESTRICT: u8 = 1 << 2;
-
     #[new]
-    #[pyo3(signature = (name, options=0))]
+    #[allow(unused_variables)]
+    #[pyo3(signature=(*args, **kwds))]
     fn __new__(
+        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> (Self, PySchemaStatement) {
+        (Self::uninit(), PySchemaStatement)
+    }
+
+    #[pyo3(signature = (name, *, if_exists=false, cascade=false, restrict=false))]
+    fn __init__(
+        &self,
         name: &pyo3::Bound<'_, pyo3::PyAny>,
-        options: u8,
-    ) -> pyo3::PyResult<(Self, PySchemaStatement)> {
+        if_exists: bool,
+        cascade: bool,
+        restrict: bool,
+    ) -> pyo3::PyResult<()> {
         let name = PyTableName::try_from(name)?;
 
+        let mut options = 0u8;
+        if if_exists {
+            options |= DROP_OPT_IF_EXISTS;
+        }
+        if cascade {
+            options |= DROP_OPT_CASCADE;
+        }
+        if restrict {
+            options |= DROP_OPT_RESTRICT;
+        }
+
         let state = DropTableState { name, options };
-        Ok((state.into(), PySchemaStatement))
+        self.0.set(state);
+        Ok(())
     }
 
     /// The table name to drop.
@@ -109,43 +137,55 @@ impl PyDropTable {
         Ok(())
     }
 
-    /// Specified options.
-    ///
-    /// @signature (self) -> int
-    /// @setter int
+    /// @signature (self) -> bool
+    /// @setter bool
     #[getter]
-    fn options(&self) -> u8 {
-        self.0.lock().options
+    fn if_exists(&self) -> bool {
+        self.0.lock().options & DROP_OPT_IF_EXISTS > 0
     }
 
     #[setter]
-    fn set_options(&self, val: u8) {
+    fn set_if_exists(&self, value: bool) {
         let mut lock = self.0.lock();
-        lock.options = val;
+        if value {
+            lock.options |= DROP_OPT_IF_EXISTS;
+        } else {
+            lock.options &= !DROP_OPT_IF_EXISTS;
+        }
     }
 
-    /// Shorthand for `self.options & OPT_IF_EXISTS > 0`.
-    ///
     /// @signature (self) -> bool
-    #[getter]
-    fn if_exists(&self) -> bool {
-        self.0.lock().options & Self::OPT_IF_EXISTS > 0
-    }
-
-    /// Shorthand for `self.options & OPT_CASCADE > 0`.
-    ///
-    /// @signature (self) -> bool
+    /// @setter bool
     #[getter]
     fn cascade(&self) -> bool {
-        self.0.lock().options & Self::OPT_CASCADE > 0
+        self.0.lock().options & DROP_OPT_CASCADE > 0
     }
 
-    /// Shorthand for `self.options & OPT_RESTRICT > 0`.
-    ///
+    #[setter]
+    fn set_cascade(&self, value: bool) {
+        let mut lock = self.0.lock();
+        if value {
+            lock.options |= DROP_OPT_CASCADE;
+        } else {
+            lock.options &= !DROP_OPT_CASCADE;
+        }
+    }
+
     /// @signature (self) -> bool
+    /// @setter bool
     #[getter]
     fn restrict(&self) -> bool {
-        self.0.lock().options & Self::OPT_RESTRICT > 0
+        self.0.lock().options & DROP_OPT_RESTRICT > 0
+    }
+
+    #[setter]
+    fn set_restrict(&self, value: bool) {
+        let mut lock = self.0.lock();
+        if value {
+            lock.options |= DROP_OPT_RESTRICT;
+        } else {
+            lock.options &= !DROP_OPT_RESTRICT;
+        }
     }
 
     fn __copy__(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<pyo3::Py<Self>> {
@@ -160,7 +200,7 @@ impl PyDropTable {
         let stmt = lock.to_sea_query(py);
         drop(lock);
 
-        build_schema_statement!(backend, stmt)
+        crate::build_schema_statement!(backend, stmt)
     }
 
     fn __repr__(&self) -> String {
@@ -171,14 +211,14 @@ impl PyDropTable {
 
         write!(s, "<DropTable {}", lock.name.__repr__()).unwrap();
 
-        if lock.options & Self::OPT_IF_EXISTS > 0 {
-            write!(s, " OPT_IF_EXISTS").unwrap();
+        if lock.options & DROP_OPT_IF_EXISTS > 0 {
+            write!(s, " if_exists=True").unwrap();
         }
-        if lock.options & Self::OPT_CASCADE > 0 {
-            write!(s, " OPT_CASCADE").unwrap();
+        if lock.options & DROP_OPT_CASCADE > 0 {
+            write!(s, " cascade=True").unwrap();
         }
-        if lock.options & Self::OPT_RESTRICT > 0 {
-            write!(s, " OPT_RESTRICT").unwrap();
+        if lock.options & DROP_OPT_RESTRICT > 0 {
+            write!(s, " restrict=True").unwrap();
         }
         write!(s, ">").unwrap();
 
@@ -206,16 +246,27 @@ impl ToSeaQuery<sea_query::TableRenameStatement> for RenameTableState {
 #[pyo3::pymethods]
 impl PyRenameTable {
     #[new]
-    #[pyo3(signature = (from_name, to_name))]
+    #[allow(unused_variables)]
+    #[pyo3(signature=(*args, **kwds))]
     fn __new__(
+        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> (Self, PySchemaStatement) {
+        (Self::uninit(), PySchemaStatement)
+    }
+
+    #[pyo3(signature = (from_name, to_name))]
+    fn __init__(
+        &self,
         from_name: &pyo3::Bound<'_, pyo3::PyAny>,
         to_name: &pyo3::Bound<'_, pyo3::PyAny>,
-    ) -> pyo3::PyResult<(Self, PySchemaStatement)> {
+    ) -> pyo3::PyResult<()> {
         let from_name = PyTableName::try_from(from_name)?;
         let to_name = PyTableName::try_from(to_name)?;
 
         let state = RenameTableState { from_name, to_name };
-        Ok((state.into(), PySchemaStatement))
+        self.0.set(state);
+        Ok(())
     }
 
     /// The current name of the table.
@@ -269,7 +320,7 @@ impl PyRenameTable {
         let stmt = lock.to_sea_query(py);
         drop(lock);
 
-        build_schema_statement!(backend, stmt)
+        crate::build_schema_statement!(backend, stmt)
     }
 
     fn __repr__(&self) -> String {
@@ -301,12 +352,22 @@ impl ToSeaQuery<sea_query::TableTruncateStatement> for TruncateTableState {
 #[pyo3::pymethods]
 impl PyTruncateTable {
     #[new]
+    #[allow(unused_variables)]
+    #[pyo3(signature=(*args, **kwds))]
+    fn __new__(
+        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> (Self, PySchemaStatement) {
+        (Self::uninit(), PySchemaStatement)
+    }
+
     #[pyo3(signature = (name))]
-    fn __new__(name: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<(Self, PySchemaStatement)> {
+    fn __init__(&self, name: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
         let name = PyTableName::try_from(name)?;
 
         let state = TruncateTableState { name };
-        Ok((state.into(), PySchemaStatement))
+        self.0.set(state);
+        Ok(())
     }
 
     /// The name of the table to truncate.
@@ -340,7 +401,7 @@ impl PyTruncateTable {
         let stmt = lock.to_sea_query(py);
         drop(lock);
 
-        build_schema_statement!(backend, stmt)
+        crate::build_schema_statement!(backend, stmt)
     }
 
     fn __repr__(&self) -> String {

@@ -1,7 +1,7 @@
 use sea_query::IntoColumnRef;
 
-use crate::common::PyColumnRef;
-use crate::expression::PyExpr;
+use crate::common::column_ref::PyColumnRef;
+use crate::common::expression::PyExpr;
 
 #[inline]
 fn map_order_to_str(order: &sea_query::Order) -> String {
@@ -21,7 +21,9 @@ fn map_null_ordering_to_str(order: Option<sea_query::NullOrdering>) -> Option<St
     }
 }
 
-implement_pyclass! {
+crate::implement_pyclass! {
+    // NOTE: It's a very simple clause, so I think it's OK to be a final type.
+
     /// Specifies ordering behavior for UPDATE, DELETE, and SELECT statements.
     ///
     /// @signature (
@@ -30,7 +32,7 @@ implement_pyclass! {
     ///     null_ordering: typing.Literal["FIRST", "LAST"] | None = None,
     /// )
     #[derive(Debug, Clone)]
-    pub struct [] PyOrdering as "Ordering" {
+    [] PyOrdering as "Ordering" {
         pub target: PyExpr,
         pub order: sea_query::Order,
         pub null_order: Option<sea_query::NullOrdering>,
@@ -56,7 +58,7 @@ impl PyOrdering {
             }
         };
 
-        let order = match order.to_lowercase().as_str() {
+        let order = match order.to_ascii_lowercase().as_str() {
             "asc" => sea_query::Order::Asc,
             "desc" => sea_query::Order::Desc,
             _ => {
@@ -68,7 +70,7 @@ impl PyOrdering {
 
         let null_order = match null_order {
             None => None,
-            Some(x) => match x.to_lowercase().as_str() {
+            Some(x) => match x.to_ascii_lowercase().as_str() {
                 "first" => Some(sea_query::NullOrdering::First),
                 "last" => Some(sea_query::NullOrdering::Last),
                 _ => {

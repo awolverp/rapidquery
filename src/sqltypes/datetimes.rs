@@ -1,54 +1,54 @@
-use crate::sqltypes::abstracts::NativeSQLType;
 use crate::sqltypes::abstracts::PySQLTypeAbstract;
+use crate::sqltypes::abstracts::SQLTypeTrait;
 
 use chrono::TimeZone;
 use pyo3::types::PyAnyMethods;
 use pyo3::types::PyTzInfoAccess;
 use pyo3::IntoPyObject;
 
-implement_pyclass! {
-    (
-        /// Date and time column type (DATETIME).
-        ///
-        /// Stores both date and time information without timezone awareness.
-        /// Suitable for recording timestamps, event times, or scheduling information
-        /// when timezone handling is managed at the application level.
-        ///
-        /// @extends SQLTypeAbstract[datetime.datetime,datetime.datetime]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyDateTimeType as "DateTimeType";
-    )
-    (
-        /// Timestamp column type (TIMESTAMP).
-        ///
-        /// Stores timestamp values, often with automatic update capabilities.
-        /// Behavior varies by database system.
-        ///
-        /// @extends SQLTypeAbstract[datetime.datetime | int | float,datetime.datetime]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyTimestampType as "TimestampType" (pub bool);
-    )
-    (
-        /// Time-only column type (TIME).
-        ///
-        /// Stores time information without date component. Useful for storing
-        /// daily schedules, opening hours, or any time-based data that repeats
-        /// daily regardless of the specific date.
-        ///
-        /// @extends SQLTypeAbstract[datetime.time,datetime.time]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyTimeType as "TimeType";
-    )
-    (
-        /// Date-only column type (DATE).
-        ///
-        /// Stores date information without time component. Ideal for birth dates,
-        /// deadlines, or any date-based data where time precision is not needed.
-        ///
-        /// @extends SQLTypeAbstract[datetime.date,datetime.date]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyDateType as "DateType";
-    )
+crate::implement_pyclass! {
+    /// Date and time column type (DATETIME).
+    ///
+    /// Stores both date and time information without timezone awareness.
+    /// Suitable for recording timestamps, event times, or scheduling information
+    /// when timezone handling is managed at the application level.
+    ///
+    /// @extends SQLTypeAbstract[datetime.datetime]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyDateTimeType as "DateTime";
+}
+crate::implement_pyclass! {
+    /// Timestamp column type (TIMESTAMP).
+    ///
+    /// Stores timestamp values, often with automatic update capabilities.
+    /// Behavior varies by database system.
+    ///
+    /// @extends SQLTypeAbstract[datetime.datetime]
+    /// @signature (timezone: bool = False)
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyTimestampType as "Timestamp" (pub bool);
+}
+crate::implement_pyclass! {
+    /// Time-only column type (TIME).
+    ///
+    /// Stores time information without date component. Useful for storing
+    /// daily schedules, opening hours, or any time-based data that repeats
+    /// daily regardless of the specific date.
+    ///
+    /// @extends SQLTypeAbstract[datetime.time]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyTimeType as "Time";
+}
+crate::implement_pyclass! {
+    /// Date-only column type (DATE).
+    ///
+    /// Stores date information without time component. Ideal for birth dates,
+    /// deadlines, or any date-based data where time precision is not needed.
+    ///
+    /// @extends SQLTypeAbstract[datetime.date]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyDateType as "Date";
+
 }
 
 #[inline(always)]
@@ -70,7 +70,7 @@ unsafe fn _serialize_datetime(
     }
 }
 
-impl NativeSQLType for PyDateTimeType {
+impl SQLTypeTrait for PyDateTimeType {
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::DateTime
     }
@@ -81,7 +81,12 @@ impl NativeSQLType for PyDateTimeType {
         ptr: *mut pyo3::ffi::PyObject,
     ) -> pyo3::PyResult<()> {
         if pyo3::ffi::Py_TYPE(ptr) != crate::typeref::STD_DATETIME_TYPE {
-            Err(typeerror!("expected datetime.datetime, got {:?}", py, ptr))
+            crate::new_error!(
+                PyTypeError,
+                "expected datetime.datetime for {} serialization, got {}",
+                self.to_sql_type_name(),
+                crate::internal::get_type_name(py, ptr)
+            )
         } else {
             Ok(())
         }
@@ -122,12 +127,17 @@ impl NativeSQLType for PyDateTimeType {
             | sea_query::Value::ChronoDateTimeUtc(None)
             | sea_query::Value::ChronoDateTimeLocal(None) => Ok(pyo3::ffi::Py_None()),
 
-            _ => invalid_value_for_deserialize!("datetime", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected datetime for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
-impl NativeSQLType for PyTimestampType {
+impl SQLTypeTrait for PyTimestampType {
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         if self.0 {
             sea_query::ColumnType::TimestampWithTimeZone
@@ -145,11 +155,12 @@ impl NativeSQLType for PyTimestampType {
             && pyo3::ffi::PyLong_CheckExact(ptr) != 1
             && pyo3::ffi::PyFloat_CheckExact(ptr) != 1
         {
-            Err(typeerror!(
-                "expected datetime.datetime, int, or float, got {:?}",
-                py,
-                ptr
-            ))
+            crate::new_error!(
+                PyTypeError,
+                "expected datetime.datetime/int/float for {} serialization, got {}",
+                self.to_sql_type_name(),
+                crate::internal::get_type_name(py, ptr)
+            )
         } else {
             Ok(())
         }
@@ -222,12 +233,17 @@ impl NativeSQLType for PyTimestampType {
             | sea_query::Value::ChronoDateTimeWithTimeZone(None)
             | sea_query::Value::ChronoDateTimeUtc(None) => Ok(pyo3::ffi::Py_None()),
 
-            _ => invalid_value_for_deserialize!("datetime", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected datetime for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
-impl NativeSQLType for PyDateType {
+impl SQLTypeTrait for PyDateType {
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::Date
     }
@@ -238,7 +254,12 @@ impl NativeSQLType for PyDateType {
         ptr: *mut pyo3::ffi::PyObject,
     ) -> pyo3::PyResult<()> {
         if pyo3::ffi::Py_TYPE(ptr) != crate::typeref::STD_DATE_TYPE {
-            Err(typeerror!("expected datetime.date, got {:?}", py, ptr))
+            crate::new_error!(
+                PyTypeError,
+                "expected datetime.date for {} serialization, got {}",
+                self.to_sql_type_name(),
+                crate::internal::get_type_name(py, ptr)
+            )
         } else {
             Ok(())
         }
@@ -267,12 +288,17 @@ impl NativeSQLType for PyDateType {
                 Ok(pyobject.into_ptr())
             }
             sea_query::Value::ChronoDate(None) => Ok(pyo3::ffi::Py_None()),
-            _ => invalid_value_for_deserialize!("date", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected date for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
-impl NativeSQLType for PyTimeType {
+impl SQLTypeTrait for PyTimeType {
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::Time
     }
@@ -283,7 +309,12 @@ impl NativeSQLType for PyTimeType {
         ptr: *mut pyo3::ffi::PyObject,
     ) -> pyo3::PyResult<()> {
         if pyo3::ffi::Py_TYPE(ptr) != crate::typeref::STD_TIME_TYPE {
-            Err(typeerror!("expected datetime.time, got {:?}", py, ptr))
+            crate::new_error!(
+                PyTypeError,
+                "expected datetime.time for {} serialization, got {}",
+                self.to_sql_type_name(),
+                crate::internal::get_type_name(py, ptr)
+            )
         } else {
             Ok(())
         }
@@ -312,15 +343,20 @@ impl NativeSQLType for PyTimeType {
                 Ok(pyobject.into_ptr())
             }
             sea_query::Value::ChronoTime(None) => Ok(pyo3::ffi::Py_None()),
-            _ => invalid_value_for_deserialize!("time", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected time for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
-super::abstracts::implement_native_pymethods!(PyDateTimeType);
-super::abstracts::implement_native_pymethods!(PyDateType);
-super::abstracts::implement_native_pymethods!(PyTimeType);
-super::abstracts::implement_native_pymethods!(
+super::abstracts::implement_sqltype_pymethods!(PyDateTimeType);
+super::abstracts::implement_sqltype_pymethods!(PyDateType);
+super::abstracts::implement_sqltype_pymethods!(PyTimeType);
+super::abstracts::implement_sqltype_pymethods!(
     PyTimestampType,
     init(|timezone: bool| Self(timezone)),
     "bool",

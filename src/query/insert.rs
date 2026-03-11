@@ -1,13 +1,10 @@
-use pyo3::types::PyAnyMethods;
-use pyo3::types::PyDictMethods;
-use pyo3::types::PyTupleMethods;
-
-use crate::common::PyQueryStatement;
-use crate::common::PyTableName;
-use crate::expression::PyExpr;
-use crate::query::on_conflict::PyOnConflict;
-use crate::query::returning::PyReturning;
-use crate::utils::ToSeaQuery;
+use super::base::PyQueryStatement;
+use super::on_conflict::PyOnConflict;
+use super::returning::PyReturning;
+use crate::common::column_ref::PyColumnRef;
+use crate::common::expression::PyExpr;
+use crate::common::table_ref::PyTableName;
+use crate::internal::statements::ToSeaQuery;
 
 #[derive(Debug, Default)]
 pub enum InsertValueSource {
@@ -19,7 +16,7 @@ pub enum InsertValueSource {
     // Select(pyo3::Py<pyo3::PyAny>),
 }
 
-implement_state_pyclass! {
+crate::implement_pyclass! {
     /// Builds INSERT SQL statements with a fluent interface.
     ///
     /// Provides a chainable API for constructing INSERT queries with support for:
@@ -29,13 +26,15 @@ implement_state_pyclass! {
     /// - REPLACE functionality
     /// - Default values
     ///
-    /// @signature (table: Table | TableName | str)
-    pub struct [extends=PyQueryStatement] PyInsertStatement(InsertStatementState) as "InsertStatement" {
+    /// @signature (self, table: Table | TableName | str)
+    mutable [subclass, extends=PyQueryStatement] PyInsertStatement(InsertStatementState) as "InsertStatement" {
         pub replace: bool,
         pub table: PyTableName,
         pub columns: Vec<String>,
         pub source: InsertValueSource,
-        pub on_conflict: Option<PyOnConflict>,
+
+        /// Always is `Option<PyOnConflict>`.
+        pub on_conflict: Option<pyo3::Py<pyo3::PyAny>>,
         pub returning_clause: Option<PyReturning>,
         pub default_values: Option<u32>,
     }
@@ -64,8 +63,8 @@ impl ToSeaQuery<sea_query::InsertStatement> for InsertStatementState {
         }
 
         if let Some(x) = &self.on_conflict {
-            let lock = x.0.lock();
-            stmt.on_conflict(lock.to_sea_query(py));
+            let py_oc = unsafe { x.cast_bound_unchecked::<PyOnConflict>(py) };
+            stmt.on_conflict(py_oc.get().0.lock().to_sea_query(py));
         }
         if let Some(rows) = self.default_values {
             stmt.or_default_values_many(rows);
@@ -84,6 +83,9 @@ impl InsertStatementState {
         &mut self,
         kwds: pyo3::Bound<'_, pyo3::types::PyDict>,
     ) -> pyo3::PyResult<()> {
+        use pyo3::types::PyAnyMethods;
+        use pyo3::types::PyDictMethods;
+
         if !self.columns.is_empty() && self.columns.len() != kwds.len() {
             return Err(pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 "values length isn't equal to columns length - this occurres when you're calling \
@@ -95,7 +97,7 @@ impl InsertStatementState {
         let mut vals = Vec::with_capacity(kwds.len());
 
         unsafe {
-            for (key, value) in kwds.iter() {
+            for (key, value) in kwds.into_iter() {
                 let key = key.extract::<String>().unwrap_unchecked();
 
                 cols.push(key);
@@ -125,6 +127,8 @@ impl InsertStatementState {
         &mut self,
         args: pyo3::Bound<'_, pyo3::types::PyTuple>,
     ) -> pyo3::PyResult<()> {
+        use pyo3::types::PyTupleMethods;
+
         if !self.columns.is_empty() && self.columns.len() != args.len() {
             return Err(pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 "values length isn't equal to columns length",
@@ -156,9 +160,16 @@ impl InsertStatementState {
 #[pyo3::pymethods]
 impl PyInsertStatement {
     #[new]
-    pub fn __new__(
-        table: &pyo3::Bound<'_, pyo3::PyAny>,
-    ) -> pyo3::PyResult<(Self, PyQueryStatement)> {
+    #[allow(unused_variables)]
+    #[pyo3(signature=(*args, **kwds))]
+    fn __new__(
+        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> (Self, PyQueryStatement) {
+        (Self::uninit(), PyQueryStatement)
+    }
+
+    pub fn __init__(&self, table: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
         let table = PyTableName::try_from(table)?;
 
         let state = InsertStatementState {
@@ -170,7 +181,8 @@ impl PyInsertStatement {
             returning_clause: None,
             default_values: None,
         };
-        Ok((state.into(), PyQueryStatement))
+        self.0.set(state);
+        Ok(())
     }
 
     /// Convert this INSERT to a REPLACE statement.
@@ -215,10 +227,12 @@ impl PyInsertStatement {
         slf: pyo3::PyRef<'a, Self>,
         args: &'a pyo3::Bound<'_, pyo3::types::PyTuple>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
+        use pyo3::types::PyTupleMethods;
+
         let mut columns = Vec::with_capacity(args.len());
 
         for col in args.iter() {
-            let column_ref = crate::common::PyColumnRef::try_from(&col)?;
+            let column_ref = PyColumnRef::try_from(&col)?;
 
             match column_ref.name {
                 Some(x) => columns.push(x.to_string()),
@@ -248,10 +262,13 @@ impl PyInsertStatement {
         args: &'a pyo3::Bound<'_, pyo3::types::PyTuple>,
         kwds: Option<&'a pyo3::Bound<'_, pyo3::types::PyDict>>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
+        use pyo3::types::PyTupleMethods;
+
         if !PyTupleMethods::is_empty(args) && kwds.is_some() {
-            return Err(typeerror!(
-                "cannot use both args and kwargs at the same time",
-            ));
+            return crate::new_error!(
+                PyTypeError,
+                "cannot use both args and kwargs at the same time"
+            );
         }
 
         if !PyTupleMethods::is_empty(args) {
@@ -260,8 +277,6 @@ impl PyInsertStatement {
         } else if kwds.is_some() {
             let mut lock = slf.0.lock();
             lock.values_from_dictionary(kwds.unwrap().clone())?;
-        } else {
-            return Err(typeerror!("no arguments provided"));
         }
 
         Ok(slf)
@@ -286,16 +301,23 @@ impl PyInsertStatement {
     /// @signature (self, action: OnConflict) -> typing.Self
     fn on_conflict<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        action: &'a pyo3::Bound<'a, PyOnConflict>,
-    ) -> pyo3::PyRef<'a, Self> {
-        let action_inner = std::sync::Arc::clone(&action.get().0);
+        action: &'a pyo3::Bound<'a, pyo3::PyAny>,
+    ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
+        unsafe {
+            if pyo3::ffi::PyObject_TypeCheck(action.as_ptr(), crate::typeref::ON_CONFLICT_TYPE) == 1
+            {
+                return crate::new_error!(
+                    PyTypeError,
+                    "expected OnConflict, got {}",
+                    crate::internal::get_type_name(action.py(), action.as_ptr())
+                );
+            }
 
-        {
             let mut lock = slf.0.lock();
-            lock.on_conflict = Some(PyOnConflict(action_inner));
+            lock.on_conflict = Some(action.clone().unbind());
         }
 
-        slf
+        Ok(slf)
     }
 
     /// Specify columns to return from the inserted rows.
@@ -320,7 +342,7 @@ impl PyInsertStatement {
         let stmt = lock.to_sea_query(py);
         drop(lock);
 
-        build_query_statement!(backend, stmt)
+        crate::build_query_statement!(backend, stmt)
     }
 
     #[pyo3(signature = (backend, /))]
@@ -333,7 +355,7 @@ impl PyInsertStatement {
         let stmt = lock.to_sea_query(py);
         drop(lock);
 
-        build_query_parts!(py, backend, stmt)
+        crate::build_query_parts!(py, backend, stmt)
     }
 
     fn __repr__(&self) -> String {
@@ -352,7 +374,7 @@ impl PyInsertStatement {
             write!(s, " columns={:?}", lock.columns).unwrap();
         }
         if let Some(x) = &lock.on_conflict {
-            write!(s, " on_conflict={}", x.__repr__()).unwrap();
+            write!(s, " on_conflict={}", x).unwrap();
         }
 
         match &lock.source {

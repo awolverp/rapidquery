@@ -1,11 +1,11 @@
-use crate::common::PyQueryStatement;
-use crate::common::PyTableName;
-use crate::expression::PyExpr;
-use crate::query::ordering::PyOrdering;
-use crate::query::returning::PyReturning;
-use crate::utils::ToSeaQuery;
+use super::base::PyQueryStatement;
+use super::ordering::PyOrdering;
+use super::returning::PyReturning;
+use crate::common::expression::PyExpr;
+use crate::common::table_ref::PyTableName;
+use crate::internal::statements::ToSeaQuery;
 
-implement_state_pyclass! {
+crate::implement_pyclass! {
     /// Builds DELETE SQL statements with a fluent interface.
     ///
     /// Provides a chainable API for constructing DELETE queries with support for:
@@ -14,8 +14,8 @@ implement_state_pyclass! {
     /// - ORDER BY for determining deletion order
     /// - RETURNING clauses for getting deleted data
     ///
-    /// @signature (table: Table | TableName | str)
-    pub struct [extends=PyQueryStatement] PyDeleteStatement(DeleteStatementState) as "DeleteStatement" {
+    /// @signature (self, table: Table | TableName | str)
+    mutable [subclass, extends=PyQueryStatement] PyDeleteStatement(DeleteStatementState) as "DeleteStatement" {
         pub table: PyTableName,
         pub r#where: Option<PyExpr>,
         pub limit: Option<u64>,
@@ -55,9 +55,16 @@ impl ToSeaQuery<sea_query::DeleteStatement> for DeleteStatementState {
 #[pyo3::pymethods]
 impl PyDeleteStatement {
     #[new]
-    pub fn __new__(
-        table: &pyo3::Bound<'_, pyo3::PyAny>,
-    ) -> pyo3::PyResult<(Self, PyQueryStatement)> {
+    #[allow(unused_variables)]
+    #[pyo3(signature=(*args, **kwds))]
+    fn __new__(
+        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> (Self, PyQueryStatement) {
+        (Self::uninit(), PyQueryStatement)
+    }
+
+    pub fn __init__(&self, table: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
         let table = PyTableName::try_from(table)?;
 
         let state = DeleteStatementState {
@@ -67,7 +74,8 @@ impl PyDeleteStatement {
             returning_clause: None,
             orders: vec![],
         };
-        Ok((state.into(), PyQueryStatement))
+        self.0.set(state);
+        Ok(())
     }
 
     /// Specify the table to delete from.
@@ -123,18 +131,14 @@ impl PyDeleteStatement {
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         unsafe {
             if pyo3::ffi::Py_TYPE(condition.as_ptr()) != crate::typeref::EXPR_TYPE {
-                return Err(typeerror!(
-                    "expected Expr, got {:?}",
-                    condition.py(),
-                    condition.as_ptr()
-                ));
+                return crate::new_error!(
+                    PyTypeError,
+                    "expected Expr, got {}",
+                    crate::internal::get_type_name(condition.py(), condition.as_ptr())
+                );
             }
 
-            let condition = condition
-                .cast_unchecked::<crate::expression::PyExpr>()
-                .get()
-                .clone();
-
+            let condition = condition.cast_unchecked::<PyExpr>().get().clone();
             let mut lock = slf.0.lock();
 
             match std::mem::take(&mut lock.r#where) {
@@ -190,7 +194,7 @@ impl PyDeleteStatement {
         let stmt = lock.to_sea_query(py);
         drop(lock);
 
-        build_query_statement!(backend, stmt)
+        crate::build_query_statement!(backend, stmt)
     }
 
     #[pyo3(signature = (backend, /))]
@@ -203,7 +207,7 @@ impl PyDeleteStatement {
         let stmt = lock.to_sea_query(py);
         drop(lock);
 
-        build_query_parts!(py, backend, stmt)
+        crate::build_query_parts!(py, backend, stmt)
     }
 
     fn __repr__(&self) -> String {

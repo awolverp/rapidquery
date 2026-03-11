@@ -7,214 +7,114 @@
 #![feature(likely_unlikely)]
 #![feature(optimize_attribute)]
 #![feature(once_cell_try)]
+#![feature(sync_unsafe_cell)]
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-#[macro_use]
-mod utils;
-
-mod column;
-mod common;
-mod expression;
-mod foreign_key;
-mod index;
-mod query;
-mod sqltypes;
-mod table;
+pub mod internal;
 mod typeref;
-mod value;
 
-/// RapidQuery core module written in Rust
+mod common;
+mod query;
+mod schema;
+mod sqltypes;
+
+/// Create a new `InsertStatement`.
+///
+/// @signature (table: schema.Table | common.TableName | str) -> query.InsertStatement
+#[pyo3::pyfunction]
+#[pyo3(name = "insert")]
+#[inline]
+pub fn py_insert<'a>(
+    table: &pyo3::Bound<'a, pyo3::PyAny>,
+) -> pyo3::PyResult<pyo3::Bound<'a, query::insert::PyInsertStatement>> {
+    let stmt = query::insert::PyInsertStatement::uninit();
+    stmt.__init__(table)?;
+
+    pyo3::Bound::new(table.py(), (stmt, query::base::PyQueryStatement))
+}
+
+/// Create a new `DeleteStatement`.
+///
+/// @signature (table: schema.Table | common.TableName | str) -> query.DeleteStatement
+#[pyo3::pyfunction]
+#[pyo3(name = "delete")]
+#[inline]
+pub fn py_delete<'a>(
+    table: &pyo3::Bound<'a, pyo3::PyAny>,
+) -> pyo3::PyResult<pyo3::Bound<'a, query::delete::PyDeleteStatement>> {
+    let stmt = query::delete::PyDeleteStatement::uninit();
+    stmt.__init__(table)?;
+
+    pyo3::Bound::new(table.py(), (stmt, query::base::PyQueryStatement))
+}
+
+/// Create a new `PyUpdateStatement`.
+///
+/// @signature (table: schema.Table | common.TableName | str) -> query.UpdateStatement
+#[pyo3::pyfunction]
+#[pyo3(name = "update")]
+#[inline]
+pub fn py_update<'a>(
+    table: &pyo3::Bound<'a, pyo3::PyAny>,
+) -> pyo3::PyResult<pyo3::Bound<'a, query::update::PyUpdateStatement>> {
+    let stmt = query::update::PyUpdateStatement::uninit();
+    stmt.__init__(table)?;
+
+    pyo3::Bound::new(table.py(), (stmt, query::base::PyQueryStatement))
+}
+
+/// Create a new `Returning`.
+///
+/// @signature (*args: common.Column | common.ColumnRef | str) -> query.Returning
+#[pyo3::pyfunction]
+#[pyo3(name = "returning", signature=(*args))]
+#[inline]
+pub fn py_returning<'a>(
+    args: &pyo3::Bound<'a, pyo3::types::PyTuple>,
+) -> pyo3::PyResult<pyo3::Bound<'a, query::returning::PyReturning>> {
+    let clause = query::returning::PyReturning::__new__(args)?;
+
+    pyo3::Bound::new(args.py(), clause)
+}
+
+/// Create a new `WindowStatement`.
+///
+/// @signature (*partition_by: common.Expr | common.Column | common.ColumnRef | str) -> query.WindowStatement
+#[pyo3::pyfunction]
+#[pyo3(name = "window", signature=(*partition_by))]
+#[inline(always)]
+pub fn py_window<'a>(
+    partition_by: pyo3::Bound<'a, pyo3::types::PyTuple>,
+) -> pyo3::PyResult<pyo3::Bound<'a, query::window::PyWindowStatement>> {
+    let stmt = query::window::PyWindowStatement::uninit();
+    stmt.__init__(&partition_by)?;
+
+    pyo3::Bound::new(partition_by.py(), stmt)
+}
+
 #[pyo3::pymodule(gil_used = false)]
 mod _lib {
     use pyo3::types::PyModuleMethods;
 
-    // sqltypes::abstracts
     #[pymodule_export]
-    use crate::sqltypes::PySQLTypeAbstract;
-
-    // sqltypes::binary
+    use super::common::common_module;
     #[pymodule_export]
-    use crate::sqltypes::PyBinaryType;
+    use super::query::query_module;
     #[pymodule_export]
-    use crate::sqltypes::PyBitType;
+    use super::schema::schema_module;
     #[pymodule_export]
-    use crate::sqltypes::PyBlobType;
-    #[pymodule_export]
-    use crate::sqltypes::PyVarBinaryType;
-    #[pymodule_export]
-    use crate::sqltypes::PyVarBitType;
-
-    // sqltypes::datetimes
-    #[pymodule_export]
-    use crate::sqltypes::PyDateTimeType;
-    #[pymodule_export]
-    use crate::sqltypes::PyDateType;
-    #[pymodule_export]
-    use crate::sqltypes::PyTimeType;
-    #[pymodule_export]
-    use crate::sqltypes::PyTimestampType;
-
-    // sqltypes::json
-    #[pymodule_export]
-    use crate::sqltypes::PyJSONBinaryType;
-    #[pymodule_export]
-    use crate::sqltypes::PyJSONType;
-
-    // sqltypes::vector
-    #[pymodule_export]
-    use crate::sqltypes::PyVectorType;
-
-    // sqltypes::others
-    #[pymodule_export]
-    use crate::sqltypes::PyArrayType;
-    #[pymodule_export]
-    use crate::sqltypes::PyDecimalType;
-    #[pymodule_export]
-    use crate::sqltypes::PyEnumType;
-    #[pymodule_export]
-    use crate::sqltypes::PyINETType;
-    #[pymodule_export]
-    use crate::sqltypes::PyMacAddressType;
-    #[pymodule_export]
-    use crate::sqltypes::PyUUIDType;
-
-    // sqltypes::primitives
-    #[pymodule_export]
-    use crate::sqltypes::PyBigIntegerType;
-    #[pymodule_export]
-    use crate::sqltypes::PyBigUnsignedType;
-    #[pymodule_export]
-    use crate::sqltypes::PyBooleanType;
-    #[pymodule_export]
-    use crate::sqltypes::PyCharType;
-    #[pymodule_export]
-    use crate::sqltypes::PyDoubleType;
-    #[pymodule_export]
-    use crate::sqltypes::PyFloatType;
-    #[pymodule_export]
-    use crate::sqltypes::PyIntegerType;
-    #[pymodule_export]
-    use crate::sqltypes::PySmallIntegerType;
-    #[pymodule_export]
-    use crate::sqltypes::PySmallUnsignedType;
-    #[pymodule_export]
-    use crate::sqltypes::PyStringType;
-    #[pymodule_export]
-    use crate::sqltypes::PyTextType;
-    #[pymodule_export]
-    use crate::sqltypes::PyTinyIntegerType;
-    #[pymodule_export]
-    use crate::sqltypes::PyTinyUnsignedType;
-    #[pymodule_export]
-    use crate::sqltypes::PyUnsignedType;
-
-    // value
-    #[pymodule_export]
-    use crate::value::PyValue;
-
-    // common
-    #[pymodule_export]
-    use crate::common::PyColumnRef;
-    #[pymodule_export]
-    use crate::common::PyQueryStatement;
-    #[pymodule_export]
-    use crate::common::PySchemaStatement;
-    #[pymodule_export]
-    use crate::common::PyTableName;
-    #[pymodule_export]
-    use crate::common::Py_AsteriskType;
-
-    // expression
-    #[pymodule_export]
-    use crate::expression::all;
-    #[pymodule_export]
-    use crate::expression::any;
-    #[pymodule_export]
-    use crate::expression::not_;
-    #[pymodule_export]
-    use crate::expression::PyExpr;
-    #[pymodule_export]
-    use crate::expression::PyFunc;
-
-    // column
-    #[pymodule_export]
-    use crate::column::PyColumn;
-
-    // foreign_key
-    #[pymodule_export]
-    use crate::foreign_key::PyForeignKey;
-
-    // index
-    #[pymodule_export]
-    use crate::index::PyDropIndex;
-    #[pymodule_export]
-    use crate::index::PyIndex;
-    #[pymodule_export]
-    use crate::index::PyIndexColumn;
-
-    // table::operations
-    #[pymodule_export]
-    use crate::table::operations::PyDropTable;
-    #[pymodule_export]
-    use crate::table::operations::PyRenameTable;
-    #[pymodule_export]
-    use crate::table::operations::PyTruncateTable;
-
-    // table::alter
-    #[pymodule_export]
-    use crate::table::alter::PyAlterTable;
-    #[pymodule_export]
-    use crate::table::alter::PyAlterTableAddColumnOption;
-    #[pymodule_export]
-    use crate::table::alter::PyAlterTableAddForeignKeyOption;
-    #[pymodule_export]
-    use crate::table::alter::PyAlterTableBaseOption;
-    #[pymodule_export]
-    use crate::table::alter::PyAlterTableDropColumnOption;
-    #[pymodule_export]
-    use crate::table::alter::PyAlterTableDropForeignKeyOption;
-    #[pymodule_export]
-    use crate::table::alter::PyAlterTableModifyColumnOption;
-    #[pymodule_export]
-    use crate::table::alter::PyAlterTableRenameColumnOption;
-
-    // table
-    #[pymodule_export]
-    use crate::table::PyTable;
-
-    // query::on_conflict
-    #[pymodule_export]
-    use crate::query::on_conflict::PyOnConflict;
-
-    // query::insert
-    #[pymodule_export]
-    use crate::query::insert::PyInsertStatement;
-
-    // query::delete
-    #[pymodule_export]
-    use crate::query::delete::PyDeleteStatement;
-
-    // query::update
-    #[pymodule_export]
-    use crate::query::update::PyUpdateStatement;
-
-    // query::returning
-    #[pymodule_export]
-    use crate::query::returning::PyReturning;
-
-    // query::ordering
-    #[pymodule_export]
-    use crate::query::ordering::PyOrdering;
-
-    // query
-    #[pymodule_export]
-    use crate::query::py_delete;
-    #[pymodule_export]
-    use crate::query::py_insert;
-    #[pymodule_export]
-    use crate::query::py_update;
+    use super::sqltypes::sqltypes_module;
 
     #[pymodule_export]
-    const ASTERISK: Py_AsteriskType = Py_AsteriskType;
+    use super::py_delete;
+    #[pymodule_export]
+    use super::py_insert;
+    #[pymodule_export]
+    use super::py_returning;
+    #[pymodule_export]
+    use super::py_update;
+    #[pymodule_export]
+    use super::py_window;
 
     #[pymodule_init]
     #[cold]
@@ -222,10 +122,10 @@ mod _lib {
         m.add(
             "__stub_imports__",
             vec![
-                "import decimal",
-                "import uuid",
-                "import datetime",
-                "import enum",
+                "from . import sqltypes as sqltypes",
+                "from . import schema as schema",
+                "from . import query as query",
+                "from . import common as common",
             ],
         )?;
 

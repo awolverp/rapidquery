@@ -1,10 +1,9 @@
-use pyo3::types::PyStringMethods;
 use sea_query::IntoIden;
 
-use crate::common::PySchemaStatement;
-use crate::common::PyTableName;
-use crate::expression::PyExpr;
-use crate::utils::ToSeaQuery;
+use super::base::PySchemaStatement;
+use crate::common::expression::PyExpr;
+use crate::common::table_ref::PyTableName;
+use crate::internal::statements::ToSeaQuery;
 
 #[inline]
 fn map_str_to_index_order(value: impl AsRef<str>) -> pyo3::PyResult<sea_query::IndexOrder> {
@@ -26,7 +25,12 @@ fn map_index_order_to_str(value: sea_query::IndexOrder) -> String {
     }
 }
 
-implement_pyclass! {
+pub const OPT_PRIMARY: u8 = 1 << 0;
+pub const OPT_UNIQUE: u8 = 1 << 1;
+pub const OPT_IF_NOT_EXISTS: u8 = 1 << 2;
+pub const OPT_NULLS_NOT_DISTINCT: u8 = 1 << 3;
+
+crate::implement_pyclass! {
     /// Defines a column within an index specification.
     ///
     /// Represents a single column's participation in an index, including:
@@ -40,15 +44,15 @@ implement_pyclass! {
     /// NOTE: this class is immutable and frozen.
     ///
     /// @alias _IndexColumnOrder = typing.Literal["ASC", "DESC"]
-    /// @signature (name: str, order: _IndexColumnOrder | None = None, prefix: int | None = None)
+    /// @signature (self, name: str, order: _IndexColumnOrder | None = None, prefix: int | None = None)
     #[derive(Debug, Clone)]
-    pub struct [] PyIndexColumn as "IndexColumn" {
-        pub name: String,
+    immutable [subclass] PyIndexColumn(IndexColumnState) as "IndexColumn" {
+        pub name: sea_query::DynIden,
         pub order: Option<sea_query::IndexOrder>,
         pub prefix: Option<u32>,
     }
 }
-implement_state_pyclass! {
+crate::implement_pyclass! {
     /// Represents a database index specification.
     ///
     /// This class defines the structure and properties of a database index,
@@ -59,17 +63,21 @@ implement_state_pyclass! {
     ///
     /// @alias _IndexColumnValue = IndexColumn | Column | ColumnRef | str
     /// @signature (
+    ///     self,
     ///     columns: typing.Iterable[_IndexColumnValue],
     ///     name: str | None = None,
     ///     table: Table | TableName | str | None = None,
-    ///     options: int = 0,
     ///     *,
+    ///     primary: bool = False,
+    ///     if_not_exists: bool = False,
+    ///     nulls_not_distinct: bool = False,
+    ///     unique: bool = False,
     ///     index_type: str | None = None,
     ///     where: object | None = None,
     ///     include: typing.Iterable[str] = (),
     /// )
     #[derive(Debug)]
-    pub struct [extends=PySchemaStatement] PyIndex(IndexState) as "Index" {
+    mutable [subclass, extends=PySchemaStatement] PyIndex(IndexState) as "Index" {
         pub name: Option<String>,
         pub columns: Vec<PyIndexColumn>,
         pub table: Option<PyTableName>,
@@ -79,15 +87,16 @@ implement_state_pyclass! {
         pub include: Vec<String>,
     }
 }
-implement_state_pyclass! {
+crate::implement_pyclass! {
     /// Represents a DROP INDEX SQL statement.
     ///
     /// Builds index deletion statements with support for:
     /// - Conditional deletion (IF EXISTS)
     /// - Table-specific index dropping
     ///
-    /// @signature (name: str, table: Table | TableName | str, if_exists: bool = False)
-    pub struct [extends=PySchemaStatement] PyDropIndex(DropIndexState) as "DropIndex" {
+    /// @signature (self, name: str, table: Table | TableName | str, if_exists: bool = False)
+    #[derive(Debug)]
+    mutable [subclass, extends=PySchemaStatement] PyDropIndex(DropIndexState) as "DropIndex" {
         pub name: String,
         pub table: PyTableName,
         pub if_exists: bool,
@@ -96,21 +105,13 @@ implement_state_pyclass! {
 
 impl sea_query::IntoIndexColumn for PyIndexColumn {
     fn into_index_column(self) -> sea_query::IndexColumn {
-        match (self.prefix, self.order) {
-            (Some(p), Some(o)) => (sea_query::Alias::new(self.name), p, o).into_index_column(),
-            (Some(p), None) => (sea_query::Alias::new(self.name), p).into_index_column(),
-            (None, Some(o)) => (sea_query::Alias::new(self.name), o).into_index_column(),
-            (None, None) => sea_query::Alias::new(self.name).into_index_column(),
-        }
-    }
-}
+        let inner = self.0.into_inner().unwrap();
 
-impl From<String> for PyIndexColumn {
-    fn from(value: String) -> Self {
-        Self {
-            name: value,
-            order: None,
-            prefix: None,
+        match (inner.prefix, inner.order) {
+            (Some(p), Some(o)) => (inner.name, p, o).into_index_column(),
+            (Some(p), None) => (inner.name, p).into_index_column(),
+            (None, Some(o)) => (inner.name, o).into_index_column(),
+            (None, None) => inner.name.into_index_column(),
         }
     }
 }
@@ -120,41 +121,35 @@ impl TryFrom<&pyo3::Bound<'_, pyo3::PyAny>> for PyIndexColumn {
 
     fn try_from(value: &pyo3::Bound<'_, pyo3::PyAny>) -> Result<Self, Self::Error> {
         unsafe {
-            if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::INDEX_COLUMN_TYPE {
+            if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::INDEX_COLUMN_TYPE) == 1
+            {
                 let casted_value = value.cast_unchecked::<Self>();
                 return Ok(casted_value.get().clone());
             }
 
-            if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::COLUMN_REF_TYPE {
-                let casted_value = value.cast_unchecked::<crate::common::PyColumnRef>();
-                let get_value = casted_value.get();
+            let column_ref =
+                crate::common::column_ref::PyColumnRef::try_from(value).map_err(|_| {
+                    crate::new_py_error!(
+                        PyTypeError,
+                        "expected IndexColumn, ColumnRef, Column, str, or object.__column_ref__ \
+                         property, got {}",
+                        crate::internal::get_type_name(value.py(), value.as_ptr())
+                    )
+                })?;
 
-                match &get_value.name {
-                    Some(x) => return Ok(Self::from(x.to_string())),
-                    None => {
-                        return Err(pyo3::exceptions::PyValueError::new_err(
-                            "IndexColumn cannot accept asterisk '*' as column",
-                        ))
-                    }
+            match column_ref.name {
+                Some(x) => {
+                    let inner = IndexColumnState {
+                        name: x,
+                        order: None,
+                        prefix: None,
+                    };
+                    Ok(inner.into())
                 }
+                None => Err(pyo3::exceptions::PyValueError::new_err(
+                    "IndexColumn cannot accept asterisk '*' as column",
+                )),
             }
-
-            if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::COLUMN_TYPE {
-                let casted_value = value.cast_unchecked::<crate::column::PyColumn>();
-                let get_value = casted_value.get();
-
-                return Ok(Self::from(get_value.0.lock().name.clone()));
-            }
-
-            if let Ok(x) = value.cast_exact::<pyo3::types::PyString>() {
-                return Ok(Self::from(x.to_str()?.to_owned()));
-            }
-
-            Err(typeerror!(
-                "expected IndexColumn, Column, ColumnRef or str, got {:?}",
-                value.py(),
-                value.as_ptr()
-            ))
         }
     }
 }
@@ -162,24 +157,34 @@ impl TryFrom<&pyo3::Bound<'_, pyo3::PyAny>> for PyIndexColumn {
 #[pyo3::pymethods]
 impl PyIndexColumn {
     #[new]
-    #[
-        pyo3(
-            signature = (
-                name,
-                order=None,
-                prefix=None,
-            )
-        )
-    ]
-    fn __new__(name: String, order: Option<String>, prefix: Option<u32>) -> pyo3::PyResult<Self> {
-        Ok(Self {
-            name,
+    #[allow(unused_variables)]
+    #[pyo3(signature=(*args, **kwds))]
+    fn __new__(
+        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> Self {
+        Self::uninit()
+    }
+
+    #[pyo3(signature=(name, order=None, prefix=None))]
+    fn __init__(
+        &self,
+        name: String,
+        order: Option<String>,
+        prefix: Option<u32>,
+    ) -> pyo3::PyResult<()> {
+        let state = IndexColumnState {
+            name: sea_query::Alias::new(name).into_iden(),
             order: match order {
                 None => None,
                 Some(x) => Some(map_str_to_index_order(x)?),
             },
             prefix,
-        })
+        };
+        unsafe {
+            self.0.set(state);
+        }
+        Ok(())
     }
 
     /// The name of the column to include in the index.
@@ -187,7 +192,7 @@ impl PyIndexColumn {
     /// @signature (self) -> str
     #[getter]
     fn name(&self) -> String {
-        self.name.clone()
+        self.0.as_ref().name.to_string()
     }
 
     /// Number of characters to index for string columns (prefix indexing).
@@ -195,7 +200,7 @@ impl PyIndexColumn {
     /// @signature (self) -> int | None
     #[getter]
     fn prefix(&self) -> Option<u32> {
-        self.prefix
+        self.0.as_ref().prefix
     }
 
     /// Sort order for this column.
@@ -203,7 +208,7 @@ impl PyIndexColumn {
     /// @signature (self) -> _IndexColumnOrder | None
     #[getter]
     fn order(&self) -> Option<String> {
-        self.order.clone().map(map_index_order_to_str)
+        self.0.as_ref().order.clone().map(map_index_order_to_str)
     }
 
     fn __copy__(&self) -> Self {
@@ -213,13 +218,14 @@ impl PyIndexColumn {
     fn __repr__(&self) -> String {
         use std::io::Write;
 
+        let inner = self.0.as_ref();
         let mut s = Vec::new();
-        write!(&mut s, "<IndexColumn {:?}", self.name).unwrap();
+        write!(&mut s, "<IndexColumn {:?}", inner.name.to_string()).unwrap();
 
-        if let Some(x) = self.prefix {
+        if let Some(x) = inner.prefix {
             write!(&mut s, " prefix={}", x).unwrap();
         }
-        if let Some(x) = &self.order {
+        if let Some(x) = &inner.order {
             if matches!(x, sea_query::IndexOrder::Asc) {
                 write!(&mut s, " order='asc'").unwrap();
             } else {
@@ -272,16 +278,16 @@ impl ToSeaQuery<sea_query::IndexCreateStatement> for IndexState {
             stmt.include(sea_query::Alias::new(include));
         }
 
-        if self.options & PyIndex::OPT_PRIMARY > 0 {
+        if self.options & OPT_PRIMARY > 0 {
             stmt.primary();
         }
-        if self.options & PyIndex::OPT_IF_NOT_EXISTS > 0 {
+        if self.options & OPT_IF_NOT_EXISTS > 0 {
             stmt.if_not_exists();
         }
-        if self.options & PyIndex::OPT_NULLS_NOT_DISTINCT > 0 {
+        if self.options & OPT_NULLS_NOT_DISTINCT > 0 {
             stmt.nulls_not_distinct();
         }
-        if self.options & PyIndex::OPT_UNIQUE > 0 {
+        if self.options & OPT_UNIQUE > 0 {
             stmt.unique();
         }
 
@@ -291,39 +297,46 @@ impl ToSeaQuery<sea_query::IndexCreateStatement> for IndexState {
 
 #[pyo3::pymethods]
 impl PyIndex {
-    #[classattr]
-    pub const OPT_PRIMARY: u8 = 1 << 0;
-    #[classattr]
-    pub const OPT_UNIQUE: u8 = 1 << 1;
-    #[classattr]
-    pub const OPT_IF_NOT_EXISTS: u8 = 1 << 2;
-    #[classattr]
-    pub const OPT_NULLS_NOT_DISTINCT: u8 = 1 << 3;
-
     #[new]
+    #[allow(unused_variables)]
+    #[pyo3(signature=(*args, **kwds))]
+    fn __new__(
+        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> (Self, PySchemaStatement) {
+        (Self::uninit(), PySchemaStatement)
+    }
+
     #[
         pyo3(
             signature = (
                 columns,
                 name=None,
                 table=None,
-                options=0,
                 *,
+                primary=false,
+                if_not_exists=false,
+                nulls_not_distinct=false,
+                unique=false,
                 index_type=None,
                 r#where=None,
                 include=Vec::new()
             )
         )
     ]
-    fn __new__(
+    fn __init__(
+        &self,
         columns: Vec<pyo3::Bound<'_, pyo3::PyAny>>,
         name: Option<String>,
         table: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
-        options: u8,
+        primary: bool,
+        if_not_exists: bool,
+        nulls_not_distinct: bool,
+        unique: bool,
         index_type: Option<String>,
         r#where: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
         include: Vec<String>,
-    ) -> pyo3::PyResult<(Self, PySchemaStatement)> {
+    ) -> pyo3::PyResult<()> {
         let table = match table {
             Some(x) => Some(PyTableName::try_from(x)?),
             None => None,
@@ -345,6 +358,20 @@ impl PyIndex {
             Some(x) => Some(PyExpr::try_from(x)?),
         };
 
+        let mut options = 0u8;
+        if primary {
+            options |= OPT_PRIMARY;
+        }
+        if unique {
+            options |= OPT_UNIQUE;
+        }
+        if nulls_not_distinct {
+            options |= OPT_NULLS_NOT_DISTINCT;
+        }
+        if if_not_exists {
+            options |= OPT_IF_NOT_EXISTS;
+        }
+
         let state = IndexState {
             name,
             columns: cols,
@@ -354,7 +381,9 @@ impl PyIndex {
             r#where,
             include,
         };
-        Ok((state.into(), PySchemaStatement))
+        self.0.set(state);
+
+        Ok(())
     }
 
     /// Index name
@@ -395,54 +424,80 @@ impl PyIndex {
         Ok(())
     }
 
-    /// Index specified options.
+    /// Whether this is a primary key constraint.
     ///
-    /// @signature (self) -> int
-    /// @setter int
+    /// @signature (self) -> bool
+    /// @setter bool
     #[getter]
-    fn options(&self) -> u8 {
-        self.0.lock().options
+    fn primary(&self) -> bool {
+        self.0.lock().options & OPT_PRIMARY > 0
     }
 
     #[setter]
-    fn set_options(&self, val: u8) {
+    fn set_primary(&self, value: bool) {
         let mut lock = self.0.lock();
-        lock.options = val;
-    }
-
-    /// Whether this is a primary key constraint.
-    /// Shorthand for `self.options & self.OPT_PRIMARY > 0`.
-    ///
-    /// @signature (self) -> bool
-    #[getter]
-    fn primary(&self) -> bool {
-        self.0.lock().options & Self::OPT_PRIMARY > 0
+        if value {
+            lock.options |= OPT_PRIMARY;
+        } else {
+            lock.options &= !OPT_PRIMARY;
+        }
     }
 
     /// Whether this is a unique constraint.
-    /// Shorthand for `self.options & self.OPT_UNIQUE > 0`.
     ///
     /// @signature (self) -> bool
+    /// @setter bool
     #[getter]
     fn unique(&self) -> bool {
-        self.0.lock().options & Self::OPT_UNIQUE > 0
+        self.0.lock().options & OPT_UNIQUE > 0
+    }
+
+    #[setter]
+    fn set_unique(&self, value: bool) {
+        let mut lock = self.0.lock();
+        if value {
+            lock.options |= OPT_UNIQUE;
+        } else {
+            lock.options &= !OPT_UNIQUE;
+        }
     }
 
     /// Whether NULL values should be considered equal for uniqueness.
-    /// Shorthand for `self.options & self.OPT_NULLS_NOT_DISTINCT > 0`.
     ///
     /// @signature (self) -> bool
+    /// @setter bool
     #[getter]
     fn nulls_not_distinct(&self) -> bool {
-        self.0.lock().options & Self::OPT_NULLS_NOT_DISTINCT > 0
+        self.0.lock().options & OPT_NULLS_NOT_DISTINCT > 0
     }
 
-    /// Whether to use IF NOT EXISTS clause. Shorthand for `self.options & self.OPT_IF_NOT_EXISTS > 0`.
+    #[setter]
+    fn set_nulls_not_distinct(&self, value: bool) {
+        let mut lock = self.0.lock();
+        if value {
+            lock.options |= OPT_NULLS_NOT_DISTINCT;
+        } else {
+            lock.options &= !OPT_NULLS_NOT_DISTINCT;
+        }
+    }
+
+    /// Whether to use IF NOT EXISTS clause.
     ///
     /// @signature (self) -> bool
+    /// @setter bool
     #[getter]
     fn if_not_exists(&self) -> bool {
-        self.0.lock().options & Self::OPT_IF_NOT_EXISTS > 0
+        self.0.lock().options & OPT_IF_NOT_EXISTS > 0
+    }
+
+    #[setter]
+    fn set_if_not_exists(&self, value: bool) {
+        let mut lock = self.0.lock();
+        if value {
+            lock.options |= OPT_IF_NOT_EXISTS;
+        } else {
+            lock.options &= !OPT_IF_NOT_EXISTS;
+        }
     }
 
     /// The columns that make up this index.
@@ -541,7 +596,7 @@ impl PyIndex {
         let stmt = lock.to_sea_query(py);
         drop(lock);
 
-        build_schema_statement!(backend, stmt)
+        crate::build_schema_statement!(backend, stmt)
     }
 
     pub fn __repr__(&self) -> String {
@@ -570,17 +625,17 @@ impl PyIndex {
             }
         }
 
-        if lock.options & Self::OPT_IF_NOT_EXISTS > 0 {
-            write!(s, " OPT_IF_NOT_EXISTS").unwrap();
+        if lock.options & OPT_IF_NOT_EXISTS > 0 {
+            write!(s, " if_not_exists=True").unwrap();
         }
-        if lock.options & Self::OPT_PRIMARY > 0 {
-            write!(s, " OPT_PRIMARY").unwrap();
+        if lock.options & OPT_PRIMARY > 0 {
+            write!(s, " primary=True").unwrap();
         }
-        if lock.options & Self::OPT_UNIQUE > 0 {
-            write!(s, " OPT_UNIQUE").unwrap();
+        if lock.options & OPT_UNIQUE > 0 {
+            write!(s, " unique=True").unwrap();
         }
-        if lock.options & Self::OPT_NULLS_NOT_DISTINCT > 0 {
-            write!(s, " OPT_NULLS_NOT_DISTINCT").unwrap();
+        if lock.options & OPT_NULLS_NOT_DISTINCT > 0 {
+            write!(s, " nulls_not_distinct=True").unwrap();
         }
 
         if let Some(x) = &lock.index_type {
@@ -626,12 +681,22 @@ impl ToSeaQuery<sea_query::IndexDropStatement> for DropIndexState {
 #[pyo3::pymethods]
 impl PyDropIndex {
     #[new]
-    #[pyo3(signature = (name, table, if_exists=false))]
+    #[allow(unused_variables)]
+    #[pyo3(signature=(*args, **kwds))]
     fn __new__(
+        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    ) -> (Self, PySchemaStatement) {
+        (Self::uninit(), PySchemaStatement)
+    }
+
+    #[pyo3(signature = (name, table, if_exists=false))]
+    fn __init__(
+        &self,
         name: String,
         table: &pyo3::Bound<'_, pyo3::PyAny>,
         if_exists: bool,
-    ) -> pyo3::PyResult<(Self, PySchemaStatement)> {
+    ) -> pyo3::PyResult<()> {
         let table = PyTableName::try_from(table)?;
 
         let state = DropIndexState {
@@ -639,7 +704,8 @@ impl PyDropIndex {
             table,
             if_exists,
         };
-        Ok((state.into(), PySchemaStatement))
+        self.0.set(state);
+        Ok(())
     }
 
     /// The name of the index to drop.
@@ -705,7 +771,7 @@ impl PyDropIndex {
         let stmt = lock.to_sea_query(py);
         drop(lock);
 
-        build_schema_statement!(backend, stmt)
+        crate::build_schema_statement!(backend, stmt)
     }
 
     fn __repr__(&self) -> String {

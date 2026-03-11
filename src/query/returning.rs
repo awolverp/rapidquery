@@ -1,6 +1,7 @@
 use pyo3::types::PyTupleMethods;
 
-use crate::utils::ToSeaQuery;
+use crate::common::column_ref::PyColumnRef;
+use crate::internal::statements::ToSeaQuery;
 
 #[derive(Debug, Clone)]
 pub enum ReturningState {
@@ -8,14 +9,16 @@ pub enum ReturningState {
     Columns(Vec<sea_query::DynIden>),
 }
 
-implement_pyclass! {
+crate::implement_pyclass! {
+    // NOTE: It's a very simple clause, so I think it's OK to be a final type.
+
     /// RETURNING clause.
     ///
     /// Works on PostgreSQL and SQLite>=3.35.0.
     ///
     /// Use `.all()` or `.columns()` classmethod to use this type.
     #[derive(Debug, Clone)]
-    pub struct [] PyReturning as "Returning" (pub ReturningState);
+    [] PyReturning as "Returning" (pub ReturningState);
 }
 
 impl ToSeaQuery<sea_query::ReturningClause> for ReturningState {
@@ -33,27 +36,16 @@ impl ToSeaQuery<sea_query::ReturningClause> for ReturningState {
 
 #[pyo3::pymethods]
 impl PyReturning {
-    /// Return all columns. Same as `self.columns("*")`.
-    ///
-    /// @signature (cls) -> typing.Self
-    #[classmethod]
-    fn all(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
-        Self(ReturningState::All)
-    }
-
     /// Specify columns you need to return.
     ///
     /// @signature (cls, *args: Column | ColumnRef | str) -> typing.Self
-    #[classmethod]
+    #[new]
     #[pyo3(signature=(*args))]
-    fn columns(
-        _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-    ) -> pyo3::PyResult<Self> {
+    pub fn __new__(args: &pyo3::Bound<'_, pyo3::types::PyTuple>) -> pyo3::PyResult<Self> {
         let mut columns = Vec::with_capacity(args.len());
 
         for col in args.iter() {
-            let column_ref = crate::common::PyColumnRef::try_from(&col)?;
+            let column_ref = PyColumnRef::try_from(&col)?;
 
             match column_ref.name {
                 Some(x) => columns.push(x),
@@ -66,6 +58,14 @@ impl PyReturning {
         Ok(Self(ReturningState::Columns(columns)))
     }
 
+    /// Return all columns. Same as `self.columns("*")`.
+    ///
+    /// @signature (cls) -> typing.Self
+    #[classmethod]
+    fn all(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
+        Self(ReturningState::All)
+    }
+
     pub fn __repr__(&self) -> String {
         use std::io::Write;
 
@@ -74,7 +74,7 @@ impl PyReturning {
         write!(s, "<Returning").unwrap();
 
         match &self.0 {
-            ReturningState::All => write!(s, " ALL").unwrap(),
+            ReturningState::All => write!(s, " *").unwrap(),
             ReturningState::Columns(x) => {
                 write!(s, " [").unwrap();
 

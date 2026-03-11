@@ -2,33 +2,32 @@ use pyo3::types::PyListMethods;
 use pyo3::types::PyTupleMethods;
 use pyo3::IntoPyObject;
 
-use crate::sqltypes::abstracts::NativeSQLType;
+use crate::internal::type_engine::TypeEngine;
 use crate::sqltypes::abstracts::PySQLTypeAbstract;
+use crate::sqltypes::abstracts::SQLTypeTrait;
 
-implement_pyclass! {
-    (
-        /// Vector column type for storing mathematical vectors.
-        ///
-        /// Specialized type for storing vector data, often used in machine learning,
-        /// similarity search, or mathematical applications.
-        ///
-        /// @extends SQLTypeAbstract[list | tuple, list]
-        /// @signature (length: int | None = None)
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyVectorType as "VectorType" (pub Option<u32>);
-    )
-    (
-        /// Array column type for storing arrays of elements.
-        ///
-        /// Represents a column that stores arrays of a specified element type.
-        /// Useful in databases that support native array types (like PostgreSQL)
-        /// for storing lists of values in a single column.
-        ///
-        /// @extends SQLTypeAbstract[list[I] | tuple[I], list[O]]
-        /// @signature (element: SQLTypeAbstract[I, O])
-        #[derive(Clone)]
-        pub struct [extends=PySQLTypeAbstract] PyArrayType as "ArrayType" (pub super::TypeEngine);
-    )
+crate::implement_pyclass! {
+    /// Vector column type for storing mathematical vectors.
+    ///
+    /// Specialized type for storing vector data, often used in machine learning,
+    /// similarity search, or mathematical applications.
+    ///
+    /// @extends SQLTypeAbstract[list[float]]
+    /// @signature (length: int | None = None)
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyVectorType as "Vector" (pub Option<u32>);
+}
+crate::implement_pyclass! {
+    /// Array column type for storing arrays of elements.
+    ///
+    /// Represents a column that stores arrays of a specified element type.
+    /// Useful in databases that support native array types (like PostgreSQL)
+    /// for storing lists of values in a single column.
+    ///
+    /// @extends SQLTypeAbstract[list[T]]
+    /// @signature (element: SQLTypeAbstract[T])
+    #[derive(Clone)]
+    [extends=PySQLTypeAbstract] PyArrayType as "Array" (pub TypeEngine);
 }
 
 #[inline]
@@ -36,6 +35,7 @@ implement_pyclass! {
 unsafe fn _validate_iterable_ptr<F>(
     py: pyo3::Python,
     ptr: *mut pyo3::ffi::PyObject,
+    sql_type_name: &str,
     mut condition: F,
 ) -> pyo3::PyResult<()>
 where
@@ -95,10 +95,15 @@ where
         return Ok(());
     }
 
-    Err(typeerror!("expected list or tuple, got {:?}", py, ptr))
+    crate::new_error!(
+        PyTypeError,
+        "expected list/tuple for {} serialization, got {}",
+        sql_type_name,
+        crate::internal::get_type_name(py, ptr)
+    )
 }
 
-impl NativeSQLType for PyVectorType {
+impl SQLTypeTrait for PyVectorType {
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::Vector(self.0)
     }
@@ -108,7 +113,7 @@ impl NativeSQLType for PyVectorType {
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
     ) -> pyo3::PyResult<()> {
-        _validate_iterable_ptr(py, ptr, |item| {
+        _validate_iterable_ptr(py, ptr, &self.to_sql_type_name(), |item| {
             pyo3::ffi::PyFloat_CheckExact(item) == 1 || pyo3::ffi::PyLong_CheckExact(item) == 1
         })
     }
@@ -129,11 +134,12 @@ impl NativeSQLType for PyVectorType {
                 if pyo3::ffi::PyFloat_CheckExact(item.as_ptr()) == 0
                     && pyo3::ffi::PyLong_CheckExact(item.as_ptr()) == 0
                 {
-                    return Err(typeerror!(
-                        "expected a list of floats, found {:?} in the list",
-                        py,
-                        item.as_ptr()
-                    ));
+                    return crate::new_error!(
+                        PyTypeError,
+                        "expected list of floats for {} serialization, found {} in the list",
+                        self.to_sql_type_name(),
+                        crate::internal::get_type_name(py, item.as_ptr())
+                    );
                 }
 
                 values.push(pyo3::ffi::PyFloat_AsDouble(item.as_ptr()) as f32);
@@ -152,11 +158,12 @@ impl NativeSQLType for PyVectorType {
                 if pyo3::ffi::PyFloat_CheckExact(item.as_ptr()) == 0
                     && pyo3::ffi::PyLong_CheckExact(item.as_ptr()) == 0
                 {
-                    return Err(typeerror!(
-                        "expected a tuple of floats, found {:?} in the tuple",
-                        py,
-                        item.as_ptr()
-                    ));
+                    return crate::new_error!(
+                        PyTypeError,
+                        "expected tuple of floats for {} serialization, found {} in the tuple",
+                        self.to_sql_type_name(),
+                        crate::internal::get_type_name(py, item.as_ptr())
+                    );
                 }
 
                 values.push(pyo3::ffi::PyFloat_AsDouble(item.as_ptr()) as f32);
@@ -165,11 +172,12 @@ impl NativeSQLType for PyVectorType {
             return Ok(sea_query::Value::Vector(Some(Box::new(values.into()))));
         }
 
-        Err(typeerror!(
-            "expected list[float] or tuple[float], got {:?}",
-            py,
-            ptr
-        ))
+        crate::new_error!(
+            PyTypeError,
+            "expected list[float]/tuple[float] for {} serialization, got {}",
+            self.to_sql_type_name(),
+            crate::internal::get_type_name(py, ptr)
+        )
     }
 
     #[cfg_attr(feature = "optimize", optimize(speed))]
@@ -184,12 +192,17 @@ impl NativeSQLType for PyVectorType {
                 Ok(list.into_ptr())
             }
             sea_query::Value::Vector(None) => Ok(pyo3::ffi::Py_None()),
-            _ => invalid_value_for_deserialize!("vector", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected vector for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
-impl NativeSQLType for PyArrayType {
+impl SQLTypeTrait for PyArrayType {
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::Array(std::sync::Arc::new(self.0.to_sea_query_column_type()))
     }
@@ -199,7 +212,9 @@ impl NativeSQLType for PyArrayType {
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
     ) -> pyo3::PyResult<()> {
-        _validate_iterable_ptr(py, ptr, |item| self.0.validate(py, item).is_ok())
+        _validate_iterable_ptr(py, ptr, &self.to_sql_type_name(), |item| {
+            self.0.validate(py, item).is_ok()
+        })
     }
 
     unsafe fn serialize(
@@ -243,7 +258,12 @@ impl NativeSQLType for PyArrayType {
             ));
         }
 
-        Err(typeerror!("expected list or tuple, got {:?}", py, ptr))
+        crate::new_error!(
+            PyTypeError,
+            "expected list/tuple for {} serialization, got {}",
+            self.to_sql_type_name(),
+            crate::internal::get_type_name(py, ptr)
+        )
     }
 
     unsafe fn deserialize(
@@ -280,12 +300,17 @@ impl NativeSQLType for PyArrayType {
                 Ok(pylist)
             }
             sea_query::Value::Array(_, None) => Ok(pyo3::ffi::Py_None()),
-            _ => invalid_value_for_deserialize!("array", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected array for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
-super::abstracts::implement_native_pymethods!(
+super::abstracts::implement_sqltype_pymethods!(
     PyVectorType,
     init(|length: Option<u32>| Self(length)),
     "int | None",
@@ -298,7 +323,7 @@ impl PyArrayType {
     fn __new__(
         element: &pyo3::Bound<'_, pyo3::PyAny>,
     ) -> pyo3::PyResult<(Self, PySQLTypeAbstract)> {
-        let type_engine = super::TypeEngine::new(element)?;
+        let type_engine = TypeEngine::new(element)?;
 
         Ok((Self(type_engine), PySQLTypeAbstract))
     }
@@ -313,7 +338,7 @@ impl PyArrayType {
         self.to_sql_type_name()
     }
 
-    /// @signature (self) -> SQLTypeAbstract[I, O]
+    /// @signature (self) -> SQLTypeAbstract[T]
     #[getter]
     fn element<'py>(&self, py: pyo3::Python<'py>) -> pyo3::Bound<'py, pyo3::PyAny> {
         let ptr = self.0 .1.as_ptr();

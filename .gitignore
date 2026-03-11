@@ -5,3 +5,4 @@ __pycache__/
 backup/
 backup-py/
 /.vscode
+/*_cache

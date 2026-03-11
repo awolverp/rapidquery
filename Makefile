@@ -25,11 +25,7 @@ test:
 	-rm -rf .pytest_cache
 	-ruff check .
 	ruff clean
-
-test-full: test
-	$(BUILD_CMD) --uv --release
-	pytest -s -vv
-	-rm -rf .pytest_cache
+	mypy rapidquery --disable-error-code override --disable-error-code type-arg --strict
 
 fmt:
 	cargo fmt
@@ -39,9 +35,9 @@ fmt:
 ready: fmt test-full
 
 stubgen:
-	python3 tools/stubgen.py rapidquery._lib > rapidquery/_lib.pyi
-	ruff check --fix rapidquery/_lib.pyi
+	python3 tools/stubgen.py rapidquery._lib
+	ruff check --fix rapidquery/_lib
 	ruff format --line-length=100 .
-	mypy rapidquery
+	mypy rapidquery --disable-error-code override --disable-error-code type-arg --strict
 	ruff clean
 	rm -rf .mypy_cache

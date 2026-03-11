@@ -1,162 +1,160 @@
-use crate::sqltypes::abstracts::NativeSQLType;
 use crate::sqltypes::abstracts::PySQLTypeAbstract;
+use crate::sqltypes::abstracts::SQLTypeTrait;
 
-implement_pyclass! {
-    (
-        /// Boolean column type (BOOLEAN).
-        ///
-        /// Stores true/false values. The standard way to store boolean data,
-        /// though implementation varies by database (some use TINYINT(1) or
-        /// similar representations).
-        ///
-        /// @extends SQLTypeAbstract[bool,bool]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyBooleanType as "BooleanType";
-    )
-    (
-        /// Very small integer column type (TINYINT).
-        ///
-        /// Typically stores integers in the range -128 to 127 (signed) or 0 to 255
-        /// (unsigned). Useful for flags, small counters, or enumerated values.
-        ///
-        /// @extends SQLTypeAbstract[int,int]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyTinyIntegerType as "TinyIntegerType";
-    )
-    (
-        /// Small integer column type (SMALLINT).
-        ///
-        /// Typically stores integers in the range -32,768 to 32,767 (signed) or
-        /// 0 to 65,535 (unsigned). Good for moderate-sized counters or numeric codes.
-        ///
-        /// @extends SQLTypeAbstract[int,int]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PySmallIntegerType as "SmallIntegerType";
-    )
-    (
-        /// Standard integer column type (INTEGER/INT).
-        ///
-        /// The most common integer type, typically storing 32-bit integers in the
-        /// range -2,147,483,648 to 2,147,483,647 (signed). Suitable for most
-        /// numeric data including IDs, quantities, and counters.
-        ///
-        /// @extends SQLTypeAbstract[int,int]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyIntegerType as "IntegerType";
-    )
-    (
-        /// Large integer column type (BIGINT).
-        ///
-        /// Stores 64-bit integers for very large numeric values. Essential for
-        /// high-volume systems, timestamps, large counters, or when integer
-        /// overflow is a concern.
-        ///
-        /// @extends SQLTypeAbstract[int,int]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyBigIntegerType as "BigIntegerType";
-    )
-    (
-        /// Unsigned tiny integer column type.
-        ///
-        /// Stores small positive integers only, typically 0 to 255. Useful for
-        /// small counters, percentages, or enumerated values that are always positive.
-        ///
-        /// @extends SQLTypeAbstract[int,int]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyTinyUnsignedType as "TinyUnsignedType";
-    )
-    (
-        /// Unsigned small integer column type.
-        ///
-        /// Stores moderate positive integers only, typically 0 to 65,535. Good for
-        /// larger counters or numeric codes that are always positive.
-        ///
-        /// @extends SQLTypeAbstract[int,int]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PySmallUnsignedType as "SmallUnsignedType";
-    )
-    (
-        /// Unsigned integer column type.
-        ///
-        /// Stores positive integers only, typically 0 to 4,294,967,295. Doubles the
-        /// positive range compared to signed integers, useful for IDs and counters
-        /// that will never be negative.
-        ///
-        /// @extends SQLTypeAbstract[int,int]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyUnsignedType as "UnsignedType";
-    )
-    (
-        /// Unsigned big integer column type.
-        ///
-        /// Stores very large positive integers only. Provides the maximum positive
-        /// integer range for high-volume systems or when very large positive
-        /// values are required.
-        ///
-        /// @extends SQLTypeAbstract[int,int]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyBigUnsignedType as "BigUnsignedType";
-    )
-    (
-        /// Single-precision floating point column type (FLOAT).
-        ///
-        /// Stores approximate numeric values with single precision. Suitable for
-        /// scientific calculations, measurements, or any numeric data where some
-        /// precision loss is acceptable in exchange for storage efficiency.
-        ///
-        /// @extends SQLTypeAbstract[float | int,float]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyFloatType as "FloatType";
-    )
-    (
-        /// Double-precision floating point column type (DOUBLE).
-        ///
-        /// Stores approximate numeric values with double precision. Provides higher
-        /// precision than FLOAT for scientific calculations or when more accuracy
-        /// is required in floating-point operations.
-        ///
-        /// @extends SQLTypeAbstract[float | int,float]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyDoubleType as "DoubleType";
-    )
-    (
-        /// Large text column type (TEXT).
-        ///
-        /// Represents a large text field capable of storing long strings without
-        /// a predefined length limit. Suitable for storing articles, comments,
-        /// descriptions, or any text content that may be very long.
-        ///
-        /// @extends SQLTypeAbstract[float | int,float]
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyTextType as "TextType";
-    )
-    (
-        /// Fixed-length character string column type (CHAR).
-        ///
-        /// Represents a fixed-length character string. Values shorter than the
-        /// specified length are padded with spaces. Suitable for storing data
-        /// with consistent, known lengths like country codes or status flags.
-        ///
-        /// @extends SQLTypeAbstract[str,str]
-        /// @signature (length: int | None = ...)
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyCharType as "CharType" (pub Option<u32>);
-    )
-    (
-        /// Variable-length character string column type (VARCHAR).
-        ///
-        /// Represents a variable-length character string with a maximum length limit.
-        /// This is the most common string type for storing text data of varying lengths
-        /// like names, descriptions, or user input.
-        ///
-        /// @extends SQLTypeAbstract[str,str]
-        /// @signature (length: int | None = ...)
-        #[derive(Debug, Clone, Copy)]
-        pub struct [extends=PySQLTypeAbstract] PyStringType as "StringType" (pub Option<u32>);
-    )
+crate::implement_pyclass! {
+    /// Boolean column type (BOOLEAN).
+    ///
+    /// Stores true/false values. The standard way to store boolean data,
+    /// though implementation varies by database (some use TINYINT(1) or
+    /// similar representations).
+    ///
+    /// @extends SQLTypeAbstract[bool]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyBooleanType as "Boolean";
+}
+crate::implement_pyclass! {
+    /// Very small integer column type (TINYINT).
+    ///
+    /// Typically stores integers in the range -128 to 127 (signed) or 0 to 255
+    /// (unsigned). Useful for flags, small counters, or enumerated values.
+    ///
+    /// @extends SQLTypeAbstract[int]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyTinyIntegerType as "TinyInteger";
+}
+crate::implement_pyclass! {
+    /// Small integer column type (SMALLINT).
+    ///
+    /// Typically stores integers in the range -32,768 to 32,767 (signed) or
+    /// 0 to 65,535 (unsigned). Good for moderate-sized counters or numeric codes.
+    ///
+    /// @extends SQLTypeAbstract[int]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PySmallIntegerType as "SmallInteger";
+}
+crate::implement_pyclass! {
+    /// Standard integer column type (INTEGER/INT).
+    ///
+    /// The most common integer type, typically storing 32-bit integers in the
+    /// range -2,147,483,648 to 2,147,483,647 (signed). Suitable for most
+    /// numeric data including IDs, quantities, and counters.
+    ///
+    /// @extends SQLTypeAbstract[int]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyIntegerType as "Integer";
+}
+crate::implement_pyclass! {
+    /// Large integer column type (BIGINT).
+    ///
+    /// Stores 64-bit integers for very large numeric values. Essential for
+    /// high-volume systems, timestamps, large counters, or when integer
+    /// overflow is a concern.
+    ///
+    /// @extends SQLTypeAbstract[int]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyBigIntegerType as "BigInteger";
+}
+crate::implement_pyclass! {
+    /// Unsigned tiny integer column type.
+    ///
+    /// Stores small positive integers only, typically 0 to 255. Useful for
+    /// small counters, percentages, or enumerated values that are always positive.
+    ///
+    /// @extends SQLTypeAbstract[int]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyTinyUnsignedType as "TinyUnsigned";
+}
+crate::implement_pyclass! {
+    /// Unsigned small integer column type.
+    ///
+    /// Stores moderate positive integers only, typically 0 to 65,535. Good for
+    /// larger counters or numeric codes that are always positive.
+    ///
+    /// @extends SQLTypeAbstract[int]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PySmallUnsignedType as "SmallUnsigned";
+}
+crate::implement_pyclass! {
+    /// Unsigned integer column type.
+    ///
+    /// Stores positive integers only, typically 0 to 4,294,967,295. Doubles the
+    /// positive range compared to signed integers, useful for IDs and counters
+    /// that will never be negative.
+    ///
+    /// @extends SQLTypeAbstract[int]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyUnsignedType as "Unsigned";
+}
+crate::implement_pyclass! {
+    /// Unsigned big integer column type.
+    ///
+    /// Stores very large positive integers only. Provides the maximum positive
+    /// integer range for high-volume systems or when very large positive
+    /// values are required.
+    ///
+    /// @extends SQLTypeAbstract[int]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyBigUnsignedType as "BigUnsigned";
+}
+crate::implement_pyclass! {
+    /// Single-precision floating point column type (FLOAT).
+    ///
+    /// Stores approximate numeric values with single precision. Suitable for
+    /// scientific calculations, measurements, or any numeric data where some
+    /// precision loss is acceptable in exchange for storage efficiency.
+    ///
+    /// @extends SQLTypeAbstract[float | int]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyFloatType as "Float";
+}
+crate::implement_pyclass! {
+    /// Double-precision floating point column type (DOUBLE).
+    ///
+    /// Stores approximate numeric values with double precision. Provides higher
+    /// precision than FLOAT for scientific calculations or when more accuracy
+    /// is required in floating-point operations.
+    ///
+    /// @extends SQLTypeAbstract[float | int]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyDoubleType as "Double";
+}
+crate::implement_pyclass! {
+    /// Large text column type (TEXT).
+    ///
+    /// Represents a large text field capable of storing long strings without
+    /// a predefined length limit. Suitable for storing articles, comments,
+    /// descriptions, or any text content that may be very long.
+    ///
+    /// @extends SQLTypeAbstract[str]
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyTextType as "Text";
+}
+crate::implement_pyclass! {
+    /// Fixed-length character string column type (CHAR).
+    ///
+    /// Represents a fixed-length character string. Values shorter than the
+    /// specified length are padded with spaces. Suitable for storing data
+    /// with consistent, known lengths like country codes or status flags.
+    ///
+    /// @extends SQLTypeAbstract[str]
+    /// @signature (length: int | None = ...)
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyCharType as "Char" (pub Option<u32>);
+}
+crate::implement_pyclass! {
+    /// Variable-length character string column type (VARCHAR).
+    ///
+    /// Represents a variable-length character string with a maximum length limit.
+    /// This is the most common string type for storing text data of varying lengths
+    /// like names, descriptions, or user input.
+    ///
+    /// @extends SQLTypeAbstract[str]
+    /// @signature (length: int | None = ...)
+    #[derive(Debug, Clone, Copy)]
+    [extends=PySQLTypeAbstract] PyStringType as "String" (pub Option<u32>);
 }
 
-impl NativeSQLType for PyBooleanType {
+impl SQLTypeTrait for PyBooleanType {
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::Boolean
     }
@@ -167,7 +165,12 @@ impl NativeSQLType for PyBooleanType {
         ptr: *mut pyo3::ffi::PyObject,
     ) -> pyo3::PyResult<()> {
         if pyo3::ffi::PyBool_Check(ptr) != 1 {
-            Err(typeerror!("expected bool, got {:?}", py, ptr))
+            crate::new_error!(
+                PyTypeError,
+                "expected bool for {} serialization, got {}",
+                self.to_sql_type_name(),
+                crate::internal::get_type_name(py, ptr)
+            )
         } else {
             Ok(())
         }
@@ -194,12 +197,17 @@ impl NativeSQLType for PyBooleanType {
             sea_query::Value::Bool(Some(x)) if *x => Ok(pyo3::ffi::Py_True()),
             sea_query::Value::Bool(Some(x)) if !*x => Ok(pyo3::ffi::Py_False()),
             sea_query::Value::Bool(None) => Ok(pyo3::ffi::Py_None()),
-            _ => invalid_value_for_deserialize!("bool", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected bool for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
-macro_rules! implement_numeric_NativeSQLType {
+macro_rules! implement_numeric_SQLTypeTrait {
     (
         $name:ident,
         $type:ty,
@@ -209,7 +217,7 @@ macro_rules! implement_numeric_NativeSQLType {
         $convertfunction:ident,
         $($checkfunction:ident,)+
     ) => {
-        impl NativeSQLType for $name {
+        impl SQLTypeTrait for $name {
             fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
                 sea_query::ColumnType::$column_type
             }
@@ -238,11 +246,12 @@ macro_rules! implement_numeric_NativeSQLType {
                     }
                 )+
 
-                Err(typeerror!(
-                    concat!("expected ", $python_type_name, ", got {:?}"),
-                    py,
-                    ptr
-                ))
+                crate::new_error!(
+                    PyTypeError,
+                    concat!("expected ", $python_type_name, " for {} serialization, got {}"),
+                    self.to_sql_type_name(),
+                    crate::internal::get_type_name(py, ptr)
+                )
             }
 
             unsafe fn deserialize(
@@ -273,7 +282,12 @@ macro_rules! implement_numeric_NativeSQLType {
                     | sea_query::Value::Unsigned(None)
                     | sea_query::Value::SmallUnsigned(None)
                     | sea_query::Value::TinyUnsigned(None) => pyo3::ffi::Py_None(),
-                    _ => return invalid_value_for_deserialize!("int", value),
+                    _ => return crate::new_error!(
+                        PyTypeError,
+                        "expected int for {} deserialization, got {:?}",
+                        self.to_sql_type_name(),
+                        value
+                    ),
                 };
 
                 if val.is_null() {
@@ -286,7 +300,7 @@ macro_rules! implement_numeric_NativeSQLType {
     };
 }
 
-implement_numeric_NativeSQLType!(
+implement_numeric_SQLTypeTrait!(
     PyBigIntegerType,
     i64,
     "int",
@@ -295,7 +309,7 @@ implement_numeric_NativeSQLType!(
     PyLong_AsLongLong,
     PyLong_CheckExact,
 );
-implement_numeric_NativeSQLType!(
+implement_numeric_SQLTypeTrait!(
     PyIntegerType,
     i32,
     "int",
@@ -304,7 +318,7 @@ implement_numeric_NativeSQLType!(
     PyLong_AsLongLong,
     PyLong_CheckExact,
 );
-implement_numeric_NativeSQLType!(
+implement_numeric_SQLTypeTrait!(
     PySmallIntegerType,
     i16,
     "int",
@@ -313,7 +327,7 @@ implement_numeric_NativeSQLType!(
     PyLong_AsLongLong,
     PyLong_CheckExact,
 );
-implement_numeric_NativeSQLType!(
+implement_numeric_SQLTypeTrait!(
     PyTinyIntegerType,
     i8,
     "int",
@@ -322,7 +336,7 @@ implement_numeric_NativeSQLType!(
     PyLong_AsLongLong,
     PyLong_CheckExact,
 );
-implement_numeric_NativeSQLType!(
+implement_numeric_SQLTypeTrait!(
     PyBigUnsignedType,
     u64,
     "int",
@@ -331,7 +345,7 @@ implement_numeric_NativeSQLType!(
     PyLong_AsUnsignedLongLong,
     PyLong_CheckExact,
 );
-implement_numeric_NativeSQLType!(
+implement_numeric_SQLTypeTrait!(
     PyUnsignedType,
     u32,
     "int",
@@ -340,7 +354,7 @@ implement_numeric_NativeSQLType!(
     PyLong_AsUnsignedLong,
     PyLong_CheckExact,
 );
-implement_numeric_NativeSQLType!(
+implement_numeric_SQLTypeTrait!(
     PySmallUnsignedType,
     u16,
     "int",
@@ -349,7 +363,7 @@ implement_numeric_NativeSQLType!(
     PyLong_AsUnsignedLong,
     PyLong_CheckExact,
 );
-implement_numeric_NativeSQLType!(
+implement_numeric_SQLTypeTrait!(
     PyTinyUnsignedType,
     u8,
     "int",
@@ -358,7 +372,7 @@ implement_numeric_NativeSQLType!(
     PyLong_AsUnsignedLong,
     PyLong_CheckExact,
 );
-implement_numeric_NativeSQLType!(
+implement_numeric_SQLTypeTrait!(
     PyFloatType,
     // We're using f64 instead of f32 'cause we don't have f32::try_from(f64)
     f64,
@@ -369,7 +383,7 @@ implement_numeric_NativeSQLType!(
     PyFloat_CheckExact,
     PyLong_CheckExact,
 );
-implement_numeric_NativeSQLType!(
+implement_numeric_SQLTypeTrait!(
     PyDoubleType,
     f64,
     "float",
@@ -405,7 +419,7 @@ pub(super) unsafe fn _deserialize_string(
     Ok(val.into_ptr())
 }
 
-impl NativeSQLType for PyTextType {
+impl SQLTypeTrait for PyTextType {
     #[inline(always)]
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::Text
@@ -417,7 +431,12 @@ impl NativeSQLType for PyTextType {
         ptr: *mut pyo3::ffi::PyObject,
     ) -> pyo3::PyResult<()> {
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 0 {
-            Err(typeerror!("expected str, got {:?}", py, ptr))
+            crate::new_error!(
+                PyTypeError,
+                "expected str for {} serialization, got {}",
+                self.to_sql_type_name(),
+                crate::internal::get_type_name(py, ptr)
+            )
         } else {
             Ok(())
         }
@@ -439,12 +458,17 @@ impl NativeSQLType for PyTextType {
         match value {
             sea_query::Value::String(Some(x)) => _deserialize_string(py, x),
             sea_query::Value::String(None) => Ok(pyo3::ffi::Py_None()),
-            _ => invalid_value_for_deserialize!("str", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected str for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
-impl NativeSQLType for PyCharType {
+impl SQLTypeTrait for PyCharType {
     #[inline(always)]
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::Char(self.0)
@@ -456,7 +480,12 @@ impl NativeSQLType for PyCharType {
         ptr: *mut pyo3::ffi::PyObject,
     ) -> pyo3::PyResult<()> {
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 0 {
-            Err(typeerror!("expected str, got {:?}", py, ptr))
+            crate::new_error!(
+                PyTypeError,
+                "expected str for {} serialization, got {}",
+                self.to_sql_type_name(),
+                crate::internal::get_type_name(py, ptr)
+            )
         } else {
             Ok(())
         }
@@ -478,12 +507,17 @@ impl NativeSQLType for PyCharType {
         match value {
             sea_query::Value::String(Some(x)) => _deserialize_string(py, x),
             sea_query::Value::String(None) => Ok(pyo3::ffi::Py_None()),
-            _ => invalid_value_for_deserialize!("str", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected str for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
-impl NativeSQLType for PyStringType {
+impl SQLTypeTrait for PyStringType {
     #[inline(always)]
     fn to_sea_query_column_type(&self) -> sea_query::ColumnType {
         sea_query::ColumnType::String(
@@ -498,7 +532,12 @@ impl NativeSQLType for PyStringType {
         ptr: *mut pyo3::ffi::PyObject,
     ) -> pyo3::PyResult<()> {
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 0 {
-            Err(typeerror!("expected str, got {:?}", py, ptr))
+            crate::new_error!(
+                PyTypeError,
+                "expected str for {} serialization, got {}",
+                self.to_sql_type_name(),
+                crate::internal::get_type_name(py, ptr)
+            )
         } else {
             Ok(())
         }
@@ -520,30 +559,35 @@ impl NativeSQLType for PyStringType {
         match value {
             sea_query::Value::String(Some(x)) => _deserialize_string(py, x),
             sea_query::Value::String(None) => Ok(pyo3::ffi::Py_None()),
-            _ => invalid_value_for_deserialize!("str", value),
+            _ => crate::new_error!(
+                PyTypeError,
+                "expected str for {} deserialization, got {:?}",
+                self.to_sql_type_name(),
+                value
+            ),
         }
     }
 }
 
-super::abstracts::implement_native_pymethods!(PyBooleanType);
-super::abstracts::implement_native_pymethods!(PyBigIntegerType);
-super::abstracts::implement_native_pymethods!(PyIntegerType);
-super::abstracts::implement_native_pymethods!(PySmallIntegerType);
-super::abstracts::implement_native_pymethods!(PyTinyIntegerType);
-super::abstracts::implement_native_pymethods!(PyBigUnsignedType);
-super::abstracts::implement_native_pymethods!(PyUnsignedType);
-super::abstracts::implement_native_pymethods!(PySmallUnsignedType);
-super::abstracts::implement_native_pymethods!(PyTinyUnsignedType);
-super::abstracts::implement_native_pymethods!(PyFloatType);
-super::abstracts::implement_native_pymethods!(PyDoubleType);
-super::abstracts::implement_native_pymethods!(PyTextType);
-super::abstracts::implement_native_pymethods!(
+super::abstracts::implement_sqltype_pymethods!(PyBooleanType);
+super::abstracts::implement_sqltype_pymethods!(PyBigIntegerType);
+super::abstracts::implement_sqltype_pymethods!(PyIntegerType);
+super::abstracts::implement_sqltype_pymethods!(PySmallIntegerType);
+super::abstracts::implement_sqltype_pymethods!(PyTinyIntegerType);
+super::abstracts::implement_sqltype_pymethods!(PyBigUnsignedType);
+super::abstracts::implement_sqltype_pymethods!(PyUnsignedType);
+super::abstracts::implement_sqltype_pymethods!(PySmallUnsignedType);
+super::abstracts::implement_sqltype_pymethods!(PyTinyUnsignedType);
+super::abstracts::implement_sqltype_pymethods!(PyFloatType);
+super::abstracts::implement_sqltype_pymethods!(PyDoubleType);
+super::abstracts::implement_sqltype_pymethods!(PyTextType);
+super::abstracts::implement_sqltype_pymethods!(
     PyCharType,
     init(|length: Option<u32>| Self(length)),
     "int | None",
     signature(length = None)
 );
-super::abstracts::implement_native_pymethods!(
+super::abstracts::implement_sqltype_pymethods!(
     PyStringType,
     init(|length: Option<u32>| Self(length)),
     "int | None",

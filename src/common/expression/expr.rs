@@ -1,7 +1,10 @@
-use crate::sqltypes::TypeEngine;
-use crate::utils::ToSeaQuery;
+use crate::internal::statements::ToSeaQuery;
+use crate::internal::type_engine::TypeEngine;
 
-implement_pyclass! {
+crate::implement_pyclass! {
+    // NOTE: SQLTypes, PyExpr, PyFunc, PyTableName & PyColumnRef could never mark as subclass.
+    // these should be immutable and final types.
+
     /// Represents a SQL expression that can be built into SQL code.
     ///
     /// This class provides a fluent interface for constructing complex SQL expressions
@@ -13,8 +16,10 @@ implement_pyclass! {
     ///
     /// NOTE: `Expr` is immutable, so by calling each method you will give a new instance
     /// of it which includes new change(s).
+    ///
+    /// @signature (cls, value: object, /)
     #[derive(Debug, Clone)]
-    pub struct [] PyExpr as "Expr" (pub sea_query::SimpleExpr);
+    [] PyExpr as "Expr" (pub sea_query::SimpleExpr);
 }
 
 impl PyExpr {
@@ -32,19 +37,15 @@ impl PyExpr {
                 return Ok(Self(casted_value.get().0.clone()));
             }
 
-            if type_ptr == crate::typeref::VALUE_TYPE {
-                let casted_value = value.cast_unchecked::<crate::value::PyValue>();
+            if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::VALUE_TYPE) == 1 {
+                let casted_value = value.cast_unchecked::<crate::common::value::PyValue>();
                 let unbound = casted_value.get();
 
                 return Ok(Self(unbound.0.lock().simple_expr(py)?));
             }
 
-            if type_ptr == crate::typeref::ASTERISK_TYPE {
-                return Ok(Self(sea_query::Expr::column(sea_query::Asterisk)));
-            }
-
             if type_ptr == crate::typeref::COLUMN_REF_TYPE {
-                let casted_value = value.cast_unchecked::<crate::common::PyColumnRef>();
+                let casted_value = value.cast_unchecked::<crate::common::column_ref::PyColumnRef>();
                 let cloned = casted_value.get().clone();
 
                 return Ok(Self(sea_query::Expr::column(cloned)));
@@ -57,8 +58,8 @@ impl PyExpr {
                 return Ok(Self(sea_query::SimpleExpr::FunctionCall(cloned.0)));
             }
 
-            if type_ptr == crate::typeref::COLUMN_TYPE {
-                let casted_value = value.cast_unchecked::<crate::column::PyColumn>();
+            if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::COLUMN_TYPE) == 1 {
+                let casted_value = value.cast_unchecked::<crate::common::column::PyColumn>();
                 let inner_value = casted_value.get();
 
                 let column_ref: sea_query::ColumnRef =
@@ -70,7 +71,7 @@ impl PyExpr {
             // TODO: PySelect
             // TODO: PyCase
 
-            if pyo3::ffi::PyTuple_CheckExact(value.as_ptr()) == 1 {
+            if pyo3::ffi::PyTuple_Check(value.as_ptr()) == 1 {
                 use pyo3::types::PyTupleMethods;
 
                 let casted_value = value.cast_unchecked::<pyo3::types::PyTuple>();
@@ -86,11 +87,12 @@ impl PyExpr {
 
             let type_engine = match type_engine {
                 Some(x) => x,
-                None => crate::sqltypes::TypeEngine::infer_pyobject(value)?,
+                None => TypeEngine::infer_pyobject(value)?,
             };
 
-            let result = crate::value::ValueState::from_pyobject(type_engine, value.clone())?
-                .simple_expr(py)?;
+            let result =
+                crate::common::value::ValueState::from_pyobject(type_engine, value.clone())?
+                    .simple_expr(py)?;
 
             Ok(Self(result))
         }
@@ -121,8 +123,8 @@ impl PyExpr {
 
     /// Shorthand for `Expr(Value(value, sql_type))`
     ///
-    /// @typevar I, O
-    /// @signature (cls, /, value: I | None, sql_type: SQLTypeAbstract[I, O] | None = ...) -> typing.Self
+    /// @typevar T
+    /// @signature (cls, /, value: T | None, sql_type: SQLTypeAbstract[T] | None = ...) -> typing.Self
     #[classmethod]
     #[pyo3(signature=(value, sql_type=None))]
     fn val(
@@ -132,7 +134,7 @@ impl PyExpr {
     ) -> pyo3::PyResult<Self> {
         unsafe {
             if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::VALUE_TYPE {
-                let casted_value = value.cast_unchecked::<crate::value::PyValue>();
+                let casted_value = value.cast_unchecked::<crate::common::value::PyValue>();
                 let unbound = casted_value.get();
 
                 return Ok(Self(unbound.0.lock().simple_expr(value.py())?));
@@ -146,14 +148,15 @@ impl PyExpr {
                 }
             };
 
-            let result = crate::value::ValueState::from_pyobject(type_engine, value.clone())?
-                .simple_expr(value.py())?;
+            let result =
+                crate::common::value::ValueState::from_pyobject(type_engine, value.clone())?
+                    .simple_expr(value.py())?;
 
             Ok(Self(result))
         }
     }
 
-    /// Shorthand for `Expr(ColumnRef.parse(value))`
+    /// Tries to convert the `value` into `ColumnRef`, and then converts it to `Expr`.
     ///
     /// @signature (cls, value: str | ColumnRef) -> typing.Self
     #[classmethod]
@@ -161,33 +164,11 @@ impl PyExpr {
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
         value: &pyo3::Bound<'_, pyo3::PyAny>,
     ) -> pyo3::PyResult<Self> {
-        use pyo3::types::PyAnyMethods;
-        use std::str::FromStr;
-
-        unsafe {
-            if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::COLUMN_REF_TYPE {
-                let casted_value = value.cast_unchecked::<crate::common::PyColumnRef>();
-                let cloned = casted_value.get().clone();
-
-                return Ok(Self(sea_query::Expr::column(cloned)));
-            }
-
-            if pyo3::ffi::PyUnicode_CheckExact(value.as_ptr()) == 1 {
-                let extracted = value.extract::<&str>().unwrap_unchecked();
-                let colref = crate::common::PyColumnRef::from_str(extracted)?;
-
-                return Ok(Self(sea_query::Expr::column(colref)));
-            }
-
-            Err(typeerror!(
-                "expected ColumnRef or str, got {}",
-                value.py(),
-                value.as_ptr()
-            ))
-        }
+        let column_ref = crate::common::column_ref::PyColumnRef::try_from(value)?;
+        Ok(Self(sea_query::Expr::column(column_ref)))
     }
 
-    /// Shorthand for `Expr(ASTERISK)`
+    /// Returns asterisk '*' expression.
     ///
     /// @signature (cls) -> typing.Self
     #[classmethod]
