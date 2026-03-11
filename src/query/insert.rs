@@ -41,6 +41,7 @@ crate::implement_pyclass! {
 }
 
 impl ToSeaQuery<sea_query::InsertStatement> for InsertStatementState {
+    #[cfg_attr(feature = "optimize", optimize(speed))]
     fn to_sea_query<'a>(&self, py: pyo3::Python<'a>) -> sea_query::InsertStatement {
         let mut stmt = sea_query::InsertStatement::new();
         stmt.into_table(self.table.clone());

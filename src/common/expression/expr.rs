@@ -1,3 +1,5 @@
+use pyo3::types::PyAnyMethods;
+
 use crate::internal::statements::ToSeaQuery;
 use crate::internal::type_engine::TypeEngine;
 
@@ -27,6 +29,8 @@ impl PyExpr {
         value: &pyo3::Bound<'_, pyo3::PyAny>,
         type_engine: Option<TypeEngine>,
     ) -> pyo3::PyResult<Self> {
+        const PROPERTY_NAME: &std::ffi::CStr = c"__expr__";
+
         unsafe {
             let py = value.py();
             let type_ptr = pyo3::ffi::Py_TYPE(value.as_ptr());
@@ -34,7 +38,7 @@ impl PyExpr {
             if type_ptr == crate::typeref::EXPR_TYPE {
                 let casted_value = value.cast_unchecked::<Self>();
 
-                return Ok(Self(casted_value.get().0.clone()));
+                return Ok(casted_value.get().clone());
             }
 
             if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::VALUE_TYPE) == 1 {
@@ -83,6 +87,22 @@ impl PyExpr {
 
                 let result = sea_query::Expr::tuple(arr.into_iter().map(|x| x.0));
                 return Ok(Self(result.into()));
+            }
+
+            if value.hasattr(PROPERTY_NAME)? {
+                let property = value.getattr(PROPERTY_NAME)?;
+
+                if pyo3::ffi::Py_TYPE(property.as_ptr()) == crate::typeref::EXPR_TYPE {
+                    let casted_value = value.cast_unchecked::<Self>();
+
+                    return Ok(casted_value.get().clone());
+                }
+
+                return crate::new_error!(
+                    PyTypeError,
+                    "__expr__ property returns something other than Expr; returns {}",
+                    crate::internal::get_type_name(property.py(), property.as_ptr())
+                );
             }
 
             let type_engine = match type_engine {

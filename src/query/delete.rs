@@ -25,6 +25,7 @@ crate::implement_pyclass! {
 }
 
 impl ToSeaQuery<sea_query::DeleteStatement> for DeleteStatementState {
+    #[cfg_attr(feature = "optimize", optimize(speed))]
     fn to_sea_query<'a>(&self, py: pyo3::Python<'a>) -> sea_query::DeleteStatement {
         let mut stmt = sea_query::DeleteStatement::new();
         stmt.from_table(self.table.clone());

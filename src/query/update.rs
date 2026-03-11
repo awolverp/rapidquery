@@ -30,6 +30,7 @@ crate::implement_pyclass! {
 }
 
 impl ToSeaQuery<sea_query::UpdateStatement> for UpdateStatementState {
+    #[cfg_attr(feature = "optimize", optimize(speed))]
     fn to_sea_query<'a>(&self, py: pyo3::Python<'a>) -> sea_query::UpdateStatement {
         let mut stmt = sea_query::UpdateStatement::new();
         stmt.table(self.table.clone());

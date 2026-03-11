@@ -4,6 +4,7 @@ pub mod insert;
 pub mod on_conflict;
 pub mod ordering;
 pub mod returning;
+pub mod select;
 pub mod update;
 pub mod window;
 

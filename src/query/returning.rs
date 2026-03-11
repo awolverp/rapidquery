@@ -22,6 +22,7 @@ crate::implement_pyclass! {
 }
 
 impl ToSeaQuery<sea_query::ReturningClause> for ReturningState {
+    #[cfg_attr(feature = "optimize", optimize(speed))]
     fn to_sea_query<'a>(&self, _py: pyo3::Python<'a>) -> sea_query::ReturningClause {
         match self {
             Self::All => sea_query::ReturningClause::All,

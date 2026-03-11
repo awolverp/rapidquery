@@ -56,7 +56,7 @@ impl TryFrom<&pyo3::Bound<'_, pyo3::PyAny>> for PyTableName {
     type Error = pyo3::PyErr;
 
     fn try_from(value: &pyo3::Bound<'_, pyo3::PyAny>) -> Result<Self, Self::Error> {
-        const PROPERTY_NAME: &std::ffi::CStr = c"__table_ref__";
+        const PROPERTY_NAME: &std::ffi::CStr = c"__table_name__";
 
         unsafe {
             if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::TABLE_NAME_TYPE {
@@ -95,7 +95,7 @@ impl TryFrom<&pyo3::Bound<'_, pyo3::PyAny>> for PyTableName {
 
                 return crate::new_error!(
                     PyTypeError,
-                    "__table_ref__ property returns something other than TableName or Table or \
+                    "__table_name__ property returns something other than TableName or Table or \
                      str; returns {}",
                     crate::internal::get_type_name(property.py(), property.as_ptr())
                 );
@@ -103,7 +103,7 @@ impl TryFrom<&pyo3::Bound<'_, pyo3::PyAny>> for PyTableName {
 
             crate::new_error!(
                 PyTypeError,
-                "expected TableName or Table or str or object.__table_ref__ property, got {}",
+                "expected TableName or Table or str or object.__table_name__ property, got {}",
                 crate::internal::get_type_name(value.py(), value.as_ptr())
             )
         }
