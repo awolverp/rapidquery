@@ -1,8 +1,9 @@
 use std::str::FromStr;
 
-use pyo3::types::PyAnyMethods;
-use pyo3::types::PyStringMethods;
+use pyo3::types::{PyAnyMethods, PyStringMethods};
 use sea_query::IntoIden;
+
+use crate::internal::{BoundKwargs, RefBoundObject};
 
 crate::implement_pyclass! {
     // NOTE: SQLTypes, PyExpr, PyFunc, PyTableName & PyColumnRef could never mark as subclass.
@@ -81,10 +82,10 @@ impl FromStr for PyColumnRef {
     }
 }
 
-impl TryFrom<&pyo3::Bound<'_, pyo3::PyAny>> for PyColumnRef {
+impl TryFrom<RefBoundObject<'_>> for PyColumnRef {
     type Error = pyo3::PyErr;
 
-    fn try_from(value: &pyo3::Bound<'_, pyo3::PyAny>) -> Result<Self, Self::Error> {
+    fn try_from(value: RefBoundObject<'_>) -> Result<Self, Self::Error> {
         const PROPERTY_NAME: &std::ffi::CStr = c"__column_ref__";
 
         unsafe {
@@ -210,10 +211,7 @@ impl PyColumnRef {
     ///     schema: str | None = ...,
     /// ) -> typing.Self
     #[pyo3(signature=(**kwds))]
-    fn copy_with(
-        &self,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> pyo3::PyResult<Self> {
+    fn copy_with(&self, kwds: Option<BoundKwargs<'_>>) -> pyo3::PyResult<Self> {
         use pyo3::types::PyDictMethods;
 
         let mut cloned = self.clone();

@@ -1,3 +1,5 @@
+use crate::internal::{BoundArgs, BoundKwargs};
+
 crate::implement_pyclass! {
     /// Subclass of schema statements.
     ///
@@ -12,10 +14,7 @@ impl PySchemaStatement {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> Self {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> Self {
         Self
     }
 

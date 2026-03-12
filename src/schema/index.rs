@@ -3,7 +3,7 @@ use sea_query::IntoIden;
 use super::base::PySchemaStatement;
 use crate::common::expression::PyExpr;
 use crate::common::table_ref::PyTableName;
-use crate::internal::statements::ToSeaQuery;
+use crate::internal::{BoundArgs, BoundKwargs, BoundObject, RefBoundObject, ToSeaQuery};
 
 #[inline]
 fn map_str_to_index_order(value: impl AsRef<str>) -> pyo3::PyResult<sea_query::IndexOrder> {
@@ -116,10 +116,10 @@ impl sea_query::IntoIndexColumn for PyIndexColumn {
     }
 }
 
-impl TryFrom<&pyo3::Bound<'_, pyo3::PyAny>> for PyIndexColumn {
+impl TryFrom<RefBoundObject<'_>> for PyIndexColumn {
     type Error = pyo3::PyErr;
 
-    fn try_from(value: &pyo3::Bound<'_, pyo3::PyAny>) -> Result<Self, Self::Error> {
+    fn try_from(value: RefBoundObject<'_>) -> Result<Self, Self::Error> {
         unsafe {
             if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::INDEX_COLUMN_TYPE) == 1
             {
@@ -159,10 +159,7 @@ impl PyIndexColumn {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> Self {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> Self {
         Self::uninit()
     }
 
@@ -300,10 +297,7 @@ impl PyIndex {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> (Self, PySchemaStatement) {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> (Self, PySchemaStatement) {
         (Self::uninit(), PySchemaStatement)
     }
 
@@ -326,15 +320,15 @@ impl PyIndex {
     ]
     fn __init__(
         &self,
-        columns: Vec<pyo3::Bound<'_, pyo3::PyAny>>,
+        columns: Vec<BoundObject<'_>>,
         name: Option<String>,
-        table: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
+        table: Option<RefBoundObject<'_>>,
         primary: bool,
         if_not_exists: bool,
         nulls_not_distinct: bool,
         unique: bool,
         index_type: Option<String>,
-        r#where: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
+        r#where: Option<RefBoundObject<'_>>,
         include: Vec<String>,
     ) -> pyo3::PyResult<()> {
         let table = match table {
@@ -413,7 +407,7 @@ impl PyIndex {
     }
 
     #[setter]
-    fn set_table(&self, val: Option<&pyo3::Bound<'_, pyo3::PyAny>>) -> pyo3::PyResult<()> {
+    fn set_table(&self, val: Option<RefBoundObject<'_>>) -> pyo3::PyResult<()> {
         let val = match val {
             Some(x) => Some(PyTableName::try_from(x)?),
             None => None,
@@ -511,7 +505,7 @@ impl PyIndex {
     }
 
     #[setter]
-    fn set_columns(&self, val: Vec<pyo3::Bound<'_, pyo3::PyAny>>) -> pyo3::PyResult<()> {
+    fn set_columns(&self, val: Vec<BoundObject<'_>>) -> pyo3::PyResult<()> {
         if val.is_empty() {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "columns cannot be empty",
@@ -556,7 +550,7 @@ impl PyIndex {
     }
 
     #[setter]
-    fn set_where(&self, val: Option<&pyo3::Bound<'_, pyo3::PyAny>>) -> pyo3::PyResult<()> {
+    fn set_where(&self, val: Option<RefBoundObject<'_>>) -> pyo3::PyResult<()> {
         let val = match val {
             None => None,
             Some(x) => Some(PyExpr::try_from(x)?),
@@ -683,10 +677,7 @@ impl PyDropIndex {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> (Self, PySchemaStatement) {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> (Self, PySchemaStatement) {
         (Self::uninit(), PySchemaStatement)
     }
 
@@ -694,7 +685,7 @@ impl PyDropIndex {
     fn __init__(
         &self,
         name: String,
-        table: &pyo3::Bound<'_, pyo3::PyAny>,
+        table: RefBoundObject<'_>,
         if_exists: bool,
     ) -> pyo3::PyResult<()> {
         let table = PyTableName::try_from(table)?;
@@ -735,7 +726,7 @@ impl PyDropIndex {
     }
 
     #[setter]
-    fn set_table(&self, val: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    fn set_table(&self, val: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         let val = PyTableName::try_from(val)?;
 
         let mut lock = self.0.lock();

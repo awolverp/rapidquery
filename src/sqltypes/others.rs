@@ -3,8 +3,7 @@ use pyo3::IntoPyObject;
 use sea_query::IntoIden;
 use std::str::FromStr;
 
-use crate::sqltypes::abstracts::PySQLTypeAbstract;
-use crate::sqltypes::abstracts::SQLTypeTrait;
+use crate::sqltypes::abstracts::{PySQLTypeAbstract, SQLTypeTrait};
 
 crate::implement_pyclass! {
     /// Exact numeric decimal column type (DECIMAL/NUMERIC).

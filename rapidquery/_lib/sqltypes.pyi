@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import datetime
-import decimal
-import enum
 import typing
+import datetime
 import uuid
+import enum
+import decimal
 
 __all__ = [
     "Array",

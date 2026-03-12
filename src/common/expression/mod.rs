@@ -4,6 +4,8 @@ mod func;
 pub use expr::*;
 pub use func::*;
 
+use crate::internal::{BoundArgs, PyObject};
+
 /// Create a logical AND condition that is true only if all conditions are true.
 ///
 /// This is equivalent to SQL's AND operator applied to multiple expressions.
@@ -11,10 +13,7 @@ pub use func::*;
 /// @signature (arg1: Expr, *args: Expr) -> Expr
 #[pyo3::pyfunction]
 #[pyo3(signature=(arg1, *args))]
-pub fn all(
-    arg1: pyo3::Bound<'_, PyExpr>,
-    args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-) -> pyo3::PyResult<pyo3::Py<pyo3::PyAny>> {
+pub fn all(arg1: pyo3::Bound<'_, PyExpr>, args: BoundArgs<'_>) -> pyo3::PyResult<PyObject> {
     let py = arg1.py();
     let mut expr = arg1.unbind();
 
@@ -35,10 +34,7 @@ pub fn all(
 /// @signature (arg1: Expr, *args: Expr) -> Expr
 #[pyo3::pyfunction]
 #[pyo3(signature=(arg1, *args))]
-pub fn any(
-    arg1: pyo3::Bound<'_, PyExpr>,
-    args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-) -> pyo3::PyResult<pyo3::Py<pyo3::PyAny>> {
+pub fn any(arg1: pyo3::Bound<'_, PyExpr>, args: BoundArgs<'_>) -> pyo3::PyResult<PyObject> {
     let py = arg1.py();
     let mut expr = arg1.unbind();
 

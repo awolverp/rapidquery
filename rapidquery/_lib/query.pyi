@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import typing
-
-from .common import Column, ColumnRef, Expr, TableName, Value
+from .common import Value, Expr, Column, ColumnRef, TableName, Func
 from .schema import Table
 
 __all__ = [
@@ -13,13 +12,13 @@ __all__ = [
     "Ordering",
     "QueryStatement",
     "Returning",
+    "SelectExpr",
+    "SelectStatement",
     "UpdateStatement",
     "WindowStatement",
 ]
 
-_BackendName: typing.TypeAlias = typing.Literal[
-    "sqlite", "postgresql", "postgres", "mysql"
-]
+_BackendName: typing.TypeAlias = typing.Literal["sqlite", "postgresql", "postgres", "mysql"]
 
 class DeleteStatement(QueryStatement):
     """
@@ -293,6 +292,120 @@ class Returning:
     def all(cls) -> typing.Self:
         """Return all columns. Same as `self.columns("*")`."""
         ...
+
+class SelectExpr:
+    """
+    Represents a column expression with an optional alias in a SELECT statement.
+
+    Used to specify both the expression to select and an optional alias name
+    for the result column.
+    """
+
+    def __init__(
+        self, expr: object, alias: str | None = None, window: WindowStatement | str | None = None
+    ) -> None:
+        """Initialize self.  See help(type(self)) for accurate signature."""
+        ...
+
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    @property
+    def alias(self) -> str | None: ...
+    @property
+    def expr(self) -> Expr: ...
+    @property
+    def window(self) -> WindowStatement | str | None: ...
+
+class SelectStatement(QueryStatement):
+    """
+    Builds SELECT SQL statements with a fluent interface.
+
+    Provides a chainable API for constructing SELECT queries with support for:
+    - Column selection with expressions and aliases
+    - Table and subquery sources
+    - Filtering with WHERE and HAVING
+    - Joins (inner, left, right, full, cross, lateral)
+    - Grouping and aggregation
+    - Ordering and pagination
+    - Set operations (UNION, EXCEPT, INTERSECT)
+    - Row locking for transactions
+    - DISTINCT queries
+    """
+
+    def __init__(self, *columns: object) -> None:
+        """Initialize self.  See help(type(self)) for accurate signature."""
+        ...
+
+    def build(self, backend: _BackendName, /) -> tuple[str, tuple[Value, ...]]:
+        """Build the SQL statement with parameter values."""
+        ...
+
+    def clear_order_by(self) -> typing.Self:
+        """Remove orders from statement."""
+        ...
+
+    def clear_where(self) -> typing.Self:
+        """Remove where conditions from statement."""
+        ...
+
+    def columns(self, *args: Column | ColumnRef | str) -> typing.Self: ...
+    def distinct(self, *on: Column | ColumnRef | str) -> typing.Self: ...
+    def exprs(self, *args: object) -> typing.Self: ...
+    def from_function(self, function: Expr | Func, alias: str) -> typing.Self: ...
+    def from_subquery(self, subquery: SelectStatement, alias: str) -> typing.Self: ...
+    def from_table(self, table: Table | TableName | str) -> typing.Self: ...
+    def group_by(self, *groups: object) -> typing.Self: ...
+    def having(self, condition: Expr) -> typing.Self: ...
+    def join(
+        self,
+        table: Table | TableName | str,
+        on: Expr,
+        type: typing.Literal["CROSS", "FULL", "INNER", "LEFT", "RIGHT"] | None = None,
+    ) -> typing.Self: ...
+    def join_function(
+        self,
+        table: Func | Expr,
+        alias: str,
+        on: Expr,
+        type: typing.Literal["CROSS", "FULL", "INNER", "LEFT", "RIGHT"] | None = None,
+    ) -> typing.Self: ...
+    def join_subquery(
+        self,
+        subquery: SelectStatement,
+        alias: str,
+        on: Expr,
+        type: typing.Literal["CROSS", "FULL", "INNER", "LEFT", "RIGHT"] | None = None,
+        lateral: bool = False,
+    ) -> typing.Self: ...
+    def limit(self, n: int) -> typing.Self: ...
+    def lock(
+        self,
+        type: typing.Literal["UPDATE", "NO KEY UPDATE", "SHARE", "KEY SHARE"] = "UPDATE",
+        behavior: typing.Literal["NOWAIT", "SKIP"] | None = None,
+        tables: typing.Iterable[Table | TableName | str] = (),
+    ) -> typing.Self: ...
+    def offset(self, n: int) -> typing.Self: ...
+    def order_by(self, clause: Ordering) -> typing.Self:
+        """Specify the order in which to delete rows."""
+        ...
+
+    def to_sql(self, backend: _BackendName, /) -> str:
+        """
+        Build a SQL string representation.
+
+        **This method is unsafe and can cause SQL injection.** use `.build()` method instead.
+        """
+        ...
+
+    def union(
+        self,
+        statement: SelectStatement,
+        type: typing.Literal["ALL", "INTERSECT", "DISTINCT", "EXCEPT"] = "DISTINCT",
+    ) -> typing.Self: ...
+    def where(self, condition: Expr) -> typing.Self: ...
+    def window(self, name: str, statement: WindowStatement) -> typing.Self: ...
 
 class UpdateStatement(QueryStatement):
     """

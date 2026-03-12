@@ -1,6 +1,6 @@
 use super::base::PySchemaStatement;
 use crate::common::table_ref::PyTableName;
-use crate::internal::statements::ToSeaQuery;
+use crate::internal::{BoundArgs, BoundKwargs, RefBoundObject, ToSeaQuery};
 
 pub const DROP_OPT_IF_EXISTS: u8 = 1 << 0;
 pub const DROP_OPT_CASCADE: u8 = 1 << 1;
@@ -85,17 +85,14 @@ impl PyDropTable {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> (Self, PySchemaStatement) {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> (Self, PySchemaStatement) {
         (Self::uninit(), PySchemaStatement)
     }
 
     #[pyo3(signature = (name, *, if_exists=false, cascade=false, restrict=false))]
     fn __init__(
         &self,
-        name: &pyo3::Bound<'_, pyo3::PyAny>,
+        name: RefBoundObject<'_>,
         if_exists: bool,
         cascade: bool,
         restrict: bool,
@@ -129,7 +126,7 @@ impl PyDropTable {
     }
 
     #[setter]
-    fn set_name(&self, val: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    fn set_name(&self, val: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         let val = PyTableName::try_from(val)?;
 
         let mut lock = self.0.lock();
@@ -248,18 +245,15 @@ impl PyRenameTable {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> (Self, PySchemaStatement) {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> (Self, PySchemaStatement) {
         (Self::uninit(), PySchemaStatement)
     }
 
     #[pyo3(signature = (from_name, to_name))]
     fn __init__(
         &self,
-        from_name: &pyo3::Bound<'_, pyo3::PyAny>,
-        to_name: &pyo3::Bound<'_, pyo3::PyAny>,
+        from_name: RefBoundObject<'_>,
+        to_name: RefBoundObject<'_>,
     ) -> pyo3::PyResult<()> {
         let from_name = PyTableName::try_from(from_name)?;
         let to_name = PyTableName::try_from(to_name)?;
@@ -281,7 +275,7 @@ impl PyRenameTable {
     }
 
     #[setter]
-    fn set_from_name(&self, val: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    fn set_from_name(&self, val: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         let val = PyTableName::try_from(val)?;
 
         let mut lock = self.0.lock();
@@ -300,7 +294,7 @@ impl PyRenameTable {
     }
 
     #[setter]
-    fn set_to_name(&self, val: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    fn set_to_name(&self, val: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         let val = PyTableName::try_from(val)?;
 
         let mut lock = self.0.lock();
@@ -354,15 +348,12 @@ impl PyTruncateTable {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> (Self, PySchemaStatement) {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> (Self, PySchemaStatement) {
         (Self::uninit(), PySchemaStatement)
     }
 
     #[pyo3(signature = (name))]
-    fn __init__(&self, name: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    fn __init__(&self, name: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         let name = PyTableName::try_from(name)?;
 
         let state = TruncateTableState { name };
@@ -381,7 +372,7 @@ impl PyTruncateTable {
     }
 
     #[setter]
-    fn set_name(&self, val: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    fn set_name(&self, val: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         let val = PyTableName::try_from(val)?;
 
         let mut lock = self.0.lock();

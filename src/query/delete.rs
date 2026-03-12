@@ -3,7 +3,7 @@ use super::ordering::PyOrdering;
 use super::returning::PyReturning;
 use crate::common::expression::PyExpr;
 use crate::common::table_ref::PyTableName;
-use crate::internal::statements::ToSeaQuery;
+use crate::internal::{BoundArgs, BoundKwargs, BoundObject, RefBoundObject, ToSeaQuery};
 
 crate::implement_pyclass! {
     /// Builds DELETE SQL statements with a fluent interface.
@@ -58,14 +58,11 @@ impl PyDeleteStatement {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> (Self, PyQueryStatement) {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> (Self, PyQueryStatement) {
         (Self::uninit(), PyQueryStatement)
     }
 
-    pub fn __init__(&self, table: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    pub fn __init__(&self, table: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         let table = PyTableName::try_from(table)?;
 
         let state = DeleteStatementState {
@@ -85,7 +82,7 @@ impl PyDeleteStatement {
     #[allow(clippy::wrong_self_convention)]
     fn from_table<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        table: &'a pyo3::Bound<'_, pyo3::PyAny>,
+        table: RefBoundObject<'a>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         let table = PyTableName::try_from(table)?;
 
@@ -128,7 +125,7 @@ impl PyDeleteStatement {
     /// @signature (self, condition: Expr) -> typing.Self
     fn r#where<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        condition: &'a pyo3::Bound<'a, pyo3::PyAny>,
+        condition: RefBoundObject<'a>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         unsafe {
             if pyo3::ffi::Py_TYPE(condition.as_ptr()) != crate::typeref::EXPR_TYPE {
@@ -203,7 +200,7 @@ impl PyDeleteStatement {
         &self,
         py: pyo3::Python<'a>,
         backend: String,
-    ) -> pyo3::PyResult<(String, pyo3::Bound<'a, pyo3::PyAny>)> {
+    ) -> pyo3::PyResult<(String, BoundObject<'a>)> {
         let lock = self.0.lock();
         let stmt = lock.to_sea_query(py);
         drop(lock);

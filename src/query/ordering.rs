@@ -2,6 +2,7 @@ use sea_query::IntoColumnRef;
 
 use crate::common::column_ref::PyColumnRef;
 use crate::common::expression::PyExpr;
+use crate::internal::BoundObject;
 
 #[inline]
 fn map_order_to_str(order: &sea_query::Order) -> String {
@@ -44,7 +45,7 @@ impl PyOrdering {
     #[new]
     #[pyo3(signature=(target, order = String::from("ASC"), null_order=None))]
     fn __new__(
-        target: pyo3::Bound<'_, pyo3::PyAny>,
+        target: BoundObject<'_>,
         order: String,
         null_order: Option<String>,
     ) -> pyo3::PyResult<Self> {

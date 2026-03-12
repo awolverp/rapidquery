@@ -1,7 +1,7 @@
 use pyo3::types::PyTupleMethods;
 
 use crate::common::column_ref::PyColumnRef;
-use crate::internal::statements::ToSeaQuery;
+use crate::internal::{BoundArgs, ToSeaQuery};
 
 #[derive(Debug, Clone)]
 pub enum ReturningState {
@@ -42,7 +42,7 @@ impl PyReturning {
     /// @signature (cls, *args: Column | ColumnRef | str) -> typing.Self
     #[new]
     #[pyo3(signature=(*args))]
-    pub fn __new__(args: &pyo3::Bound<'_, pyo3::types::PyTuple>) -> pyo3::PyResult<Self> {
+    pub fn __new__(args: BoundArgs<'_>) -> pyo3::PyResult<Self> {
         let mut columns = Vec::with_capacity(args.len());
 
         for col in args.iter() {

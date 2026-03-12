@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import typing
-
-from .common import Column, ColumnRef, Expr, ForeignKey, TableName
+from .common import Column, ColumnRef, TableName, ForeignKey, Expr
 
 __all__ = [
     "AlterTable",
@@ -25,9 +24,7 @@ __all__ = [
 
 _IndexColumnValue: typing.TypeAlias = IndexColumn | Column | ColumnRef | str
 _IndexColumnOrder: typing.TypeAlias = typing.Literal["ASC", "DESC"]
-_BackendName: typing.TypeAlias = typing.Literal[
-    "sqlite", "postgresql", "postgres", "mysql"
-]
+_BackendName: typing.TypeAlias = typing.Literal["sqlite", "postgresql", "postgres", "mysql"]
 
 class AlterTable(SchemaStatement):
     """
@@ -42,9 +39,7 @@ class AlterTable(SchemaStatement):
     """
 
     def __init__(
-        self,
-        name: Table | TableName | str,
-        options: typing.Iterable[AlterTableBaseOption] = (),
+        self, name: Table | TableName | str, options: typing.Iterable[AlterTableBaseOption] = ()
     ) -> None:
         """Initialize self.  See help(type(self)) for accurate signature."""
         ...
@@ -209,9 +204,7 @@ class DropIndex(SchemaStatement):
     - Table-specific index dropping
     """
 
-    def __init__(
-        self, name: str, table: Table | TableName | str, if_exists: bool = False
-    ) -> None:
+    def __init__(self, name: str, table: Table | TableName | str, if_exists: bool = False) -> None:
         """Initialize self.  See help(type(self)) for accurate signature."""
         ...
 
@@ -404,10 +397,7 @@ class IndexColumn:
     """
 
     def __init__(
-        self,
-        name: str,
-        order: _IndexColumnOrder | None = None,
-        prefix: int | None = None,
+        self, name: str, order: _IndexColumnOrder | None = None, prefix: int | None = None
     ) -> None:
         """Initialize self.  See help(type(self)) for accurate signature."""
         ...

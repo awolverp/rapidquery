@@ -1,6 +1,6 @@
 use super::base::PySchemaStatement;
 use crate::common::table_ref::PyTableName;
-use crate::internal::statements::ToSeaQuery;
+use crate::internal::{BoundArgs, BoundKwargs, BoundObject, PyObject, RefBoundObject, ToSeaQuery};
 
 use pyo3::types::PyTupleMethods;
 
@@ -34,16 +34,16 @@ crate::implement_pyclass! {
         pub name: PyTableName,
 
         /// Always is `Vec<PyColumn>`
-        pub columns: Vec<pyo3::Py<pyo3::PyAny>>,
+        pub columns: Vec<PyObject>,
 
         /// Always is `Vec<PyIndex>`
-        pub indexes: Vec<pyo3::Py<pyo3::PyAny>>,
+        pub indexes: Vec<PyObject>,
 
         /// Always is `Vec<PyForeignKey>`
-        pub foreign_keys: Vec<pyo3::Py<pyo3::PyAny>>,
+        pub foreign_keys: Vec<PyObject>,
 
         /// Always is `Vec<PyExpr>`
-        pub checks: Vec<pyo3::Py<pyo3::PyAny>>,
+        pub checks: Vec<PyObject>,
 
         pub options: u8,
         pub comment: Option<String>,
@@ -131,10 +131,7 @@ impl PyTable {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> (Self, PySchemaStatement) {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> (Self, PySchemaStatement) {
         (Self::uninit(), PySchemaStatement)
     }
 
@@ -155,8 +152,8 @@ impl PyTable {
         ]
     fn __init__(
         &self,
-        name: &pyo3::Bound<'_, pyo3::PyAny>,
-        args: pyo3::Bound<'_, pyo3::types::PyTuple>,
+        name: RefBoundObject<'_>,
+        args: BoundArgs<'_>,
         if_not_exists: bool,
         temporary: bool,
         comment: Option<String>,
@@ -245,13 +242,13 @@ impl PyTable {
     /// @signature (self) -> typing.Sequence[Column]
     /// @setter typing.Iterable[Column]
     #[getter]
-    fn columns(&self, py: pyo3::Python) -> Vec<pyo3::Py<pyo3::PyAny>> {
+    fn columns(&self, py: pyo3::Python) -> Vec<PyObject> {
         let lock = self.0.lock();
         lock.columns.iter().map(|x| x.clone_ref(py)).collect()
     }
 
     #[setter]
-    fn set_columns(&self, val: Vec<pyo3::Bound<'_, pyo3::PyAny>>) -> pyo3::PyResult<()> {
+    fn set_columns(&self, val: Vec<BoundObject<'_>>) -> pyo3::PyResult<()> {
         let mut columns = Vec::new();
 
         for object in val.into_iter() {
@@ -278,13 +275,13 @@ impl PyTable {
     /// @signature (self) -> typing.Sequence[Index]
     /// @setter typing.Iterable[Index]
     #[getter]
-    fn indexes(&self, py: pyo3::Python) -> Vec<pyo3::Py<pyo3::PyAny>> {
+    fn indexes(&self, py: pyo3::Python) -> Vec<PyObject> {
         let lock = self.0.lock();
         lock.indexes.iter().map(|x| x.clone_ref(py)).collect()
     }
 
     #[setter]
-    fn set_indexes(&self, val: Vec<pyo3::Bound<'_, pyo3::PyAny>>) -> pyo3::PyResult<()> {
+    fn set_indexes(&self, val: Vec<BoundObject<'_>>) -> pyo3::PyResult<()> {
         let mut indexes = Vec::new();
 
         for object in val.into_iter() {
@@ -310,13 +307,13 @@ impl PyTable {
     /// @signature (self) -> typing.Sequence[ForeignKey]
     /// @setter typing.Iterable[ForeignKey]
     #[getter]
-    fn foreign_keys(&self, py: pyo3::Python) -> Vec<pyo3::Py<pyo3::PyAny>> {
+    fn foreign_keys(&self, py: pyo3::Python) -> Vec<PyObject> {
         let lock = self.0.lock();
         lock.foreign_keys.iter().map(|x| x.clone_ref(py)).collect()
     }
 
     #[setter]
-    fn set_foreign_keys(&self, val: Vec<pyo3::Bound<'_, pyo3::PyAny>>) -> pyo3::PyResult<()> {
+    fn set_foreign_keys(&self, val: Vec<BoundObject<'_>>) -> pyo3::PyResult<()> {
         let mut foreign_keys = Vec::new();
 
         for object in val.into_iter() {
@@ -344,13 +341,13 @@ impl PyTable {
     /// @signature (self) -> typing.Sequence[Expr]
     /// @setter typing.Iterable[Expr]
     #[getter]
-    fn checks(&self, py: pyo3::Python) -> Vec<pyo3::Py<pyo3::PyAny>> {
+    fn checks(&self, py: pyo3::Python) -> Vec<PyObject> {
         let lock = self.0.lock();
         lock.checks.iter().map(|x| x.clone_ref(py)).collect()
     }
 
     #[setter]
-    fn set_checks(&self, val: Vec<pyo3::Bound<'_, pyo3::PyAny>>) -> pyo3::PyResult<()> {
+    fn set_checks(&self, val: Vec<BoundObject<'_>>) -> pyo3::PyResult<()> {
         let mut checks = Vec::new();
 
         for object in val.into_iter() {

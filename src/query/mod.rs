@@ -39,13 +39,19 @@ pub mod query_module {
     #[pymodule_export]
     use super::window::PyWindowStatement;
 
+    #[pymodule_export]
+    use super::select::PySelectExpr;
+
+    #[pymodule_export]
+    use super::select::PySelectStatement;
+
     #[pymodule_init]
     #[cold]
     fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
         m.add(
             "__stub_imports__",
             vec![
-                "from .common import Value, Expr, Column, ColumnRef, TableName",
+                "from .common import Value, Expr, Column, ColumnRef, TableName, Func",
                 "from .schema import Table",
             ],
         )

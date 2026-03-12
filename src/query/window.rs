@@ -1,11 +1,10 @@
 use pyo3::types::PyTupleMethods;
-use sea_query::IntoColumnRef;
-use sea_query::OverStatement;
+use sea_query::{IntoColumnRef, OverStatement};
 
 use super::ordering::PyOrdering;
 use crate::common::column_ref::PyColumnRef;
 use crate::common::expression::PyExpr;
-use crate::internal::statements::ToSeaQuery;
+use crate::internal::{BoundArgs, BoundKwargs, RefBoundObject, ToSeaQuery};
 
 /// Frame clause
 #[derive(Debug, Clone, PartialEq)]
@@ -100,18 +99,12 @@ impl PyWindowStatement {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> Self {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> Self {
         Self::uninit()
     }
 
     #[pyo3(signature=(*partition_by))]
-    pub fn __init__(
-        &self,
-        partition_by: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-    ) -> pyo3::PyResult<()> {
+    pub fn __init__(&self, partition_by: BoundArgs<'_>) -> pyo3::PyResult<()> {
         let mut partitions = Vec::with_capacity(partition_by.len());
 
         for partition in partition_by.iter() {
@@ -142,7 +135,7 @@ impl PyWindowStatement {
     /// @signature (self, partition_by: Expr | Column | ColumnRef | str) -> typing.Self
     fn partition<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        partition_by: &'a pyo3::Bound<'a, pyo3::PyAny>,
+        partition_by: RefBoundObject<'a>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         let partition_by = unsafe {
             if pyo3::ffi::Py_TYPE(partition_by.as_ptr()) == crate::typeref::EXPR_TYPE {

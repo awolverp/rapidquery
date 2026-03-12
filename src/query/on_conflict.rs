@@ -1,11 +1,9 @@
-use pyo3::types::PyAnyMethods;
-use pyo3::types::PyDictMethods;
-use pyo3::types::PyTupleMethods;
+use pyo3::types::{PyAnyMethods, PyDictMethods, PyTupleMethods};
 use sea_query::IntoIden;
 
 use crate::common::column_ref::PyColumnRef;
 use crate::common::expression::PyExpr;
-use crate::internal::statements::ToSeaQuery;
+use crate::internal::{BoundArgs, BoundKwargs, RefBoundObject, ToSeaQuery};
 
 #[derive(Debug, Clone)]
 pub enum OnConflictUpdate {
@@ -107,10 +105,7 @@ impl OnConflictState {
     }
 
     #[inline]
-    fn update_from_tuple(
-        &mut self,
-        args: pyo3::Bound<'_, pyo3::types::PyTuple>,
-    ) -> pyo3::PyResult<()> {
+    fn update_from_tuple(&mut self, args: BoundArgs<'_>) -> pyo3::PyResult<()> {
         let mut actions = Vec::with_capacity(args.len());
 
         for key in args.iter() {
@@ -135,15 +130,12 @@ impl PyOnConflict {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> Self {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> Self {
         Self::uninit()
     }
 
     #[pyo3(signature=(*targets))]
-    fn __init__(&self, targets: &pyo3::Bound<'_, pyo3::types::PyTuple>) -> pyo3::PyResult<()> {
+    fn __init__(&self, targets: BoundArgs<'_>) -> pyo3::PyResult<()> {
         if targets.is_empty() {
             let state = OnConflictState {
                 targets: vec![],
@@ -227,8 +219,8 @@ impl PyOnConflict {
     #[pyo3(signature=(*args, **kwds))]
     fn do_update<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        args: &'a pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&'a pyo3::Bound<'_, pyo3::types::PyDict>>,
+        args: BoundArgs<'a>,
+        kwds: Option<BoundKwargs<'a>>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         if !PyTupleMethods::is_empty(args) && kwds.is_some() {
             return crate::new_error!(
@@ -239,7 +231,7 @@ impl PyOnConflict {
 
         if !PyTupleMethods::is_empty(args) {
             let mut lock = slf.0.lock();
-            lock.update_from_tuple(args.clone())?;
+            lock.update_from_tuple(args)?;
         } else if kwds.is_some() {
             let mut lock = slf.0.lock();
             lock.update_from_dictionary(kwds.unwrap().clone())?;
@@ -253,7 +245,7 @@ impl PyOnConflict {
     /// @signature (self, condition: Expr) -> typing.Self
     fn target_where<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        condition: &pyo3::Bound<'a, pyo3::PyAny>,
+        condition: RefBoundObject<'a>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         unsafe {
             if pyo3::ffi::Py_TYPE(condition.as_ptr()) != crate::typeref::EXPR_TYPE {
@@ -276,7 +268,7 @@ impl PyOnConflict {
     /// @signature (self, condition: Expr) -> typing.Self
     fn action_where<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        condition: &pyo3::Bound<'a, pyo3::PyAny>,
+        condition: RefBoundObject<'a>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         unsafe {
             if pyo3::ffi::Py_TYPE(condition.as_ptr()) != crate::typeref::EXPR_TYPE {

@@ -3,7 +3,7 @@ use crate::common::column::PyColumn;
 use crate::common::column_ref::PyColumnRef;
 use crate::common::foreign_key::PyForeignKey;
 use crate::common::table_ref::PyTableName;
-use crate::internal::statements::ToSeaQuery;
+use crate::internal::{BoundArgs, BoundKwargs, BoundObject, PyObject, RefBoundObject, ToSeaQuery};
 
 use pyo3::types::PyAnyMethods;
 use pyo3::PyTypeInfo;
@@ -29,7 +29,7 @@ crate::implement_pyclass! {
     immutable [subclass, extends=PyAlterTableBaseOption] PyAlterTableAddColumnOption(AlterTableAddColumnOptionState)
     as "AlterTableAddColumnOption" {
         /// Always is `PyColumn`
-        column: pyo3::Py<pyo3::PyAny>,
+        column: PyObject,
         if_not_exists: bool,
     }
 }
@@ -44,7 +44,7 @@ crate::implement_pyclass! {
     immutable [subclass, extends=PyAlterTableBaseOption] PyAlterTableAddForeignKeyOption(AlterTableAddForeignKeyOptionState)
     as "AlterTableAddForeignKeyOption" {
         /// Always is `PyForeignKey`
-        foreign_key: pyo3::Py<pyo3::PyAny>,
+        foreign_key: PyObject,
     }
 }
 crate::implement_pyclass! {
@@ -79,7 +79,7 @@ crate::implement_pyclass! {
     immutable [subclass, extends=PyAlterTableBaseOption] PyAlterTableModifyColumnOption(AlterTableModifyColumnOptionState)
     as "AlterTableModifyColumnOption" {
         /// Always is `PyColumn`
-        column: pyo3::Py<pyo3::PyAny>,
+        column: PyObject,
     }
 }
 crate::implement_pyclass! {
@@ -110,7 +110,7 @@ crate::implement_pyclass! {
     #[derive(Debug)]
     mutable [subclass, extends=PySchemaStatement] PyAlterTable(AlterTableState) as "AlterTable" {
         name: PyTableName,
-        options: Vec<pyo3::Py<pyo3::PyAny>>,
+        options: Vec<PyObject>,
     }
 }
 
@@ -120,18 +120,14 @@ impl PyAlterTableAddColumnOption {
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
     fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+        args: BoundArgs<'_>,
+        kwds: Option<BoundKwargs<'_>>,
     ) -> (Self, PyAlterTableBaseOption) {
         (Self::uninit(), PyAlterTableBaseOption)
     }
 
     #[pyo3(signature = (column, if_not_exists=false))]
-    fn __init__(
-        &self,
-        column: &pyo3::Bound<'_, pyo3::PyAny>,
-        if_not_exists: bool,
-    ) -> pyo3::PyResult<()> {
+    fn __init__(&self, column: RefBoundObject<'_>, if_not_exists: bool) -> pyo3::PyResult<()> {
         unsafe {
             if pyo3::ffi::PyObject_TypeCheck(column.as_ptr(), crate::typeref::COLUMN_TYPE) == 0 {
                 return crate::new_error!(
@@ -154,7 +150,7 @@ impl PyAlterTableAddColumnOption {
 
     /// @signature (self) -> Column
     #[getter]
-    fn column(&self, py: pyo3::Python) -> pyo3::Py<pyo3::PyAny> {
+    fn column(&self, py: pyo3::Python) -> PyObject {
         self.0.as_ref().column.clone_ref(py)
     }
 
@@ -182,14 +178,14 @@ impl PyAlterTableAddForeignKeyOption {
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
     fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+        args: BoundArgs<'_>,
+        kwds: Option<BoundKwargs<'_>>,
     ) -> (Self, PyAlterTableBaseOption) {
         (Self::uninit(), PyAlterTableBaseOption)
     }
 
     #[pyo3(signature = (foreign_key))]
-    fn __init__(&self, foreign_key: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    fn __init__(&self, foreign_key: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         unsafe {
             if pyo3::ffi::PyObject_TypeCheck(foreign_key.as_ptr(), crate::typeref::FOREIGN_KEY_TYPE)
                 == 0
@@ -213,7 +209,7 @@ impl PyAlterTableAddForeignKeyOption {
 
     /// @signature (self) -> ForeignKey
     #[getter]
-    fn foreign_key(&self, py: pyo3::Python) -> pyo3::Py<pyo3::PyAny> {
+    fn foreign_key(&self, py: pyo3::Python) -> PyObject {
         self.0.as_ref().foreign_key.clone_ref(py)
     }
 
@@ -231,14 +227,14 @@ impl PyAlterTableDropColumnOption {
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
     fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+        args: BoundArgs<'_>,
+        kwds: Option<BoundKwargs<'_>>,
     ) -> (Self, PyAlterTableBaseOption) {
         (Self::uninit(), PyAlterTableBaseOption)
     }
 
     #[pyo3(signature=(name))]
-    fn __init__(&self, name: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    fn __init__(&self, name: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         let column_ref = PyColumnRef::try_from(name)?;
 
         match column_ref.name {
@@ -276,14 +272,14 @@ impl PyAlterTableDropForeignKeyOption {
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
     fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+        args: BoundArgs<'_>,
+        kwds: Option<BoundKwargs<'_>>,
     ) -> (Self, PyAlterTableBaseOption) {
         (Self::uninit(), PyAlterTableBaseOption)
     }
 
     #[pyo3(signature=(name))]
-    fn __init__(&self, name: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    fn __init__(&self, name: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         let name_string = unsafe {
             if pyo3::ffi::PyObject_TypeCheck(name.as_ptr(), crate::typeref::FOREIGN_KEY_TYPE) == 1 {
                 let fk = name.cast_unchecked::<PyForeignKey>();
@@ -328,14 +324,14 @@ impl PyAlterTableModifyColumnOption {
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
     fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+        args: BoundArgs<'_>,
+        kwds: Option<BoundKwargs<'_>>,
     ) -> (Self, PyAlterTableBaseOption) {
         (Self::uninit(), PyAlterTableBaseOption)
     }
 
     #[pyo3(signature = (column))]
-    fn __init__(&self, column: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    fn __init__(&self, column: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         unsafe {
             if pyo3::ffi::PyObject_TypeCheck(column.as_ptr(), crate::typeref::COLUMN_TYPE) == 0 {
                 return crate::new_error!(
@@ -357,7 +353,7 @@ impl PyAlterTableModifyColumnOption {
 
     /// @signature (self) -> Column
     #[getter]
-    fn column(&self, py: pyo3::Python) -> pyo3::Py<pyo3::PyAny> {
+    fn column(&self, py: pyo3::Python) -> PyObject {
         self.0.as_ref().column.clone_ref(py)
     }
 
@@ -372,8 +368,8 @@ impl PyAlterTableRenameColumnOption {
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
     fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+        args: BoundArgs<'_>,
+        kwds: Option<BoundKwargs<'_>>,
     ) -> (Self, PyAlterTableBaseOption) {
         (Self::uninit(), PyAlterTableBaseOption)
     }
@@ -381,8 +377,8 @@ impl PyAlterTableRenameColumnOption {
     #[pyo3(signature = (from_name, to_name))]
     fn __init__(
         &self,
-        from_name: &pyo3::Bound<'_, pyo3::PyAny>,
-        to_name: &pyo3::Bound<'_, pyo3::PyAny>,
+        from_name: RefBoundObject<'_>,
+        to_name: RefBoundObject<'_>,
     ) -> pyo3::PyResult<()> {
         let from_column_ref = PyColumnRef::try_from(from_name)?;
         let to_column_ref = PyColumnRef::try_from(to_name)?;
@@ -505,18 +501,15 @@ impl PyAlterTable {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> (Self, PySchemaStatement) {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> (Self, PySchemaStatement) {
         (Self::uninit(), PySchemaStatement)
     }
 
     #[pyo3(signature = (name, options=Vec::new()))]
     fn __init__(
         &self,
-        name: &pyo3::Bound<'_, pyo3::PyAny>,
-        options: Vec<pyo3::Bound<'_, pyo3::PyAny>>,
+        name: RefBoundObject<'_>,
+        options: Vec<BoundObject<'_>>,
     ) -> pyo3::PyResult<()> {
         let name = PyTableName::try_from(name)?;
 
@@ -554,7 +547,7 @@ impl PyAlterTable {
     }
 
     #[setter]
-    fn set_name(&self, val: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    fn set_name(&self, val: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         let val = PyTableName::try_from(val)?;
 
         let mut lock = self.0.lock();
@@ -567,7 +560,7 @@ impl PyAlterTable {
     /// @signature (self) -> typing.Sequence[AlterTableBaseOption]
     /// @setter typing.Iterable[AlterTableBaseOption]
     #[getter]
-    fn options(&self, py: pyo3::Python) -> Vec<pyo3::Py<pyo3::PyAny>> {
+    fn options(&self, py: pyo3::Python) -> Vec<PyObject> {
         self.0
             .lock()
             .options
@@ -577,7 +570,7 @@ impl PyAlterTable {
     }
 
     #[setter]
-    fn set_options(&self, val: Vec<pyo3::Bound<'_, pyo3::PyAny>>) -> pyo3::PyResult<()> {
+    fn set_options(&self, val: Vec<BoundObject<'_>>) -> pyo3::PyResult<()> {
         unsafe {
             for opt in val.iter() {
                 if pyo3::ffi::PyObject_TypeCheck(
@@ -604,7 +597,7 @@ impl PyAlterTable {
     /// @signature (self, opt: AlterTableBaseOption) -> typing.Self
     fn add_option<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        opt: pyo3::Bound<'a, pyo3::PyAny>,
+        opt: BoundObject<'a>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         unsafe {
             if pyo3::ffi::PyObject_TypeCheck(

@@ -1,3 +1,4 @@
+use crate::internal::RefBoundObject;
 use crate::sqltypes::SQLTypeTrait;
 
 /// Type engine is an enum which can control validations, serializations,
@@ -88,7 +89,7 @@ macro_rules! infer_rules {
 
 impl TypeEngine {
     /// Creates a new [`TypeEngine`].
-    pub fn new(object: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    pub fn new(object: RefBoundObject<'_>) -> pyo3::PyResult<Self> {
         unsafe {
             let typ = pyo3::ffi::Py_TYPE(object.as_ptr());
 
@@ -139,7 +140,7 @@ impl TypeEngine {
 
     /// Tries to guess a native column type depends on type of the `object`.
     #[cfg_attr(feature = "optimize", optimize(speed))]
-    pub fn infer_pyobject(object: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+    pub fn infer_pyobject(object: RefBoundObject<'_>) -> pyo3::PyResult<Self> {
         unsafe {
             let object_ptr = object.as_ptr();
             let object_type_ptr = pyo3::ffi::Py_TYPE(object_ptr);

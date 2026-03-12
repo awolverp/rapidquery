@@ -1,10 +1,9 @@
-use pyo3::types::PyListMethods;
-use pyo3::types::PyTupleMethods;
+use pyo3::types::{PyListMethods, PyTupleMethods};
 use pyo3::IntoPyObject;
 
 use crate::internal::type_engine::TypeEngine;
-use crate::sqltypes::abstracts::PySQLTypeAbstract;
-use crate::sqltypes::abstracts::SQLTypeTrait;
+use crate::internal::RefBoundObject;
+use crate::sqltypes::abstracts::{PySQLTypeAbstract, SQLTypeTrait};
 
 crate::implement_pyclass! {
     /// Vector column type for storing mathematical vectors.
@@ -320,9 +319,7 @@ super::abstracts::implement_sqltype_pymethods!(
 #[pyo3::pymethods]
 impl PyArrayType {
     #[new]
-    fn __new__(
-        element: &pyo3::Bound<'_, pyo3::PyAny>,
-    ) -> pyo3::PyResult<(Self, PySQLTypeAbstract)> {
+    fn __new__(element: RefBoundObject<'_>) -> pyo3::PyResult<(Self, PySQLTypeAbstract)> {
         let type_engine = TypeEngine::new(element)?;
 
         Ok((Self(type_engine), PySQLTypeAbstract))

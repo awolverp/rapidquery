@@ -1,9 +1,7 @@
-use crate::sqltypes::abstracts::PySQLTypeAbstract;
-use crate::sqltypes::abstracts::SQLTypeTrait;
+use crate::sqltypes::abstracts::{PySQLTypeAbstract, SQLTypeTrait};
 
 use chrono::TimeZone;
-use pyo3::types::PyAnyMethods;
-use pyo3::types::PyTzInfoAccess;
+use pyo3::types::{PyAnyMethods, PyTzInfoAccess};
 use pyo3::IntoPyObject;
 
 crate::implement_pyclass! {

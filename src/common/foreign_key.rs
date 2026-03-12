@@ -1,5 +1,5 @@
 use super::table_ref::PyTableName;
-use crate::internal::statements::ToSeaQuery;
+use crate::internal::{BoundArgs, BoundKwargs, BoundObject, RefBoundObject, ToSeaQuery};
 
 #[inline]
 fn map_str_to_foreign_key_action(value: String) -> pyo3::PyResult<sea_query::ForeignKeyAction> {
@@ -135,10 +135,7 @@ impl PyForeignKey {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> Self {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> Self {
         Self::uninit()
     }
 
@@ -158,10 +155,10 @@ impl PyForeignKey {
     ]
     fn __init__(
         &self,
-        from_columns: Vec<pyo3::Bound<'_, pyo3::PyAny>>,
-        to_columns: Vec<pyo3::Bound<'_, pyo3::PyAny>>,
-        to_table: &pyo3::Bound<'_, pyo3::PyAny>,
-        from_table: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
+        from_columns: Vec<BoundObject<'_>>,
+        to_columns: Vec<BoundObject<'_>>,
+        to_table: RefBoundObject<'_>,
+        from_table: Option<RefBoundObject<'_>>,
         name: Option<String>,
         on_delete: Option<String>,
         on_update: Option<String>,
@@ -294,7 +291,7 @@ impl PyForeignKey {
     }
 
     #[setter]
-    fn set_from_table(&self, value: Option<&pyo3::Bound<'_, pyo3::PyAny>>) -> pyo3::PyResult<()> {
+    fn set_from_table(&self, value: Option<RefBoundObject<'_>>) -> pyo3::PyResult<()> {
         let mut lock = self.0.lock();
         lock.from_table = match value {
             None => None,
@@ -313,7 +310,7 @@ impl PyForeignKey {
     }
 
     #[setter]
-    fn set_to_table(&self, value: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    fn set_to_table(&self, value: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         let mut lock = self.0.lock();
         lock.to_table = super::table_ref::PyTableName::try_from(value)?;
         Ok(())
@@ -330,7 +327,7 @@ impl PyForeignKey {
     }
 
     #[setter]
-    fn set_from_columns(&self, val: Vec<pyo3::Bound<'_, pyo3::PyAny>>) -> pyo3::PyResult<()> {
+    fn set_from_columns(&self, val: Vec<BoundObject<'_>>) -> pyo3::PyResult<()> {
         let mut lock = self.0.lock();
 
         if val.is_empty() {
@@ -374,7 +371,7 @@ impl PyForeignKey {
     }
 
     #[setter]
-    fn set_to_columns(&self, val: Vec<pyo3::Bound<'_, pyo3::PyAny>>) -> pyo3::PyResult<()> {
+    fn set_to_columns(&self, val: Vec<BoundObject<'_>>) -> pyo3::PyResult<()> {
         let mut lock = self.0.lock();
 
         if val.is_empty() {

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from . import common as common
-from . import query as query
-from . import schema as schema
 from . import sqltypes as sqltypes
+from . import schema as schema
+from . import query as query
+from . import common as common
 
 __all__ = ["delete", "insert", "returning", "update", "window"]
 

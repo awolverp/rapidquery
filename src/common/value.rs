@@ -1,4 +1,5 @@
 use crate::internal::type_engine::TypeEngine;
+use crate::internal::{BoundArgs, BoundKwargs, BoundObject, PyObject};
 use crate::sqltypes::SQLTypeTrait;
 
 crate::implement_pyclass! {
@@ -22,7 +23,7 @@ crate::implement_pyclass! {
     mutable [subclass] PyValue(ValueState) as "Value" {
         sql_type: TypeEngine,
         serialized: Option<sea_query::Value>,
-        deserialized: Option<pyo3::Py<pyo3::PyAny>>,
+        deserialized: Option<PyObject>,
     }
 }
 
@@ -31,7 +32,7 @@ impl ValueState {
     pub unsafe fn new_unchecked(
         sql_type: TypeEngine,
         serialized: Option<sea_query::Value>,
-        deserialized: Option<pyo3::Py<pyo3::PyAny>>,
+        deserialized: Option<PyObject>,
     ) -> Self {
         Self {
             sql_type,
@@ -40,10 +41,7 @@ impl ValueState {
         }
     }
 
-    pub fn from_pyobject(
-        sql_type: TypeEngine,
-        object: pyo3::Bound<'_, pyo3::PyAny>,
-    ) -> pyo3::PyResult<Self> {
+    pub fn from_pyobject(sql_type: TypeEngine, object: BoundObject<'_>) -> pyo3::PyResult<Self> {
         unsafe {
             if pyo3::ffi::Py_IsNone(object.as_ptr()) == 0 {
                 sql_type.validate(object.py(), object.as_ptr())?;
@@ -95,18 +93,15 @@ impl PyValue {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> Self {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> Self {
         Self::uninit()
     }
 
     #[pyo3(signature=(value, sql_type=None))]
     fn __init__(
         &self,
-        value: pyo3::Bound<'_, pyo3::PyAny>,
-        sql_type: Option<pyo3::Bound<'_, pyo3::PyAny>>,
+        value: BoundObject<'_>,
+        sql_type: Option<BoundObject<'_>>,
     ) -> pyo3::PyResult<()> {
         unsafe {
             if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::VALUE_TYPE) == 1 {
@@ -135,7 +130,7 @@ impl PyValue {
 
     /// @signature (self) -> SQLTypeAbstract[T]
     #[getter]
-    fn sql_type<'a>(&self, py: pyo3::Python<'a>) -> pyo3::Bound<'a, pyo3::PyAny> {
+    fn sql_type<'a>(&self, py: pyo3::Python<'a>) -> BoundObject<'a> {
         let lock = self.0.lock();
         lock.sql_type.as_pyobject(py)
     }

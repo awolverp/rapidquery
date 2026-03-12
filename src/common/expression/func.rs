@@ -1,5 +1,7 @@
 use pyo3::types::PyTupleMethods;
 
+use crate::internal::{BoundArgs, RefBoundObject};
+
 crate::implement_pyclass! {
     // NOTE: SQLTypes, PyExpr, PyFunc, PyTableName & PyColumnRef could never mark as subclass.
     // these should be immutable and final types.
@@ -18,10 +20,7 @@ crate::implement_pyclass! {
 impl PyFunc {
     #[new]
     #[pyo3(signature=(name, *args))]
-    pub fn __new__(
-        name: String,
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-    ) -> pyo3::PyResult<Self> {
+    pub fn __new__(name: String, args: BoundArgs<'_>) -> pyo3::PyResult<Self> {
         let mut function_call = sea_query::Func::cust(sea_query::Alias::new(name));
 
         for item in args.iter() {
@@ -46,7 +45,7 @@ impl PyFunc {
     #[classmethod]
     fn sum(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        expr: &pyo3::Bound<'_, pyo3::PyAny>,
+        expr: RefBoundObject<'_>,
     ) -> pyo3::PyResult<Self> {
         let expr = super::expr::PyExpr::try_from(expr)?;
         Ok(Self(sea_query::Func::sum(expr.0)))
@@ -58,7 +57,7 @@ impl PyFunc {
     #[classmethod]
     fn min(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        expr: &pyo3::Bound<'_, pyo3::PyAny>,
+        expr: RefBoundObject<'_>,
     ) -> pyo3::PyResult<Self> {
         let expr = super::expr::PyExpr::try_from(expr)?;
         Ok(Self(sea_query::Func::min(expr.0)))
@@ -70,7 +69,7 @@ impl PyFunc {
     #[classmethod]
     fn max(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        expr: &pyo3::Bound<'_, pyo3::PyAny>,
+        expr: RefBoundObject<'_>,
     ) -> pyo3::PyResult<Self> {
         let expr = super::expr::PyExpr::try_from(expr)?;
         Ok(Self(sea_query::Func::max(expr.0)))
@@ -82,7 +81,7 @@ impl PyFunc {
     #[classmethod]
     fn abs(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        expr: &pyo3::Bound<'_, pyo3::PyAny>,
+        expr: RefBoundObject<'_>,
     ) -> pyo3::PyResult<Self> {
         let expr = super::expr::PyExpr::try_from(expr)?;
         Ok(Self(sea_query::Func::abs(expr.0)))
@@ -94,7 +93,7 @@ impl PyFunc {
     #[classmethod]
     fn avg(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        expr: &pyo3::Bound<'_, pyo3::PyAny>,
+        expr: RefBoundObject<'_>,
     ) -> pyo3::PyResult<Self> {
         let expr = super::expr::PyExpr::try_from(expr)?;
         Ok(Self(sea_query::Func::avg(expr.0)))
@@ -106,7 +105,7 @@ impl PyFunc {
     #[classmethod]
     fn count(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        expr: &pyo3::Bound<'_, pyo3::PyAny>,
+        expr: RefBoundObject<'_>,
     ) -> pyo3::PyResult<Self> {
         let expr = super::expr::PyExpr::try_from(expr)?;
         Ok(Self(sea_query::Func::count(expr.0)))
@@ -118,7 +117,7 @@ impl PyFunc {
     #[classmethod]
     fn count_distinct(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        expr: &pyo3::Bound<'_, pyo3::PyAny>,
+        expr: RefBoundObject<'_>,
     ) -> pyo3::PyResult<Self> {
         let expr = super::expr::PyExpr::try_from(expr)?;
         Ok(Self(sea_query::Func::count_distinct(expr.0)))
@@ -130,8 +129,8 @@ impl PyFunc {
     #[classmethod]
     fn if_null(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        a: &pyo3::Bound<'_, pyo3::PyAny>,
-        b: &pyo3::Bound<'_, pyo3::PyAny>,
+        a: RefBoundObject<'_>,
+        b: RefBoundObject<'_>,
     ) -> pyo3::PyResult<Self> {
         let a = super::expr::PyExpr::try_from(a)?;
         let b = super::expr::PyExpr::try_from(b)?;
@@ -146,7 +145,7 @@ impl PyFunc {
     #[pyo3(signature=(*exprs))]
     fn greatest(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        exprs: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        exprs: BoundArgs<'_>,
     ) -> pyo3::PyResult<Self> {
         let mut simple_exprs = Vec::with_capacity(exprs.len());
 
@@ -165,7 +164,7 @@ impl PyFunc {
     #[pyo3(signature=(*exprs))]
     fn least(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        exprs: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        exprs: BoundArgs<'_>,
     ) -> pyo3::PyResult<Self> {
         let mut simple_exprs = Vec::with_capacity(exprs.len());
 
@@ -183,7 +182,7 @@ impl PyFunc {
     #[classmethod]
     fn char_length(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        expr: &pyo3::Bound<'_, pyo3::PyAny>,
+        expr: RefBoundObject<'_>,
     ) -> pyo3::PyResult<Self> {
         let expr = super::expr::PyExpr::try_from(expr)?;
         Ok(Self(sea_query::Func::char_length(expr.0)))
@@ -196,7 +195,7 @@ impl PyFunc {
     #[pyo3(signature=(*exprs))]
     fn coalesce(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        exprs: &pyo3::Bound<'_, pyo3::types::PyTuple>,
+        exprs: BoundArgs<'_>,
     ) -> pyo3::PyResult<Self> {
         let mut simple_exprs = Vec::with_capacity(exprs.len());
 
@@ -214,7 +213,7 @@ impl PyFunc {
     #[classmethod]
     fn lower(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        expr: &pyo3::Bound<'_, pyo3::PyAny>,
+        expr: RefBoundObject<'_>,
     ) -> pyo3::PyResult<Self> {
         let expr = super::expr::PyExpr::try_from(expr)?;
         Ok(Self(sea_query::Func::lower(expr.0)))
@@ -226,7 +225,7 @@ impl PyFunc {
     #[classmethod]
     fn upper(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        expr: &pyo3::Bound<'_, pyo3::PyAny>,
+        expr: RefBoundObject<'_>,
     ) -> pyo3::PyResult<Self> {
         let expr = super::expr::PyExpr::try_from(expr)?;
         Ok(Self(sea_query::Func::upper(expr.0)))
@@ -238,7 +237,7 @@ impl PyFunc {
     #[classmethod]
     fn bit_and(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        expr: &pyo3::Bound<'_, pyo3::PyAny>,
+        expr: RefBoundObject<'_>,
     ) -> pyo3::PyResult<Self> {
         let expr = super::expr::PyExpr::try_from(expr)?;
         Ok(Self(sea_query::Func::bit_and(expr.0)))
@@ -250,7 +249,7 @@ impl PyFunc {
     #[classmethod]
     fn bit_or(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        expr: &pyo3::Bound<'_, pyo3::PyAny>,
+        expr: RefBoundObject<'_>,
     ) -> pyo3::PyResult<Self> {
         let expr = super::expr::PyExpr::try_from(expr)?;
         Ok(Self(sea_query::Func::bit_or(expr.0)))
@@ -294,7 +293,7 @@ impl PyFunc {
     #[classmethod]
     fn round(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        expr: &pyo3::Bound<'_, pyo3::PyAny>,
+        expr: RefBoundObject<'_>,
     ) -> pyo3::PyResult<Self> {
         let expr = super::expr::PyExpr::try_from(expr)?;
         Ok(Self(sea_query::Func::round(expr.0)))
@@ -306,8 +305,8 @@ impl PyFunc {
     #[classmethod]
     fn round_with_precision(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        a: &pyo3::Bound<'_, pyo3::PyAny>,
-        b: &pyo3::Bound<'_, pyo3::PyAny>,
+        a: RefBoundObject<'_>,
+        b: RefBoundObject<'_>,
     ) -> pyo3::PyResult<Self> {
         let a = super::expr::PyExpr::try_from(a)?;
         let b = super::expr::PyExpr::try_from(b)?;
@@ -321,7 +320,7 @@ impl PyFunc {
     #[classmethod]
     fn md5(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
-        expr: &pyo3::Bound<'_, pyo3::PyAny>,
+        expr: RefBoundObject<'_>,
     ) -> pyo3::PyResult<Self> {
         let expr = super::expr::PyExpr::try_from(expr)?;
         Ok(Self(sea_query::Func::md5(expr.0)))

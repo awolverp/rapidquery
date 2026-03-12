@@ -1,3 +1,5 @@
+use crate::internal::{BoundArgs, BoundKwargs, BoundObject};
+
 crate::implement_pyclass! {
     /// Subclass of query statements.
     ///
@@ -12,10 +14,7 @@ impl PyQueryStatement {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> Self {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> Self {
         Self
     }
 
@@ -42,7 +41,7 @@ impl PyQueryStatement {
         &self,
         py: pyo3::Python<'a>,
         backend: String,
-    ) -> pyo3::PyResult<(String, pyo3::Bound<'a, pyo3::PyAny>)> {
+    ) -> pyo3::PyResult<(String, BoundObject<'a>)> {
         Err(pyo3::exceptions::PyNotImplementedError::new_err(()))
     }
 }

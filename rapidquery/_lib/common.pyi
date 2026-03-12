@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import typing
-
-from .schema import Table
 from .sqltypes import SQLTypeAbstract
+from .schema import Table
 
 __all__ = [
     "Column",
@@ -395,9 +394,7 @@ class Expr:
         ...
 
     @classmethod
-    def val(
-        cls, /, value: T | None, sql_type: SQLTypeAbstract[T] | None = ...
-    ) -> typing.Self:
+    def val(cls, /, value: T | None, sql_type: SQLTypeAbstract[T] | None = ...) -> typing.Self:
         """Shorthand for `Expr(Value(value, sql_type))`"""
         ...
 
@@ -440,9 +437,7 @@ class ForeignKey:
         """Key columns."""
         ...
     @from_columns.setter
-    def from_columns(
-        self, value: typing.Iterable[str | Column | ColumnRef]
-    ) -> None: ...
+    def from_columns(self, value: typing.Iterable[str | Column | ColumnRef]) -> None: ...
     @property
     def from_table(self) -> TableName | None:
         """Key table, if specified."""
@@ -722,9 +717,7 @@ class Value(typing.Generic[T]):
     NOTE: this class is immutable and frozen.
     """
 
-    def __init__(
-        self, value: T | None, sql_type: SQLTypeAbstract[T] | None = ...
-    ) -> None:
+    def __init__(self, value: T | None, sql_type: SQLTypeAbstract[T] | None = ...) -> None:
         """Initialize self.  See help(type(self)) for accurate signature."""
         ...
 

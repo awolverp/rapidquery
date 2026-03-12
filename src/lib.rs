@@ -4,11 +4,12 @@
 #![warn(clippy::print_stdout)]
 #![warn(clippy::print_stderr)]
 #![warn(clippy::dbg_macro)]
-#![feature(likely_unlikely)]
 #![feature(optimize_attribute)]
 #![feature(once_cell_try)]
 #![feature(sync_unsafe_cell)]
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
+
+use crate::internal::RefBoundObject;
 
 pub mod internal;
 mod typeref;
@@ -25,7 +26,7 @@ mod sqltypes;
 #[pyo3(name = "insert")]
 #[inline]
 pub fn py_insert<'a>(
-    table: &pyo3::Bound<'a, pyo3::PyAny>,
+    table: RefBoundObject<'a>,
 ) -> pyo3::PyResult<pyo3::Bound<'a, query::insert::PyInsertStatement>> {
     let stmt = query::insert::PyInsertStatement::uninit();
     stmt.__init__(table)?;
@@ -40,7 +41,7 @@ pub fn py_insert<'a>(
 #[pyo3(name = "delete")]
 #[inline]
 pub fn py_delete<'a>(
-    table: &pyo3::Bound<'a, pyo3::PyAny>,
+    table: RefBoundObject<'a>,
 ) -> pyo3::PyResult<pyo3::Bound<'a, query::delete::PyDeleteStatement>> {
     let stmt = query::delete::PyDeleteStatement::uninit();
     stmt.__init__(table)?;
@@ -55,7 +56,7 @@ pub fn py_delete<'a>(
 #[pyo3(name = "update")]
 #[inline]
 pub fn py_update<'a>(
-    table: &pyo3::Bound<'a, pyo3::PyAny>,
+    table: RefBoundObject<'a>,
 ) -> pyo3::PyResult<pyo3::Bound<'a, query::update::PyUpdateStatement>> {
     let stmt = query::update::PyUpdateStatement::uninit();
     stmt.__init__(table)?;

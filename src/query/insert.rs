@@ -4,7 +4,7 @@ use super::returning::PyReturning;
 use crate::common::column_ref::PyColumnRef;
 use crate::common::expression::PyExpr;
 use crate::common::table_ref::PyTableName;
-use crate::internal::statements::ToSeaQuery;
+use crate::internal::{BoundArgs, BoundKwargs, BoundObject, PyObject, RefBoundObject, ToSeaQuery};
 
 #[derive(Debug, Default)]
 pub enum InsertValueSource {
@@ -13,7 +13,7 @@ pub enum InsertValueSource {
     Single(Vec<PyExpr>),
     Many(Vec<Vec<PyExpr>>),
     // TODO
-    // Select(pyo3::Py<pyo3::PyAny>),
+    // Select(PyObject),
 }
 
 crate::implement_pyclass! {
@@ -34,7 +34,7 @@ crate::implement_pyclass! {
         pub source: InsertValueSource,
 
         /// Always is `Option<PyOnConflict>`.
-        pub on_conflict: Option<pyo3::Py<pyo3::PyAny>>,
+        pub on_conflict: Option<PyObject>,
         pub returning_clause: Option<PyReturning>,
         pub default_values: Option<u32>,
     }
@@ -84,8 +84,7 @@ impl InsertStatementState {
         &mut self,
         kwds: pyo3::Bound<'_, pyo3::types::PyDict>,
     ) -> pyo3::PyResult<()> {
-        use pyo3::types::PyAnyMethods;
-        use pyo3::types::PyDictMethods;
+        use pyo3::types::{PyAnyMethods, PyDictMethods};
 
         if !self.columns.is_empty() && self.columns.len() != kwds.len() {
             return Err(pyo3::PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -124,10 +123,7 @@ impl InsertStatementState {
     }
 
     #[inline]
-    fn values_from_tuple(
-        &mut self,
-        args: pyo3::Bound<'_, pyo3::types::PyTuple>,
-    ) -> pyo3::PyResult<()> {
+    fn values_from_tuple(&mut self, args: BoundArgs<'_>) -> pyo3::PyResult<()> {
         use pyo3::types::PyTupleMethods;
 
         if !self.columns.is_empty() && self.columns.len() != args.len() {
@@ -163,14 +159,11 @@ impl PyInsertStatement {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> (Self, PyQueryStatement) {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> (Self, PyQueryStatement) {
         (Self::uninit(), PyQueryStatement)
     }
 
-    pub fn __init__(&self, table: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    pub fn __init__(&self, table: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         let table = PyTableName::try_from(table)?;
 
         let state = InsertStatementState {
@@ -206,7 +199,7 @@ impl PyInsertStatement {
     /// @signature (self, table: Table | TableName | str) -> typing.Self
     fn into<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        table: &'a pyo3::Bound<'_, pyo3::PyAny>,
+        table: RefBoundObject<'a>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         let table = PyTableName::try_from(table)?;
 
@@ -226,7 +219,7 @@ impl PyInsertStatement {
     #[pyo3(signature=(*args))]
     fn columns<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        args: &'a pyo3::Bound<'_, pyo3::types::PyTuple>,
+        args: BoundArgs<'a>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         use pyo3::types::PyTupleMethods;
 
@@ -260,8 +253,8 @@ impl PyInsertStatement {
     #[pyo3(signature=(*args, **kwds))]
     fn values<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        args: &'a pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&'a pyo3::Bound<'_, pyo3::types::PyDict>>,
+        args: BoundArgs<'a>,
+        kwds: Option<BoundKwargs<'a>>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         use pyo3::types::PyTupleMethods;
 
@@ -274,7 +267,7 @@ impl PyInsertStatement {
 
         if !PyTupleMethods::is_empty(args) {
             let mut lock = slf.0.lock();
-            lock.values_from_tuple(args.clone())?;
+            lock.values_from_tuple(args)?;
         } else if kwds.is_some() {
             let mut lock = slf.0.lock();
             lock.values_from_dictionary(kwds.unwrap().clone())?;
@@ -302,7 +295,7 @@ impl PyInsertStatement {
     /// @signature (self, action: OnConflict) -> typing.Self
     fn on_conflict<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        action: &'a pyo3::Bound<'a, pyo3::PyAny>,
+        action: RefBoundObject<'a>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         unsafe {
             if pyo3::ffi::PyObject_TypeCheck(action.as_ptr(), crate::typeref::ON_CONFLICT_TYPE) == 1
@@ -351,7 +344,7 @@ impl PyInsertStatement {
         &self,
         py: pyo3::Python<'a>,
         backend: String,
-    ) -> pyo3::PyResult<(String, pyo3::Bound<'a, pyo3::PyAny>)> {
+    ) -> pyo3::PyResult<(String, BoundObject<'a>)> {
         let lock = self.0.lock();
         let stmt = lock.to_sea_query(py);
         drop(lock);

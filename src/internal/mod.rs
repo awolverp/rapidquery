@@ -1,6 +1,5 @@
 pub mod macro_rules;
 pub mod parameters;
-pub mod statements;
 pub mod type_engine;
 pub mod uninitialized;
 
@@ -9,8 +8,7 @@ pub mod uninitialized;
 /// Returns `"<unknown>"` on failure.
 #[inline]
 pub fn get_type_name<'a>(py: pyo3::Python<'a>, obj: *mut pyo3::ffi::PyObject) -> String {
-    use pyo3::types::PyStringMethods;
-    use pyo3::types::PyTypeMethods;
+    use pyo3::types::{PyStringMethods, PyTypeMethods};
 
     unsafe {
         let type_ = pyo3::ffi::Py_TYPE(obj);
@@ -24,5 +22,78 @@ pub fn get_type_name<'a>(py: pyo3::Python<'a>, obj: *mut pyo3::ffi::PyObject) ->
                 .map(|x| x.to_string_lossy().into_owned())
                 .unwrap_or_else(|_| String::from("<unknown>"))
         }
+    }
+}
+
+pub type PyObject = pyo3::Py<pyo3::PyAny>;
+pub type BoundArgs<'a> = &'a pyo3::Bound<'a, pyo3::types::PyTuple>;
+pub type BoundKwargs<'a> = &'a pyo3::Bound<'a, pyo3::types::PyDict>;
+pub type BoundObject<'a> = pyo3::Bound<'a, pyo3::PyAny>;
+pub type RefBoundObject<'a> = &'a pyo3::Bound<'a, pyo3::PyAny>;
+
+pub trait ToSeaQuery<Output> {
+    /// Convert to sea_query structures.
+    fn to_sea_query<'a>(&self, py: pyo3::Python<'a>) -> Output;
+}
+
+#[inline(always)]
+pub fn get_schema_builder(
+    name: impl AsRef<str>,
+) -> pyo3::PyResult<Box<dyn sea_query::SchemaBuilder>> {
+    let name = name.as_ref();
+
+    if name == "sqlite" {
+        Ok(Box::new(sea_query::SqliteQueryBuilder))
+    } else if name == "mysql" {
+        Ok(Box::new(sea_query::MysqlQueryBuilder))
+    } else if name == "postgresql" || name == "postgres" {
+        Ok(Box::new(sea_query::PostgresQueryBuilder))
+    } else {
+        Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "invalid backend value, got {name}"
+        )))
+    }
+}
+
+#[inline(always)]
+pub fn get_query_builder(
+    name: impl AsRef<str>,
+) -> pyo3::PyResult<Box<dyn sea_query::QueryBuilder>> {
+    let name = name.as_ref();
+
+    if name == "sqlite" {
+        Ok(Box::new(sea_query::SqliteQueryBuilder))
+    } else if name == "mysql" {
+        Ok(Box::new(sea_query::MysqlQueryBuilder))
+    } else if name == "postgresql" || name == "postgres" {
+        Ok(Box::new(sea_query::PostgresQueryBuilder))
+    } else {
+        Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "invalid backend value, got {name}"
+        )))
+    }
+}
+
+pub trait ReprWrite: pyo3::PyClass {
+    fn write<'a, 'b>(
+        &self,
+        type_name: String,
+        fmt: &'b mut dyn std::io::Write,
+    ) -> std::io::Result<()>;
+
+    fn repr<'a>(slf: pyo3::PyRef<'a, Self>) -> pyo3::PyResult<String> {
+        let mut writer = Vec::<u8>::new();
+
+        let py = slf.py();
+        let slf_ptr = slf.as_ptr();
+
+        ReprWrite::write(
+            &*slf,
+            crate::internal::get_type_name(py, slf_ptr),
+            &mut writer,
+        )
+        .map_err(|x| crate::new_py_error!(PyIOError, x.to_string()))?;
+
+        unsafe { Ok(String::from_utf8_unchecked(writer)) }
     }
 }

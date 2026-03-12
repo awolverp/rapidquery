@@ -1,5 +1,4 @@
-use crate::sqltypes::abstracts::PySQLTypeAbstract;
-use crate::sqltypes::abstracts::SQLTypeTrait;
+use crate::sqltypes::abstracts::{PySQLTypeAbstract, SQLTypeTrait};
 
 use pyo3::types::PyAnyMethods;
 

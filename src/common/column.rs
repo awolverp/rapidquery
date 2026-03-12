@@ -2,8 +2,8 @@ use sea_query::IntoIden;
 
 use crate::common::expression::PyExpr;
 use crate::internal::parameters::OptionalParam;
-use crate::internal::statements::ToSeaQuery;
 use crate::internal::type_engine::TypeEngine;
+use crate::internal::{BoundArgs, BoundKwargs, BoundObject, PyObject, RefBoundObject, ToSeaQuery};
 use crate::sqltypes::SQLTypeTrait;
 
 pub const OPT_PRIMARY_KEY: u8 = 1 << 0;
@@ -107,10 +107,7 @@ impl PyColumn {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> Self {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> Self {
         Self::uninit()
     }
 
@@ -135,7 +132,7 @@ impl PyColumn {
     fn __init__(
         &self,
         name: String,
-        r#type: &pyo3::Bound<'_, pyo3::PyAny>,
+        r#type: RefBoundObject<'_>,
         primary_key: bool,
         unique_key: bool,
         nullable: bool,
@@ -209,7 +206,7 @@ impl PyColumn {
     ///
     /// @signature (self) -> SQLTypeAbstract[T]
     #[getter]
-    fn r#type(&self, py: pyo3::Python) -> pyo3::Py<pyo3::PyAny> {
+    fn r#type(&self, py: pyo3::Python) -> PyObject {
         let lock = self.0.lock();
         lock.r#type.as_pyobject(py).unbind()
     }
@@ -340,7 +337,7 @@ impl PyColumn {
     }
 
     #[setter]
-    fn set_default(&self, val: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    fn set_default(&self, val: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         let mut lock = self.0.lock();
         let sql_type = lock.r#type.clone();
 
@@ -360,7 +357,7 @@ impl PyColumn {
     }
 
     #[setter]
-    fn set_generated(&self, val: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    fn set_generated(&self, val: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         let mut lock = self.0.lock();
 
         let generated = super::expression::PyExpr::try_from_specific_type(val, None)?;
@@ -371,7 +368,7 @@ impl PyColumn {
     /// Shorthand for `Value(object, self.type)`.
     ///
     /// @signature (self, object: T) -> Value[T]
-    fn adapt(&self, object: pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<super::value::PyValue> {
+    fn adapt(&self, object: BoundObject<'_>) -> pyo3::PyResult<super::value::PyValue> {
         let lock = self.0.lock();
         let sql_type = lock.r#type.clone();
 

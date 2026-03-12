@@ -5,7 +5,7 @@ use super::ordering::PyOrdering;
 use super::returning::PyReturning;
 use crate::common::expression::PyExpr;
 use crate::common::table_ref::PyTableName;
-use crate::internal::statements::ToSeaQuery;
+use crate::internal::{BoundArgs, BoundKwargs, BoundObject, RefBoundObject, ToSeaQuery};
 
 crate::implement_pyclass! {
     /// Builds UPDATE SQL statements with a fluent interface.
@@ -67,14 +67,11 @@ impl PyUpdateStatement {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
-    fn __new__(
-        args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        kwds: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> (Self, PyQueryStatement) {
+    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> (Self, PyQueryStatement) {
         (Self::uninit(), PyQueryStatement)
     }
 
-    pub fn __init__(&self, table: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<()> {
+    pub fn __init__(&self, table: RefBoundObject<'_>) -> pyo3::PyResult<()> {
         let table = PyTableName::try_from(table)?;
 
         let state = UpdateStatementState {
@@ -95,7 +92,7 @@ impl PyUpdateStatement {
     /// @signature (self, table: Table | TableName | str) -> typing.Self
     fn table<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        table: &'a pyo3::Bound<'_, pyo3::PyAny>,
+        table: RefBoundObject<'a>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         let table = PyTableName::try_from(table)?;
 
@@ -115,7 +112,7 @@ impl PyUpdateStatement {
     #[allow(clippy::wrong_self_convention)]
     fn from_table<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        table: &'a pyo3::Bound<'_, pyo3::PyAny>,
+        table: RefBoundObject<'a>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         let table = PyTableName::try_from(table)?;
 
@@ -158,7 +155,7 @@ impl PyUpdateStatement {
     /// @signature (self, condition: Expr) -> typing.Self
     fn r#where<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        condition: &'a pyo3::Bound<'a, pyo3::PyAny>,
+        condition: RefBoundObject<'a>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         unsafe {
             if pyo3::ffi::Py_TYPE(condition.as_ptr()) != crate::typeref::EXPR_TYPE {
@@ -216,10 +213,9 @@ impl PyUpdateStatement {
     #[pyo3(signature=(**kwds))]
     fn values<'a>(
         slf: pyo3::PyRef<'a, Self>,
-        kwds: Option<&'a pyo3::Bound<'_, pyo3::types::PyDict>>,
+        kwds: Option<BoundKwargs<'a>>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
-        use pyo3::types::PyAnyMethods;
-        use pyo3::types::PyDictMethods;
+        use pyo3::types::{PyAnyMethods, PyDictMethods};
 
         if kwds.is_none() {
             return Ok(slf);
@@ -260,7 +256,7 @@ impl PyUpdateStatement {
         &self,
         py: pyo3::Python<'a>,
         backend: String,
-    ) -> pyo3::PyResult<(String, pyo3::Bound<'a, pyo3::PyAny>)> {
+    ) -> pyo3::PyResult<(String, BoundObject<'a>)> {
         let lock = self.0.lock();
         let stmt = lock.to_sea_query(py);
         drop(lock);
