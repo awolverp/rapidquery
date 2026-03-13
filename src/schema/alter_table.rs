@@ -3,6 +3,7 @@ use crate::common::column::PyColumn;
 use crate::common::column_ref::PyColumnRef;
 use crate::common::foreign_key::PyForeignKey;
 use crate::common::table_ref::PyTableName;
+use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundArgs, BoundKwargs, BoundObject, PyObject, RefBoundObject, ToSeaQuery};
 
 use pyo3::types::PyAnyMethods;
@@ -160,15 +161,13 @@ impl PyAlterTableAddColumnOption {
         self.0.as_ref().if_not_exists
     }
 
-    fn __repr__(&self) -> String {
-        let inner = self.0.as_ref();
-        let result = format!("<AlterTableAddColumnOption {}", inner.column);
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let inner = slf.0.as_ref();
 
-        if inner.if_not_exists {
-            result + " if_not_exists=True>"
-        } else {
-            result + ">"
-        }
+        ReprFormatter::new_with_pyref(&slf)
+            .display("column", &inner.column)
+            .optional_boolean("if_not_exists", inner.if_not_exists)
+            .finish()
     }
 }
 
@@ -213,11 +212,12 @@ impl PyAlterTableAddForeignKeyOption {
         self.0.as_ref().foreign_key.clone_ref(py)
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "<AlterTableAddForeignKeyOption {}>",
-            self.0.as_ref().foreign_key
-        )
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let inner = slf.0.as_ref();
+
+        ReprFormatter::new_with_pyref(&slf)
+            .display("foreign_key", &inner.foreign_key)
+            .finish()
     }
 }
 
@@ -258,11 +258,12 @@ impl PyAlterTableDropColumnOption {
         self.0.as_ref().name.to_string()
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "<AlterTableDropColumnOption {:?}>",
-            self.0.as_ref().name.to_string()
-        )
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let inner = slf.0.as_ref();
+
+        ReprFormatter::new_with_pyref(&slf)
+            .iden("name", &inner.name)
+            .finish()
     }
 }
 
@@ -310,11 +311,12 @@ impl PyAlterTableDropForeignKeyOption {
         self.0.as_ref().name.to_string()
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "<AlterTableDropForeignKeyOption {:?}>",
-            self.0.as_ref().name.to_string()
-        )
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let inner = slf.0.as_ref();
+
+        ReprFormatter::new_with_pyref(&slf)
+            .iden("name", &inner.name)
+            .finish()
     }
 }
 
@@ -357,8 +359,12 @@ impl PyAlterTableModifyColumnOption {
         self.0.as_ref().column.clone_ref(py)
     }
 
-    fn __repr__(&self) -> String {
-        format!("<AlterTableModifyColumnOption {}>", self.0.as_ref().column)
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let inner = slf.0.as_ref();
+
+        ReprFormatter::new_with_pyref(&slf)
+            .display("column", &inner.column)
+            .finish()
     }
 }
 
@@ -417,13 +423,13 @@ impl PyAlterTableRenameColumnOption {
         self.0.as_ref().to_name.clone().to_string()
     }
 
-    fn __repr__(&self) -> String {
-        let inner = self.0.as_ref();
-        format!(
-            "<AlterTableRenameColumnOption {:?} {:?}>",
-            inner.from_name.to_string(),
-            inner.to_name.to_string()
-        )
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let inner = slf.0.as_ref();
+
+        ReprFormatter::new_with_pyref(&slf)
+            .iden("from_name", &inner.from_name)
+            .iden("to_name", &inner.to_name)
+            .finish()
     }
 }
 
@@ -650,24 +656,32 @@ impl PyAlterTable {
         pyo3::Py::new(py, (new_state.into(), PySchemaStatement))
     }
 
-    fn __repr__(&self) -> String {
-        use std::io::Write;
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let inner = slf.0.lock();
 
-        let lock = self.0.lock();
-        let mut s = Vec::with_capacity(50);
-
-        write!(s, "<AlterTable name={} options=[", lock.name.__repr__()).unwrap();
-
-        let n = lock.options.len().saturating_sub(1);
-        for (index, op) in lock.options.iter().enumerate() {
-            if index == n {
-                write!(s, "{op}").unwrap();
-            } else {
-                write!(s, "{op}, ").unwrap();
-            }
-        }
-        write!(s, "]>").unwrap();
-
-        unsafe { String::from_utf8_unchecked(s) }
+        ReprFormatter::new_with_pyref(&slf)
+            .map("name", &inner.name, |x| x.__repr__())
+            .finish()
     }
+
+    // fn __repr__(&self) -> String {
+    //     use std::io::Write;
+
+    //     let lock = self.0.lock();
+    //     let mut s = Vec::with_capacity(50);
+
+    //     write!(s, "<AlterTable name={} options=[", lock.name.__repr__()).unwrap();
+
+    //     let n = lock.options.len().saturating_sub(1);
+    //     for (index, op) in lock.options.iter().enumerate() {
+    //         if index == n {
+    //             write!(s, "{op}").unwrap();
+    //         } else {
+    //             write!(s, "{op}, ").unwrap();
+    //         }
+    //     }
+    //     write!(s, "]>").unwrap();
+
+    //     unsafe { String::from_utf8_unchecked(s) }
+    // }
 }

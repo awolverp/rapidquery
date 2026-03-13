@@ -3,22 +3,23 @@ use sea_query::IntoIden;
 use super::base::PySchemaStatement;
 use crate::common::expression::PyExpr;
 use crate::common::table_ref::PyTableName;
+use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundArgs, BoundKwargs, BoundObject, RefBoundObject, ToSeaQuery};
 
 #[inline]
-fn map_str_to_index_order(value: impl AsRef<str>) -> pyo3::PyResult<sea_query::IndexOrder> {
-    match value.as_ref() {
-        "asc" | "ASC" => Ok(sea_query::IndexOrder::Asc),
-        "desc" | "DESC" => Ok(sea_query::IndexOrder::Desc),
+fn map_str_to_index_order(value: String) -> pyo3::PyResult<sea_query::IndexOrder> {
+    match value.to_ascii_uppercase().as_str() {
+        "ASC" => Ok(sea_query::IndexOrder::Asc),
+        "DESC" => Ok(sea_query::IndexOrder::Desc),
         _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
             "unknown order: {}",
-            value.as_ref()
+            value
         ))),
     }
 }
 
 #[inline]
-fn map_index_order_to_str(value: sea_query::IndexOrder) -> String {
+fn map_index_order_to_str(value: &sea_query::IndexOrder) -> String {
     match value {
         sea_query::IndexOrder::Asc => String::from("ASC"),
         sea_query::IndexOrder::Desc => String::from("DESC"),
@@ -44,9 +45,9 @@ crate::implement_pyclass! {
     /// NOTE: this class is immutable and frozen.
     ///
     /// @alias _IndexColumnOrder = typing.Literal["ASC", "DESC"]
-    /// @signature (self, name: str, order: _IndexColumnOrder | None = None, prefix: int | None = None)
+    /// @signature (name: str, order: _IndexColumnOrder | None = None, prefix: int | None = None)
     #[derive(Debug, Clone)]
-    immutable [subclass] PyIndexColumn(IndexColumnState) as "IndexColumn" {
+    [] PyIndexColumn as "IndexColumn" {
         pub name: sea_query::DynIden,
         pub order: Option<sea_query::IndexOrder>,
         pub prefix: Option<u32>,
@@ -105,13 +106,11 @@ crate::implement_pyclass! {
 
 impl sea_query::IntoIndexColumn for PyIndexColumn {
     fn into_index_column(self) -> sea_query::IndexColumn {
-        let inner = self.0.into_inner().unwrap();
-
-        match (inner.prefix, inner.order) {
-            (Some(p), Some(o)) => (inner.name, p, o).into_index_column(),
-            (Some(p), None) => (inner.name, p).into_index_column(),
-            (None, Some(o)) => (inner.name, o).into_index_column(),
-            (None, None) => inner.name.into_index_column(),
+        match (self.prefix, self.order) {
+            (Some(p), Some(o)) => (self.name, p, o).into_index_column(),
+            (Some(p), None) => (self.name, p).into_index_column(),
+            (None, Some(o)) => (self.name, o).into_index_column(),
+            (None, None) => self.name.into_index_column(),
         }
     }
 }
@@ -139,12 +138,12 @@ impl TryFrom<RefBoundObject<'_>> for PyIndexColumn {
 
             match column_ref.name {
                 Some(x) => {
-                    let inner = IndexColumnState {
+                    let inner = Self {
                         name: x,
                         order: None,
                         prefix: None,
                     };
-                    Ok(inner.into())
+                    Ok(inner)
                 }
                 None => Err(pyo3::exceptions::PyValueError::new_err(
                     "IndexColumn cannot accept asterisk '*' as column",
@@ -157,20 +156,9 @@ impl TryFrom<RefBoundObject<'_>> for PyIndexColumn {
 #[pyo3::pymethods]
 impl PyIndexColumn {
     #[new]
-    #[allow(unused_variables)]
-    #[pyo3(signature=(*args, **kwds))]
-    fn __new__(args: BoundArgs<'_>, kwds: Option<BoundKwargs<'_>>) -> Self {
-        Self::uninit()
-    }
-
     #[pyo3(signature=(name, order=None, prefix=None))]
-    fn __init__(
-        &self,
-        name: String,
-        order: Option<String>,
-        prefix: Option<u32>,
-    ) -> pyo3::PyResult<()> {
-        let state = IndexColumnState {
+    fn __new__(name: String, order: Option<String>, prefix: Option<u32>) -> pyo3::PyResult<Self> {
+        let state = Self {
             name: sea_query::Alias::new(name).into_iden(),
             order: match order {
                 None => None,
@@ -178,10 +166,7 @@ impl PyIndexColumn {
             },
             prefix,
         };
-        unsafe {
-            self.0.set(state);
-        }
-        Ok(())
+        Ok(state)
     }
 
     /// The name of the column to include in the index.
@@ -189,7 +174,7 @@ impl PyIndexColumn {
     /// @signature (self) -> str
     #[getter]
     fn name(&self) -> String {
-        self.0.as_ref().name.to_string()
+        self.name.to_string()
     }
 
     /// Number of characters to index for string columns (prefix indexing).
@@ -197,7 +182,7 @@ impl PyIndexColumn {
     /// @signature (self) -> int | None
     #[getter]
     fn prefix(&self) -> Option<u32> {
-        self.0.as_ref().prefix
+        self.prefix
     }
 
     /// Sort order for this column.
@@ -205,7 +190,7 @@ impl PyIndexColumn {
     /// @signature (self) -> _IndexColumnOrder | None
     #[getter]
     fn order(&self) -> Option<String> {
-        self.0.as_ref().order.clone().map(map_index_order_to_str)
+        self.order.as_ref().map(map_index_order_to_str)
     }
 
     fn __copy__(&self) -> Self {
@@ -213,25 +198,11 @@ impl PyIndexColumn {
     }
 
     fn __repr__(&self) -> String {
-        use std::io::Write;
-
-        let inner = self.0.as_ref();
-        let mut s = Vec::new();
-        write!(&mut s, "<IndexColumn {:?}", inner.name.to_string()).unwrap();
-
-        if let Some(x) = inner.prefix {
-            write!(&mut s, " prefix={}", x).unwrap();
-        }
-        if let Some(x) = &inner.order {
-            if matches!(x, sea_query::IndexOrder::Asc) {
-                write!(&mut s, " order='asc'").unwrap();
-            } else {
-                write!(&mut s, " order='desc'").unwrap();
-            }
-        }
-        write!(&mut s, ">").unwrap();
-
-        unsafe { String::from_utf8_unchecked(s) }
+        ReprFormatter::new("IndexColumn")
+            .iden("name", &self.name)
+            .optional_display("prefix", self.prefix)
+            .optional_map("order", self.order.as_ref(), map_index_order_to_str)
+            .finish()
     }
 }
 
@@ -593,58 +564,33 @@ impl PyIndex {
         crate::build_schema_statement!(backend, stmt)
     }
 
-    pub fn __repr__(&self) -> String {
-        use std::io::Write;
+    pub fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let lock = slf.0.lock();
 
-        let lock = self.0.lock();
-        let mut s = Vec::with_capacity(50);
+        let mut fmt = ReprFormatter::new_with_pyref(&slf)
+            .optional_quote("name", lock.name.as_ref())
+            .optional_map("table", lock.table.as_ref(), |x| x.__repr__())
+            .take();
 
-        write!(s, "<Index").unwrap();
+        fmt.vec("columns", true)
+            .display_iter(lock.columns.iter().map(|x| x.__repr__()))
+            .finish(&mut fmt);
 
-        if let Some(x) = &lock.name {
-            write!(s, " {:?}", x).unwrap();
-        }
-        if let Some(x) = &lock.table {
-            write!(s, " {}", x.__repr__()).unwrap();
-        }
+        fmt.optional_boolean("if_not_exists", lock.options & OPT_IF_NOT_EXISTS > 0)
+            .optional_boolean("primary", lock.options & OPT_PRIMARY > 0)
+            .optional_boolean("unique", lock.options & OPT_UNIQUE > 0)
+            .optional_boolean(
+                "nulls_not_distinct",
+                lock.options & OPT_NULLS_NOT_DISTINCT > 0,
+            )
+            .optional_quote("index_type", lock.index_type.as_ref())
+            .optional_map("where", lock.r#where.as_ref(), |x| x.__repr__());
 
-        write!(s, " columns=[").unwrap();
+        fmt.vec("include", true)
+            .display_iter(lock.include.iter())
+            .finish(&mut fmt);
 
-        let n = lock.columns.len() - 1;
-        for (index, col) in lock.columns.iter().enumerate() {
-            if index == n {
-                write!(s, "{}]", col.__repr__()).unwrap();
-            } else {
-                write!(s, "{}, ", col.__repr__()).unwrap();
-            }
-        }
-
-        if lock.options & OPT_IF_NOT_EXISTS > 0 {
-            write!(s, " if_not_exists=True").unwrap();
-        }
-        if lock.options & OPT_PRIMARY > 0 {
-            write!(s, " primary=True").unwrap();
-        }
-        if lock.options & OPT_UNIQUE > 0 {
-            write!(s, " unique=True").unwrap();
-        }
-        if lock.options & OPT_NULLS_NOT_DISTINCT > 0 {
-            write!(s, " nulls_not_distinct=True").unwrap();
-        }
-
-        if let Some(x) = &lock.index_type {
-            write!(s, " index_type={:?}", x).unwrap();
-        }
-        if !lock.include.is_empty() {
-            write!(s, " include={:?}", lock.include).unwrap();
-        }
-        if let Some(x) = &lock.r#where {
-            write!(s, " where={}", x.__repr__()).unwrap();
-        }
-
-        write!(s, ">").unwrap();
-
-        unsafe { String::from_utf8_unchecked(s) }
+        fmt.finish()
     }
 }
 
@@ -765,25 +711,13 @@ impl PyDropIndex {
         crate::build_schema_statement!(backend, stmt)
     }
 
-    fn __repr__(&self) -> String {
-        use std::io::Write;
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let lock = slf.0.lock();
 
-        let lock = self.0.lock();
-        let mut s = Vec::with_capacity(50);
-
-        write!(
-            s,
-            "<DropIndex {:?} table={}",
-            lock.name,
-            lock.table.__repr__()
-        )
-        .unwrap();
-
-        if lock.if_exists {
-            write!(s, " if_exists=True").unwrap();
-        }
-        write!(s, ">").unwrap();
-
-        unsafe { String::from_utf8_unchecked(s) }
+        ReprFormatter::new_with_pyref(&slf)
+            .quote("name", &lock.name)
+            .map("table", &lock.table, |x| x.__repr__())
+            .optional_boolean("if_exists", lock.if_exists)
+            .finish()
     }
 }

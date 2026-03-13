@@ -1,6 +1,7 @@
 use pyo3::types::PyTupleMethods;
 
 use crate::common::column_ref::PyColumnRef;
+use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundArgs, ToSeaQuery};
 
 #[derive(Debug, Clone)]
@@ -68,30 +69,19 @@ impl PyReturning {
     }
 
     pub fn __repr__(&self) -> String {
-        use std::io::Write;
-
-        let mut s = Vec::<u8>::with_capacity(30);
-
-        write!(s, "<Returning").unwrap();
+        let mut fmt = ReprFormatter::new("Returning");
 
         match &self.0 {
-            ReturningState::All => write!(s, " *").unwrap(),
+            ReturningState::All => {
+                fmt.pair("", "*");
+            }
             ReturningState::Columns(x) => {
-                write!(s, " [").unwrap();
-
-                let n = x.len();
-                for (index, ix) in x.iter().enumerate() {
-                    if index + 1 == n {
-                        write!(s, "{:?}", ix.to_string()).unwrap();
-                    } else {
-                        write!(s, "{:?}, ", ix.to_string()).unwrap();
-                    }
-                }
-                write!(s, "]").unwrap();
+                fmt.vec("", false)
+                    .quote_iter(x.iter().map(|x| x.to_string()))
+                    .finish(&mut fmt);
             }
         }
 
-        write!(s, ">").unwrap();
-        unsafe { String::from_utf8_unchecked(s) }
+        fmt.finish()
     }
 }

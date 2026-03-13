@@ -5,7 +5,7 @@ from . import schema as schema
 from . import query as query
 from . import common as common
 
-__all__ = ["delete", "insert", "returning", "update", "window"]
+__all__ = ["delete", "insert", "returning", "select", "update", "window"]
 
 def delete(table: schema.Table | common.TableName | str) -> query.DeleteStatement:
     """Create a new `DeleteStatement`."""
@@ -19,8 +19,12 @@ def returning(*args: common.Column | common.ColumnRef | str) -> query.Returning:
     """Create a new `Returning`."""
     ...
 
+def select(*columns: object) -> query.SelectStatement:
+    """Create a new `SelectStatement`."""
+    ...
+
 def update(table: schema.Table | common.TableName | str) -> query.UpdateStatement:
-    """Create a new `PyUpdateStatement`."""
+    """Create a new `UpdateStatement`."""
     ...
 
 def window(

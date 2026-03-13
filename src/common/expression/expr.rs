@@ -1,5 +1,6 @@
 use pyo3::types::PyAnyMethods;
 
+use crate::internal::repr::ReprFormatter;
 use crate::internal::type_engine::TypeEngine;
 use crate::internal::{BoundObject, RefBoundObject, ToSeaQuery};
 
@@ -72,7 +73,23 @@ impl PyExpr {
                 return Ok(Self(column_ref.into()));
             }
 
-            // TODO: PySelect
+            if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::SELECT_STATEMENT_TYPE)
+                == 1
+            {
+                let casted_value =
+                    value.cast_unchecked::<crate::query::select::PySelectStatement>();
+
+                let inner_value = casted_value.get();
+                let result = sea_query::SimpleExpr::SubQuery(
+                    None,
+                    Box::new(sea_query::SubQueryStatement::SelectStatement(
+                        inner_value.0.lock().to_sea_query(py),
+                    )),
+                );
+
+                return Ok(Self(result));
+            }
+
             // TODO: PyCase
 
             if pyo3::ffi::PyTuple_Check(value.as_ptr()) == 1 {
@@ -483,6 +500,6 @@ impl PyExpr {
     }
 
     pub fn __repr__(&self) -> String {
-        format!("<Expr {:?}>", self.0)
+        ReprFormatter::new("Expr").pair("", "...").finish()
     }
 }

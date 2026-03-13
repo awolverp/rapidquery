@@ -3,6 +3,7 @@ use super::ordering::PyOrdering;
 use crate::common::column_ref::PyColumnRef;
 use crate::common::expression::{PyExpr, PyFunc};
 use crate::common::table_ref::PyTableName;
+use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundArgs, BoundKwargs, BoundObject, PyObject, RefBoundObject, ToSeaQuery};
 use crate::query::window::PyWindowStatement;
 
@@ -22,7 +23,6 @@ pub enum SelectExprWindow {
 ///
 /// It exactly does what [`sea_query::TableRef`] does
 pub enum SelectReference {
-    // TODO: support from_values
     SubQuery(
         /// Always is `PySelectStatement`
         PyObject,
@@ -93,19 +93,19 @@ crate::implement_pyclass! {
         pub r#where: Option<PyExpr>,
         pub groups: Vec<PyExpr>,
 
-        /// Always is `Option<(_, PySelectStatement)>`
-        pub unions: Vec<(sea_query::UnionType, PyObject)>,
-
         pub having: Option<PyExpr>,
         pub orders: Vec<PyOrdering>,
         pub distinct: DistinctMode,
-        pub join: Vec<JoinMode>,
+        pub joins: Vec<JoinMode>,
         pub lock: Option<LockMode>,
         pub limit: Option<u64>,
         pub offset: Option<u64>,
 
         /// Always is `Option<(_, PyWindowStatement)>`
         pub window: Option<(sea_query::DynIden, PyObject)>,
+
+        /// Always is `Option<(_, PySelectStatement)>`
+        pub unions: Vec<(sea_query::UnionType, PyObject)>,
 
         // TODO
         // pub table_sample: Option<PyTableSample>,
@@ -124,7 +124,7 @@ impl Default for SelectStatementState {
             having: Default::default(),
             orders: Default::default(),
             distinct: DistinctMode::None,
-            join: Default::default(),
+            joins: Default::default(),
             lock: Default::default(),
             limit: Default::default(),
             offset: Default::default(),
@@ -258,6 +258,72 @@ impl SelectReference {
     }
 }
 
+impl std::fmt::Display for SelectReference {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TableName(x) => write!(f, "{}", x.__repr__()),
+            Self::Func(x, alias) => write!(f, "({}, {})", x.__repr__(), alias.to_string()),
+            Self::SubQuery(x, alias) => write!(f, "({}, {})", x, alias.to_string()),
+        }
+    }
+}
+
+impl std::fmt::Display for JoinMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("(")?;
+
+        match self.r#type {
+            sea_query::JoinType::Join => (),
+            sea_query::JoinType::CrossJoin => write!(f, "CROSS, ")?,
+            sea_query::JoinType::FullOuterJoin => write!(f, "FULL, ")?,
+            sea_query::JoinType::InnerJoin => write!(f, "INNER, ")?,
+            sea_query::JoinType::LeftJoin => write!(f, "LEFT, ")?,
+            sea_query::JoinType::RightJoin => write!(f, "RIGHT, ")?,
+        }
+
+        write!(f, "{}, {}", self.reference, self.on.__repr__())?;
+
+        if self.lateral {
+            write!(f, ", LATERAL")?;
+        }
+
+        Ok(())
+    }
+}
+
+impl std::fmt::Display for LockMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "(")?;
+        match self.r#type {
+            sea_query::LockType::KeyShare => write!(f, "KEY SHARE")?,
+            sea_query::LockType::NoKeyUpdate => write!(f, "NO KEY UPDATE")?,
+            sea_query::LockType::Share => write!(f, "SHARE")?,
+            sea_query::LockType::Update => write!(f, "UPDATE")?,
+        }
+
+        if let Some(x) = self.behavior {
+            match x {
+                sea_query::LockBehavior::Nowait => write!(f, ", NOWAIT")?,
+                sea_query::LockBehavior::SkipLocked => write!(f, ", SKIP")?,
+            }
+        }
+
+        if self.tables.is_empty() {
+            return write!(f, ")");
+        }
+
+        write!(f, ", [")?;
+        for (index, item) in self.tables.iter().enumerate() {
+            if index == 0 {
+                write!(f, "{}", item.__repr__())?;
+            } else {
+                write!(f, ", {}", item.__repr__())?;
+            }
+        }
+        write!(f, "])")
+    }
+}
+
 impl ToSeaQuery<sea_query::WindowSelectType> for SelectExprWindow {
     fn to_sea_query<'a>(&self, py: pyo3::Python<'a>) -> sea_query::WindowSelectType {
         match self {
@@ -385,7 +451,7 @@ impl ToSeaQuery<sea_query::SelectStatement> for SelectStatementState {
         }));
 
         // Joins
-        for join in self.join.iter() {
+        for join in self.joins.iter() {
             let condition = join.on.0.clone();
 
             match (&join.reference, join.lateral) {
@@ -501,24 +567,25 @@ impl PySelectExpr {
         }
     }
 
-    fn __repr__(&self) -> String {
-        use std::io::Write;
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let inner = slf.0.as_ref();
 
-        let inner = self.0.as_ref();
-        let mut s = Vec::<u8>::with_capacity(20);
-        write!(s, "<SelectExpr {}", inner.expr.__repr__()).unwrap();
-
-        if let Some(x) = &inner.alias {
-            write!(s, " alias={x:?}").unwrap();
-        }
+        let mut fmt = ReprFormatter::new_with_pyref(&slf)
+            .map("expr", &inner.expr, |x| x.__repr__())
+            .optional_quote("alias", inner.alias.as_ref())
+            .take();
 
         match &inner.window {
-            Some(SelectExprWindow::Name(x)) => write!(s, " window={}>", x.to_string()).unwrap(),
-            Some(SelectExprWindow::Query(x)) => write!(s, " window={x}>").unwrap(),
-            None => write!(s, ">").unwrap(),
+            Some(SelectExprWindow::Name(x)) => {
+                fmt.iden("window", x);
+            }
+            Some(SelectExprWindow::Query(x)) => {
+                fmt.display("window", x);
+            }
+            None => {}
         }
 
-        unsafe { String::from_utf8_unchecked(s) }
+        fmt.finish()
     }
 }
 
@@ -532,7 +599,7 @@ impl PySelectStatement {
     }
 
     #[pyo3(signature=(*exprs))]
-    fn __init__(&self, exprs: BoundArgs<'_>) -> pyo3::PyResult<()> {
+    pub fn __init__(&self, exprs: BoundArgs<'_>) -> pyo3::PyResult<()> {
         let mut casted = Vec::new();
         for item in exprs.iter() {
             casted.push(cast_into_select_expr(item)?.unbind());
@@ -898,7 +965,7 @@ impl PySelectStatement {
             lateral: false,
         };
 
-        slf.0.lock().join.push(join_mode);
+        slf.0.lock().joins.push(join_mode);
         Ok(slf)
     }
 
@@ -926,7 +993,7 @@ impl PySelectStatement {
             lateral: false,
         };
 
-        slf.0.lock().join.push(join_mode);
+        slf.0.lock().joins.push(join_mode);
         Ok(slf)
     }
 
@@ -959,7 +1026,7 @@ impl PySelectStatement {
             on: PyExpr::try_from(on)?,
             lateral,
         };
-        slf.0.lock().join.push(join_mode);
+        slf.0.lock().joins.push(join_mode);
         Ok(slf)
     }
 
@@ -1012,5 +1079,69 @@ impl PySelectStatement {
         drop(lock);
 
         crate::build_query_parts!(py, backend, stmt)
+    }
+
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let lock = slf.0.lock();
+
+        let mut fmt = ReprFormatter::new_with_pyref(&slf);
+
+        match &lock.distinct {
+            DistinctMode::None => (),
+            DistinctMode::Distinct => {
+                fmt.pair("distinct", "true");
+            }
+            DistinctMode::DistinctOn(x) => {
+                fmt.vec("distinct", false)
+                    .display_iter(x.iter().map(|x| x.__repr__()))
+                    .finish(&mut fmt);
+            }
+        }
+
+        fmt.vec("references", false)
+            .display_iter(lock.references.iter())
+            .finish(&mut fmt);
+
+        fmt.vec("exprs", false)
+            .display_iter(lock.exprs.iter())
+            .finish(&mut fmt);
+
+        fmt.optional_map("where", lock.r#where.as_ref(), |x| x.__repr__());
+
+        fmt.vec("groups", true)
+            .display_iter(lock.groups.iter().map(|x| x.__repr__()))
+            .finish(&mut fmt);
+
+        fmt.optional_map("having", lock.having.as_ref(), |x| x.__repr__());
+
+        fmt.vec("orders", true)
+            .display_iter(lock.orders.iter().map(|x| x.__repr__()))
+            .finish(&mut fmt);
+
+        fmt.vec("joins", true)
+            .display_iter(lock.joins.iter())
+            .finish(&mut fmt);
+
+        fmt.optional_display("lock", lock.lock.as_ref())
+            .optional_display("offset", lock.offset)
+            .optional_display("limit", lock.limit)
+            .optional_map("window", lock.window.as_ref(), |(name, stmt)| {
+                format!("('{}', {})", name.to_string(), stmt)
+            });
+
+        fmt.vec("unions", true)
+            .display_iter(
+                lock.unions
+                    .iter()
+                    .map(|(union_type, stmt)| match union_type {
+                        sea_query::UnionType::All => format!("(ALL, {})", stmt),
+                        sea_query::UnionType::Distinct => format!("(DISTINCT, {})", stmt),
+                        sea_query::UnionType::Except => format!("(EXCEPT, {})", stmt),
+                        sea_query::UnionType::Intersect => format!("(INTERSECT, {})", stmt),
+                    }),
+            )
+            .finish(&mut fmt);
+
+        fmt.finish()
     }
 }

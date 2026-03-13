@@ -4,6 +4,7 @@ use sea_query::{IntoColumnRef, OverStatement};
 use super::ordering::PyOrdering;
 use crate::common::column_ref::PyColumnRef;
 use crate::common::expression::PyExpr;
+use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundArgs, BoundKwargs, RefBoundObject, ToSeaQuery};
 
 /// Frame clause
@@ -203,41 +204,26 @@ impl PyWindowStatement {
         Ok(slf)
     }
 
-    pub fn __repr__(&self) -> String {
-        use std::io::Write;
+    pub fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let lock = slf.0.lock();
 
-        let lock = self.0.lock();
-        let mut s = Vec::<u8>::with_capacity(30);
+        let mut fmt = ReprFormatter::new_with_pyref(&slf);
 
-        write!(s, "<Window partition_by=[").unwrap();
-        let n = lock.partition_by.len();
-        for (index, expr) in lock.partition_by.iter().enumerate() {
-            if index + 1 == n {
-                write!(s, "{}]", expr.__repr__()).unwrap();
-            } else {
-                write!(s, "{}, ", expr.__repr__()).unwrap();
-            }
-        }
+        fmt.vec("partition_by", true)
+            .display_iter(lock.partition_by.iter().map(|x| x.__repr__()))
+            .finish(&mut fmt);
 
-        write!(s, " orders=[").unwrap();
-        let n = lock.orders.len();
-        for (index, expr) in lock.orders.iter().enumerate() {
-            if index + 1 == n {
-                write!(s, "{}]", expr.__repr__()).unwrap();
-            } else {
-                write!(s, "{}, ", expr.__repr__()).unwrap();
-            }
-        }
+        fmt.vec("orders", true)
+            .display_iter(lock.orders.iter().map(|x| x.__repr__()))
+            .finish(&mut fmt);
 
-        if let Some(x) = &lock.frame {
-            write!(s, " frame_type={:?} frame_start={:?}", x.r#type, x.start).unwrap();
-
-            if let Some(y) = &x.end {
-                write!(s, " frame_end={:?}", y).unwrap();
-            }
-        }
-
-        write!(s, ">").unwrap();
-        unsafe { String::from_utf8_unchecked(s) }
+        fmt.optional_map("frame_type", lock.frame.as_ref(), |x| {
+            format!("{:?}", x.r#type)
+        })
+        .optional_map("frame_start", lock.frame.as_ref(), |x| {
+            format!("{:?}", x.start)
+        })
+        .optional_map("frame_end", lock.frame.as_ref(), |x| format!("{:?}", x.end))
+        .finish()
     }
 }

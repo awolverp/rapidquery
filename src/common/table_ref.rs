@@ -2,6 +2,7 @@ use pyo3::types::PyAnyMethods;
 use sea_query::IntoIden;
 use std::str::FromStr;
 
+use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundKwargs, RefBoundObject};
 
 crate::implement_pyclass! {
@@ -296,22 +297,11 @@ impl PyTableName {
     }
 
     pub fn __repr__(&self) -> String {
-        use std::io::Write;
-
-        let mut s = Vec::new();
-
-        write!(s, "<TableName {:?}", self.name.to_string()).unwrap();
-        if let Some(x) = &self.schema {
-            write!(s, " schema={:?}", x.to_string()).unwrap();
-        }
-        if let Some(x) = &self.database {
-            write!(s, " database={:?}", x.to_string()).unwrap();
-        }
-        if let Some(x) = &self.alias {
-            write!(s, " alias={:?}", x.to_string()).unwrap();
-        }
-        write!(s, ">").unwrap();
-
-        unsafe { String::from_utf8_unchecked(s) }
+        ReprFormatter::new("TableName")
+            .iden("name", &self.name)
+            .optional_iden("schema", self.schema.as_ref())
+            .optional_iden("database", self.database.as_ref())
+            .optional_iden("alias", self.alias.as_ref())
+            .finish()
     }
 }

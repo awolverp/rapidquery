@@ -2,6 +2,7 @@ use sea_query::IntoColumnRef;
 
 use crate::common::column_ref::PyColumnRef;
 use crate::common::expression::PyExpr;
+use crate::internal::repr::ReprFormatter;
 use crate::internal::BoundObject;
 
 #[inline]
@@ -110,23 +111,10 @@ impl PyOrdering {
     }
 
     pub fn __repr__(&self) -> String {
-        use std::io::Write;
-
-        let mut s = Vec::<u8>::with_capacity(20);
-
-        write!(
-            s,
-            "<OrderingClause {} {}",
-            self.target.__repr__(),
-            map_order_to_str(&self.order)
-        )
-        .unwrap();
-
-        if let Some(x) = map_null_ordering_to_str(self.null_order) {
-            write!(s, " NULLS {x}").unwrap();
-        }
-
-        write!(s, ">").unwrap();
-        unsafe { String::from_utf8_unchecked(s) }
+        ReprFormatter::new("Ordering")
+            .map("target", &self.target, |x| x.__repr__())
+            .map("order", &self.order, map_order_to_str)
+            .optional_quote("null_ordering", map_null_ordering_to_str(self.null_order))
+            .finish()
     }
 }

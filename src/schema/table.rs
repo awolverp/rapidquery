@@ -1,5 +1,6 @@
 use super::base::PySchemaStatement;
 use crate::common::table_ref::PyTableName;
+use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundArgs, BoundKwargs, BoundObject, PyObject, RefBoundObject, ToSeaQuery};
 
 use pyo3::types::PyTupleMethods;
@@ -488,79 +489,35 @@ impl PyTable {
         Ok(sqls.join(";\n"))
     }
 
-    fn __repr__(&self) -> String {
-        use std::io::Write;
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let lock = slf.0.lock();
 
-        let lock = self.0.lock();
-        let mut s = Vec::with_capacity(50);
+        let mut fmt = ReprFormatter::new_with_pyref(&slf)
+            .map("name", &lock.name, |x| x.__repr__())
+            .take();
 
-        write!(s, "<Table name={} columns=[", lock.name.__repr__()).unwrap();
+        fmt.vec("columns", true)
+            .display_iter(lock.columns.iter())
+            .finish(&mut fmt);
 
-        let n = lock.columns.len();
-        for (index, col) in lock.columns.iter().enumerate() {
-            if index + 1 == n {
-                write!(s, "{}", col).unwrap();
-            } else {
-                write!(s, "{}, ", col).unwrap();
-            }
-        }
+        fmt.vec("indexes", true)
+            .display_iter(lock.indexes.iter())
+            .finish(&mut fmt);
 
-        write!(s, "] indexes=[").unwrap();
+        fmt.vec("foreign_keys", true)
+            .display_iter(lock.foreign_keys.iter())
+            .finish(&mut fmt);
 
-        let n = lock.indexes.len();
-        for (index, ix) in lock.indexes.iter().enumerate() {
-            if index + 1 == n {
-                write!(s, "{}", ix).unwrap();
-            } else {
-                write!(s, "{}, ", ix).unwrap();
-            }
-        }
+        fmt.vec("checks", true)
+            .display_iter(lock.checks.iter())
+            .finish(&mut fmt);
 
-        write!(s, "] foreign_keys=[").unwrap();
-
-        let n = lock.foreign_keys.len();
-        for (index, fk) in lock.foreign_keys.iter().enumerate() {
-            if index + 1 == n {
-                write!(s, "{}", fk).unwrap();
-            } else {
-                write!(s, "{}, ", fk).unwrap();
-            }
-        }
-
-        write!(s, "] checks=[").unwrap();
-
-        let n = lock.checks.len();
-        for (index, expr) in lock.checks.iter().enumerate() {
-            if index + 1 == n {
-                write!(s, "{}", expr).unwrap();
-            } else {
-                write!(s, "{}, ", expr).unwrap();
-            }
-        }
-        write!(s, "]").unwrap();
-
-        if lock.options & OPT_IF_NOT_EXISTS > 0 {
-            write!(s, " if_not_exists=True").unwrap();
-        }
-        if lock.options & OPT_TEMPORARY > 0 {
-            write!(s, " temporary=True").unwrap();
-        }
-
-        if let Some(x) = &lock.comment {
-            write!(s, " comment={x:?}").unwrap();
-        }
-        if let Some(x) = &lock.engine {
-            write!(s, " engine={x:?}").unwrap();
-        }
-        if let Some(x) = &lock.collate {
-            write!(s, " collate={x:?}").unwrap();
-        }
-        if let Some(x) = &lock.character_set {
-            write!(s, " character_set={x:?}").unwrap();
-        }
-
-        write!(s, ">").unwrap();
-
-        unsafe { String::from_utf8_unchecked(s) }
+        fmt.optional_boolean("if_not_exists", lock.options & OPT_IF_NOT_EXISTS > 0)
+            .optional_boolean("temporary", lock.options & OPT_TEMPORARY > 0)
+            .optional_quote("comment", lock.comment.as_ref())
+            .optional_quote("engine", lock.engine.as_ref())
+            .optional_quote("collate", lock.collate.as_ref())
+            .optional_quote("character_set", lock.character_set.as_ref())
+            .finish()
     }
 }

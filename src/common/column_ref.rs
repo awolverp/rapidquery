@@ -3,6 +3,7 @@ use std::str::FromStr;
 use pyo3::types::{PyAnyMethods, PyStringMethods};
 use sea_query::IntoIden;
 
+use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundKwargs, RefBoundObject};
 
 crate::implement_pyclass! {
@@ -287,25 +288,20 @@ impl PyColumnRef {
         self.clone()
     }
 
-    fn __repr__(&self) -> String {
-        use std::io::Write;
-
-        let mut s = Vec::new();
+    pub fn __repr__(&self) -> String {
+        let mut fmt = ReprFormatter::new("ColumnRef");
 
         match &self.name {
-            Some(x) => write!(s, "<ColumnRef {:?}", x.to_string()).unwrap(),
-            None => write!(s, "<ColumnRef *").unwrap(),
+            Some(x) => {
+                fmt.iden("name", x);
+            }
+            None => {
+                fmt.pair("name", "*");
+            }
         }
+        fmt.optional_iden("table", self.table.as_ref());
+        fmt.optional_iden("schema", self.schema.as_ref());
 
-        if let Some(x) = &self.table {
-            write!(s, " table={:?}", x.to_string()).unwrap();
-        }
-        if let Some(x) = &self.schema {
-            write!(s, " schema={:?}", x.to_string()).unwrap();
-        }
-
-        write!(s, ">").unwrap();
-
-        unsafe { String::from_utf8_unchecked(s) }
+        fmt.finish()
     }
 }

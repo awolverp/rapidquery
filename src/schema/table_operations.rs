@@ -1,5 +1,6 @@
 use super::base::PySchemaStatement;
 use crate::common::table_ref::PyTableName;
+use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundArgs, BoundKwargs, RefBoundObject, ToSeaQuery};
 
 pub const DROP_OPT_IF_EXISTS: u8 = 1 << 0;
@@ -200,26 +201,15 @@ impl PyDropTable {
         crate::build_schema_statement!(backend, stmt)
     }
 
-    fn __repr__(&self) -> String {
-        use std::io::Write;
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let lock = slf.0.lock();
 
-        let lock = self.0.lock();
-        let mut s: Vec<u8> = Vec::with_capacity(20);
-
-        write!(s, "<DropTable {}", lock.name.__repr__()).unwrap();
-
-        if lock.options & DROP_OPT_IF_EXISTS > 0 {
-            write!(s, " if_exists=True").unwrap();
-        }
-        if lock.options & DROP_OPT_CASCADE > 0 {
-            write!(s, " cascade=True").unwrap();
-        }
-        if lock.options & DROP_OPT_RESTRICT > 0 {
-            write!(s, " restrict=True").unwrap();
-        }
-        write!(s, ">").unwrap();
-
-        unsafe { String::from_utf8_unchecked(s) }
+        ReprFormatter::new_with_pyref(&slf)
+            .map("name", &lock.name, |x| x.__repr__())
+            .optional_boolean("if_exists", lock.options & DROP_OPT_IF_EXISTS > 0)
+            .optional_boolean("cascade", lock.options & DROP_OPT_CASCADE > 0)
+            .optional_boolean("restrict", lock.options & DROP_OPT_RESTRICT > 0)
+            .finish()
     }
 }
 
@@ -317,13 +307,13 @@ impl PyRenameTable {
         crate::build_schema_statement!(backend, stmt)
     }
 
-    fn __repr__(&self) -> String {
-        let lock = self.0.lock();
-        format!(
-            "<RenameTable from_name={} to_name={}>",
-            lock.from_name.__repr__(),
-            lock.to_name.__repr__()
-        )
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let lock = slf.0.lock();
+
+        ReprFormatter::new_with_pyref(&slf)
+            .map("from_name", &lock.from_name, |x| x.__repr__())
+            .map("to_name", &lock.to_name, |x| x.__repr__())
+            .finish()
     }
 }
 
@@ -395,8 +385,11 @@ impl PyTruncateTable {
         crate::build_schema_statement!(backend, stmt)
     }
 
-    fn __repr__(&self) -> String {
-        let lock = self.0.lock();
-        format!("<TruncateTable name={}>", lock.name.__repr__())
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let lock = slf.0.lock();
+
+        ReprFormatter::new_with_pyref(&slf)
+            .map("name", &lock.name, |x| x.__repr__())
+            .finish()
     }
 }

@@ -2,6 +2,7 @@ use sea_query::IntoIden;
 
 use crate::common::expression::PyExpr;
 use crate::internal::parameters::OptionalParam;
+use crate::internal::repr::ReprFormatter;
 use crate::internal::type_engine::TypeEngine;
 use crate::internal::{BoundArgs, BoundKwargs, BoundObject, PyObject, RefBoundObject, ToSeaQuery};
 use crate::sqltypes::SQLTypeTrait;
@@ -381,43 +382,21 @@ impl PyColumn {
         lock.clone().into()
     }
 
-    pub fn __repr__(&self) -> String {
-        use std::io::Write;
+    pub fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let lock = slf.0.lock();
 
-        let lock = self.0.lock();
-        let mut s: Vec<u8> = Vec::with_capacity(20);
-
-        write!(s, "<Column {:?} {}", lock.name, lock.r#type,).unwrap();
-
-        if lock.options & OPT_PRIMARY_KEY > 0 {
-            write!(s, " primary_key=True").unwrap();
-        }
-        if lock.options & OPT_UNIQUE_KEY > 0 {
-            write!(s, " unique_key=True").unwrap();
-        }
-        if lock.options & OPT_AUTO_INCREMENT > 0 {
-            write!(s, " auto_increment=True").unwrap();
-        }
-        if lock.options & OPT_NULLABLE > 0 {
-            write!(s, " nullable=True").unwrap();
-        }
-        if lock.options & OPT_STORED_GENERATED > 0 {
-            write!(s, " stored_generated=True").unwrap();
-        }
-        if let Some(x) = &lock.extra {
-            write!(s, " extra={x:?}").unwrap();
-        }
-        if let Some(x) = &lock.comment {
-            write!(s, " comment={x:?}").unwrap();
-        }
-        if let Some(x) = &lock.default {
-            write!(s, " default={}", x.__repr__()).unwrap();
-        }
-        if let Some(x) = &lock.generated {
-            write!(s, " generated={}", x.__repr__()).unwrap();
-        }
-        write!(s, ">").unwrap();
-
-        unsafe { String::from_utf8_unchecked(s) }
+        ReprFormatter::new_with_pyref(&slf)
+            .quote("", &lock.name)
+            .display("type", &lock.r#type)
+            .optional_boolean("primary_key", lock.options & OPT_PRIMARY_KEY > 0)
+            .optional_boolean("unique_key", lock.options & OPT_UNIQUE_KEY > 0)
+            .optional_boolean("auto_increment", lock.options & OPT_AUTO_INCREMENT > 0)
+            .optional_boolean("nullable", lock.options & OPT_NULLABLE > 0)
+            .optional_boolean("stored_generated", lock.options & OPT_STORED_GENERATED > 0)
+            .optional_quote("extra", lock.extra.as_ref())
+            .optional_quote("comment", lock.comment.as_ref())
+            .optional_map("default", lock.default.as_ref(), |x| x.__repr__())
+            .optional_map("generated", lock.generated.as_ref(), |x| x.__repr__())
+            .finish()
     }
 }

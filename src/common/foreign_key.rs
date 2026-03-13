@@ -1,4 +1,5 @@
 use super::table_ref::PyTableName;
+use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundArgs, BoundKwargs, BoundObject, RefBoundObject, ToSeaQuery};
 
 #[inline]
@@ -448,33 +449,17 @@ impl PyForeignKey {
         lock.clone().into()
     }
 
-    pub fn __repr__(&self) -> String {
-        use std::io::Write;
+    pub fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let lock = slf.0.lock();
 
-        let lock = self.0.lock();
-        let mut s = Vec::with_capacity(50);
-
-        write!(
-            s,
-            "<ForeignKey {:?} to_table={} to_columns={:?} from_columns={:?}",
-            lock.name,
-            lock.to_table.__repr__(),
-            lock.to_columns,
-            lock.from_columns
-        )
-        .unwrap();
-
-        if let Some(x) = &lock.from_table {
-            write!(s, " from_table={}", x.__repr__()).unwrap();
-        }
-        if let Some(x) = lock.on_delete {
-            write!(s, " on_delete={:?}", map_foreign_key_action_to_str(x)).unwrap();
-        }
-        if let Some(x) = lock.on_update {
-            write!(s, " on_update={:?}", map_foreign_key_action_to_str(x)).unwrap();
-        }
-        write!(s, ">").unwrap();
-
-        unsafe { String::from_utf8_unchecked(s) }
+        ReprFormatter::new_with_pyref(&slf)
+            .quote("name", &lock.name)
+            .map("to_table", &lock.to_table, |x| x.__repr__())
+            .debug("to_columns", &lock.to_columns)
+            .debug("from_columns", &lock.from_columns)
+            .optional_map("from_table", lock.from_table.as_ref(), |x| x.__repr__())
+            .optional_map("on_delete", lock.on_delete, map_foreign_key_action_to_str)
+            .optional_map("on_update", lock.on_update, map_foreign_key_action_to_str)
+            .finish()
     }
 }

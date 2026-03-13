@@ -3,6 +3,7 @@ use sea_query::IntoIden;
 
 use crate::common::column_ref::PyColumnRef;
 use crate::common::expression::PyExpr;
+use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundArgs, BoundKwargs, RefBoundObject, ToSeaQuery};
 
 #[derive(Debug, Clone)]
@@ -286,43 +287,27 @@ impl PyOnConflict {
         Ok(slf)
     }
 
-    pub fn __repr__(&self) -> String {
-        use std::io::Write;
+    pub fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let lock = slf.0.lock();
 
-        let lock = self.0.lock();
-        let mut s = Vec::<u8>::with_capacity(30);
+        let mut fmt = ReprFormatter::new_with_pyref(&slf);
 
-        write!(s, "<OnConflict targets=[").unwrap();
-
-        let n = lock.targets.len();
-        for (index, tg) in lock.targets.iter().enumerate() {
-            if index + 1 == n {
-                write!(s, "{}", tg.to_string()).unwrap();
-            } else {
-                write!(s, "{}, ", tg.to_string()).unwrap();
-            }
-        }
-        write!(s, "]").unwrap();
+        fmt.vec("targets", true)
+            .quote_iter(lock.targets.iter().map(|x| x.to_string()))
+            .finish(&mut fmt);
 
         match &lock.action {
             OnConflictAction::DoNothing(_) => {
-                write!(s, " (DO NOTHING)").unwrap();
+                fmt.quote("action", "DO NOTHING");
             }
             OnConflictAction::DoUpdate(_) => {
-                write!(s, " (DO UPDATE)").unwrap();
+                fmt.quote("action", "DO UPDATE");
             }
             OnConflictAction::None => (),
         }
 
-        if let Some(x) = &lock.target_where {
-            write!(s, " target_where={}", x.__repr__()).unwrap();
-        }
-        if let Some(x) = &lock.action_where {
-            write!(s, " action_where={}", x.__repr__()).unwrap();
-        }
-
-        write!(s, ">").unwrap();
-
-        unsafe { String::from_utf8_unchecked(s) }
+        fmt.optional_map("target_where", lock.target_where.as_ref(), |x| x.__repr__())
+            .optional_map("action_where", lock.action_where.as_ref(), |x| x.__repr__())
+            .finish()
     }
 }

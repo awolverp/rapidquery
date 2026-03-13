@@ -1,5 +1,6 @@
 pub mod macro_rules;
 pub mod parameters;
+pub mod repr;
 pub mod type_engine;
 pub mod uninitialized;
 
@@ -71,29 +72,5 @@ pub fn get_query_builder(
         Err(pyo3::exceptions::PyValueError::new_err(format!(
             "invalid backend value, got {name}"
         )))
-    }
-}
-
-pub trait ReprWrite: pyo3::PyClass {
-    fn write<'a, 'b>(
-        &self,
-        type_name: String,
-        fmt: &'b mut dyn std::io::Write,
-    ) -> std::io::Result<()>;
-
-    fn repr<'a>(slf: pyo3::PyRef<'a, Self>) -> pyo3::PyResult<String> {
-        let mut writer = Vec::<u8>::new();
-
-        let py = slf.py();
-        let slf_ptr = slf.as_ptr();
-
-        ReprWrite::write(
-            &*slf,
-            crate::internal::get_type_name(py, slf_ptr),
-            &mut writer,
-        )
-        .map_err(|x| crate::new_py_error!(PyIOError, x.to_string()))?;
-
-        unsafe { Ok(String::from_utf8_unchecked(writer)) }
     }
 }

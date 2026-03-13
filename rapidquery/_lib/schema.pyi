@@ -381,6 +381,7 @@ class Index(SchemaStatement):
     @where.setter
     def where(self, value: object | None) -> None: ...
 
+@typing.final
 class IndexColumn:
     """
     Defines a column within an index specification.
@@ -396,12 +397,9 @@ class IndexColumn:
     NOTE: this class is immutable and frozen.
     """
 
-    def __init__(
+    def __new__(
         self, name: str, order: _IndexColumnOrder | None = None, prefix: int | None = None
-    ) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
-        ...
-
+    ) -> typing.Self: ...
     def __copy__(self) -> typing.Self: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""

@@ -1,15 +1,14 @@
 #![allow(unused_unsafe)]
 #![allow(clippy::macro_metavars_in_unsafe)]
 #![allow(clippy::too_many_arguments)]
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
 #![warn(clippy::print_stdout)]
 #![warn(clippy::print_stderr)]
 #![warn(clippy::dbg_macro)]
 #![feature(optimize_attribute)]
 #![feature(once_cell_try)]
-#![feature(sync_unsafe_cell)]
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use crate::internal::RefBoundObject;
+use crate::internal::{BoundArgs, RefBoundObject};
 
 pub mod internal;
 mod typeref;
@@ -49,7 +48,7 @@ pub fn py_delete<'a>(
     pyo3::Bound::new(table.py(), (stmt, query::base::PyQueryStatement))
 }
 
-/// Create a new `PyUpdateStatement`.
+/// Create a new `UpdateStatement`.
 ///
 /// @signature (table: schema.Table | common.TableName | str) -> query.UpdateStatement
 #[pyo3::pyfunction]
@@ -71,7 +70,7 @@ pub fn py_update<'a>(
 #[pyo3(name = "returning", signature=(*args))]
 #[inline]
 pub fn py_returning<'a>(
-    args: &pyo3::Bound<'a, pyo3::types::PyTuple>,
+    args: BoundArgs<'a>,
 ) -> pyo3::PyResult<pyo3::Bound<'a, query::returning::PyReturning>> {
     let clause = query::returning::PyReturning::__new__(args)?;
 
@@ -85,12 +84,27 @@ pub fn py_returning<'a>(
 #[pyo3(name = "window", signature=(*partition_by))]
 #[inline(always)]
 pub fn py_window<'a>(
-    partition_by: pyo3::Bound<'a, pyo3::types::PyTuple>,
+    partition_by: BoundArgs<'a>,
 ) -> pyo3::PyResult<pyo3::Bound<'a, query::window::PyWindowStatement>> {
     let stmt = query::window::PyWindowStatement::uninit();
     stmt.__init__(&partition_by)?;
 
     pyo3::Bound::new(partition_by.py(), stmt)
+}
+
+/// Create a new `SelectStatement`.
+///
+/// @signature (*columns: object) -> query.SelectStatement
+#[pyo3::pyfunction]
+#[pyo3(name = "select", signature=(*exprs))]
+#[inline]
+pub fn py_select<'a>(
+    exprs: BoundArgs<'a>,
+) -> pyo3::PyResult<pyo3::Bound<'a, query::select::PySelectStatement>> {
+    let stmt = query::select::PySelectStatement::uninit();
+    stmt.__init__(exprs)?;
+
+    pyo3::Bound::new(exprs.py(), (stmt, query::base::PyQueryStatement))
 }
 
 #[pyo3::pymodule(gil_used = false)]
@@ -112,6 +126,8 @@ mod _lib {
     use super::py_insert;
     #[pymodule_export]
     use super::py_returning;
+    #[pymodule_export]
+    use super::py_select;
     #[pymodule_export]
     use super::py_update;
     #[pymodule_export]

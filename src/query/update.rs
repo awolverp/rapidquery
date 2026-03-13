@@ -5,6 +5,7 @@ use super::ordering::PyOrdering;
 use super::returning::PyReturning;
 use crate::common::expression::PyExpr;
 use crate::common::table_ref::PyTableName;
+use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundArgs, BoundKwargs, BoundObject, RefBoundObject, ToSeaQuery};
 
 crate::implement_pyclass! {
@@ -264,52 +265,31 @@ impl PyUpdateStatement {
         crate::build_query_parts!(py, backend, stmt)
     }
 
-    fn __repr__(&self) -> String {
-        use std::io::Write;
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let lock = slf.0.lock();
 
-        let lock = self.0.lock();
-        let mut s = Vec::<u8>::with_capacity(30);
+        let mut fmt = ReprFormatter::new_with_pyref(&slf)
+            .map("table", &lock.table, |x| x.__repr__())
+            .optional_map("from_table", lock.from_table.as_ref(), |x| x.__repr__())
+            .take();
 
-        write!(s, "<Update table={}", lock.table.__repr__()).unwrap();
+        fmt.vec("values", false)
+            .display_iter(
+                lock.values
+                    .iter()
+                    .map(|x| format!("('{}', {})", x.0.to_string(), x.1.__repr__())),
+            )
+            .finish(&mut fmt);
 
-        if let Some(x) = &lock.from_table {
-            write!(s, " from_table={}", x.__repr__()).unwrap();
-        }
-        if let Some(x) = lock.limit {
-            write!(s, " limit={x}").unwrap();
-        }
+        fmt.vec("orders", true)
+            .display_iter(lock.orders.iter().map(|x| x.__repr__()))
+            .finish(&mut fmt);
 
-        if let Some(x) = &lock.r#where {
-            write!(s, " where={}", x.__repr__()).unwrap();
-        }
-
-        write!(s, " orders=[").unwrap();
-
-        let n = lock.orders.len();
-        for (index, expr) in lock.orders.iter().enumerate() {
-            if index + 1 == n {
-                write!(s, "{}]", expr.__repr__()).unwrap();
-            } else {
-                write!(s, "{}, ", expr.__repr__()).unwrap();
-            }
-        }
-
-        if let Some(x) = &lock.returning_clause {
-            write!(s, " returning={}", x.__repr__()).unwrap();
-        }
-
-        write!(s, " values=[").unwrap();
-
-        let n = lock.values.len();
-        for (index, expr) in lock.values.iter().enumerate() {
-            if index + 1 == n {
-                write!(s, "({}, {})", expr.0.to_string(), expr.1.__repr__()).unwrap();
-            } else {
-                write!(s, "({}, {}), ", expr.0.to_string(), expr.1.__repr__()).unwrap();
-            }
-        }
-
-        write!(s, "]>").unwrap();
-        unsafe { String::from_utf8_unchecked(s) }
+        fmt.optional_display("limit", lock.limit)
+            .optional_map("where", lock.r#where.as_ref(), |x| x.__repr__())
+            .optional_map("returning", lock.returning_clause.as_ref(), |x| {
+                x.__repr__()
+            })
+            .finish()
     }
 }

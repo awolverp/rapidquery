@@ -1,3 +1,4 @@
+use crate::internal::repr::ReprFormatter;
 use crate::internal::type_engine::TypeEngine;
 use crate::internal::{BoundArgs, BoundKwargs, BoundObject, PyObject};
 use crate::sqltypes::SQLTypeTrait;
@@ -161,14 +162,11 @@ impl PyValue {
             .map(|x| unsafe { pyo3::ffi::PyObject_Hash(x.as_ptr()) })
     }
 
-    fn __repr__(&self) -> pyo3::PyResult<String> {
-        let lock = self.0.lock();
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<String> {
+        let value = slf.value(slf.py())?;
 
-        match (&lock.deserialized, &lock.serialized) {
-            (Some(de), Some(se)) => Ok(format!("Value[{} -> {:?}]", de, se)),
-            (None, Some(se)) => Ok(format!("Value[? -> {:?}]", se)),
-            (Some(de), None) => Ok(format!("Value[{} -> ?]", de)),
-            (None, None) => unreachable!(),
-        }
+        Ok(ReprFormatter::new_with_pyref(&slf)
+            .debug("", &value)
+            .finish())
     }
 }

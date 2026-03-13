@@ -1,6 +1,5 @@
 import sys
 import time
-import tracemalloc
 import typing
 
 import pypika
@@ -16,22 +15,6 @@ SA_DIALECT = dialect()
 # Benchmark configuration
 ITERATIONS = 10_000
 WARMUP_ITERATIONS = 100
-
-
-def benchmark_allocation(func: typing.Callable, number=ITERATIONS) -> int:
-    for _ in range(min(WARMUP_ITERATIONS, number // 10)):
-        func()
-
-    tracemalloc.start()
-    alloc = tracemalloc.get_traced_memory()[1]
-
-    for _ in range(number):
-        func()
-
-    alloc = tracemalloc.get_traced_memory()[1] - alloc
-    tracemalloc.stop()
-
-    return alloc
 
 
 def benchmark(func: typing.Callable, number=ITERATIONS) -> float:
@@ -72,39 +55,14 @@ def format_results(results: typing.Dict[str, float]) -> str:
     return "\n".join(lines)
 
 
-def format_allocation_results(results: typing.Dict[str, int]) -> str:
-    if not results:
-        return "No results to display"
-
-    minimum = min(results.values())
-
-    lines = []
-    lines.append("-" * 70)
-    lines.append(f"{'Library':<20} {'Mem (B)':<15} {'vs Lowest':<15} {'Status':<20}")
-    lines.append("-" * 70)
-
-    for lib, alloc in sorted(results.items(), key=lambda x: x[1]):
-        if alloc == minimum:
-            ratio = "1.00x (LOWEST)"
-            status = "🏆"
-        else:
-            ratio = f"{alloc / minimum:.2f}x"
-            status = ""
-
-        lines.append(f"{lib:<20} {alloc:>10.2f}     {ratio:<15} {status}")
-
-    lines.append("-" * 70)
-    return "\n".join(lines)
-
-
 # SELECT Query Benchmarks
 
 
 def bench_select_rapidquery():
     query = (
-        rq.Select(rq.Expr.asterisk())
+        rq.select(rq.common.Expr.asterisk())
         .from_table("users")
-        .where(rq.Expr.col("name").like(r"%linus%"))
+        .where(rq.common.Expr.col("name").like(r"%linus%"))
         .offset(20)
         .limit(20)
     )
@@ -147,7 +105,9 @@ def bench_insert_rapidquery():
     query.to_sql("postgresql")
 
 
-sa_glyph = sa.table("glyph", sa.column("aspect", sa.Float), sa.column("image", sa.String))
+sa_glyph = sa.table(
+    "glyph", sa.column("aspect", sa.Float), sa.column("image", sa.String)
+)
 
 
 def bench_insert_sqlalchemy():
@@ -159,7 +119,10 @@ def bench_insert_sqlalchemy():
 
 def bench_insert_pypika():
     query = (
-        pypika.Query.into("glyph").columns("aspect", "image").insert(5.15, "12A").insert(16, "14A")
+        pypika.Query.into("glyph")
+        .columns("aspect", "image")
+        .insert(5.15, "12A")
+        .insert(16, "14A")
     )
     str(query)
 
@@ -176,7 +139,9 @@ def bench_update_rapidquery():
     query.to_sql("postgresql")
 
 
-sa_wallets = sa.table("wallets", sa.column("amount", sa.Integer), sa.column("id", sa.Integer))
+sa_wallets = sa.table(
+    "wallets", sa.column("amount", sa.Integer), sa.column("id", sa.Integer)
+)
 
 
 def bench_update_sqlalchemy():
@@ -232,13 +197,13 @@ def run_benchmarks():
     print(f"Python version: {sys.version.split()[0]}")
     print()
 
-    # print("\n📊 SELECT Query Benchmark")
-    # results = {
-    #     "RapidQuery": benchmark(bench_select_rapidquery),
-    #     "SQLAlchemy": benchmark(bench_select_sqlalchemy),
-    #     "PyPika": benchmark(bench_select_pypika),
-    # }
-    # print(format_results(results))
+    print("\n📊 SELECT Query Benchmark")
+    results = {
+        "RapidQuery": benchmark(bench_select_rapidquery),
+        "SQLAlchemy": benchmark(bench_select_sqlalchemy),
+        "PyPika": benchmark(bench_select_pypika),
+    }
+    print(format_results(results))
 
     print("\n📊 INSERT Query Benchmark")
     results = {
@@ -248,14 +213,6 @@ def run_benchmarks():
     }
     print(format_results(results))
 
-    print("\n📊 INSERT Query Benchmark (Allocation)")
-    results = {
-        "RapidQuery": benchmark_allocation(bench_insert_rapidquery),
-        "SQLAlchemy": benchmark_allocation(bench_insert_sqlalchemy),
-        "PyPika": benchmark_allocation(bench_insert_pypika),
-    }
-    print(format_allocation_results(results))
-
     print("\n📊 UPDATE Query Benchmark")
     results = {
         "RapidQuery": benchmark(bench_update_rapidquery),
@@ -264,14 +221,6 @@ def run_benchmarks():
     }
     print(format_results(results))
 
-    print("\n📊 UPDATE Query Benchmark (Allocation)")
-    results = {
-        "RapidQuery": benchmark_allocation(bench_update_rapidquery),
-        "SQLAlchemy": benchmark_allocation(bench_update_sqlalchemy),
-        "PyPika": benchmark_allocation(bench_update_pypika),
-    }
-    print(format_allocation_results(results))
-
     print("\n📊 DELETE Query Benchmark")
     results = {
         "RapidQuery": benchmark(bench_delete_rapidquery),
@@ -279,14 +228,6 @@ def run_benchmarks():
         "PyPika": benchmark(bench_delete_pypika),
     }
     print(format_results(results))
-
-    print("\n📊 DELETE Query Benchmark (Allocation)")
-    results = {
-        "RapidQuery": benchmark_allocation(bench_delete_rapidquery),
-        "SQLAlchemy": benchmark_allocation(bench_delete_sqlalchemy),
-        "PyPika": benchmark_allocation(bench_delete_pypika),
-    }
-    print(format_allocation_results(results))
 
 
 if __name__ == "__main__":

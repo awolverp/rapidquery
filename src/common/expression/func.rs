@@ -1,5 +1,6 @@
 use pyo3::types::PyTupleMethods;
 
+use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundArgs, RefBoundObject};
 
 crate::implement_pyclass! {
@@ -326,7 +327,7 @@ impl PyFunc {
         Ok(Self(sea_query::Func::md5(expr.0)))
     }
 
-    fn __repr__(&self) -> String {
-        format!("<Func {:?}>", self.0)
+    pub fn __repr__(&self) -> String {
+        ReprFormatter::new("Func").pair("", "...").finish()
     }
 }

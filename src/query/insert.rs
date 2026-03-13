@@ -4,6 +4,7 @@ use super::returning::PyReturning;
 use crate::common::column_ref::PyColumnRef;
 use crate::common::expression::PyExpr;
 use crate::common::table_ref::PyTableName;
+use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundArgs, BoundKwargs, BoundObject, PyObject, RefBoundObject, ToSeaQuery};
 
 #[derive(Debug, Default)]
@@ -12,8 +13,10 @@ pub enum InsertValueSource {
     None,
     Single(Vec<PyExpr>),
     Many(Vec<Vec<PyExpr>>),
-    // TODO
-    // Select(PyObject),
+    Select(
+        /// Always is `PySelectStatement`
+        PyObject,
+    ),
 }
 
 crate::implement_pyclass! {
@@ -53,13 +56,20 @@ impl ToSeaQuery<sea_query::InsertStatement> for InsertStatementState {
 
         match &self.source {
             InsertValueSource::None => (),
-            InsertValueSource::Single(x) => unsafe {
+            InsertValueSource::Single(x) => {
                 stmt.values(x.iter().map(|x| x.0.clone())).unwrap();
-            },
-            InsertValueSource::Many(x) => unsafe {
+            }
+            InsertValueSource::Many(x) => {
                 for y in x.iter() {
                     stmt.values(y.iter().map(|x| x.0.clone())).unwrap();
                 }
+            }
+            InsertValueSource::Select(subquery) => unsafe {
+                let subquery =
+                    subquery.cast_bound_unchecked::<super::select::PySelectStatement>(py);
+
+                stmt.select_from(subquery.get().0.lock().to_sea_query(py))
+                    .unwrap();
             },
         }
 
@@ -106,7 +116,7 @@ impl InsertStatementState {
         }
 
         match std::mem::take(&mut self.source) {
-            InsertValueSource::None => {
+            InsertValueSource::None | InsertValueSource::Select(_) => {
                 self.source = InsertValueSource::Single(vals);
             }
             InsertValueSource::Single(oldvals) => {
@@ -138,7 +148,7 @@ impl InsertStatementState {
         }
 
         match std::mem::take(&mut self.source) {
-            InsertValueSource::None => {
+            InsertValueSource::None | InsertValueSource::Select(_) => {
                 self.source = InsertValueSource::Single(vals);
             }
             InsertValueSource::Single(oldvals) => {
@@ -276,6 +286,49 @@ impl PyInsertStatement {
         Ok(slf)
     }
 
+    /// Specify a select query whose values to be inserted.
+    ///
+    /// @signature (self, statement: SelectStatement) -> typing.Self
+    fn select_from<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        statement: BoundObject<'a>,
+    ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
+        unsafe {
+            if pyo3::ffi::PyObject_TypeCheck(
+                statement.as_ptr(),
+                crate::typeref::SELECT_STATEMENT_TYPE,
+            ) == 0
+            {
+                return crate::new_error!(
+                    PyTypeError,
+                    "expected SelectStatement, got {}",
+                    crate::internal::get_type_name(statement.py(), statement.as_ptr())
+                );
+            }
+
+            // We have to return error if columns mismatch, like what SeaQuery does
+            let cast = statement.cast_unchecked::<super::select::PySelectStatement>();
+
+            let val_len = cast.get().0.lock().exprs.len();
+            let col_len = slf.0.lock().columns.len();
+
+            if col_len != val_len {
+                return crate::new_error!(
+                    PyValueError,
+                    "columns and values length mismatch: {} != {}",
+                    col_len,
+                    val_len,
+                );
+            }
+        }
+
+        {
+            let mut lock = slf.0.lock();
+            lock.source = InsertValueSource::Select(statement.unbind());
+        }
+        Ok(slf)
+    }
+
     /// Use DEFAULT VALUES if no values were specified. The `rows`
     /// Specifies number of rows to insert with default values.
     ///
@@ -352,71 +405,49 @@ impl PyInsertStatement {
         crate::build_query_parts!(py, backend, stmt)
     }
 
-    fn __repr__(&self) -> String {
-        use std::io::Write;
+    fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
+        let lock = slf.0.lock();
 
-        let lock = self.0.lock();
-        let mut s = Vec::<u8>::with_capacity(30);
+        let mut fmt = ReprFormatter::new_with_pyref(&slf)
+            .optional_boolean("replace", lock.replace)
+            .map("into", &lock.table, |x| x.__repr__())
+            .take();
 
-        write!(s, "<Insert").unwrap();
-        if lock.replace {
-            write!(s, " replace=True").unwrap();
-        }
-        write!(s, " into={}", lock.table.__repr__()).unwrap();
+        fmt.vec("columns", true)
+            .quote_iter(lock.columns.iter())
+            .finish(&mut fmt);
 
-        if !lock.columns.is_empty() {
-            write!(s, " columns={:?}", lock.columns).unwrap();
-        }
-        if let Some(x) = &lock.on_conflict {
-            write!(s, " on_conflict={}", x).unwrap();
-        }
+        fmt.optional_display("on_conflict", lock.on_conflict.as_ref());
 
         match &lock.source {
             InsertValueSource::None => {
-                if let Some(x) = lock.default_values {
-                    write!(s, " default_rows={x}").unwrap();
-                }
+                fmt.optional_display("default_rows", lock.default_values);
+            }
+            InsertValueSource::Select(x) => {
+                fmt.display("select_from", x);
             }
             InsertValueSource::Single(x) => {
-                write!(s, " values=[").unwrap();
-
-                let n = x.len();
-                for (index, ix) in x.iter().enumerate() {
-                    if index + 1 == n {
-                        write!(s, "{}", ix.__repr__()).unwrap();
-                    } else {
-                        write!(s, "{}, ", ix.__repr__()).unwrap();
-                    }
-                }
-                write!(s, "]").unwrap();
+                fmt.vec("values", true)
+                    .display_iter(x.iter().map(|x| x.__repr__()))
+                    .finish(&mut fmt);
             }
             InsertValueSource::Many(x) => {
-                write!(s, " values=[[").unwrap();
+                let mut fmtvec = fmt.vec("values", true);
 
-                let n = x.len();
-                for (index_1, nested) in x.iter().enumerate() {
-                    let j = nested.len();
-                    for (index_2, val) in nested.iter().enumerate() {
-                        if index_2 + 1 == j {
-                            write!(s, "{}", val.__repr__()).unwrap();
-                        } else {
-                            write!(s, "{}, ", val.__repr__()).unwrap();
-                        }
-                    }
-
-                    if index_1 + 1 < n {
-                        write!(s, "], [").unwrap();
-                    }
+                for (index, nested) in x.iter().enumerate() {
+                    fmtvec
+                        .vec(index)
+                        .display_iter(nested.iter().map(|x| x.__repr__()))
+                        .finish(&mut fmtvec);
                 }
-                write!(s, "]]").unwrap();
+
+                fmtvec.finish(&mut fmt);
             }
         }
 
-        if let Some(x) = &lock.returning_clause {
-            write!(s, " returning={}", x.__repr__()).unwrap();
-        }
-
-        write!(s, ">").unwrap();
-        unsafe { String::from_utf8_unchecked(s) }
+        fmt.optional_map("returning", lock.returning_clause.as_ref(), |x| {
+            x.__repr__()
+        })
+        .finish()
     }
 }

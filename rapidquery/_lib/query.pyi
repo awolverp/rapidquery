@@ -338,6 +338,10 @@ class SelectStatement(QueryStatement):
         """Initialize self.  See help(type(self)) for accurate signature."""
         ...
 
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
     def build(self, backend: _BackendName, /) -> tuple[str, tuple[Value, ...]]:
         """Build the SQL statement with parameter values."""
         ...

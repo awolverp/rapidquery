@@ -25,7 +25,7 @@ test:
 	-rm -rf .pytest_cache
 	-ruff check .
 	ruff clean
-	mypy rapidquery --disable-error-code override --disable-error-code type-arg --strict
+	mypy rapidquery --disable-error-code override --disable-error-code type-arg --disable-error-code no-untyped-def --strict
 
 fmt:
 	cargo fmt
@@ -38,6 +38,6 @@ stubgen:
 	python3 tools/stubgen.py rapidquery._lib
 	ruff check --fix rapidquery/_lib
 	ruff format --line-length=100 .
-	mypy rapidquery --disable-error-code override --disable-error-code type-arg --strict
+	mypy rapidquery --disable-error-code override --disable-error-code type-arg --disable-error-code no-untyped-def --strict
 	ruff clean
 	rm -rf .mypy_cache
