@@ -3,6 +3,7 @@ from __future__ import annotations
 import typing
 from .sqltypes import SQLTypeAbstract
 from .schema import Table
+from .query import SelectStatement
 
 __all__ = [
     "Column",
@@ -314,6 +315,16 @@ class Expr:
         ...
 
     @classmethod
+    def all(cls, statement: SelectStatement) -> typing.Self:
+        """Express a `ALL` sub-query expression."""
+        ...
+
+    @classmethod
+    def any(cls, statement: SelectStatement) -> typing.Self:
+        """Express a `ANY` sub-query expression."""
+        ...
+
+    @classmethod
     def asterisk(cls) -> typing.Self:
         """Returns asterisk '*' expression."""
         ...
@@ -325,7 +336,7 @@ class Expr:
     def bit_and(self, other: object) -> typing.Self: ...
     def bit_or(self, other: object) -> typing.Self: ...
     def cast_as(self, value: str) -> typing.Self:
-        """Create a CAST expression to convert to a specific SQL type."""
+        """Create a `CAST` expression to convert to a specific SQL type."""
         ...
 
     @classmethod
@@ -360,6 +371,15 @@ class Expr:
         """
         ...
 
+    @classmethod
+    def exists(cls, statement: SelectStatement) -> typing.Self:
+        """Express a `EXISTS` sub-query expression."""
+        ...
+
+    def in_(self, other: typing.Iterable[object] | SelectStatement) -> typing.Self:
+        """Express a `IN` expression."""
+        ...
+
     def is_(self, other: object) -> typing.Self:
         """Create an IS comparison expression."""
         ...
@@ -377,11 +397,15 @@ class Expr:
         ...
 
     def like(self, pattern: str, escape: str | None = ...) -> typing.Self:
-        """Create a LIKE pattern matching expression."""
+        """Create a `LIKE` pattern matching expression."""
         ...
 
     def not_between(self, a: object, b: object) -> typing.Self:
         """Create a NOT BETWEEN range comparison expression."""
+        ...
+
+    def not_in(self, other: typing.Iterable[object] | SelectStatement) -> typing.Self:
+        """Express a `NOT IN` expression."""
         ...
 
     def not_like(self, pattern: str, escape: str | None = ...) -> typing.Self:
@@ -391,6 +415,11 @@ class Expr:
     @classmethod
     def null(cls) -> typing.Self:
         """Create an expression representing the NULL value."""
+        ...
+
+    @classmethod
+    def some(cls, statement: SelectStatement) -> typing.Self:
+        """Express a `SOME` sub-query expression."""
         ...
 
     @classmethod

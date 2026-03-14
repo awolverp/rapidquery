@@ -266,16 +266,201 @@ impl PyExpr {
         sea_query::SimpleExpr::Keyword(sea_query::Keyword::Null).into()
     }
 
-    // TODO: exists, any, some, all, in_subquery, not_in_subquery, in_, not_in
+    /// Express a `EXISTS` sub-query expression.
+    ///
+    /// @signature (cls, statement: SelectStatement) -> typing.Self
+    #[classmethod]
+    fn exists(
+        _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
+        statement: RefBoundObject<'_>,
+    ) -> pyo3::PyResult<Self> {
+        unsafe {
+            if pyo3::ffi::PyObject_TypeCheck(
+                statement.as_ptr(),
+                crate::typeref::SELECT_STATEMENT_TYPE,
+            ) != 1
+            {
+                return crate::new_error!(
+                    PyTypeError,
+                    "expected SelectStatement, got {}",
+                    crate::internal::get_type_name(statement.py(), statement.as_ptr())
+                );
+            }
 
-    /// Create a CAST expression to convert to a specific SQL type.
+            let casted_statement =
+                statement.cast_unchecked::<crate::query::select::PySelectStatement>();
+
+            let inner_statement = casted_statement.get();
+
+            let result = inner_statement.0.lock().to_sea_query(_cls.py());
+
+            Ok(Self(sea_query::Expr::exists(result)))
+        }
+    }
+
+    /// Express a `ANY` sub-query expression.
+    ///
+    /// @signature (cls, statement: SelectStatement) -> typing.Self
+    #[classmethod]
+    fn any(
+        _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
+        statement: RefBoundObject<'_>,
+    ) -> pyo3::PyResult<Self> {
+        unsafe {
+            if pyo3::ffi::PyObject_TypeCheck(
+                statement.as_ptr(),
+                crate::typeref::SELECT_STATEMENT_TYPE,
+            ) != 1
+            {
+                return crate::new_error!(
+                    PyTypeError,
+                    "expected SelectStatement, got {}",
+                    crate::internal::get_type_name(statement.py(), statement.as_ptr())
+                );
+            }
+
+            let casted_statement =
+                statement.cast_unchecked::<crate::query::select::PySelectStatement>();
+
+            let inner_statement = casted_statement.get();
+
+            let result = inner_statement.0.lock().to_sea_query(_cls.py());
+
+            Ok(Self(sea_query::Expr::any(result)))
+        }
+    }
+
+    /// Express a `SOME` sub-query expression.
+    ///
+    /// @signature (cls, statement: SelectStatement) -> typing.Self
+    #[classmethod]
+    fn some(
+        _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
+        statement: RefBoundObject<'_>,
+    ) -> pyo3::PyResult<Self> {
+        unsafe {
+            if pyo3::ffi::PyObject_TypeCheck(
+                statement.as_ptr(),
+                crate::typeref::SELECT_STATEMENT_TYPE,
+            ) != 1
+            {
+                return crate::new_error!(
+                    PyTypeError,
+                    "expected SelectStatement, got {}",
+                    crate::internal::get_type_name(statement.py(), statement.as_ptr())
+                );
+            }
+
+            let casted_statement =
+                statement.cast_unchecked::<crate::query::select::PySelectStatement>();
+
+            let inner_statement = casted_statement.get();
+
+            let result = inner_statement.0.lock().to_sea_query(_cls.py());
+
+            Ok(Self(sea_query::Expr::some(result)))
+        }
+    }
+
+    /// Express a `ALL` sub-query expression.
+    ///
+    /// @signature (cls, statement: SelectStatement) -> typing.Self
+    #[classmethod]
+    fn all(
+        _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
+        statement: RefBoundObject<'_>,
+    ) -> pyo3::PyResult<Self> {
+        unsafe {
+            if pyo3::ffi::PyObject_TypeCheck(
+                statement.as_ptr(),
+                crate::typeref::SELECT_STATEMENT_TYPE,
+            ) != 1
+            {
+                return crate::new_error!(
+                    PyTypeError,
+                    "expected SelectStatement, got {}",
+                    crate::internal::get_type_name(statement.py(), statement.as_ptr())
+                );
+            }
+
+            let casted_statement =
+                statement.cast_unchecked::<crate::query::select::PySelectStatement>();
+
+            let inner_statement = casted_statement.get();
+            let result = inner_statement.0.lock().to_sea_query(_cls.py());
+
+            Ok(Self(sea_query::Expr::all(result)))
+        }
+    }
+
+    /// Express a `IN` expression.
+    ///
+    /// @signature (self, other: typing.Iterable[object] | SelectStatement) -> typing.Self
+    fn in_(slf: pyo3::PyRef<'_, Self>, other: RefBoundObject<'_>) -> pyo3::PyResult<Self> {
+        unsafe {
+            if pyo3::ffi::PyObject_TypeCheck(other.as_ptr(), crate::typeref::SELECT_STATEMENT_TYPE)
+                == 1
+            {
+                let casted_statement =
+                    other.cast_unchecked::<crate::query::select::PySelectStatement>();
+
+                let inner_statement = casted_statement.get();
+                let result = inner_statement.0.lock().to_sea_query(slf.py());
+                let result = sea_query::ExprTrait::in_subquery(slf.0.clone(), result);
+
+                return Ok(result.into());
+            }
+        }
+
+        let mut exprs: Vec<sea_query::SimpleExpr> = Vec::new();
+
+        for item in other.try_iter()? {
+            let item = item?;
+            let item = Self::try_from(&item)?;
+            exprs.push(item.0);
+        }
+
+        Ok(sea_query::ExprTrait::is_in(slf.0.clone(), exprs).into())
+    }
+
+    /// Express a `NOT IN` expression.
+    ///
+    /// @signature (self, other: typing.Iterable[object] | SelectStatement) -> typing.Self
+    fn not_in(slf: pyo3::PyRef<'_, Self>, other: RefBoundObject<'_>) -> pyo3::PyResult<Self> {
+        unsafe {
+            if pyo3::ffi::PyObject_TypeCheck(other.as_ptr(), crate::typeref::SELECT_STATEMENT_TYPE)
+                == 1
+            {
+                let casted_statement =
+                    other.cast_unchecked::<crate::query::select::PySelectStatement>();
+
+                let inner_statement = casted_statement.get();
+                let result = inner_statement.0.lock().to_sea_query(slf.py());
+                let result = sea_query::ExprTrait::not_in_subquery(slf.0.clone(), result);
+
+                return Ok(result.into());
+            }
+        }
+
+        let mut exprs: Vec<sea_query::SimpleExpr> = Vec::new();
+
+        for item in other.try_iter()? {
+            let item = item?;
+            let item = Self::try_from(&item)?;
+            exprs.push(item.0);
+        }
+
+        Ok(sea_query::ExprTrait::is_not_in(slf.0.clone(), exprs).into())
+    }
+
+    /// Create a `CAST` expression to convert to a specific SQL type.
     ///
     /// @signature (self, value: str) -> typing.Self
     fn cast_as(slf: pyo3::PyRef<'_, Self>, value: String) -> Self {
         slf.0.clone().cast_as(sea_query::Alias::new(value)).into()
     }
 
-    /// Create a LIKE pattern matching expression.
+    /// Create a `LIKE` pattern matching expression.
     ///
     /// @signature (self, pattern: str, escape: str | None = ...) -> typing.Self
     #[pyo3(signature=(pattern, escape=None))]

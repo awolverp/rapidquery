@@ -5,6 +5,7 @@ from .common import Value, Expr, Column, ColumnRef, TableName, Func
 from .schema import Table
 
 __all__ = [
+    "CaseStatement",
     "DeleteStatement",
     "Frame",
     "InsertStatement",
@@ -19,6 +20,18 @@ __all__ = [
 ]
 
 _BackendName: typing.TypeAlias = typing.Literal["sqlite", "postgresql", "postgres", "mysql"]
+
+class CaseStatement:
+    def __init__(self) -> None:
+        """Initialize self.  See help(type(self)) for accurate signature."""
+        ...
+
+    def __repr__(self, /) -> str:
+        """Return repr(self)."""
+        ...
+
+    def else_(self, result: object) -> typing.Self: ...
+    def when(self, condition: Expr, result: object) -> typing.Self: ...
 
 class DeleteStatement(QueryStatement):
     """
@@ -156,6 +169,10 @@ class InsertStatement(QueryStatement):
 
     def returning(self, clause: Returning) -> typing.Self:
         """Specify columns to return from the inserted rows."""
+        ...
+
+    def select_from(self, statement: SelectStatement) -> typing.Self:
+        """Specify a select query whose values to be inserted."""
         ...
 
     def to_sql(self, backend: _BackendName, /) -> str:

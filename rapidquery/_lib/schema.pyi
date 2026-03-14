@@ -398,7 +398,7 @@ class IndexColumn:
     """
 
     def __new__(
-        self, name: str, order: _IndexColumnOrder | None = None, prefix: int | None = None
+        cls, name: str, order: _IndexColumnOrder | None = None, prefix: int | None = None
     ) -> typing.Self: ...
     def __copy__(self) -> typing.Self: ...
     def __repr__(self, /) -> str:

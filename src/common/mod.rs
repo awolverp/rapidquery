@@ -43,6 +43,7 @@ pub mod common_module {
             vec![
                 "from .sqltypes import SQLTypeAbstract",
                 "from .schema import Table",
+                "from .query import SelectStatement",
             ],
         )
     }

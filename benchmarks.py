@@ -105,9 +105,7 @@ def bench_insert_rapidquery():
     query.to_sql("postgresql")
 
 
-sa_glyph = sa.table(
-    "glyph", sa.column("aspect", sa.Float), sa.column("image", sa.String)
-)
+sa_glyph = sa.table("glyph", sa.column("aspect", sa.Float), sa.column("image", sa.String))
 
 
 def bench_insert_sqlalchemy():
@@ -119,10 +117,7 @@ def bench_insert_sqlalchemy():
 
 def bench_insert_pypika():
     query = (
-        pypika.Query.into("glyph")
-        .columns("aspect", "image")
-        .insert(5.15, "12A")
-        .insert(16, "14A")
+        pypika.Query.into("glyph").columns("aspect", "image").insert(5.15, "12A").insert(16, "14A")
     )
     str(query)
 
@@ -139,9 +134,7 @@ def bench_update_rapidquery():
     query.to_sql("postgresql")
 
 
-sa_wallets = sa.table(
-    "wallets", sa.column("amount", sa.Integer), sa.column("id", sa.Integer)
-)
+sa_wallets = sa.table("wallets", sa.column("amount", sa.Integer), sa.column("id", sa.Integer))
 
 
 def bench_update_sqlalchemy():
