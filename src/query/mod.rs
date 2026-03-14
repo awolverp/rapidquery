@@ -1,4 +1,5 @@
 pub mod base;
+pub mod case;
 pub mod delete;
 pub mod insert;
 pub mod on_conflict;
@@ -44,6 +45,9 @@ pub mod query_module {
 
     #[pymodule_export]
     use super::select::PySelectStatement;
+
+    #[pymodule_export]
+    use super::case::PyCaseStatement;
 
     #[pymodule_init]
     #[cold]

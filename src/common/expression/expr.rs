@@ -90,7 +90,17 @@ impl PyExpr {
                 return Ok(Self(result));
             }
 
-            // TODO: PyCase
+            if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::CASE_STATEMENT_TYPE)
+                == 1
+            {
+                let casted_value = value.cast_unchecked::<crate::query::case::PyCaseStatement>();
+
+                let inner_value = casted_value.get();
+                let result =
+                    sea_query::SimpleExpr::Case(Box::new(inner_value.0.lock().to_sea_query(py)));
+
+                return Ok(Self(result));
+            }
 
             if pyo3::ffi::PyTuple_Check(value.as_ptr()) == 1 {
                 use pyo3::types::PyTupleMethods;

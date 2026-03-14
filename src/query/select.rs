@@ -340,14 +340,40 @@ impl ToSeaQuery<sea_query::WindowSelectType> for SelectExprWindow {
 
 impl ToSeaQuery<sea_query::SelectExpr> for SelectExprState {
     fn to_sea_query<'a>(&self, py: pyo3::Python<'a>) -> sea_query::SelectExpr {
-        sea_query::SelectExpr {
-            expr: self.expr.0.clone(),
-            alias: self
-                .alias
-                .as_ref()
-                .map(|x| sea_query::Alias::new(x).into_iden()),
+        if self.alias.is_none() {
+            // If expr is column, setting alias can optimize the SQL query.
+            let default_alias = {
+                match &self.expr.0 {
+                    sea_query::SimpleExpr::Column(sea_query::ColumnRef::Column(name)) => {
+                        Some(name.clone())
+                    }
+                    sea_query::SimpleExpr::Column(sea_query::ColumnRef::TableColumn(_, name)) => {
+                        Some(name.clone())
+                    }
+                    sea_query::SimpleExpr::Column(sea_query::ColumnRef::SchemaTableColumn(
+                        _,
+                        _,
+                        name,
+                    )) => Some(name.clone()),
+                    _ => None,
+                }
+            };
 
-            window: self.window.as_ref().map(|x| x.to_sea_query(py)),
+            sea_query::SelectExpr {
+                expr: self.expr.0.clone(),
+                alias: default_alias,
+                window: self.window.as_ref().map(|x| x.to_sea_query(py)),
+            }
+        } else {
+            sea_query::SelectExpr {
+                expr: self.expr.0.clone(),
+                alias: self
+                    .alias
+                    .as_ref()
+                    .map(|x| sea_query::Alias::new(x).into_iden()),
+
+                window: self.window.as_ref().map(|x| x.to_sea_query(py)),
+            }
         }
     }
 }

@@ -8,6 +8,18 @@
 #![feature(optimize_attribute)]
 #![feature(once_cell_try)]
 
+// TODO List
+// 1.  [x] Select statement
+// 2.  [x] Case statement
+// 3.  [ ] Complete Expr
+// 4.  [ ] Re-export `common` package items
+// 5.  [ ] Update docstrings & documentation
+// 6.  [ ] Write tests
+// 7.  [ ] Update & automate workflows
+// 8.  [ ] Write CTE
+// 9.  [ ] Bump version to 0.1.0
+// 10. [ ] Publish
+
 use crate::internal::{BoundArgs, RefBoundObject};
 
 pub mod internal;
