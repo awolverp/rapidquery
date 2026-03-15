@@ -1,41 +1,30 @@
 from __future__ import annotations
 
 import typing
-from .common import Value, Expr, Column, ColumnRef, TableName, Func
-from .schema import Table
 
-__all__ = [
-    "CaseStatement",
-    "DeleteStatement",
-    "Frame",
-    "InsertStatement",
-    "OnConflict",
-    "Ordering",
-    "QueryStatement",
-    "Returning",
-    "SelectExpr",
-    "SelectStatement",
-    "UpdateStatement",
-    "WindowStatement",
+from .common import Expr, Func, Value, _ColumnRefNew, _ExprNew, _TableNameNew
+
+_BackendName: typing.TypeAlias = typing.Literal[
+    "sqlite", "postgresql", "postgres", "mysql"
 ]
-
-_BackendName: typing.TypeAlias = typing.Literal["sqlite", "postgresql", "postgres", "mysql"]
 
 class CaseStatement:
     def __init__(self) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+        """Construct a `CASE WHEN` statement."""
         ...
 
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
+    def __repr__(self, /) -> str: ...
+    def else_(self, result: _ExprNew) -> typing.Self:
+        """Ends the case statement with the final ELSE result."""
         ...
 
-    def else_(self, result: object) -> typing.Self: ...
-    def when(self, condition: Expr, result: object) -> typing.Self: ...
+    def when(self, condition: Expr, result: _ExprNew) -> typing.Self:
+        """Adds new `WHEN` to existing case statement."""
+        ...
 
 class DeleteStatement(QueryStatement):
     """
-    Builds DELETE SQL statements with a fluent interface.
+    Builds `DELETE` SQL statements with a fluent interface.
 
     Provides a chainable API for constructing DELETE queries with support for:
     - WHERE conditions for filtering
@@ -44,14 +33,16 @@ class DeleteStatement(QueryStatement):
     - RETURNING clauses for getting deleted data
     """
 
-    def __init__(self, table: Table | TableName | str) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+    def __init__(self, table: _TableNameNew) -> None:
+        """
+        Construct a `DELETE` statement.
+
+        Args:
+            table: The table to delete from.
+        """
         ...
 
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     def build(self, backend: _BackendName, /) -> tuple[str, tuple[Value, ...]]:
         """Build the SQL statement with parameter values."""
         ...
@@ -64,8 +55,8 @@ class DeleteStatement(QueryStatement):
         """Remove where conditions from statement."""
         ...
 
-    def from_table(self, table: Table | TableName | str) -> typing.Self:
-        """Specify the table to delete from."""
+    def from_table(self, table: _TableNameNew) -> typing.Self:
+        """Override the table to delete from."""
         ...
 
     def limit(self, n: int) -> typing.Self:
@@ -92,7 +83,7 @@ class DeleteStatement(QueryStatement):
         ...
 
     def where(self, condition: Expr) -> typing.Self:
-        """Add a WHERE condition to filter rows to delete."""
+        """Add a `WHERE` condition to filter rows to delete."""
         ...
 
 @typing.final
@@ -112,7 +103,7 @@ class Frame:
 
 class InsertStatement(QueryStatement):
     """
-    Builds INSERT SQL statements with a fluent interface.
+    Builds `INSERT` SQL statements with a fluent interface.
 
     Provides a chainable API for constructing INSERT queries with support for:
     - Single or multiple row insertion
@@ -122,19 +113,21 @@ class InsertStatement(QueryStatement):
     - Default values
     """
 
-    def __init__(self, table: Table | TableName | str) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+    def __init__(self, table: _TableNameNew) -> None:
+        """
+        Construct a `INSERT` statement.
+
+        Args:
+            table: The target table for insertion.
+        """
         ...
 
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     def build(self, backend: _BackendName, /) -> tuple[str, tuple[Value, ...]]:
         """Build the SQL statement with parameter values."""
         ...
 
-    def columns(self, *args: Column | ColumnRef | str) -> typing.Self:
+    def columns(self, *args: _ColumnRefNew) -> typing.Self:
         """
         Specify the columns for insertion.
 
@@ -143,8 +136,8 @@ class InsertStatement(QueryStatement):
         """
         ...
 
-    def into(self, table: Table | TableName | str) -> typing.Self:
-        """Specify the target table for insertion."""
+    def into(self, table: _TableNameNew) -> typing.Self:
+        """Override the target table for insertion."""
         ...
 
     def on_conflict(self, action: OnConflict) -> typing.Self:
@@ -184,14 +177,14 @@ class InsertStatement(QueryStatement):
         ...
 
     @typing.overload
-    def values(self, *args: object) -> typing.Self:
+    def values(self, *args: _ExprNew) -> typing.Self:
         """
         Specify values to insert. Also you can specify columns using keyword arguments.
         """
         ...
 
     @typing.overload
-    def values(self, **kwds: object) -> typing.Self:
+    def values(self, **kwds: _ExprNew) -> typing.Self:
         """
         Specify values to insert. Also you can specify columns using keyword arguments.
         """
@@ -199,30 +192,32 @@ class InsertStatement(QueryStatement):
 
 class OnConflict:
     """
-    Specifies conflict resolution behavior for INSERT statements.
+    Specifies conflict resolution behavior for `INSERT` statements.
 
-    Handles situations where an INSERT would violate a unique constraint
+    Handles situations where an `INSERT` would violate a unique constraint
     or primary key.
 
-    This corresponds to INSERT ... ON CONFLICT in PostgreSQL and
-    INSERT ... ON DUPLICATE KEY UPDATE in MySQL.
+    This corresponds to `INSERT ... ON CONFLICT` in PostgreSQL and
+    `INSERT ... ON DUPLICATE KEY UPDATE` in MySQL.
     """
 
-    def __init__(self, *targets: Column | ColumnRef | str) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
-        ...
-
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
-    def action_where(self, condition: Expr) -> typing.Self:
-        """Add a WHERE clause to the conflict action (conditional update)."""
-        ...
-
-    def do_nothing(self, *keys: Column | ColumnRef | str) -> typing.Self:
+    def __init__(self, *targets: _ColumnRefNew) -> None:
         """
-        Specify DO NOTHING action for conflicts.
+        Construct a new `OnConflict` instance.
+
+        Args:
+            targets: Target columns.
+        """
+        ...
+
+    def __repr__(self, /) -> str: ...
+    def action_where(self, condition: Expr) -> typing.Self:
+        """Add a `WHERE` clause to the conflict action (conditional update)."""
+        ...
+
+    def do_nothing(self, *keys: _ColumnRefNew) -> typing.Self:
+        """
+        Specify `DO NOTHING` action for conflicts.
 
         When a conflict occurs, the conflicting row will be skipped.
 
@@ -231,37 +226,49 @@ class OnConflict:
         ...
 
     @typing.overload
-    def do_update(self, *args: Column | ColumnRef | str) -> typing.Self:
+    def do_update(self, *args: _ColumnRefNew) -> typing.Self:
         """
-        Specify DO UPDATE action for conflicts using column names, or with explicit values.
+        Specify `DO UPDATE` action for conflicts using column names, or with explicit values.
         """
         ...
 
     @typing.overload
-    def do_update(self, **kwds: object) -> typing.Self:
+    def do_update(self, **kwds: _ExprNew) -> typing.Self:
         """
-        Specify DO UPDATE action for conflicts using column names, or with explicit values.
+        Specify `DO UPDATE` action for conflicts using column names, or with explicit values.
         """
         ...
 
     def target_where(self, condition: Expr) -> typing.Self:
-        """Add a WHERE clause to the conflict target (partial unique index)."""
+        """Add a `WHERE` clause to the conflict target (partial unique index)."""
         ...
 
 @typing.final
 class Ordering:
-    """Specifies ordering behavior for UPDATE, DELETE, and SELECT statements."""
+    """
+    Specifies ordering behavior statements.
+
+    NOTE: this class is immutable and frozen.
+    """
 
     def __new__(
         cls,
-        target: Expr | Column | ColumnRef | str,
+        target: Expr | _ColumnRefNew,
         order: typing.Literal["ASC", "DESC"] = "ASC",
         null_ordering: typing.Literal["FIRST", "LAST"] | None = None,
-    ) -> typing.Self: ...
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
+    ) -> typing.Self:
+        """
+        Construct a new `Ordering` instance.
+
+        Args:
+            target: Ordering target. Can be an expression (`Expr`) or a column.
+            order: Ascendant (`"ASC"`) or descendant (`"DESC"`).
+            null_ordering: Null ordering option. `"FIRST"` means `NULLS FIRST` SQL, and
+                        `"LAST"` means `NULLS LAST` SQL.
+        """
         ...
 
+    def __repr__(self, /) -> str: ...
     @property
     def null_order(self) -> typing.Literal["FIRST", "LAST"] | None: ...
     @property
@@ -273,10 +280,6 @@ class Ordering:
 
 class QueryStatement:
     """Subclass of query statements."""
-
-    def __init__(self) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
-        ...
 
     def build(self, backend: _BackendName, /) -> tuple[str, tuple[Value, ...]]:
         """Build the SQL statement with parameter values."""
@@ -293,41 +296,52 @@ class QueryStatement:
 @typing.final
 class Returning:
     """
-    RETURNING clause.
+    `RETURNING` clause.
 
     Works on PostgreSQL and SQLite>=3.35.0.
-
-    Use `.all()` or `.columns()` classmethod to use this type.
     """
 
-    def __new__(cls, *args) -> typing.Self: ...
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
+    def __new__(cls, *args: Expr | _ColumnRefNew) -> typing.Self:
+        """
+        Construct a new `RETURNING` clause.
+
+        Args:
+            args: Returning expressions. Can be expressions (`Expr`) or column references.
+                If any `"*"`, or `ColumnRef("*")` found, ignores all others and returns `RETURNING *` clause.
+        """
         ...
 
+    def __repr__(self, /) -> str: ...
     @classmethod
     def all(cls) -> typing.Self:
-        """Return all columns. Same as `self.columns("*")`."""
+        """Same as `self("*")`."""
         ...
 
-class SelectExpr:
+class SelectLabel:
     """
-    Represents a column expression with an optional alias in a SELECT statement.
+    Represents a column expression with an optional alias in a `SELECT` statement.
 
     Used to specify both the expression to select and an optional alias name
     for the result column.
     """
 
     def __init__(
-        self, expr: object, alias: str | None = None, window: WindowStatement | str | None = None
+        self,
+        expr: _ExprNew,
+        alias: str | None = None,
+        window: WindowStatement | str | None = None,
     ) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+        """
+        Construct a new `SelectLabel` instance.
+
+        Args:
+            expr: Target expression to select.
+            alias: Target label, i.e. `<expr> AS <alias>`.
+            window: Window statement or window name.
+        """
         ...
 
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     @property
     def alias(self) -> str | None: ...
     @property
@@ -351,14 +365,8 @@ class SelectStatement(QueryStatement):
     - DISTINCT queries
     """
 
-    def __init__(self, *columns: object) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
-        ...
-
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __init__(self, *exprs: _ExprNew) -> None: ...
+    def __repr__(self, /) -> str: ...
     def build(self, backend: _BackendName, /) -> tuple[str, tuple[Value, ...]]:
         """Build the SQL statement with parameter values."""
         ...
@@ -371,27 +379,95 @@ class SelectStatement(QueryStatement):
         """Remove where conditions from statement."""
         ...
 
-    def columns(self, *args: Column | ColumnRef | str) -> typing.Self: ...
-    def distinct(self, *on: Column | ColumnRef | str) -> typing.Self: ...
-    def exprs(self, *args: object) -> typing.Self: ...
-    def from_function(self, function: Expr | Func, alias: str) -> typing.Self: ...
-    def from_subquery(self, subquery: SelectStatement, alias: str) -> typing.Self: ...
-    def from_table(self, table: Table | TableName | str) -> typing.Self: ...
-    def group_by(self, *groups: object) -> typing.Self: ...
-    def having(self, condition: Expr) -> typing.Self: ...
+    def columns(self, *args: _ColumnRefNew) -> typing.Self:
+        """
+        Override select target expressions.
+
+        Works same as `self.exprs(Expr.col(i) for i in args)`, but much easier and faster.
+        """
+        ...
+
+    def distinct(self, *on: _ColumnRefNew) -> typing.Self:
+        """
+        Changes `SELECT` statement into `SELECT DISTINCT` statement.
+
+        Args:
+            on: Column references. If specified, uses *Postgres-ONLY* `SELECT DISTINCT ON ...` syntax.
+        """
+        ...
+
+    def exprs(self, *args: _ExprNew) -> typing.Self:
+        """Override select target expressions."""
+        ...
+
+    def from_function(self, function: Expr | Func, alias: str) -> typing.Self:
+        """
+        Select from function call.
+
+        Args:
+            function: An expression or a function. If it is `Expr`, it should be a function call
+                    and nothing more, or `ValueError` will be raised.
+            alias: label, i.e. `FROM <function> AS <alias>`.
+        """
+        ...
+
+    def from_subquery(self, subquery: SelectStatement, alias: str) -> typing.Self:
+        """
+        Select from `SELECT` subquery.
+
+        Args:
+            subquery: A select statement.
+            alias: label, i.e. `FROM <subquery> AS <alias>`.
+        """
+        ...
+
+    def from_table(self, table: _TableNameNew) -> typing.Self:
+        """Select from table."""
+        ...
+
+    def group_by(self, *groups: Expr | _ColumnRefNew) -> typing.Self:
+        """Add group by expressions or column references."""
+        ...
+
+    def having(self, condition: Expr) -> typing.Self:
+        """Add having condition expression."""
+        ...
+
     def join(
         self,
-        table: Table | TableName | str,
+        table: _TableNameNew,
         on: Expr,
         type: typing.Literal["CROSS", "FULL", "INNER", "LEFT", "RIGHT"] | None = None,
-    ) -> typing.Self: ...
+    ) -> typing.Self:
+        """
+        Join with other table.
+
+        Args:
+            table: The table to join with.
+            on: Join condition.
+            type: Join type.
+        """
+        ...
+
     def join_function(
         self,
-        table: Func | Expr,
+        function: Func | Expr,
         alias: str,
         on: Expr,
         type: typing.Literal["CROSS", "FULL", "INNER", "LEFT", "RIGHT"] | None = None,
-    ) -> typing.Self: ...
+    ) -> typing.Self:
+        """
+        Join with a function call.
+
+        Args:
+            function: An expression or a function. If it is `Expr`, it should be a function call
+                    and nothing more, or `ValueError` will be raised.
+            alias: label.
+            on: Join condition.
+            type: Join type.
+        """
+        ...
+
     def join_subquery(
         self,
         subquery: SelectStatement,
@@ -399,15 +475,45 @@ class SelectStatement(QueryStatement):
         on: Expr,
         type: typing.Literal["CROSS", "FULL", "INNER", "LEFT", "RIGHT"] | None = None,
         lateral: bool = False,
-    ) -> typing.Self: ...
-    def limit(self, n: int) -> typing.Self: ...
+    ) -> typing.Self:
+        """
+        Join with other `SELECT` statement.
+
+        Args:
+            subquery: Select statement.
+            alias: label.
+            on: Join condition.
+            type: Join type.
+            literal: If `True`, uses `JOIN LATERAL` syntax, which *is not supported by SQLite*.
+        """
+        ...
+
+    def limit(self, n: int) -> typing.Self:
+        """Limit the number of rows to select."""
+        ...
+
     def lock(
         self,
-        type: typing.Literal["UPDATE", "NO KEY UPDATE", "SHARE", "KEY SHARE"] = "UPDATE",
+        type: typing.Literal[
+            "UPDATE", "NO KEY UPDATE", "SHARE", "KEY SHARE"
+        ] = "UPDATE",
         behavior: typing.Literal["NOWAIT", "SKIP"] | None = None,
-        tables: typing.Iterable[Table | TableName | str] = (),
-    ) -> typing.Self: ...
-    def offset(self, n: int) -> typing.Self: ...
+        tables: typing.Iterable[_TableNameNew] = (),
+    ) -> typing.Self:
+        """
+        Row locking (if is supported by backend/dialect).
+
+        Args:
+            type: Row locking type.
+            behavior: Row locking behavior.
+            tables: Row locking tables.
+        """
+        ...
+
+    def offset(self, n: int) -> typing.Self:
+        """Set offset."""
+        ...
+
     def order_by(self, clause: Ordering) -> typing.Self:
         """Specify the order in which to delete rows."""
         ...
@@ -424,9 +530,29 @@ class SelectStatement(QueryStatement):
         self,
         statement: SelectStatement,
         type: typing.Literal["ALL", "INTERSECT", "DISTINCT", "EXCEPT"] = "DISTINCT",
-    ) -> typing.Self: ...
-    def where(self, condition: Expr) -> typing.Self: ...
-    def window(self, name: str, statement: WindowStatement) -> typing.Self: ...
+    ) -> typing.Self:
+        """
+        Union with multiple `SELECT` statement that **must have the same selected fields**.
+
+        Args:
+            statement: Select statement.
+            type: Union type.
+        """
+        ...
+
+    def where(self, condition: Expr) -> typing.Self:
+        """Add select `WHERE` condition."""
+        ...
+
+    def window(self, name: str, statement: WindowStatement) -> typing.Self:
+        """
+        Add `WINDOW` to statement.
+
+        Args:
+            name: Window name.
+            statement: Window statement.
+        """
+        ...
 
 class UpdateStatement(QueryStatement):
     """
@@ -440,14 +566,16 @@ class UpdateStatement(QueryStatement):
     - RETURNING clauses for getting updated data
     """
 
-    def __init__(self, table: Table | TableName | str) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+    def __init__(self, table: _TableNameNew) -> None:
+        """
+        Construct a new `UPDATE` statement.
+
+        Args:
+            table: The table to update.
+        """
         ...
 
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     def build(self, backend: _BackendName, /) -> tuple[str, tuple[Value, ...]]:
         """Build the SQL statement with parameter values."""
         ...
@@ -456,7 +584,7 @@ class UpdateStatement(QueryStatement):
         """Remove where conditions from statement."""
         ...
 
-    def from_table(self, table: Table | TableName | str) -> typing.Self:
+    def from_table(self, table: _TableNameNew) -> typing.Self:
         """
         Update using data from another table (`UPDATE .. FROM ..`).
 
@@ -480,7 +608,7 @@ class UpdateStatement(QueryStatement):
         """Specify columns to return from the inserted rows."""
         ...
 
-    def table(self, table: Table | TableName | str) -> typing.Self:
+    def table(self, table: _TableNameNew) -> typing.Self:
         """Specify the table to update."""
         ...
 
@@ -492,7 +620,7 @@ class UpdateStatement(QueryStatement):
         """
         ...
 
-    def values(self, **kwds: object) -> typing.Self:
+    def values(self, **kwds: _ExprNew) -> typing.Self:
         """Specify columns and their new values."""
         ...
 
@@ -511,14 +639,13 @@ class WindowStatement:
     3. <https://www.postgresql.org/docs/current/tutorial-window.html>
     """
 
-    def __init__(self, *partition_by: Expr | Column | ColumnRef | str) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+    def __init__(self, *partition_by: Expr | _ColumnRefNew) -> None:
+        """
+        Construct a `WINDOW` statement.
+        """
         ...
 
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     def frame(
         self,
         frame_type: typing.Literal["ROWS", "RANGE"],
@@ -526,6 +653,6 @@ class WindowStatement:
         frame_end: Frame | None = None,
     ) -> typing.Self: ...
     def order_by(self, clause: Ordering) -> typing.Self: ...
-    def partition(self, partition_by: Expr | Column | ColumnRef | str) -> typing.Self:
+    def partition(self, partition_by: Expr | _ColumnRefNew) -> typing.Self:
         """Partition by column or custom expression."""
         ...

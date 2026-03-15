@@ -16,8 +16,6 @@ crate::implement_pyclass! {
     /// schema-qualified and table-qualified column references.
     ///
     /// NOTE: this class is immutable and frozen.
-    ///
-    /// @signature (name: str, table: str | None = ..., schema: str | None = ...)
     #[derive(Debug, Clone)]
     [] PyColumnRef as "ColumnRef" {
         /// Name of the referenced column. [`Option::None`] means '*'.
@@ -87,64 +85,63 @@ impl TryFrom<RefBoundObject<'_>> for PyColumnRef {
     type Error = pyo3::PyErr;
 
     fn try_from(value: RefBoundObject<'_>) -> Result<Self, Self::Error> {
-        const PROPERTY_NAME: &std::ffi::CStr = c"__column_ref__";
-
         unsafe {
             if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::COLUMN_REF_TYPE {
                 let casted_value = value.cast_unchecked::<Self>();
                 return Ok(casted_value.get().clone());
             }
 
-            if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::COLUMN_TYPE) == 1 {
-                let casted_value = value.cast_unchecked::<super::column::PyColumn>();
-                let get_value = casted_value.get();
-
-                return Ok(Self {
-                    name: Some(sea_query::Alias::new(&get_value.0.lock().name).into_iden()),
-                    table: None,
-                    schema: None,
-                });
-            }
-
             if let Ok(x) = value.cast_exact::<pyo3::types::PyString>() {
                 return Self::from_str(x.to_str()?);
             }
 
-            if value.hasattr(PROPERTY_NAME)? {
-                let property = value.getattr(PROPERTY_NAME)?;
-
-                if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::COLUMN_REF_TYPE {
-                    let casted_value = value.cast_unchecked::<Self>();
-                    return Ok(casted_value.get().clone());
-                }
-
-                if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::COLUMN_TYPE) == 1 {
-                    let casted_value = value.cast_unchecked::<super::column::PyColumn>();
-                    let get_value = casted_value.get();
-
-                    return Ok(Self {
-                        name: Some(sea_query::Alias::new(&get_value.0.lock().name).into_iden()),
-                        table: None,
-                        schema: None,
-                    });
-                }
-
-                if let Ok(x) = value.cast_exact::<pyo3::types::PyString>() {
-                    return Self::from_str(x.to_str()?);
-                }
-
-                return crate::new_error!(
-                    PyTypeError,
-                    "__column_ref__ property returns something other than Column or ColumnRef or \
-                     str; returns {}",
-                    crate::internal::get_type_name(property.py(), property.as_ptr())
-                );
+            if let Some(result) = Self::try_from_property(value)? {
+                return Ok(result);
             }
 
             crate::new_error!(
                 PyTypeError,
-                "expected ColumnRef, Column, str, or object.__column_ref__ property, got {}",
+                "expected ColumnRef, str, or object.to_column_ref property, got {}",
                 crate::internal::get_type_name(value.py(), value.as_ptr())
+            )
+        }
+    }
+}
+
+impl PyColumnRef {
+    #[inline]
+    pub fn try_from_property(value: RefBoundObject) -> pyo3::PyResult<Option<Self>> {
+        const PROPERTY_NAME: &std::ffi::CStr = c"__column_ref__";
+
+        let property = match value.getattr(PROPERTY_NAME) {
+            Ok(x) => Ok(Some(x)),
+            Err(err) if err.is_instance_of::<pyo3::exceptions::PyAttributeError>(value.py()) => {
+                Ok(None)
+            }
+            Err(err) => Err(err),
+        };
+        let property = property?;
+
+        if property.is_none() {
+            return Ok(None);
+        }
+
+        unsafe {
+            let property = property.unwrap_unchecked();
+
+            if pyo3::ffi::Py_TYPE(property.as_ptr()) == crate::typeref::COLUMN_REF_TYPE {
+                let casted_value = property.cast_unchecked::<Self>();
+                return Ok(Some(casted_value.get().clone()));
+            }
+
+            if let Ok(x) = property.extract::<String>() {
+                return Self::from_str(&x).map(Some);
+            }
+
+            crate::new_error!(
+                PyTypeError,
+                "__column_ref__ property returns something other than ColumnRef or str; returns {}",
+                crate::internal::get_type_name(property.py(), property.as_ptr())
             )
         }
     }
@@ -154,7 +151,11 @@ impl TryFrom<RefBoundObject<'_>> for PyColumnRef {
 impl PyColumnRef {
     #[new]
     #[pyo3(signature=(name, table=None, schema=None))]
-    fn new(name: String, table: Option<String>, schema: Option<String>) -> pyo3::PyResult<Self> {
+    fn __new__(
+        name: String,
+        table: Option<String>,
+        schema: Option<String>,
+    ) -> pyo3::PyResult<Self> {
         let name = unsafe {
             if name == "*" {
                 None
@@ -170,7 +171,6 @@ impl PyColumnRef {
         })
     }
 
-    /// @signature (self) -> str
     #[getter]
     fn name(&self) -> String {
         match &self.name {
@@ -179,13 +179,11 @@ impl PyColumnRef {
         }
     }
 
-    /// @signature (self) -> str | None
     #[getter]
     fn table(&self) -> Option<String> {
         self.table.as_ref().map(|x| x.to_string())
     }
 
-    /// @signature (self) -> str | None
     #[getter]
     fn schema(&self) -> Option<String> {
         self.schema.as_ref().map(|x| x.to_string())
@@ -197,20 +195,11 @@ impl PyColumnRef {
     /// - "column_name"
     /// - "table.column_name"
     /// - "schema.table.column_name"
-    ///
-    /// @signature (cls, string: str) -> typing.Self
     #[classmethod]
     fn parse(_cls: &pyo3::Bound<'_, pyo3::types::PyType>, string: String) -> pyo3::PyResult<Self> {
         Self::from_str(&string)
     }
 
-    /// @signature (
-    ///     self,
-    ///     *,
-    ///     name: str | None = ...,
-    ///     table: str | None = ...,
-    ///     schema: str | None = ...,
-    /// ) -> typing.Self
     #[pyo3(signature=(**kwds))]
     fn copy_with(&self, kwds: Option<BoundKwargs<'_>>) -> pyo3::PyResult<Self> {
         use pyo3::types::PyDictMethods;

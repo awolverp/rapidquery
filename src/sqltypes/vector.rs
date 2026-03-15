@@ -10,9 +10,6 @@ crate::implement_pyclass! {
     ///
     /// Specialized type for storing vector data, often used in machine learning,
     /// similarity search, or mathematical applications.
-    ///
-    /// @extends SQLTypeAbstract[list[float]]
-    /// @signature (length: int | None = None)
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyVectorType as "Vector" (pub Option<u32>);
 }
@@ -22,9 +19,6 @@ crate::implement_pyclass! {
     /// Represents a column that stores arrays of a specified element type.
     /// Useful in databases that support native array types (like PostgreSQL)
     /// for storing lists of values in a single column.
-    ///
-    /// @extends SQLTypeAbstract[list[T]]
-    /// @signature (element: SQLTypeAbstract[T])
     #[derive(Clone)]
     [extends=PySQLTypeAbstract] PyArrayType as "Array" (pub TypeEngine);
 }
@@ -328,14 +322,11 @@ impl PyArrayType {
     /// Type name. e.g. `'INTEGER'`, `'STRING'`
     ///
     /// It also may be a property. This function must NOT raise any error.
-    ///
-    /// @signature (self) -> str
     #[getter]
     fn __type_name__(&self) -> String {
         self.to_sql_type_name()
     }
 
-    /// @signature (self) -> SQLTypeAbstract[T]
     #[getter]
     fn element<'py>(&self, py: pyo3::Python<'py>) -> pyo3::Bound<'py, pyo3::PyAny> {
         let ptr = self.0 .1.as_ptr();

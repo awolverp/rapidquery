@@ -1,27 +1,34 @@
 from __future__ import annotations
 
 import typing
-from .sqltypes import SQLTypeAbstract
-from .schema import Table
-from .query import SelectStatement
 
-__all__ = [
-    "Column",
-    "ColumnRef",
-    "Expr",
-    "ForeignKey",
-    "Func",
-    "TableName",
-    "Value",
-    "all",
-    "any",
-    "not_",
-]
+from .query import SelectStatement
+from .sqltypes import SQLTypeAbstract
 
 T = typing.TypeVar("T")
 _ForeignKeyActions: typing.TypeAlias = typing.Literal[
     "CASCADE", "RESTRICT", "NO ACTION", "SET DEFAULT", "SET NULL"
 ]
+
+class _ColumnRefProperty(typing.Protocol):
+    __column_ref__: typing.Any
+
+class _TableNameProperty(typing.Protocol):
+    __table_name__: typing.Any
+
+_ColumnRefNew = typing.Union[
+    "ColumnRef",
+    str,
+    _ColumnRefProperty,
+    type[_ColumnRefProperty],
+]
+_TableNameNew = typing.Union[
+    "TableName",
+    str,
+    _TableNameProperty,
+    type[_TableNameProperty],
+]
+_ExprNew = typing.Any
 
 class Column(typing.Generic[T]):
     """
@@ -48,26 +55,41 @@ class Column(typing.Generic[T]):
         unique_key: bool = False,
         nullable: bool = False,
         auto_increment: bool = False,
-        stored_generated: bool = False,
         extra: str | None = ...,
         comment: str | None = ...,
         default: typing.Any = ...,
         generated: typing.Any = ...,
+        stored_generated: bool = False,
     ) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+        """
+        Construct a table column with column type.
+
+        Args:
+            name: The name of this column as represented in the database.
+            type: The column's type.
+            primary_key: If `True`, marks this column as a primary key column.
+            unique_key: If `True`, marks this column as a unique key column.
+            nullable: If `False`, marks this column as "NOT NULL", otherwise marks as "NULL".
+            auto_increment: If `True`, marks this column as auto increment. Auto increment phrase is
+                            depended on backend/dialect.
+            extra: Some extra options in custom string.
+            comment: (MySQL only) Column comment.
+            default: Represents default value for the column.
+            generated: Sets the column as generated.
+            stored_generated: Works with `generated` parameter together, which marks column as "STORED GENERATED".
+        """
         ...
 
     def __copy__(self) -> typing.Self: ...
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     def adapt(self, object: T) -> Value[T]:
         """Shorthand for `Value(object, self.type)`."""
         ...
 
     @property
-    def auto_increment(self) -> bool: ...
+    def auto_increment(self) -> bool:
+        """Whether this is a auto increment column."""
+        ...
     @auto_increment.setter
     def auto_increment(self, value: bool) -> None: ...
     @property
@@ -81,7 +103,7 @@ class Column(typing.Generic[T]):
         """Default value for this column."""
         ...
     @default.setter
-    def default(self, value: Expr | None) -> None: ...
+    def default(self, value: _ExprNew) -> None: ...
     @property
     def extra(self) -> str | None:
         """Extra SQL specifications for this column."""
@@ -93,7 +115,7 @@ class Column(typing.Generic[T]):
         """Expression for generated column values."""
         ...
     @generated.setter
-    def generated(self, value: Expr | None) -> None: ...
+    def generated(self, value: _ExprNew) -> None: ...
     @property
     def name(self) -> str:
         """Column name."""
@@ -101,15 +123,21 @@ class Column(typing.Generic[T]):
     @name.setter
     def name(self, value: str) -> None: ...
     @property
-    def nullable(self) -> bool: ...
+    def nullable(self) -> bool:
+        """Whether this is a nullable column."""
+        ...
     @nullable.setter
     def nullable(self, value: bool) -> None: ...
     @property
-    def primary_key(self) -> bool: ...
+    def primary_key(self) -> bool:
+        """Whether this is a nullable column."""
+        ...
     @primary_key.setter
     def primary_key(self, value: bool) -> None: ...
     @property
-    def stored_generated(self) -> bool: ...
+    def stored_generated(self) -> bool:
+        """Whether this is a stored generated column."""
+        ...
     @stored_generated.setter
     def stored_generated(self, value: bool) -> None: ...
     @property
@@ -118,9 +146,13 @@ class Column(typing.Generic[T]):
         ...
 
     @property
-    def unique_key(self) -> bool: ...
+    def unique_key(self) -> bool:
+        """Whether this is a unique column."""
+        ...
     @unique_key.setter
     def unique_key(self, value: bool) -> None: ...
+    @property
+    def __column_ref__(self) -> ColumnRef: ...
 
 @typing.final
 class ColumnRef:
@@ -130,50 +162,40 @@ class ColumnRef:
     This class is used to uniquely identify columns in SQL queries, supporting
     schema-qualified and table-qualified column references.
 
-    NOTE: this class is immutable and frozen.
+    NOTE: this class is immutable and frozen, But you can use `.copy_with` method to make changes on it.
     """
 
     def __new__(
-        cls, name: str, table: str | None = ..., schema: str | None = ...
+        cls,
+        name: str,
+        table: str | None = ...,
+        schema: str | None = ...,
     ) -> typing.Self: ...
     def __copy__(self) -> typing.Self: ...
-    def __eq__(self, value, /) -> bool:
-        """Return self==value."""
-        ...
-
-    def __ge__(self, value, /) -> bool:
-        """Return self>=value."""
-        ...
-
-    def __gt__(self, value, /) -> bool:
-        """Return self>value."""
-        ...
-
-    def __le__(self, value, /) -> bool:
-        """Return self<=value."""
-        ...
-
-    def __lt__(self, value, /) -> bool:
-        """Return self<value."""
-        ...
-
-    def __ne__(self, value, /) -> bool:
-        """Return self!=value."""
-        ...
-
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __eq__(self, value, /) -> bool: ...
+    def __ge__(self, value, /) -> bool: ...
+    def __gt__(self, value, /) -> bool: ...
+    def __le__(self, value, /) -> bool: ...
+    def __lt__(self, value, /) -> bool: ...
+    def __ne__(self, value, /) -> bool: ...
+    def __repr__(self, /) -> str: ...
     def copy_with(
         self,
         *,
         name: str | None = ...,
         table: str | None = ...,
         schema: str | None = ...,
-    ) -> typing.Self: ...
+    ) -> typing.Self:
+        """
+        Returns a copy of this `ColumnRef`, but with the changes you want.
+        """
+        ...
+
     @property
-    def name(self) -> str: ...
+    def name(self) -> str:
+        """Column reference name."""
+        ...
+
     @classmethod
     def parse(cls, string: str) -> typing.Self:
         """
@@ -187,9 +209,14 @@ class ColumnRef:
         ...
 
     @property
-    def schema(self) -> str | None: ...
+    def schema(self) -> str | None:
+        """Schema name"""
+        ...
+
     @property
-    def table(self) -> str | None: ...
+    def table(self) -> str | None:
+        """Table name"""
+        ...
 
     __hash__ = None  # type: ignore
 
@@ -209,48 +236,48 @@ class Expr:
     of it which includes new change(s).
     """
 
-    def __new__(cls, value: object, /) -> typing.Self: ...
-    def __add__(self, other: object) -> typing.Self:
+    def __new__(cls, value: _ExprNew, /) -> typing.Self: ...
+    def __add__(self, other: _ExprNew) -> typing.Self:
         """Create an addition expression."""
         ...
 
-    def __and__(self, other: object) -> typing.Self:
+    def __and__(self, other: _ExprNew) -> typing.Self:
         """Create a logical AND expression."""
         ...
 
-    def __eq__(self, other: object) -> typing.Self:
+    def __eq__(self, other: _ExprNew) -> typing.Self:  # type: ignore[override]
         """Create an equality comparison expression."""
         ...
 
-    def __ge__(self, other: object) -> typing.Self:
+    def __ge__(self, other: _ExprNew) -> typing.Self:
         """Create a greater-than-or-equal comparison expression."""
         ...
 
-    def __gt__(self, other: object) -> typing.Self:
+    def __gt__(self, other: _ExprNew) -> typing.Self:
         """Create a greater-than comparison expression."""
         ...
 
-    def __le__(self, other: object) -> typing.Self:
+    def __le__(self, other: _ExprNew) -> typing.Self:
         """Create a less-than-or-equal comparison expression."""
         ...
 
-    def __lshift__(self, other: object) -> typing.Self:
+    def __lshift__(self, other: _ExprNew) -> typing.Self:
         """Create a bitwise left-shift expression."""
         ...
 
-    def __lt__(self, other: object) -> typing.Self:
+    def __lt__(self, other: _ExprNew) -> typing.Self:
         """Create a less-than comparison expression."""
         ...
 
-    def __mod__(self, other: object) -> typing.Self:
+    def __mod__(self, other: _ExprNew) -> typing.Self:
         """Create a modulo expression."""
         ...
 
-    def __mul__(self, other: object) -> typing.Self:
+    def __mul__(self, other: _ExprNew) -> typing.Self:
         """Create a multiplication expression."""
         ...
 
-    def __ne__(self, other: object) -> typing.Self:
+    def __ne__(self, other: _ExprNew) -> typing.Self:  # type: ignore[override]
         """Create an inequality comparison expression."""
         ...
 
@@ -258,15 +285,15 @@ class Expr:
         """Create a negation expression."""
         ...
 
-    def __or__(self, other: object) -> typing.Self:
+    def __or__(self, other: _ExprNew) -> typing.Self:
         """Create a logical OR expression."""
         ...
 
-    def __radd__(self, other: object) -> typing.Self:
+    def __radd__(self, other: _ExprNew) -> typing.Self:
         """Create an addition expression."""
         ...
 
-    def __rand__(self, other: object) -> typing.Self:
+    def __rand__(self, other: _ExprNew) -> typing.Self:
         """Create a logical AND expression."""
         ...
 
@@ -274,43 +301,43 @@ class Expr:
         """Return repr(self)."""
         ...
 
-    def __rlshift__(self, other: object) -> typing.Self:
+    def __rlshift__(self, other: _ExprNew) -> typing.Self:
         """Create a bitwise left-shift expression."""
         ...
 
-    def __rmod__(self, other: object) -> typing.Self:
+    def __rmod__(self, other: _ExprNew) -> typing.Self:
         """Create a modulo expression."""
         ...
 
-    def __rmul__(self, other: object) -> typing.Self:
+    def __rmul__(self, other: _ExprNew) -> typing.Self:
         """Create a multiplication expression."""
         ...
 
-    def __ror__(self, other: object) -> typing.Self:
+    def __ror__(self, other: _ExprNew) -> typing.Self:
         """Create a logical OR expression."""
         ...
 
-    def __rrshift__(self, other: object) -> typing.Self:
+    def __rrshift__(self, other: _ExprNew) -> typing.Self:
         """Create a bitwise right-shift expression."""
         ...
 
-    def __rshift__(self, other: object) -> typing.Self:
+    def __rshift__(self, other: _ExprNew) -> typing.Self:
         """Create a bitwise right-shift expression."""
         ...
 
-    def __rsub__(self, other: object) -> typing.Self:
+    def __rsub__(self, other: _ExprNew) -> typing.Self:
         """Create a subtraction expression."""
         ...
 
-    def __rtruediv__(self, other: object) -> typing.Self:
+    def __rtruediv__(self, other: _ExprNew) -> typing.Self:
         """Create a division expression."""
         ...
 
-    def __sub__(self, other: object) -> typing.Self:
+    def __sub__(self, other: _ExprNew) -> typing.Self:
         """Create a subtraction expression."""
         ...
 
-    def __truediv__(self, other: object) -> typing.Self:
+    def __truediv__(self, other: _ExprNew) -> typing.Self:
         """Create a division expression."""
         ...
 
@@ -329,18 +356,24 @@ class Expr:
         """Returns asterisk '*' expression."""
         ...
 
-    def between(self, a: object, b: object) -> typing.Self:
+    def between(self, a: _ExprNew, b: _ExprNew) -> typing.Self:
         """Create a BETWEEN range comparison expression."""
         ...
 
-    def bit_and(self, other: object) -> typing.Self: ...
-    def bit_or(self, other: object) -> typing.Self: ...
+    def bit_and(self, other: _ExprNew) -> typing.Self:
+        """Create a bitwise AND expression."""
+        ...
+
+    def bit_or(self, other: _ExprNew) -> typing.Self:
+        """Create a bitwise AND expression."""
+        ...
+
     def cast_as(self, value: str) -> typing.Self:
         """Create a `CAST` expression to convert to a specific SQL type."""
         ...
 
     @classmethod
-    def col(cls, value: str | ColumnRef) -> typing.Self:
+    def col(cls, value: _ColumnRefNew) -> typing.Self:
         """
         Tries to convert the `value` into `ColumnRef`, and then converts it to `Expr`.
         """
@@ -376,15 +409,15 @@ class Expr:
         """Express a `EXISTS` sub-query expression."""
         ...
 
-    def in_(self, other: typing.Iterable[object] | SelectStatement) -> typing.Self:
+    def in_(self, other: typing.Iterable[_ExprNew] | SelectStatement) -> typing.Self:
         """Express a `IN` expression."""
         ...
 
-    def is_(self, other: object) -> typing.Self:
+    def is_(self, other: _ExprNew) -> typing.Self:
         """Create an IS comparison expression."""
         ...
 
-    def is_not(self, other: object) -> typing.Self:
+    def is_not(self, other: _ExprNew) -> typing.Self:
         """Create an IS NOT comparison expression."""
         ...
 
@@ -400,11 +433,11 @@ class Expr:
         """Create a `LIKE` pattern matching expression."""
         ...
 
-    def not_between(self, a: object, b: object) -> typing.Self:
+    def not_between(self, a: _ExprNew, b: _ExprNew) -> typing.Self:
         """Create a NOT BETWEEN range comparison expression."""
         ...
 
-    def not_in(self, other: typing.Iterable[object] | SelectStatement) -> typing.Self:
+    def not_in(self, other: typing.Iterable[_ExprNew] | SelectStatement) -> typing.Self:
         """Express a `NOT IN` expression."""
         ...
 
@@ -423,7 +456,12 @@ class Expr:
         ...
 
     @classmethod
-    def val(cls, /, value: T | None, sql_type: SQLTypeAbstract[T] | None = ...) -> typing.Self:
+    def val(
+        cls,
+        /,
+        value: T | None,
+        sql_type: SQLTypeAbstract[T] | None = ...,
+    ) -> typing.Self:
         """Shorthand for `Expr(Value(value, sql_type))`"""
         ...
 
@@ -445,34 +483,42 @@ class ForeignKey:
 
     def __init__(
         self,
-        from_columns: typing.Iterable[str | ColumnRef | Column],
-        to_columns: typing.Iterable[str | ColumnRef | Column],
-        to_table: Table | TableName | str,
+        from_columns: typing.Iterable[_ColumnRefNew],
+        to_columns: typing.Iterable[_ColumnRefNew],
+        to_table: _TableNameNew,
         name: str | None = None,
         *,
         on_delete: _ForeignKeyActions | None = None,
         on_update: _ForeignKeyActions | None = None,
     ) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
-        ...
+        """
+        Construct a foreign key constraint.
 
+        Args:
+            from_columns: An iterable of column references, or column names, or `Column` object.
+                        The columns must defined and presented in the parent table.
+            to_columns: An iterable of column references, or column names, or `Column` object.
+                        The columns must defined and presented in the target table.
+            to_table: The target table.
+            name: The in-database name of the key.
+            on_delete: The foreign key action for "ON DELETE".
+            on_update: The foreign key action for "ON UPDATE".
+        """
+        ...
     def __copy__(self) -> typing.Self: ...
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     @property
     def from_columns(self) -> typing.Sequence[str]:
         """Key columns."""
         ...
     @from_columns.setter
-    def from_columns(self, value: typing.Iterable[str | Column | ColumnRef]) -> None: ...
+    def from_columns(self, value: typing.Iterable[_ColumnRefNew]) -> None: ...
     @property
     def from_table(self) -> TableName | None:
         """Key table, if specified."""
         ...
     @from_table.setter
-    def from_table(self, value: Table | TableName | None) -> None: ...
+    def from_table(self, value: _TableNameNew | None) -> None: ...
     @property
     def name(self) -> str:
         """Foreign key constraint name"""
@@ -496,7 +542,7 @@ class ForeignKey:
         """Referencing columns."""
         ...
     @to_columns.setter
-    def to_columns(self, value: typing.Iterable[str | Column | ColumnRef]) -> None: ...
+    def to_columns(self, value: typing.Iterable[_ColumnRefNew]) -> None: ...
     @property
     def to_table(self) -> TableName:
         """Referencing table."""
@@ -513,50 +559,56 @@ class Func:
     with proper argument handling and database dialect support.
     """
 
-    def __new__(cls, name: str, *args: object) -> typing.Self: ...
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
+    def __new__(cls, name: str, *args: _ExprNew) -> typing.Self:
+        """
+        Construct a function expression. You can use ready-to-use classmethods instead of this.
+
+        Args:
+            name: the function name in string.
+            args: function arguments.
+        """
         ...
 
+    def __repr__(self, /) -> str: ...
     @classmethod
-    def abs(cls, /, expr: object) -> typing.Self:
+    def abs(cls, /, expr: _ExprNew) -> typing.Self:
         """Create a ABS(expr) function call."""
         ...
 
     @classmethod
-    def avg(cls, /, expr: object) -> typing.Self:
+    def avg(cls, /, expr: _ExprNew) -> typing.Self:
         """Create a AVG(expr) function call."""
         ...
 
     @classmethod
-    def bit_and(cls, /, expr: object) -> typing.Self:
+    def bit_and(cls, /, expr: _ExprNew) -> typing.Self:
         """
         Create a BIT_AND(expr) function call - this is not supported on SQLite.
         """
         ...
 
     @classmethod
-    def bit_or(cls, /, expr: object) -> typing.Self:
+    def bit_or(cls, /, expr: _ExprNew) -> typing.Self:
         """Create a BIT_OR(expr) function call - this is not supported on SQLite."""
         ...
 
     @classmethod
-    def char_length(cls, /, expr: object) -> typing.Self:
+    def char_length(cls, /, expr: _ExprNew) -> typing.Self:
         """Create a CHAR_LENGTH(expr) function call."""
         ...
 
     @classmethod
-    def coalesce(cls, /, *exprs: object) -> typing.Self:
+    def coalesce(cls, /, *exprs: _ExprNew) -> typing.Self:
         """Create a COALESCE function call."""
         ...
 
     @classmethod
-    def count(cls, /, expr: object) -> typing.Self:
+    def count(cls, /, expr: _ExprNew) -> typing.Self:
         """Create a COUNT(expr) function call."""
         ...
 
     @classmethod
-    def count_distinct(cls, /, expr: object) -> typing.Self:
+    def count_distinct(cls, /, expr: _ExprNew) -> typing.Self:
         """Create a COUNT(DISTINCT expr) function call."""
         ...
 
@@ -566,39 +618,39 @@ class Func:
         ...
 
     @classmethod
-    def greatest(cls, /, *exprs: object) -> typing.Self:
+    def greatest(cls, /, *exprs: _ExprNew) -> typing.Self:
         """Create a GREATEST function call."""
         ...
 
     @classmethod
-    def if_null(cls, /, a: object, b: object) -> typing.Self:
+    def if_null(cls, /, a: _ExprNew, b: _ExprNew) -> typing.Self:
         """Create a IF_NULL(a, b) function call."""
         ...
 
     @classmethod
-    def least(cls, /, *exprs: object) -> typing.Self:
+    def least(cls, /, *exprs: _ExprNew) -> typing.Self:
         """Create a LEAST function call."""
         ...
 
     @classmethod
-    def lower(cls, /, expr: object) -> typing.Self:
+    def lower(cls, /, expr: _ExprNew) -> typing.Self:
         """Create a LOWER(expr) function call."""
         ...
 
     @classmethod
-    def max(cls, /, expr: object) -> typing.Self:
+    def max(cls, /, expr: _ExprNew) -> typing.Self:
         """Create a MAX(expr) function call."""
         ...
 
     @classmethod
-    def md5(cls, /, expr: object) -> typing.Self:
+    def md5(cls, /, expr: _ExprNew) -> typing.Self:
         """
         Create a MD5(expr) function call - this is only available in Postgres and MySQL.
         """
         ...
 
     @classmethod
-    def min(cls, /, expr: object) -> typing.Self:
+    def min(cls, /, expr: _ExprNew) -> typing.Self:
         """Create a MIN(expr) function call."""
         ...
 
@@ -623,22 +675,22 @@ class Func:
         ...
 
     @classmethod
-    def round(cls, /, expr: object) -> typing.Self:
+    def round(cls, /, expr: _ExprNew) -> typing.Self:
         """Create a ROUND(expr) function call."""
         ...
 
     @classmethod
-    def round_with_precision(cls, /, a: object, b: object) -> typing.Self:
+    def round_with_precision(cls, /, a: _ExprNew, b: _ExprNew) -> typing.Self:
         """Create a ROUND(a, b) function call."""
         ...
 
     @classmethod
-    def sum(cls, /, expr: object) -> typing.Self:
+    def sum(cls, /, expr: _ExprNew) -> typing.Self:
         """Create a SUM(expr) function call."""
         ...
 
     @classmethod
-    def upper(cls, /, expr: object) -> typing.Self:
+    def upper(cls, /, expr: _ExprNew) -> typing.Self:
         """Create a UPPER(expr) function call."""
         ...
 
@@ -670,10 +722,7 @@ class TableName:
         """Return self==value."""
         ...
 
-    def __ge__(self, value, /) -> bool:
-        """Return self>=value."""
-        ...
-
+    def __ge__(self, value, /) -> bool: ...
     def __gt__(self, value, /) -> bool:
         """Return self>value."""
         ...
@@ -735,34 +784,37 @@ class Value(typing.Generic[T]):
     This class handles validation, adaptation, and conversion between different
     type systems used in the application stack.
 
-    It can automatically detects the type of your value and selects appropriate Rust and SQL types.
-    For example:
-    - Python `int` becomes `BIGINT` SQL type (`BigIntegerType`)
-    - Python `dict` or `list` becomes `JSON` SQL type (`JsonType`)
-    - Python `float` becomes `DOUBLE` SQL type (`DoubleType`)
-
-    However, for more accurate type selection, it's recommended to use the `sql_type` parameter.
-
     NOTE: this class is immutable and frozen.
     """
 
-    def __init__(self, value: T | None, sql_type: SQLTypeAbstract[T] | None = ...) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+    def __init__(
+        self,
+        value: T | None,
+        sql_type: SQLTypeAbstract[T] | None = ...,
+    ) -> None:
+        """
+        Construct a new `Value`.
+
+        It can automatically detects the type of your value and selects appropriate Rust and SQL types.
+        For example:
+        - Python `int` becomes `BIGINT` SQL type (`BigIntegerType`)
+        - Python `dict` or `list` becomes `JSON` SQL type (`JsonType`)
+        - Python `float` becomes `DOUBLE` SQL type (`DoubleType`)
+
+        However, for more accurate type selection, use the `sql_type` parameter.
+        """
         ...
 
-    def __hash__(self, /) -> int:
-        """Return hash(self)."""
-        ...
-
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __hash__(self, /) -> int: ...
+    def __repr__(self, /) -> str: ...
     @property
-    def sql_type(self) -> SQLTypeAbstract[T]: ...
+    def sql_type(self) -> SQLTypeAbstract[T]:
+        """The defined or detected SQL type."""
+        ...
+
     @property
     def value(self) -> T | None:
-        """Converts the adapted value back to a Python type."""
+        """Converts the adapted value back to Python."""
         ...
 
 def all(arg1: Expr, *args: Expr) -> Expr:

@@ -27,12 +27,6 @@ crate::implement_pyclass! {
     // NOTE: It's a very simple clause, so I think it's OK to be a final type.
 
     /// Specifies ordering behavior for UPDATE, DELETE, and SELECT statements.
-    ///
-    /// @signature (
-    ///     target: Expr | Column | ColumnRef | str,
-    ///     order: typing.Literal["ASC", "DESC"] = "ASC",
-    ///     null_ordering: typing.Literal["FIRST", "LAST"] | None = None,
-    /// )
     #[derive(Debug, Clone)]
     [] PyOrdering as "Ordering" {
         pub target: PyExpr,
@@ -91,20 +85,16 @@ impl PyOrdering {
     }
 
     /// Target expression.
-    ///
-    /// @signature (self) -> Expr
     #[getter]
     fn target(&self) -> PyExpr {
         self.target.clone()
     }
 
-    /// @signature (self) -> typing.Literal["ASC", "DESC"]
     #[getter]
     fn order(&self) -> String {
         map_order_to_str(&self.order)
     }
 
-    /// @signature (self) -> typing.Literal["FIRST", "LAST"] | None
     #[getter]
     fn null_order(&self) -> Option<String> {
         map_null_ordering_to_str(self.null_order)

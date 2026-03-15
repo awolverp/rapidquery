@@ -11,9 +11,6 @@ crate::implement_pyclass! {
     /// Stores exact numeric values with fixed precision and scale. Essential for
     /// financial calculations, currency values, or any situation where exact
     /// decimal representation is required without floating-point approximation.
-    ///
-    /// @extends SQLTypeAbstract[decimal.Decimal | int | float | str]
-    /// @signature (cls, context: tuple[int, int] | None = None)
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyDecimalType as "Decimal" (pub Option<(u32, u32)>);
 }
@@ -23,8 +20,6 @@ crate::implement_pyclass! {
     /// Stores universally unique identifiers. Ideal for distributed systems,
     /// primary keys, or any situation where globally unique identifiers are
     /// needed without central coordination.
-    ///
-    /// @extends SQLTypeAbstract[uuid.UUID]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyUUIDType as "UUID";
 }
@@ -33,8 +28,6 @@ crate::implement_pyclass! {
     ///
     /// Stores IPv4 or IPv6 addresses, with or without subnet specification.
     /// More flexible than CIDR type, allowing both host addresses and network ranges.
-    ///
-    /// @extends SQLTypeAbstract[str]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyINETType as "INET";
 }
@@ -43,8 +36,6 @@ crate::implement_pyclass! {
     ///
     /// Stores MAC (Media Access Control) addresses for network devices.
     /// Provides validation and formatting for 6-byte MAC addresses.
-    ///
-    /// @extends SQLTypeAbstract[str]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyMacAddressType as "MacAddress";
 }
@@ -54,9 +45,6 @@ crate::implement_pyclass! {
     /// Stores one value from a predefined set of allowed string values.
     /// Provides type safety and storage efficiency for categorical data
     /// with a fixed set of possible values.
-    ///
-    /// @extends SQLTypeAbstract[str | enum.Enum]
-    /// @signature (name: str, variants: typing.Iterable[str])
     #[derive(Debug, Clone)]
     [extends=PySQLTypeAbstract] PyEnumType as "Enum" {
         pub name: sea_query::DynIden,
@@ -478,20 +466,16 @@ impl PyEnumType {
     /// Type name. e.g. `'INTEGER'`, `'STRING'`
     ///
     /// It also may be a property. This function must NOT raise any error.
-    ///
-    /// @signature (self) -> str
     #[getter]
     fn __type_name__(&self) -> String {
         self.to_sql_type_name()
     }
 
-    /// @signature (self) -> str
     #[getter]
     fn name(&self) -> String {
         self.name.to_string()
     }
 
-    /// @signature (self) -> typing.Sequence[str]
     #[getter]
     fn variants(&self) -> Vec<String> {
         self.variants.iter().map(|x| x.to_string()).collect()

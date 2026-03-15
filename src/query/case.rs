@@ -3,7 +3,6 @@ use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundArgs, BoundKwargs, RefBoundObject, ToSeaQuery};
 
 crate::implement_pyclass! {
-    /// @signature (self)
     mutable [subclass] PyCaseStatement(CaseStatementState) as "CaseStatement" {
         pub when: Vec<(PyExpr, PyExpr)>,
         pub r#else: Option<PyExpr>,
@@ -44,7 +43,6 @@ impl PyCaseStatement {
         Ok(())
     }
 
-    /// @signature (self, condition: Expr, result: object) -> typing.Self
     fn when<'a>(
         slf: pyo3::PyRef<'a, Self>,
         condition: RefBoundObject<'a>,
@@ -68,7 +66,6 @@ impl PyCaseStatement {
         Ok(slf)
     }
 
-    /// @signature (self, result: object) -> typing.Self
     fn else_<'a>(
         slf: pyo3::PyRef<'a, Self>,
         result: RefBoundObject<'a>,

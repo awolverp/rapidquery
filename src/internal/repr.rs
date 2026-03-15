@@ -52,10 +52,10 @@ impl ReprFormatter {
     #[inline]
     pub fn write(&mut self, part: impl AsRef<str>) -> &mut Self {
         if self.started {
-            self.buf.push_str(" ");
+            self.buf.push(' ');
             self.buf.push_str(part.as_ref());
         } else {
-            self.buf.push_str(" ");
+            self.buf.push(' ');
             self.buf.push_str(part.as_ref());
             self.started = true;
         }

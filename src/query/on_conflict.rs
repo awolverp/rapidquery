@@ -27,8 +27,6 @@ crate::implement_pyclass! {
     ///
     /// This corresponds to INSERT ... ON CONFLICT in PostgreSQL and
     /// INSERT ... ON DUPLICATE KEY UPDATE in MySQL.
-    ///
-    /// @signature (self, *targets: Column | ColumnRef | str)
     #[derive(Debug, Clone)]
     mutable [subclass] PyOnConflict(OnConflictState) as "OnConflict" {
         targets: Vec<sea_query::DynIden>,
@@ -177,8 +175,6 @@ impl PyOnConflict {
     /// When a conflict occurs, the conflicting row will be skipped.
     ///
     /// `keys` parameter provides primary keys if you are using MySQL, for MySQL specific polyfill.
-    ///
-    /// @signature (self, *keys: Column | ColumnRef | str) -> typing.Self
     #[pyo3(signature=(*keys))]
     fn do_nothing<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -213,10 +209,6 @@ impl PyOnConflict {
     }
 
     /// Specify DO UPDATE action for conflicts using column names, or with explicit values.
-    ///
-    /// @overload (self, *args: Column | ColumnRef | str) -> typing.Self
-    /// @overload (self, **kwds: object) -> typing.Self
-    /// @signature (self, *args: Column | ColumnRef | str, **kwds: object) -> typing.Self
     #[pyo3(signature=(*args, **kwds))]
     fn do_update<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -242,8 +234,6 @@ impl PyOnConflict {
     }
 
     /// Add a WHERE clause to the conflict target (partial unique index).
-    ///
-    /// @signature (self, condition: Expr) -> typing.Self
     fn target_where<'a>(
         slf: pyo3::PyRef<'a, Self>,
         condition: RefBoundObject<'a>,
@@ -265,8 +255,6 @@ impl PyOnConflict {
     }
 
     /// Add a WHERE clause to the conflict action (conditional update).
-    ///
-    /// @signature (self, condition: Expr) -> typing.Self
     fn action_where<'a>(
         slf: pyo3::PyRef<'a, Self>,
         condition: RefBoundObject<'a>,

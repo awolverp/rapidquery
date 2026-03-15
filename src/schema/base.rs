@@ -2,9 +2,6 @@ use crate::internal::{BoundArgs, BoundKwargs};
 
 crate::implement_pyclass! {
     /// Subclass of schema statements.
-    ///
-    /// @alias _BackendName = typing.Literal["sqlite", "postgresql", "postgres", "mysql"]
-    /// @signature (self)
     #[derive(Debug, Clone, Copy)]
     [subclass] PySchemaStatement as "SchemaStatement";
 }
@@ -21,8 +18,6 @@ impl PySchemaStatement {
     fn __init__(&self) {}
 
     /// Build a SQL string representation.
-    ///
-    /// @signature (self, backend: _BackendName, /) -> str
     #[pyo3(signature = (backend, /))]
     #[allow(unused_variables)]
     #[allow(clippy::wrong_self_convention)]

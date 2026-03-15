@@ -38,18 +38,6 @@ crate::implement_pyclass! {
     ///
     /// Foreign keys ensure data consistency by requiring that values in the
     /// child table's columns match existing values in the parent table's columns.
-    ///
-    /// @alias _ForeignKeyActions = typing.Literal["CASCADE", "RESTRICT", "NO ACTION", "SET DEFAULT", "SET NULL"]
-    /// @signature (
-    ///     self,
-    ///     from_columns: typing.Iterable[str | ColumnRef | Column],
-    ///     to_columns: typing.Iterable[str | ColumnRef | Column],
-    ///     to_table: Table | TableName | str,
-    ///     name: str | None = None,
-    ///     *,
-    ///     on_delete: _ForeignKeyActions | None = None,
-    ///     on_update: _ForeignKeyActions | None = None,
-    /// )
     #[derive(Debug, Clone)]
     mutable [subclass] PyForeignKey(ForeignKeyState) as "ForeignKey" {
         /// Foreign key constraint name
@@ -267,9 +255,6 @@ impl PyForeignKey {
     }
 
     /// Foreign key constraint name
-    ///
-    /// @signature (self) -> str
-    /// @setter str
     #[getter]
     fn name(&self) -> String {
         self.0.lock().name.clone()
@@ -282,9 +267,6 @@ impl PyForeignKey {
     }
 
     /// Key table, if specified.
-    ///
-    /// @signature (self) -> TableName | None
-    /// @setter Table | TableName | None
     #[getter]
     #[allow(clippy::wrong_self_convention)]
     fn from_table(&self) -> Option<PyTableName> {
@@ -302,9 +284,6 @@ impl PyForeignKey {
     }
 
     /// Referencing table.
-    ///
-    /// @signature (self) -> TableName
-    /// @setter TableName
     #[getter]
     fn to_table(&self) -> PyTableName {
         self.0.lock().to_table.clone()
@@ -318,9 +297,6 @@ impl PyForeignKey {
     }
 
     /// Key columns.
-    ///
-    /// @signature (self) -> typing.Sequence[str]
-    /// @setter typing.Iterable[str | Column | ColumnRef]
     #[getter]
     #[allow(clippy::wrong_self_convention)]
     fn from_columns(&self) -> Vec<String> {
@@ -363,9 +339,6 @@ impl PyForeignKey {
     }
 
     /// Referencing columns.
-    ///
-    /// @signature (self) -> typing.Sequence[str]
-    /// @setter typing.Iterable[str | Column | ColumnRef]
     #[getter]
     fn to_columns(&self) -> Vec<String> {
         self.0.lock().to_columns.clone()
@@ -407,9 +380,6 @@ impl PyForeignKey {
     }
 
     /// ON DELETE action.
-    ///
-    /// @signature (self) -> _ForeignKeyActions | None
-    /// @setter _ForeignKeyActions | None
     #[getter]
     fn on_delete(&self) -> Option<String> {
         self.0.lock().on_delete.map(map_foreign_key_action_to_str)
@@ -426,9 +396,6 @@ impl PyForeignKey {
     }
 
     /// ON UPDATE action.
-    ///
-    /// @signature (self) -> _ForeignKeyActions | None
-    /// @setter _ForeignKeyActions | None
     #[getter]
     fn on_update(&self) -> Option<String> {
         self.0.lock().on_update.map(map_foreign_key_action_to_str)

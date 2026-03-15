@@ -5,8 +5,6 @@ crate::implement_pyclass! {
     ///
     /// Stores large binary data such as images, documents, audio files, or
     /// any binary content. Size limits vary by database system.
-    ///
-    /// @extends SQLTypeAbstract[bytes]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyBlobType as "Blob";
 }
@@ -16,9 +14,6 @@ crate::implement_pyclass! {
     /// Stores binary data of a fixed length. Values shorter than the specified
     /// length are padded. Useful for storing hashes, keys, or other binary
     /// data with consistent length.
-    ///
-    /// @extends SQLTypeAbstract[bytes]
-    /// @signature (length: int = 255)
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyBinaryType as "Binary" (pub u32);
 }
@@ -27,9 +22,6 @@ crate::implement_pyclass! {
     ///
     /// Stores binary data of variable length up to a specified maximum.
     /// More storage-efficient than BINARY for binary data of varying lengths.
-    ///
-    /// @extends SQLTypeAbstract[bytes]
-    /// @signature (length: int | None = None)
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyVarBinaryType as "VarBinary" (pub Option<u32>);
 }
@@ -38,9 +30,6 @@ crate::implement_pyclass! {
     ///
     /// Stores a fixed number of bits. Useful for storing boolean flags efficiently
     /// or binary data where individual bits have meaning.
-    ///
-    /// @extends SQLTypeAbstract[bytes]
-    /// @signature (length: int)
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyBitType as "Bit" (pub Option<u32>);
 }
@@ -49,9 +38,6 @@ crate::implement_pyclass! {
     ///
     /// Stores a variable number of bits up to a specified maximum. More flexible
     /// than fixed BIT type for bit strings of varying lengths.
-    ///
-    /// @extends SQLTypeAbstract[bytes]
-    /// @signature (length: int)
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyVarBitType as "VarBit" (pub u32);
 

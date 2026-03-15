@@ -28,8 +28,6 @@ crate::implement_pyclass! {
     /// 1. <https://dev.mysql.com/doc/refman/8.0/en/window-function-descriptions.html>
     /// 2. <https://www.sqlite.org/windowfunctions.html>
     /// 3. <https://www.postgresql.org/docs/current/tutorial-window.html>
-    ///
-    /// @signature (self, *partition_by: Expr | Column | ColumnRef | str)
     #[derive(Clone)]
     mutable [subclass] PyWindowStatement(WindowStatementState) as "WindowStatement" {
         pub partition_by: Vec<PyExpr>,
@@ -40,31 +38,26 @@ crate::implement_pyclass! {
 
 #[pyo3::pymethods]
 impl PyFrame {
-    /// @signature (cls) -> typing.Self
     #[classmethod]
     fn unbounded_preceding(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         Self(sea_query::Frame::UnboundedPreceding)
     }
 
-    /// @signature (cls) -> typing.Self
     #[classmethod]
     fn current_row(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         Self(sea_query::Frame::CurrentRow)
     }
 
-    /// @signature (cls) -> typing.Self
     #[classmethod]
     fn unbounded_following(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         Self(sea_query::Frame::UnboundedFollowing)
     }
 
-    /// @signature (cls, val: int) -> typing.Self
     #[classmethod]
     fn following(_cls: &pyo3::Bound<'_, pyo3::types::PyType>, val: u32) -> Self {
         Self(sea_query::Frame::Following(val))
     }
 
-    /// @signature (cls, val: int) -> typing.Self
     #[classmethod]
     fn preceding(_cls: &pyo3::Bound<'_, pyo3::types::PyType>, val: u32) -> Self {
         Self(sea_query::Frame::Preceding(val))
@@ -132,8 +125,6 @@ impl PyWindowStatement {
     }
 
     /// Partition by column or custom expression.
-    ///
-    /// @signature (self, partition_by: Expr | Column | ColumnRef | str) -> typing.Self
     fn partition<'a>(
         slf: pyo3::PyRef<'a, Self>,
         partition_by: RefBoundObject<'a>,
@@ -155,7 +146,6 @@ impl PyWindowStatement {
         Ok(slf)
     }
 
-    /// @signature (self, clause: Ordering) -> typing.Self
     #[pyo3(signature=(clause))]
     fn order_by<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -169,12 +159,6 @@ impl PyWindowStatement {
         Ok(slf)
     }
 
-    /// @signature (
-    ///     self,
-    ///     frame_type: typing.Literal["ROWS", "RANGE"],
-    ///     frame_start: Frame,
-    ///     frame_end: Frame | None = None,
-    /// ) -> typing.Self
     #[pyo3(signature=(frame_type, frame_start, frame_end=None))]
     fn frame<'a>(
         slf: pyo3::PyRef<'a, Self>,

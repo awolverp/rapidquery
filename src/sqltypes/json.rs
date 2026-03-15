@@ -8,8 +8,6 @@ crate::implement_pyclass! {
     /// Stores JSON documents with validation and indexing capabilities.
     /// Allows for flexible schema design and complex nested data structures
     /// while maintaining some query capabilities.
-    ///
-    /// @extends SQLTypeAbstract[typing.Any]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyJSONType as "JSON";
 }
@@ -19,8 +17,6 @@ crate::implement_pyclass! {
     /// Stores JSON documents in a binary format for improved performance.
     /// Provides faster query and manipulation operations compared to text-based
     /// JSON storage, with additional indexing capabilities.
-    ///
-    /// @extends SQLTypeAbstract[typing.Any]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyJSONBinaryType as "JSONBinary";
 }

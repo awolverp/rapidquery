@@ -26,23 +26,6 @@ crate::implement_pyclass! {
     /// This class is used within Table to specify the structure
     /// of table columns. It encapsulates all the properties that define how
     /// a column behaves and what data it can store.
-    ///
-    /// @extends typing.Generic[T]
-    /// @signature (
-    ///     self,
-    ///     name: str,
-    ///     type: SQLTypeAbstract[T],
-    ///     *,
-    ///     primary_key: bool = False,
-    ///     unique_key: bool = False,
-    ///     nullable: bool = False,
-    ///     auto_increment: bool = False,
-    ///     stored_generated: bool = False,
-    ///     extra: str | None = ...,
-    ///     comment: str | None = ...,
-    ///     default: typing.Any = ...,
-    ///     generated: typing.Any = ...,
-    /// )
     #[derive(Debug, Clone)]
     mutable [subclass, generic] PyColumn(ColumnState) as "Column" {
         pub name: String,
@@ -122,11 +105,11 @@ impl PyColumn {
                 unique_key=false,
                 nullable=false,
                 auto_increment=false,
-                stored_generated=false,
                 extra=None,
                 comment=None,
                 default=OptionalParam::Undefined,
                 generated=OptionalParam::Undefined,
+                stored_generated=false,
             )
         )
     ]
@@ -138,11 +121,11 @@ impl PyColumn {
         unique_key: bool,
         nullable: bool,
         auto_increment: bool,
-        stored_generated: bool,
         extra: Option<String>,
         comment: Option<String>,
         default: OptionalParam,
         generated: OptionalParam,
+        stored_generated: bool,
     ) -> pyo3::PyResult<()> {
         let sql_type = TypeEngine::new(r#type)?;
 
@@ -190,9 +173,6 @@ impl PyColumn {
     }
 
     /// Column name.
-    ///
-    /// @signature (self) -> str
-    /// @setter str
     #[getter]
     fn name(&self) -> String {
         self.0.lock().name.clone()
@@ -204,16 +184,12 @@ impl PyColumn {
     }
 
     /// Column type.
-    ///
-    /// @signature (self) -> SQLTypeAbstract[T]
     #[getter]
     fn r#type(&self, py: pyo3::Python) -> PyObject {
         let lock = self.0.lock();
         lock.r#type.as_pyobject(py).unbind()
     }
 
-    /// @signature (self) -> bool
-    /// @setter bool
     #[getter]
     fn primary_key(&self) -> bool {
         self.0.lock().options & OPT_PRIMARY_KEY > 0
@@ -229,8 +205,6 @@ impl PyColumn {
         }
     }
 
-    /// @signature (self) -> bool
-    /// @setter bool
     #[getter]
     fn unique_key(&self) -> bool {
         self.0.lock().options & OPT_UNIQUE_KEY > 0
@@ -246,8 +220,6 @@ impl PyColumn {
         }
     }
 
-    /// @signature (self) -> bool
-    /// @setter bool
     #[getter]
     fn auto_increment(&self) -> bool {
         self.0.lock().options & OPT_AUTO_INCREMENT > 0
@@ -263,8 +235,6 @@ impl PyColumn {
         }
     }
 
-    /// @signature (self) -> bool
-    /// @setter bool
     #[getter]
     fn nullable(&self) -> bool {
         self.0.lock().options & OPT_NULLABLE > 0
@@ -280,8 +250,6 @@ impl PyColumn {
         }
     }
 
-    /// @signature (self) -> bool
-    /// @setter bool
     #[getter]
     fn stored_generated(&self) -> bool {
         self.0.lock().options & OPT_STORED_GENERATED > 0
@@ -298,9 +266,6 @@ impl PyColumn {
     }
 
     /// Extra SQL specifications for this column.
-    ///
-    /// @signature (self) -> str | None
-    /// @setter str | None
     #[getter]
     fn extra(&self) -> Option<String> {
         self.0.lock().extra.clone()
@@ -313,9 +278,6 @@ impl PyColumn {
     }
 
     /// Comment describing this column.
-    ///
-    /// @signature (self) -> str | None
-    /// @setter str | None
     #[getter]
     fn comment(&self) -> Option<String> {
         self.0.lock().comment.clone()
@@ -328,9 +290,6 @@ impl PyColumn {
     }
 
     /// Default value for this column.
-    ///
-    /// @signature (self) -> Expr | None
-    /// @setter Expr | None
     #[getter]
     fn default(&self) -> Option<PyExpr> {
         let lock = self.0.lock();
@@ -348,9 +307,6 @@ impl PyColumn {
     }
 
     /// Expression for generated column values.
-    ///
-    /// @signature (self) -> Expr | None
-    /// @setter Expr | None
     #[getter]
     fn generated(&self) -> Option<PyExpr> {
         let lock = self.0.lock();
@@ -367,14 +323,23 @@ impl PyColumn {
     }
 
     /// Shorthand for `Value(object, self.type)`.
-    ///
-    /// @signature (self, object: T) -> Value[T]
     fn adapt(&self, object: BoundObject<'_>) -> pyo3::PyResult<super::value::PyValue> {
         let lock = self.0.lock();
         let sql_type = lock.r#type.clone();
 
         let result = super::value::ValueState::from_pyobject(sql_type, object)?;
         Ok(result.into())
+    }
+
+    #[getter]
+    fn __column_ref__(&self) -> super::column_ref::PyColumnRef {
+        let lock = self.0.lock();
+
+        super::column_ref::PyColumnRef {
+            name: Some(sea_query::Alias::new(&lock.name).into_iden()),
+            table: None,
+            schema: None,
+        }
     }
 
     fn __copy__(&self) -> Self {

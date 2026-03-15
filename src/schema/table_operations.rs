@@ -14,15 +14,6 @@ crate::implement_pyclass! {
     /// - Conditional deletion (IF EXISTS) to avoid errors
     /// - CASCADE to drop dependent objects
     /// - RESTRICT to prevent deletion if dependencies exist
-    ///
-    /// @signature (
-    ///     self,
-    ///     name: Table | TableName | str,
-    ///     *,
-    ///     if_exists: bool = False,
-    ///     cascade: bool = False,
-    ///     restrict: bool = False,
-    /// )
     mutable [subclass, extends=PySchemaStatement] PyDropTable(DropTableState) as "DropTable" {
         name: PyTableName,
         options: u8,
@@ -33,8 +24,6 @@ crate::implement_pyclass! {
     ///
     /// Changes the name of an existing table to a new name. Both names can be
     /// schema-qualified if needed.
-    ///
-    /// @signature (self, from_name: Table | TableName | str, to_name: Table | TableName | str)
     mutable [subclass, extends=PySchemaStatement] PyRenameTable(RenameTableState) as "RenameTable" {
         from_name: PyTableName,
         to_name: PyTableName,
@@ -46,8 +35,6 @@ crate::implement_pyclass! {
     /// Quickly removes all rows from a table, typically faster than DELETE
     /// and with different transaction and trigger behavior depending on the
     /// database system.
-    ///
-    /// @signature (self, name: Table | TableName | str)
     mutable [subclass, extends=PySchemaStatement] PyTruncateTable(TruncateTableState) as "TruncateTable" {
         name: PyTableName,
     }
@@ -117,9 +104,6 @@ impl PyDropTable {
     }
 
     /// The table name to drop.
-    ///
-    /// @signature (self) -> TableName
-    /// @setter Table | TableName | str
     #[getter]
     fn name(&self) -> PyTableName {
         let lock = self.0.lock();
@@ -135,8 +119,6 @@ impl PyDropTable {
         Ok(())
     }
 
-    /// @signature (self) -> bool
-    /// @setter bool
     #[getter]
     fn if_exists(&self) -> bool {
         self.0.lock().options & DROP_OPT_IF_EXISTS > 0
@@ -152,8 +134,6 @@ impl PyDropTable {
         }
     }
 
-    /// @signature (self) -> bool
-    /// @setter bool
     #[getter]
     fn cascade(&self) -> bool {
         self.0.lock().options & DROP_OPT_CASCADE > 0
@@ -169,8 +149,6 @@ impl PyDropTable {
         }
     }
 
-    /// @signature (self) -> bool
-    /// @setter bool
     #[getter]
     fn restrict(&self) -> bool {
         self.0.lock().options & DROP_OPT_RESTRICT > 0
@@ -254,9 +232,6 @@ impl PyRenameTable {
     }
 
     /// The current name of the table.
-    ///
-    /// @signature (self) -> TableName
-    /// @setter Table | TableName | str
     #[getter]
     #[allow(clippy::wrong_self_convention)]
     fn from_name(&self) -> PyTableName {
@@ -274,9 +249,6 @@ impl PyRenameTable {
     }
 
     /// The new name for the table.
-    ///
-    /// @signature (self) -> TableName
-    /// @setter Table | TableName | str
     #[getter]
     fn to_name(&self) -> PyTableName {
         let lock = self.0.lock();
@@ -352,9 +324,6 @@ impl PyTruncateTable {
     }
 
     /// The name of the table to truncate.
-    ///
-    /// @signature (self) -> TableName
-    /// @setter Table | TableName | str
     #[getter]
     fn name(&self) -> PyTableName {
         let lock = self.0.lock();

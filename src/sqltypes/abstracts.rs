@@ -58,8 +58,6 @@ crate::implement_pyclass! {
     /// column definitions. Each subclass implements a specific SQL data type
     /// with its particular characteristics, constraints, and backend-specific
     /// representations.
-    ///
-    /// @extends typing.Generic[T]
     #[derive(Debug, Clone, Copy)]
     [subclass, generic] PySQLTypeAbstract as "SQLTypeAbstract";
 }
@@ -69,8 +67,6 @@ impl PySQLTypeAbstract {
     /// Type name. e.g. `'INTEGER'`, `'STRING'`
     ///
     /// It also may be a property. This function must NOT raise any error.
-    ///
-    /// @signature (self) -> str
     #[getter]
     fn __type_name__(&self) -> pyo3::PyResult<()> {
         Err(pyo3::exceptions::PyNotImplementedError::new_err(()))
@@ -90,8 +86,6 @@ macro_rules! implement_sqltype_pymethods {
             /// Type name. e.g. `'INTEGER'`, `'STRING'`
             ///
             /// It also may be a property. This function must NOT raise any error.
-            ///
-            /// @signature (self) -> str
             #[getter]
             fn __type_name__(&self) -> String {
                 self.to_sql_type_name()
@@ -121,14 +115,11 @@ macro_rules! implement_sqltype_pymethods {
             /// Type name. e.g. `'INTEGER'`, `'STRING'`
             ///
             /// It also may be a property. This function must NOT raise any error.
-            ///
-            /// @signature (self) -> str
             #[getter]
             fn __type_name__(&self) -> String {
                 self.to_sql_type_name()
             }
 
-            #[doc = concat!("@signature (self) -> ", $return_type)]
             #[getter]
             fn $param(&self) -> $param_type {
                 self.0

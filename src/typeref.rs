@@ -47,7 +47,7 @@ pub(crate) static mut FOREIGN_KEY_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr:
 pub(crate) static mut TABLE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut ON_CONFLICT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut WINDOW_STATEMENT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut SELECT_EXPR_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut SELECT_LABEL_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut SELECT_STATEMENT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut CASE_STATEMENT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut ALTER_TABLE_BASE_OPTION_TYPE: *mut pyo3::ffi::PyTypeObject =
@@ -138,7 +138,7 @@ fn _initialize_typeref(py: pyo3::Python) {
             crate::schema::table::PyTable => TABLE_TYPE,
             crate::query::on_conflict::PyOnConflict => ON_CONFLICT_TYPE,
             crate::query::window::PyWindowStatement => WINDOW_STATEMENT_TYPE,
-            crate::query::select::PySelectExpr => SELECT_EXPR_TYPE,
+            crate::query::select::PySelectLabel => SELECT_LABEL_TYPE,
             crate::query::select::PySelectStatement => SELECT_STATEMENT_TYPE,
             crate::query::case::PyCaseStatement => CASE_STATEMENT_TYPE,
         );

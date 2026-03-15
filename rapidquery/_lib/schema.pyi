@@ -1,30 +1,14 @@
 from __future__ import annotations
 
 import typing
-from .common import Column, ColumnRef, TableName, ForeignKey, Expr
 
-__all__ = [
-    "AlterTable",
-    "AlterTableAddColumnOption",
-    "AlterTableAddForeignKeyOption",
-    "AlterTableBaseOption",
-    "AlterTableDropColumnOption",
-    "AlterTableDropForeignKeyOption",
-    "AlterTableModifyColumnOption",
-    "AlterTableRenameColumnOption",
-    "DropIndex",
-    "DropTable",
-    "Index",
-    "IndexColumn",
-    "RenameTable",
-    "SchemaStatement",
-    "Table",
-    "TruncateTable",
-]
+from .common import Column, Expr, ForeignKey, TableName, _ColumnRefNew, _TableNameNew
 
-_IndexColumnValue: typing.TypeAlias = IndexColumn | Column | ColumnRef | str
+_IndexColumnValue: typing.TypeAlias = IndexColumn | _ColumnRefNew
 _IndexColumnOrder: typing.TypeAlias = typing.Literal["ASC", "DESC"]
-_BackendName: typing.TypeAlias = typing.Literal["sqlite", "postgresql", "postgres", "mysql"]
+_BackendName: typing.TypeAlias = typing.Literal[
+    "sqlite", "postgresql", "postgres", "mysql"
+]
 
 class AlterTable(SchemaStatement):
     """
@@ -39,7 +23,9 @@ class AlterTable(SchemaStatement):
     """
 
     def __init__(
-        self, name: Table | TableName | str, options: typing.Iterable[AlterTableBaseOption] = ()
+        self,
+        name: _TableNameNew,
+        options: typing.Iterable[AlterTableBaseOption] = (),
     ) -> None:
         """Initialize self.  See help(type(self)) for accurate signature."""
         ...
@@ -58,7 +44,7 @@ class AlterTable(SchemaStatement):
         """The name of the table to alter."""
         ...
     @name.setter
-    def name(self, value: Table | TableName | str) -> None: ...
+    def name(self, value: _TableNameNew) -> None: ...
     @property
     def options(self) -> typing.Sequence[AlterTableBaseOption]:
         """The list of alteration operations to apply."""
@@ -124,7 +110,7 @@ class AlterTableDropColumnOption(AlterTableBaseOption):
     is referenced by other database objects.
     """
 
-    def __init__(self, name: Column | ColumnRef | str) -> None:
+    def __init__(self, name: _ColumnRefNew) -> None:
         """Initialize self.  See help(type(self)) for accurate signature."""
         ...
 
@@ -180,9 +166,7 @@ class AlterTableRenameColumnOption(AlterTableBaseOption):
     or constraints.
     """
 
-    def __init__(
-        self, from_name: Column | ColumnRef | str, to_name: Column | ColumnRef | str
-    ) -> None:
+    def __init__(self, from_name: _ColumnRefNew, to_name: _ColumnRefNew) -> None:
         """Initialize self.  See help(type(self)) for accurate signature."""
         ...
 
@@ -204,7 +188,9 @@ class DropIndex(SchemaStatement):
     - Table-specific index dropping
     """
 
-    def __init__(self, name: str, table: Table | TableName | str, if_exists: bool = False) -> None:
+    def __init__(
+        self, name: str, table: _TableNameNew, if_exists: bool = False
+    ) -> None:
         """Initialize self.  See help(type(self)) for accurate signature."""
         ...
 
@@ -230,7 +216,7 @@ class DropIndex(SchemaStatement):
         """The table from which to drop the index."""
         ...
     @table.setter
-    def table(self, value: Table | TableName | str) -> None: ...
+    def table(self, value: _TableNameNew) -> None: ...
     def to_sql(self, backend: _BackendName, /) -> str:
         """Build a SQL string representation."""
         ...
@@ -247,7 +233,7 @@ class DropTable(SchemaStatement):
 
     def __init__(
         self,
-        name: Table | TableName | str,
+        name: _TableNameNew,
         *,
         if_exists: bool = False,
         cascade: bool = False,
@@ -274,7 +260,7 @@ class DropTable(SchemaStatement):
         """The table name to drop."""
         ...
     @name.setter
-    def name(self, value: Table | TableName | str) -> None: ...
+    def name(self, value: _TableNameNew) -> None: ...
     @property
     def restrict(self) -> bool: ...
     @restrict.setter
@@ -298,14 +284,14 @@ class Index(SchemaStatement):
         self,
         columns: typing.Iterable[_IndexColumnValue],
         name: str | None = None,
-        table: Table | TableName | str | None = None,
+        table: _TableNameNew | None = None,
         *,
         primary: bool = False,
         if_not_exists: bool = False,
         nulls_not_distinct: bool = False,
         unique: bool = False,
         index_type: str | None = None,
-        where: object | None = None,
+        where: Expr | None = None,
         include: typing.Iterable[str] = (),
     ) -> None:
         """Initialize self.  See help(type(self)) for accurate signature."""
@@ -359,11 +345,11 @@ class Index(SchemaStatement):
     @primary.setter
     def primary(self, value: bool) -> None: ...
     @property
-    def table(self) -> Table | TableName | None:
+    def table(self) -> TableName | None:
         """The table on which to create the index."""
         ...
     @table.setter
-    def table(self, value: Table | TableName | str | None) -> None: ...
+    def table(self, value: _TableNameNew | None) -> None: ...
     def to_sql(self, backend: _BackendName, /) -> str:
         """Build a SQL string representation."""
         ...
@@ -398,7 +384,10 @@ class IndexColumn:
     """
 
     def __new__(
-        cls, name: str, order: _IndexColumnOrder | None = None, prefix: int | None = None
+        cls,
+        name: str,
+        order: _IndexColumnOrder | None = None,
+        prefix: int | None = None,
     ) -> typing.Self: ...
     def __copy__(self) -> typing.Self: ...
     def __repr__(self, /) -> str:
@@ -428,9 +417,7 @@ class RenameTable(SchemaStatement):
     schema-qualified if needed.
     """
 
-    def __init__(
-        self, from_name: Table | TableName | str, to_name: Table | TableName | str
-    ) -> None:
+    def __init__(self, from_name: _TableNameNew, to_name: _TableNameNew) -> None:
         """Initialize self.  See help(type(self)) for accurate signature."""
         ...
 
@@ -444,13 +431,13 @@ class RenameTable(SchemaStatement):
         """The current name of the table."""
         ...
     @from_name.setter
-    def from_name(self, value: Table | TableName | str) -> None: ...
+    def from_name(self, value: _TableNameNew) -> None: ...
     @property
     def to_name(self) -> TableName:
         """The new name for the table."""
         ...
     @to_name.setter
-    def to_name(self, value: Table | TableName | str) -> None: ...
+    def to_name(self, value: _TableNameNew) -> None: ...
     def to_sql(self, backend: _BackendName, /) -> str:
         """Build a SQL string representation."""
         ...
@@ -494,6 +481,8 @@ class Table(SchemaStatement):
         """Initialize self.  See help(type(self)) for accurate signature."""
         ...
 
+    @property
+    def __table_name__(self) -> TableName: ...
     def __repr__(self, /) -> str:
         """Return repr(self)."""
         ...
@@ -580,7 +569,7 @@ class TruncateTable(SchemaStatement):
     database system.
     """
 
-    def __init__(self, name: Table | TableName | str) -> None:
+    def __init__(self, name: _TableNameNew) -> None:
         """Initialize self.  See help(type(self)) for accurate signature."""
         ...
 
@@ -594,7 +583,7 @@ class TruncateTable(SchemaStatement):
         """The name of the table to truncate."""
         ...
     @name.setter
-    def name(self, value: Table | TableName | str) -> None: ...
+    def name(self, value: _TableNameNew) -> None: ...
     def to_sql(self, backend: _BackendName, /) -> str:
         """Build a SQL string representation."""
         ...

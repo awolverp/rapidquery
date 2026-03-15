@@ -10,8 +10,6 @@ crate::implement_pyclass! {
     /// Stores both date and time information without timezone awareness.
     /// Suitable for recording timestamps, event times, or scheduling information
     /// when timezone handling is managed at the application level.
-    ///
-    /// @extends SQLTypeAbstract[datetime.datetime]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyDateTimeType as "DateTime";
 }
@@ -20,9 +18,6 @@ crate::implement_pyclass! {
     ///
     /// Stores timestamp values, often with automatic update capabilities.
     /// Behavior varies by database system.
-    ///
-    /// @extends SQLTypeAbstract[datetime.datetime]
-    /// @signature (timezone: bool = False)
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyTimestampType as "Timestamp" (pub bool);
 }
@@ -32,8 +27,6 @@ crate::implement_pyclass! {
     /// Stores time information without date component. Useful for storing
     /// daily schedules, opening hours, or any time-based data that repeats
     /// daily regardless of the specific date.
-    ///
-    /// @extends SQLTypeAbstract[datetime.time]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyTimeType as "Time";
 }
@@ -42,8 +35,6 @@ crate::implement_pyclass! {
     ///
     /// Stores date information without time component. Ideal for birth dates,
     /// deadlines, or any date-based data where time precision is not needed.
-    ///
-    /// @extends SQLTypeAbstract[datetime.date]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyDateType as "Date";
 

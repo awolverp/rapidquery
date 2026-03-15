@@ -19,8 +19,6 @@ crate::implement_pyclass! {
     ///
     /// NOTE: `Expr` is immutable, so by calling each method you will give a new instance
     /// of it which includes new change(s).
-    ///
-    /// @signature (cls, value: object, /)
     #[derive(Debug, Clone)]
     [] PyExpr as "Expr" (pub sea_query::SimpleExpr);
 }
@@ -30,8 +28,6 @@ impl PyExpr {
         value: RefBoundObject<'_>,
         type_engine: Option<TypeEngine>,
     ) -> pyo3::PyResult<Self> {
-        const PROPERTY_NAME: &std::ffi::CStr = c"__expr__";
-
         unsafe {
             let py = value.py();
             let type_ptr = pyo3::ffi::Py_TYPE(value.as_ptr());
@@ -61,16 +57,6 @@ impl PyExpr {
                 let cloned = casted_value.get().clone();
 
                 return Ok(Self(sea_query::SimpleExpr::FunctionCall(cloned.0)));
-            }
-
-            if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::COLUMN_TYPE) == 1 {
-                let casted_value = value.cast_unchecked::<crate::common::column::PyColumn>();
-                let inner_value = casted_value.get();
-
-                let column_ref: sea_query::ColumnRef =
-                    inner_value.0.lock().to_sea_query(casted_value.py());
-
-                return Ok(Self(column_ref.into()));
             }
 
             if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::SELECT_STATEMENT_TYPE)
@@ -116,20 +102,13 @@ impl PyExpr {
                 return Ok(Self(result.into()));
             }
 
-            if value.hasattr(PROPERTY_NAME)? {
-                let property = value.getattr(PROPERTY_NAME)?;
+            if let Some(result) = Self::try_from_property(value)? {
+                return Ok(result);
+            }
 
-                if pyo3::ffi::Py_TYPE(property.as_ptr()) == crate::typeref::EXPR_TYPE {
-                    let casted_value = value.cast_unchecked::<Self>();
-
-                    return Ok(casted_value.get().clone());
-                }
-
-                return crate::new_error!(
-                    PyTypeError,
-                    "__expr__ property returns something other than Expr; returns {}",
-                    crate::internal::get_type_name(property.py(), property.as_ptr())
-                );
+            if let Some(result) = crate::common::column_ref::PyColumnRef::try_from_property(value)?
+            {
+                return Ok(Self(sea_query::Expr::column(result)));
             }
 
             let type_engine = match type_engine {
@@ -160,6 +139,41 @@ impl TryFrom<RefBoundObject<'_>> for PyExpr {
     }
 }
 
+impl PyExpr {
+    #[inline]
+    pub fn try_from_property(value: RefBoundObject) -> pyo3::PyResult<Option<Self>> {
+        const PROPERTY_NAME: &std::ffi::CStr = c"__expr__";
+
+        let property = match value.getattr(PROPERTY_NAME) {
+            Ok(x) => Ok(Some(x)),
+            Err(err) if err.is_instance_of::<pyo3::exceptions::PyAttributeError>(value.py()) => {
+                Ok(None)
+            }
+            Err(err) => Err(err),
+        };
+        let property = property?;
+
+        if property.is_none() {
+            return Ok(None);
+        }
+
+        unsafe {
+            let property = property.unwrap_unchecked();
+
+            if pyo3::ffi::Py_TYPE(property.as_ptr()) == crate::typeref::EXPR_TYPE {
+                let casted_value = property.cast_into_unchecked::<Self>();
+                return Ok(Some(casted_value.get().clone()));
+            }
+
+            crate::new_error!(
+                PyTypeError,
+                "__expr__ property returns something other than Expr; returns {}",
+                crate::internal::get_type_name(property.py(), property.as_ptr())
+            )
+        }
+    }
+}
+
 #[pyo3::pymethods]
 impl PyExpr {
     #[new]
@@ -169,9 +183,6 @@ impl PyExpr {
     }
 
     /// Shorthand for `Expr(Value(value, sql_type))`
-    ///
-    /// @typevar T
-    /// @signature (cls, /, value: T | None, sql_type: SQLTypeAbstract[T] | None = ...) -> typing.Self
     #[classmethod]
     #[pyo3(signature=(value, sql_type=None))]
     fn val(
@@ -204,8 +215,6 @@ impl PyExpr {
     }
 
     /// Tries to convert the `value` into `ColumnRef`, and then converts it to `Expr`.
-    ///
-    /// @signature (cls, value: str | ColumnRef) -> typing.Self
     #[classmethod]
     fn col(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -216,8 +225,6 @@ impl PyExpr {
     }
 
     /// Returns asterisk '*' expression.
-    ///
-    /// @signature (cls) -> typing.Self
     #[classmethod]
     fn asterisk(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         sea_query::Expr::column(sea_query::Asterisk).into()
@@ -227,48 +234,36 @@ impl PyExpr {
     ///
     /// Warning: This method does not escape the input, so it should only
     /// be used with trusted strings to avoid SQL injection vulnerabilities.
-    ///
-    /// @signature (cls, value: str) -> typing.Self
     #[classmethod]
     fn custom(_cls: &pyo3::Bound<'_, pyo3::types::PyType>, value: String) -> Self {
         sea_query::SimpleExpr::Custom(value).into()
     }
 
     /// Create an expression for the CURRENT_DATE SQL function.
-    ///
-    /// @signature (cls) -> typing.Self
     #[classmethod]
     fn current_date(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         sea_query::SimpleExpr::Keyword(sea_query::Keyword::CurrentDate).into()
     }
 
     /// Create an expression for the CURRENT_TIME SQL function.
-    ///
-    /// @signature (cls) -> typing.Self
     #[classmethod]
     fn current_time(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         sea_query::SimpleExpr::Keyword(sea_query::Keyword::CurrentTime).into()
     }
 
     /// Create an expression for the CURRENT_TIMESTAMP SQL function.
-    ///
-    /// @signature (cls) -> typing.Self
     #[classmethod]
     fn current_timestamp(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         sea_query::SimpleExpr::Keyword(sea_query::Keyword::CurrentTimestamp).into()
     }
 
     /// Create an expression representing the NULL value.
-    ///
-    /// @signature (cls) -> typing.Self
     #[classmethod]
     fn null(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         sea_query::SimpleExpr::Keyword(sea_query::Keyword::Null).into()
     }
 
     /// Express a `EXISTS` sub-query expression.
-    ///
-    /// @signature (cls, statement: SelectStatement) -> typing.Self
     #[classmethod]
     fn exists(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -299,8 +294,6 @@ impl PyExpr {
     }
 
     /// Express a `ANY` sub-query expression.
-    ///
-    /// @signature (cls, statement: SelectStatement) -> typing.Self
     #[classmethod]
     fn any(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -331,8 +324,6 @@ impl PyExpr {
     }
 
     /// Express a `SOME` sub-query expression.
-    ///
-    /// @signature (cls, statement: SelectStatement) -> typing.Self
     #[classmethod]
     fn some(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -363,8 +354,6 @@ impl PyExpr {
     }
 
     /// Express a `ALL` sub-query expression.
-    ///
-    /// @signature (cls, statement: SelectStatement) -> typing.Self
     #[classmethod]
     fn all(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -394,8 +383,6 @@ impl PyExpr {
     }
 
     /// Express a `IN` expression.
-    ///
-    /// @signature (self, other: typing.Iterable[object] | SelectStatement) -> typing.Self
     fn in_(slf: pyo3::PyRef<'_, Self>, other: RefBoundObject<'_>) -> pyo3::PyResult<Self> {
         unsafe {
             if pyo3::ffi::PyObject_TypeCheck(other.as_ptr(), crate::typeref::SELECT_STATEMENT_TYPE)
@@ -424,8 +411,6 @@ impl PyExpr {
     }
 
     /// Express a `NOT IN` expression.
-    ///
-    /// @signature (self, other: typing.Iterable[object] | SelectStatement) -> typing.Self
     fn not_in(slf: pyo3::PyRef<'_, Self>, other: RefBoundObject<'_>) -> pyo3::PyResult<Self> {
         unsafe {
             if pyo3::ffi::PyObject_TypeCheck(other.as_ptr(), crate::typeref::SELECT_STATEMENT_TYPE)
@@ -454,15 +439,11 @@ impl PyExpr {
     }
 
     /// Create a `CAST` expression to convert to a specific SQL type.
-    ///
-    /// @signature (self, value: str) -> typing.Self
     fn cast_as(slf: pyo3::PyRef<'_, Self>, value: String) -> Self {
         slf.0.clone().cast_as(sea_query::Alias::new(value)).into()
     }
 
     /// Create a `LIKE` pattern matching expression.
-    ///
-    /// @signature (self, pattern: str, escape: str | None = ...) -> typing.Self
     #[pyo3(signature=(pattern, escape=None))]
     fn like(slf: pyo3::PyRef<'_, Self>, pattern: String, escape: Option<char>) -> Self {
         let e = sea_query::LikeExpr::new(pattern);
@@ -475,8 +456,6 @@ impl PyExpr {
     }
 
     /// Create a NOT LIKE pattern matching expression.
-    ///
-    /// @signature (self, pattern: str, escape: str | None = ...) -> typing.Self
     #[pyo3(signature=(pattern, escape=None))]
     fn not_like(slf: pyo3::PyRef<'_, Self>, pattern: String, escape: Option<char>) -> Self {
         let e = sea_query::LikeExpr::new(pattern);
@@ -489,105 +468,80 @@ impl PyExpr {
     }
 
     /// Create an equality comparison expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn __eq__<'a>(slf: pyo3::PyRef<'a, Self>, other: RefBoundObject<'a>) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::eq(slf.0.clone(), other.0).into())
     }
 
     /// Create an inequality comparison expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn __ne__<'a>(slf: pyo3::PyRef<'a, Self>, other: RefBoundObject<'a>) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::ne(slf.0.clone(), other.0).into())
     }
 
     /// Create a greater-than comparison expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn __gt__<'a>(slf: pyo3::PyRef<'a, Self>, other: RefBoundObject<'a>) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::gt(slf.0.clone(), other.0).into())
     }
 
     /// Create a greater-than-or-equal comparison expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn __ge__<'a>(slf: pyo3::PyRef<'a, Self>, other: RefBoundObject<'a>) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::gte(slf.0.clone(), other.0).into())
     }
 
     /// Create a less-than comparison expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn __lt__<'a>(slf: pyo3::PyRef<'a, Self>, other: RefBoundObject<'a>) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::lt(slf.0.clone(), other.0).into())
     }
 
     /// Create a less-than-or-equal comparison expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn __le__<'a>(slf: pyo3::PyRef<'a, Self>, other: RefBoundObject<'a>) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::lte(slf.0.clone(), other.0).into())
     }
 
     /// Create an addition expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn __add__<'a>(slf: pyo3::PyRef<'a, Self>, other: RefBoundObject<'a>) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::add(slf.0.clone(), other.0).into())
     }
 
     /// Create an subtraction expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn __sub__<'a>(slf: pyo3::PyRef<'a, Self>, other: RefBoundObject<'a>) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::sub(slf.0.clone(), other.0).into())
     }
 
     /// Create a logical AND expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn __and__<'a>(slf: pyo3::PyRef<'a, Self>, other: RefBoundObject<'a>) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::and(slf.0.clone(), other.0).into())
     }
 
-    /// @signature (self, other: object) -> typing.Self
     fn __neg__<'a>(slf: pyo3::PyRef<'a, Self>) -> pyo3::PyResult<Self> {
         Ok(sea_query::ExprTrait::mul(slf.0.clone(), -1).into())
     }
 
     /// Create a logical OR expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn __or__<'a>(slf: pyo3::PyRef<'a, Self>, other: RefBoundObject<'a>) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::or(slf.0.clone(), other.0).into())
     }
 
-    /// @signature (self, other: object) -> typing.Self
     fn bit_and<'a>(slf: pyo3::PyRef<'a, Self>, other: RefBoundObject<'a>) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::bit_and(slf.0.clone(), other.0).into())
     }
 
-    /// @signature (self, other: object) -> typing.Self
     fn bit_or<'a>(slf: pyo3::PyRef<'a, Self>, other: RefBoundObject<'a>) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::bit_or(slf.0.clone(), other.0).into())
     }
 
     /// Create a division expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn __truediv__<'a>(
         slf: pyo3::PyRef<'a, Self>,
         other: RefBoundObject<'a>,
@@ -597,38 +551,28 @@ impl PyExpr {
     }
 
     /// Create an IS comparison expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn is_<'a>(slf: pyo3::PyRef<'a, Self>, other: RefBoundObject<'a>) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::is(slf.0.clone(), other.0).into())
     }
 
     /// Create an IS NOT comparison expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn is_not<'a>(slf: pyo3::PyRef<'a, Self>, other: RefBoundObject<'a>) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::is_not(slf.0.clone(), other.0).into())
     }
 
     /// Create an IS NULL expression.
-    ///
-    /// @signature (self) -> typing.Self
     fn is_null(slf: pyo3::PyRef<'_, Self>) -> Self {
         sea_query::ExprTrait::is_null(slf.0.clone()).into()
     }
 
     /// Create an IS NOT NULL expression.
-    ///
-    /// @signature (self) -> typing.Self
     fn is_not_null(slf: pyo3::PyRef<'_, Self>) -> Self {
         sea_query::ExprTrait::is_not_null(slf.0.clone()).into()
     }
 
     /// Create a bitwise left shift expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn __lshift__<'a>(
         slf: pyo3::PyRef<'a, Self>,
         other: RefBoundObject<'a>,
@@ -638,8 +582,6 @@ impl PyExpr {
     }
 
     /// Create a bitwise right shift expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn __rshift__<'a>(
         slf: pyo3::PyRef<'a, Self>,
         other: RefBoundObject<'a>,
@@ -649,16 +591,12 @@ impl PyExpr {
     }
 
     /// Create a modulo expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn __mod__<'a>(slf: pyo3::PyRef<'a, Self>, other: RefBoundObject<'a>) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::modulo(slf.0.clone(), other.0).into())
     }
 
     /// Create a multiplication expression.
-    ///
-    /// @signature (self, other: object) -> typing.Self
     fn __mul__<'a>(slf: pyo3::PyRef<'a, Self>, other: RefBoundObject<'a>) -> pyo3::PyResult<Self> {
         let other = Self::try_from(other)?;
         Ok(sea_query::ExprTrait::mul(slf.0.clone(), other.0).into())
@@ -667,8 +605,6 @@ impl PyExpr {
     // TODO: sqlite_*, pg_*, mysql_*
 
     /// Create a BETWEEN range comparison expression.
-    ///
-    /// @signature (self, a: object, b: object) -> typing.Self
     fn between<'a>(
         slf: pyo3::PyRef<'a, Self>,
         a: RefBoundObject<'a>,
@@ -681,8 +617,6 @@ impl PyExpr {
     }
 
     /// Create a NOT BETWEEN range comparison expression.
-    ///
-    /// @signature (self, a: object, b: object) -> typing.Self
     fn not_between<'a>(
         slf: pyo3::PyRef<'a, Self>,
         a: RefBoundObject<'a>,
@@ -695,6 +629,14 @@ impl PyExpr {
     }
 
     pub fn __repr__(&self) -> String {
-        ReprFormatter::new("Expr").pair("", "...").finish()
+        #[cfg(not(debug_assertions))]
+        {
+            ReprFormatter::new("Expr").pair("", "...").finish()
+        }
+
+        #[cfg(debug_assertions)]
+        {
+            ReprFormatter::new("Expr").debug("", &self.0).finish()
+        }
     }
 }

@@ -6,8 +6,6 @@ crate::implement_pyclass! {
     /// Stores true/false values. The standard way to store boolean data,
     /// though implementation varies by database (some use TINYINT(1) or
     /// similar representations).
-    ///
-    /// @extends SQLTypeAbstract[bool]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyBooleanType as "Boolean";
 }
@@ -16,8 +14,6 @@ crate::implement_pyclass! {
     ///
     /// Typically stores integers in the range -128 to 127 (signed) or 0 to 255
     /// (unsigned). Useful for flags, small counters, or enumerated values.
-    ///
-    /// @extends SQLTypeAbstract[int]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyTinyIntegerType as "TinyInteger";
 }
@@ -26,8 +22,6 @@ crate::implement_pyclass! {
     ///
     /// Typically stores integers in the range -32,768 to 32,767 (signed) or
     /// 0 to 65,535 (unsigned). Good for moderate-sized counters or numeric codes.
-    ///
-    /// @extends SQLTypeAbstract[int]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PySmallIntegerType as "SmallInteger";
 }
@@ -37,8 +31,6 @@ crate::implement_pyclass! {
     /// The most common integer type, typically storing 32-bit integers in the
     /// range -2,147,483,648 to 2,147,483,647 (signed). Suitable for most
     /// numeric data including IDs, quantities, and counters.
-    ///
-    /// @extends SQLTypeAbstract[int]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyIntegerType as "Integer";
 }
@@ -48,8 +40,6 @@ crate::implement_pyclass! {
     /// Stores 64-bit integers for very large numeric values. Essential for
     /// high-volume systems, timestamps, large counters, or when integer
     /// overflow is a concern.
-    ///
-    /// @extends SQLTypeAbstract[int]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyBigIntegerType as "BigInteger";
 }
@@ -58,8 +48,6 @@ crate::implement_pyclass! {
     ///
     /// Stores small positive integers only, typically 0 to 255. Useful for
     /// small counters, percentages, or enumerated values that are always positive.
-    ///
-    /// @extends SQLTypeAbstract[int]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyTinyUnsignedType as "TinyUnsigned";
 }
@@ -68,8 +56,6 @@ crate::implement_pyclass! {
     ///
     /// Stores moderate positive integers only, typically 0 to 65,535. Good for
     /// larger counters or numeric codes that are always positive.
-    ///
-    /// @extends SQLTypeAbstract[int]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PySmallUnsignedType as "SmallUnsigned";
 }
@@ -79,8 +65,6 @@ crate::implement_pyclass! {
     /// Stores positive integers only, typically 0 to 4,294,967,295. Doubles the
     /// positive range compared to signed integers, useful for IDs and counters
     /// that will never be negative.
-    ///
-    /// @extends SQLTypeAbstract[int]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyUnsignedType as "Unsigned";
 }
@@ -90,8 +74,6 @@ crate::implement_pyclass! {
     /// Stores very large positive integers only. Provides the maximum positive
     /// integer range for high-volume systems or when very large positive
     /// values are required.
-    ///
-    /// @extends SQLTypeAbstract[int]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyBigUnsignedType as "BigUnsigned";
 }
@@ -101,8 +83,6 @@ crate::implement_pyclass! {
     /// Stores approximate numeric values with single precision. Suitable for
     /// scientific calculations, measurements, or any numeric data where some
     /// precision loss is acceptable in exchange for storage efficiency.
-    ///
-    /// @extends SQLTypeAbstract[float | int]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyFloatType as "Float";
 }
@@ -112,8 +92,6 @@ crate::implement_pyclass! {
     /// Stores approximate numeric values with double precision. Provides higher
     /// precision than FLOAT for scientific calculations or when more accuracy
     /// is required in floating-point operations.
-    ///
-    /// @extends SQLTypeAbstract[float | int]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyDoubleType as "Double";
 }
@@ -123,8 +101,6 @@ crate::implement_pyclass! {
     /// Represents a large text field capable of storing long strings without
     /// a predefined length limit. Suitable for storing articles, comments,
     /// descriptions, or any text content that may be very long.
-    ///
-    /// @extends SQLTypeAbstract[str]
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyTextType as "Text";
 }
@@ -134,9 +110,6 @@ crate::implement_pyclass! {
     /// Represents a fixed-length character string. Values shorter than the
     /// specified length are padded with spaces. Suitable for storing data
     /// with consistent, known lengths like country codes or status flags.
-    ///
-    /// @extends SQLTypeAbstract[str]
-    /// @signature (length: int | None = ...)
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyCharType as "Char" (pub Option<u32>);
 }
@@ -146,9 +119,6 @@ crate::implement_pyclass! {
     /// Represents a variable-length character string with a maximum length limit.
     /// This is the most common string type for storing text data of varying lengths
     /// like names, descriptions, or user input.
-    ///
-    /// @extends SQLTypeAbstract[str]
-    /// @signature (length: int | None = ...)
     #[derive(Debug, Clone, Copy)]
     [extends=PySQLTypeAbstract] PyStringType as "String" (pub Option<u32>);
 }

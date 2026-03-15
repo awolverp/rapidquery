@@ -18,9 +18,6 @@ crate::implement_pyclass! {
     /// However, for more accurate type selection, it's recommended to use the `sql_type` parameter.
     ///
     /// NOTE: this class is immutable and frozen.
-    ///
-    /// @extends typing.Generic[T]
-    /// @signature (self, value: T | None, sql_type: SQLTypeAbstract[T] | None = ...)
     mutable [subclass] PyValue(ValueState) as "Value" {
         sql_type: TypeEngine,
         serialized: Option<sea_query::Value>,
@@ -129,7 +126,6 @@ impl PyValue {
         Ok(())
     }
 
-    /// @signature (self) -> SQLTypeAbstract[T]
     #[getter]
     fn sql_type<'a>(&self, py: pyo3::Python<'a>) -> BoundObject<'a> {
         let lock = self.0.lock();
@@ -137,8 +133,6 @@ impl PyValue {
     }
 
     /// Converts the adapted value back to a Python type.
-    ///
-    /// @signature (self) -> T | None
     #[getter]
     fn value<'py>(&self, py: pyo3::Python<'py>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::PyAny>> {
         let mut lock = self.0.lock();

@@ -41,7 +41,7 @@ pub mod query_module {
     use super::window::PyWindowStatement;
 
     #[pymodule_export]
-    use super::select::PySelectExpr;
+    use super::select::PySelectLabel;
 
     #[pymodule_export]
     use super::select::PySelectStatement;

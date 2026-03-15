@@ -2,9 +2,6 @@ use crate::internal::{BoundArgs, BoundKwargs, BoundObject};
 
 crate::implement_pyclass! {
     /// Subclass of query statements.
-    ///
-    /// @alias _BackendName = typing.Literal["sqlite", "postgresql", "postgres", "mysql"]
-    /// @signature (self)
     #[derive(Debug, Clone, Copy)]
     [subclass] PyQueryStatement as "QueryStatement";
 }
@@ -23,8 +20,6 @@ impl PyQueryStatement {
     /// Build a SQL string representation.
     ///
     /// **This method is unsafe and can cause SQL injection.** use `.build()` method instead.
-    ///
-    /// @signature (self, backend: _BackendName, /) -> str
     #[pyo3(signature = (backend, /))]
     #[allow(unused_variables)]
     #[allow(clippy::wrong_self_convention)]

@@ -20,13 +20,6 @@ crate::implement_pyclass! {
     /// and supports comparison operations.
     ///
     /// NOTE: this class is immutable and frozen.
-    ///
-    /// @signature (
-    ///     name: str,
-    ///     schema: str | None = None,
-    ///     database: str | None = None,
-    ///     alias: str | None = None,
-    /// )
     #[derive(Debug, Clone)]
     [] PyTableName as "TableName" {
         pub name: sea_query::DynIden,
@@ -59,54 +52,23 @@ impl TryFrom<RefBoundObject<'_>> for PyTableName {
     type Error = pyo3::PyErr;
 
     fn try_from(value: RefBoundObject<'_>) -> Result<Self, Self::Error> {
-        const PROPERTY_NAME: &std::ffi::CStr = c"__table_name__";
-
         unsafe {
             if pyo3::ffi::Py_TYPE(value.as_ptr()) == crate::typeref::TABLE_NAME_TYPE {
                 let casted_value = value.cast_unchecked::<Self>();
                 return Ok(casted_value.get().clone());
             }
 
-            if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::TABLE_TYPE) == 1 {
-                let casted_value = value.cast_unchecked::<crate::schema::table::PyTable>();
-                return Ok(casted_value.get().0.lock().name.clone());
-            };
-
             if let Ok(x) = value.extract::<String>() {
                 return Self::from_str(&x);
             }
 
-            if value.hasattr(PROPERTY_NAME)? {
-                let property = value.getattr(PROPERTY_NAME)?;
-
-                if pyo3::ffi::Py_TYPE(property.as_ptr()) == crate::typeref::TABLE_NAME_TYPE {
-                    let casted_property = property.cast_unchecked::<Self>();
-                    return Ok(casted_property.get().clone());
-                }
-
-                if pyo3::ffi::PyObject_TypeCheck(property.as_ptr(), crate::typeref::TABLE_TYPE) == 1
-                {
-                    let casted_property =
-                        property.cast_unchecked::<crate::schema::table::PyTable>();
-
-                    return Ok(casted_property.get().0.lock().name.clone());
-                };
-
-                if let Ok(x) = property.extract::<String>() {
-                    return Self::from_str(&x);
-                }
-
-                return crate::new_error!(
-                    PyTypeError,
-                    "__table_name__ property returns something other than TableName or Table or \
-                     str; returns {}",
-                    crate::internal::get_type_name(property.py(), property.as_ptr())
-                );
+            if let Some(result) = Self::try_from_property(value)? {
+                return Ok(result);
             }
 
             crate::new_error!(
                 PyTypeError,
-                "expected TableName or Table or str or object.__table_name__ property, got {}",
+                "expected TableName or str or object.__table_name__ property, got {}",
                 crate::internal::get_type_name(value.py(), value.as_ptr())
             )
         }
@@ -153,6 +115,45 @@ impl FromStr for PyTableName {
     }
 }
 
+impl PyTableName {
+    #[inline]
+    pub fn try_from_property(value: RefBoundObject) -> pyo3::PyResult<Option<Self>> {
+        const PROPERTY_NAME: &std::ffi::CStr = c"__table_name__";
+
+        let property = match value.getattr(PROPERTY_NAME) {
+            Ok(x) => Ok(Some(x)),
+            Err(err) if err.is_instance_of::<pyo3::exceptions::PyAttributeError>(value.py()) => {
+                Ok(None)
+            }
+            Err(err) => Err(err),
+        };
+        let property = property?;
+
+        if property.is_none() {
+            return Ok(None);
+        }
+
+        unsafe {
+            let property = property.unwrap_unchecked();
+
+            if pyo3::ffi::Py_TYPE(property.as_ptr()) == crate::typeref::TABLE_NAME_TYPE {
+                let casted_property = property.cast_unchecked::<Self>();
+                return Ok(Some(casted_property.get().clone()));
+            }
+
+            if let Ok(x) = property.extract::<String>() {
+                return Self::from_str(&x).map(Some);
+            }
+
+            crate::new_error!(
+                PyTypeError,
+                "__table_name__ property returns something other than TableName or str; returns {}",
+                crate::internal::get_type_name(property.py(), property.as_ptr())
+            )
+        }
+    }
+}
+
 #[pyo3::pymethods]
 impl PyTableName {
     #[new]
@@ -177,47 +178,32 @@ impl PyTableName {
     /// - "table_name"
     /// - "schema.table_name"
     /// - "database.schema.table_name"
-    ///
-    /// @signature (cls, string: str) -> typing.Self
     #[classmethod]
     fn parse(_cls: &pyo3::Bound<'_, pyo3::types::PyType>, string: String) -> pyo3::PyResult<Self> {
         Self::from_str(&string)
     }
 
-    /// @signature (self) -> str
     #[getter]
     fn name(&self) -> String {
         self.name.to_string()
     }
 
-    /// @signature (self) -> str | None
     #[getter]
     fn schema(&self) -> Option<String> {
         self.schema.as_ref().map(|x| x.to_string())
     }
 
-    /// @signature (self) -> str | None
     #[getter]
     fn database(&self) -> Option<String> {
         self.database.as_ref().map(|x| x.to_string())
     }
 
-    /// @signature (self) -> str | None
     #[getter]
     fn alias(&self) -> Option<String> {
         self.alias.as_ref().map(|x| x.to_string())
     }
 
     /// Create a shallow copy of this TableName.
-    ///
-    /// @signature (
-    ///     self,
-    ///     *,
-    ///     name: str = ...,
-    ///     schema: str | None = ...,
-    ///     database: str | None = ...,
-    ///     alias: str | None = ...,
-    /// ) -> typing.Self
     #[pyo3(signature=(**kwds))]
     fn copy_with(&self, kwds: Option<BoundKwargs<'_>>) -> pyo3::PyResult<Self> {
         use pyo3::types::PyDictMethods;

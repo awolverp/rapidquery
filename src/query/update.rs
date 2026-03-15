@@ -17,8 +17,6 @@ crate::implement_pyclass! {
     /// - LIMIT for restricting update count
     /// - ORDER BY for determining update order
     /// - RETURNING clauses for getting updated data
-    ///
-    /// @signature (self, table: Table | TableName | str)
     mutable [subclass, extends=PyQueryStatement] PyUpdateStatement(UpdateStatementState) as "UpdateStatement" {
         pub table: PyTableName,
         pub from_table: Option<PyTableName>,
@@ -89,8 +87,6 @@ impl PyUpdateStatement {
     }
 
     /// Specify the table to update.
-    ///
-    /// @signature (self, table: Table | TableName | str) -> typing.Self
     fn table<'a>(
         slf: pyo3::PyRef<'a, Self>,
         table: RefBoundObject<'a>,
@@ -108,8 +104,6 @@ impl PyUpdateStatement {
     ///
     /// MySQL doesn't support the UPDATE FROM syntax. And the current implementation attempt to
     /// tranform it to the UPDATE JOIN syntax, which only works for one join target.
-    ///
-    /// @signature (self, table: Table | TableName | str) -> typing.Self
     #[allow(clippy::wrong_self_convention)]
     fn from_table<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -125,8 +119,6 @@ impl PyUpdateStatement {
     }
 
     /// Limit the number of rows to update.
-    ///
-    /// @signature (self, n: int) -> typing.Self
     fn limit(slf: pyo3::PyRef<'_, Self>, n: u64) -> pyo3::PyRef<'_, Self> {
         {
             let mut lock = slf.0.lock();
@@ -137,8 +129,6 @@ impl PyUpdateStatement {
     }
 
     /// Specify columns to return from the inserted rows.
-    ///
-    /// @signature (self, clause: Returning) -> typing.Self
     #[pyo3(signature=(clause))]
     fn returning<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -152,8 +142,6 @@ impl PyUpdateStatement {
     }
 
     /// Add a WHERE condition to filter rows to update.
-    ///
-    /// @signature (self, condition: Expr) -> typing.Self
     fn r#where<'a>(
         slf: pyo3::PyRef<'a, Self>,
         condition: RefBoundObject<'a>,
@@ -184,8 +172,6 @@ impl PyUpdateStatement {
     }
 
     /// Remove where conditions from statement.
-    ///
-    /// @signature (self) -> typing.Self
     fn clear_where(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyRef<'_, Self> {
         slf.0.lock().r#where = None;
         slf
@@ -193,8 +179,6 @@ impl PyUpdateStatement {
 
     /// Specify the order in which to delete rows. Typically used with
     /// `.limit` method to delete specific rows.
-    ///
-    /// @signature (self, clause: Ordering) -> typing.Self
     #[pyo3(signature=(clause))]
     fn order_by<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -209,8 +193,6 @@ impl PyUpdateStatement {
     }
 
     /// Specify columns and their new values.
-    ///
-    /// @signature (self, **kwds: object) -> typing.Self
     #[pyo3(signature=(**kwds))]
     fn values<'a>(
         slf: pyo3::PyRef<'a, Self>,

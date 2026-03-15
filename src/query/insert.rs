@@ -28,8 +28,6 @@ crate::implement_pyclass! {
     /// - RETURNING clauses
     /// - REPLACE functionality
     /// - Default values
-    ///
-    /// @signature (self, table: Table | TableName | str)
     mutable [subclass, extends=PyQueryStatement] PyInsertStatement(InsertStatementState) as "InsertStatement" {
         pub replace: bool,
         pub table: PyTableName,
@@ -193,8 +191,6 @@ impl PyInsertStatement {
     ///
     /// REPLACE will delete existing rows that conflict with the new row
     /// before inserting.
-    ///
-    /// @signature (self) -> typing.Self
     fn replace(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyRef<'_, Self> {
         {
             let mut lock = slf.0.lock();
@@ -205,8 +201,6 @@ impl PyInsertStatement {
     }
 
     /// Specify the target table for insertion.
-    ///
-    /// @signature (self, table: Table | TableName | str) -> typing.Self
     fn into<'a>(
         slf: pyo3::PyRef<'a, Self>,
         table: RefBoundObject<'a>,
@@ -224,8 +218,6 @@ impl PyInsertStatement {
     ///
     /// There's no need to use this method when you're specifying column
     /// names in `.values` method.
-    ///
-    /// @signature (self, *args: Column | ColumnRef | str) -> typing.Self
     #[pyo3(signature=(*args))]
     fn columns<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -256,10 +248,6 @@ impl PyInsertStatement {
     }
 
     /// Specify values to insert. Also you can specify columns using keyword arguments.
-    ///
-    /// @overload (self, *args: object) -> typing.Self
-    /// @overload (self, **kwds: object) -> typing.Self
-    /// @signature (self, *args: object, **kwds: object) -> typing.Self
     #[pyo3(signature=(*args, **kwds))]
     fn values<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -287,8 +275,6 @@ impl PyInsertStatement {
     }
 
     /// Specify a select query whose values to be inserted.
-    ///
-    /// @signature (self, statement: SelectStatement) -> typing.Self
     fn select_from<'a>(
         slf: pyo3::PyRef<'a, Self>,
         statement: BoundObject<'a>,
@@ -331,8 +317,6 @@ impl PyInsertStatement {
 
     /// Use DEFAULT VALUES if no values were specified. The `rows`
     /// Specifies number of rows to insert with default values.
-    ///
-    /// @signature (self, rows: int = 1) -> typing.Self
     #[pyo3(signature=(rows=1))]
     fn or_default_values(slf: pyo3::PyRef<'_, Self>, rows: u32) -> pyo3::PyRef<'_, Self> {
         {
@@ -344,8 +328,6 @@ impl PyInsertStatement {
     }
 
     /// Specify conflict resolution behavior (UPSERT).
-    ///
-    /// @signature (self, action: OnConflict) -> typing.Self
     fn on_conflict<'a>(
         slf: pyo3::PyRef<'a, Self>,
         action: RefBoundObject<'a>,
@@ -368,8 +350,6 @@ impl PyInsertStatement {
     }
 
     /// Specify columns to return from the inserted rows.
-    ///
-    /// @signature (self, clause: Returning) -> typing.Self
     #[pyo3(signature=(clause))]
     fn returning<'a>(
         slf: pyo3::PyRef<'a, Self>,

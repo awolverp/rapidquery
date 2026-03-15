@@ -43,9 +43,6 @@ crate::implement_pyclass! {
     /// and how they should be ordered.
     ///
     /// NOTE: this class is immutable and frozen.
-    ///
-    /// @alias _IndexColumnOrder = typing.Literal["ASC", "DESC"]
-    /// @signature (name: str, order: _IndexColumnOrder | None = None, prefix: int | None = None)
     #[derive(Debug, Clone)]
     [] PyIndexColumn as "IndexColumn" {
         pub name: sea_query::DynIden,
@@ -61,22 +58,6 @@ crate::implement_pyclass! {
     /// and partial indexing conditions.
     ///
     /// You can use it to generate `CREATE INDEX` SQL expressions.
-    ///
-    /// @alias _IndexColumnValue = IndexColumn | Column | ColumnRef | str
-    /// @signature (
-    ///     self,
-    ///     columns: typing.Iterable[_IndexColumnValue],
-    ///     name: str | None = None,
-    ///     table: Table | TableName | str | None = None,
-    ///     *,
-    ///     primary: bool = False,
-    ///     if_not_exists: bool = False,
-    ///     nulls_not_distinct: bool = False,
-    ///     unique: bool = False,
-    ///     index_type: str | None = None,
-    ///     where: object | None = None,
-    ///     include: typing.Iterable[str] = (),
-    /// )
     #[derive(Debug)]
     mutable [subclass, extends=PySchemaStatement] PyIndex(IndexState) as "Index" {
         pub name: Option<String>,
@@ -94,8 +75,6 @@ crate::implement_pyclass! {
     /// Builds index deletion statements with support for:
     /// - Conditional deletion (IF EXISTS)
     /// - Table-specific index dropping
-    ///
-    /// @signature (self, name: str, table: Table | TableName | str, if_exists: bool = False)
     #[derive(Debug)]
     mutable [subclass, extends=PySchemaStatement] PyDropIndex(DropIndexState) as "DropIndex" {
         pub name: String,
@@ -130,7 +109,7 @@ impl TryFrom<RefBoundObject<'_>> for PyIndexColumn {
                 crate::common::column_ref::PyColumnRef::try_from(value).map_err(|_| {
                     crate::new_py_error!(
                         PyTypeError,
-                        "expected IndexColumn, ColumnRef, Column, str, or object.__column_ref__ \
+                        "expected IndexColumn, ColumnRef, Column, str, or object.to_column_ref \
                          property, got {}",
                         crate::internal::get_type_name(value.py(), value.as_ptr())
                     )
@@ -170,24 +149,18 @@ impl PyIndexColumn {
     }
 
     /// The name of the column to include in the index.
-    ///
-    /// @signature (self) -> str
     #[getter]
     fn name(&self) -> String {
         self.name.to_string()
     }
 
     /// Number of characters to index for string columns (prefix indexing).
-    ///
-    /// @signature (self) -> int | None
     #[getter]
     fn prefix(&self) -> Option<u32> {
         self.prefix
     }
 
     /// Sort order for this column.
-    ///
-    /// @signature (self) -> _IndexColumnOrder | None
     #[getter]
     fn order(&self) -> Option<String> {
         self.order.as_ref().map(map_index_order_to_str)
@@ -307,6 +280,21 @@ impl PyIndex {
             None => None,
         };
 
+        let r#where = match r#where {
+            None => None,
+            Some(x) => unsafe {
+                if pyo3::ffi::Py_TYPE(x.as_ptr()) != crate::typeref::EXPR_TYPE {
+                    return crate::new_error!(
+                        PyTypeError,
+                        "expected Expr or None, got {}",
+                        crate::internal::get_type_name(x.py(), x.as_ptr())
+                    );
+                }
+
+                Some(x.cast_unchecked::<PyExpr>().get().clone())
+            },
+        };
+
         if columns.is_empty() {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "columns cannot be empty",
@@ -317,11 +305,6 @@ impl PyIndex {
         for c in columns.into_iter() {
             cols.push(PyIndexColumn::try_from(&c)?);
         }
-
-        let r#where = match r#where {
-            None => None,
-            Some(x) => Some(PyExpr::try_from(x)?),
-        };
 
         let mut options = 0u8;
         if primary {
@@ -351,10 +334,7 @@ impl PyIndex {
         Ok(())
     }
 
-    /// Index name
-    ///
-    /// @signature (self) -> str | None
-    /// @setter str | None
+    /// Index name.
     #[getter]
     fn name(&self) -> Option<String> {
         let lock = self.0.lock();
@@ -368,9 +348,6 @@ impl PyIndex {
     }
 
     /// The table on which to create the index.
-    ///
-    /// @signature (self) -> Table | TableName | None
-    /// @setter Table | TableName | str | None
     #[getter]
     fn table(&self) -> Option<PyTableName> {
         let lock = self.0.lock();
@@ -390,9 +367,6 @@ impl PyIndex {
     }
 
     /// Whether this is a primary key constraint.
-    ///
-    /// @signature (self) -> bool
-    /// @setter bool
     #[getter]
     fn primary(&self) -> bool {
         self.0.lock().options & OPT_PRIMARY > 0
@@ -409,9 +383,6 @@ impl PyIndex {
     }
 
     /// Whether this is a unique constraint.
-    ///
-    /// @signature (self) -> bool
-    /// @setter bool
     #[getter]
     fn unique(&self) -> bool {
         self.0.lock().options & OPT_UNIQUE > 0
@@ -428,9 +399,6 @@ impl PyIndex {
     }
 
     /// Whether NULL values should be considered equal for uniqueness.
-    ///
-    /// @signature (self) -> bool
-    /// @setter bool
     #[getter]
     fn nulls_not_distinct(&self) -> bool {
         self.0.lock().options & OPT_NULLS_NOT_DISTINCT > 0
@@ -447,9 +415,6 @@ impl PyIndex {
     }
 
     /// Whether to use IF NOT EXISTS clause.
-    ///
-    /// @signature (self) -> bool
-    /// @setter bool
     #[getter]
     fn if_not_exists(&self) -> bool {
         self.0.lock().options & OPT_IF_NOT_EXISTS > 0
@@ -466,9 +431,6 @@ impl PyIndex {
     }
 
     /// The columns that make up this index.
-    ///
-    /// @signature (self) -> typing.Sequence[IndexColumn]
-    /// @setter typing.Iterable[_IndexColumnValue]
     #[getter]
     fn columns(&self) -> Vec<PyIndexColumn> {
         let lock = self.0.lock();
@@ -494,9 +456,6 @@ impl PyIndex {
     }
 
     /// The type/algorithm for this index.
-    ///
-    /// @signature (self) -> str | None
-    /// @setter str | None
     #[getter]
     fn index_type(&self) -> Option<String> {
         let lock = self.0.lock();
@@ -511,9 +470,6 @@ impl PyIndex {
     }
 
     /// Condition for partial indexing.
-    ///
-    /// @signature (self) -> Expr | None
-    /// @setter object | None
     #[getter]
     fn r#where(&self) -> Option<PyExpr> {
         let lock = self.0.lock();
@@ -532,10 +488,7 @@ impl PyIndex {
         Ok(())
     }
 
-    /// Additional columns to include in the index for covering queries.
-    ///
-    /// @signature (self) -> typing.Sequence[str]
-    /// @setter typing.Iterable[str]
+    /// Additional columns to include in the index for covering queries
     #[getter]
     fn include(&self) -> Vec<String> {
         let lock = self.0.lock();
@@ -646,9 +599,6 @@ impl PyDropIndex {
     }
 
     /// The name of the index to drop.
-    ///
-    /// @signature (self) -> str
-    /// @setter str
     #[getter]
     fn name(&self) -> String {
         let lock = self.0.lock();
@@ -662,9 +612,6 @@ impl PyDropIndex {
     }
 
     /// The table from which to drop the index.
-    ///
-    /// @signature (self) -> TableName
-    /// @setter Table | TableName | str
     #[getter]
     fn table(&self) -> PyTableName {
         let lock = self.0.lock();
@@ -681,9 +628,6 @@ impl PyDropIndex {
     }
 
     /// Whether to use IF EXISTS clause to avoid errors.
-    ///
-    /// @signature (self) -> bool
-    /// @setter bool
     #[getter]
     fn if_exists(slf: pyo3::PyRef<'_, Self>) -> bool {
         slf.0.lock().if_exists

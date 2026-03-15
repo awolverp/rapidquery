@@ -14,8 +14,6 @@ crate::implement_pyclass! {
     /// - LIMIT for restricting deletion count
     /// - ORDER BY for determining deletion order
     /// - RETURNING clauses for getting deleted data
-    ///
-    /// @signature (self, table: Table | TableName | str)
     mutable [subclass, extends=PyQueryStatement] PyDeleteStatement(DeleteStatementState) as "DeleteStatement" {
         pub table: PyTableName,
         pub r#where: Option<PyExpr>,
@@ -78,8 +76,6 @@ impl PyDeleteStatement {
     }
 
     /// Specify the table to delete from.
-    ///
-    /// @signature (self, table: Table | TableName | str) -> typing.Self
     #[allow(clippy::wrong_self_convention)]
     fn from_table<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -95,8 +91,6 @@ impl PyDeleteStatement {
     }
 
     /// Limit the number of rows to delete.
-    ///
-    /// @signature (self, n: int) -> typing.Self
     fn limit(slf: pyo3::PyRef<'_, Self>, n: u64) -> pyo3::PyRef<'_, Self> {
         {
             let mut lock = slf.0.lock();
@@ -107,8 +101,6 @@ impl PyDeleteStatement {
     }
 
     /// Specify columns to return from the inserted rows.
-    ///
-    /// @signature (self, clause: Returning) -> typing.Self
     #[pyo3(signature=(clause))]
     fn returning<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -122,8 +114,6 @@ impl PyDeleteStatement {
     }
 
     /// Add a WHERE condition to filter rows to delete.
-    ///
-    /// @signature (self, condition: Expr) -> typing.Self
     fn r#where<'a>(
         slf: pyo3::PyRef<'a, Self>,
         condition: RefBoundObject<'a>,
@@ -154,8 +144,6 @@ impl PyDeleteStatement {
     }
 
     /// Remove where conditions from statement.
-    ///
-    /// @signature (self) -> typing.Self
     fn clear_where(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyRef<'_, Self> {
         slf.0.lock().r#where = None;
         slf
@@ -163,8 +151,6 @@ impl PyDeleteStatement {
 
     /// Specify the order in which to delete rows. Typically used with
     /// `.limit` method to delete specific rows.
-    ///
-    /// @signature (self, clause: Ordering) -> typing.Self
     #[pyo3(signature=(clause))]
     fn order_by<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -179,8 +165,6 @@ impl PyDeleteStatement {
     }
 
     /// Remove orders from statement.
-    ///
-    /// @signature (self) -> typing.Self
     fn clear_order_by(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyRef<'_, Self> {
         slf.0.lock().orders.clear();
         slf

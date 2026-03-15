@@ -10,8 +10,8 @@ use crate::query::window::PyWindowStatement;
 use pyo3::types::{PyAnyMethods, PyTupleMethods};
 use sea_query::{IntoColumnRef, IntoIden};
 
-/// Window type in [`PySelectExpr`]
-pub enum SelectExprWindow {
+/// Window type in [`PySelectLabel`]
+pub enum SelectLabelWindow {
     Name(sea_query::DynIden),
     Query(
         /// Always is `PyWindowStatement`
@@ -61,12 +61,10 @@ crate::implement_pyclass! {
     ///
     /// Used to specify both the expression to select and an optional alias name
     /// for the result column.
-    ///
-    /// @signature (self, expr: object, alias: str | None = None, window: WindowStatement | str | None = None)
-    immutable [subclass] PySelectExpr(SelectExprState) as "SelectExpr" {
+    immutable [subclass] PySelectLabel(SelectLabelState) as "SelectLabel" {
         pub expr: PyExpr,
         pub alias: Option<String>,
-        pub window: Option<SelectExprWindow>,
+        pub window: Option<SelectLabelWindow>,
     }
 }
 crate::implement_pyclass! {
@@ -82,12 +80,10 @@ crate::implement_pyclass! {
     /// - Set operations (UNION, EXCEPT, INTERSECT)
     /// - Row locking for transactions
     /// - DISTINCT queries
-    ///
-    /// @signature (self, *columns: object)
     mutable [subclass, extends=PyQueryStatement] PySelectStatement(SelectStatementState) as "SelectStatement" {
         pub references: Vec<SelectReference>,
 
-        /// Always is `Vec<PySelectExpr>`
+        /// Always is `Vec<PySelectLabel>`
         pub exprs: Vec<PyObject>,
 
         pub r#where: Option<PyExpr>,
@@ -133,7 +129,7 @@ impl Default for SelectStatementState {
     }
 }
 
-impl TryFrom<RefBoundObject<'_>> for SelectExprWindow {
+impl TryFrom<RefBoundObject<'_>> for SelectLabelWindow {
     type Error = pyo3::PyErr;
 
     fn try_from(value: RefBoundObject<'_>) -> Result<Self, Self::Error> {
@@ -153,7 +149,7 @@ impl TryFrom<RefBoundObject<'_>> for SelectExprWindow {
             else {
                 crate::new_error!(
                     PyTypeError,
-                    "expected WindowStatement or str for SelectExpr window, got {}",
+                    "expected WindowStatement or str for SelectLabel window, got {}",
                     crate::internal::get_type_name(value.py(), value.as_ptr())
                 )
             }
@@ -164,17 +160,17 @@ impl TryFrom<RefBoundObject<'_>> for SelectExprWindow {
 #[inline]
 fn cast_into_select_expr<'a>(value: BoundObject<'a>) -> pyo3::PyResult<BoundObject<'a>> {
     unsafe {
-        // SelectExpr itself
-        if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::SELECT_EXPR_TYPE) == 1 {
+        // SelectLabel itself
+        if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::SELECT_LABEL_TYPE) == 1 {
             return Ok(value);
         }
 
-        let state = SelectExprState {
+        let state = SelectLabelState {
             expr: PyExpr::try_from(&value)?,
             alias: None,
             window: None,
         };
-        let result: PySelectExpr = state.into();
+        let result: PySelectLabel = state.into();
         pyo3::Bound::new(value.py(), result).map(|x| x.into_any())
     }
 }
@@ -324,11 +320,11 @@ impl std::fmt::Display for LockMode {
     }
 }
 
-impl ToSeaQuery<sea_query::WindowSelectType> for SelectExprWindow {
+impl ToSeaQuery<sea_query::WindowSelectType> for SelectLabelWindow {
     fn to_sea_query<'a>(&self, py: pyo3::Python<'a>) -> sea_query::WindowSelectType {
         match self {
             Self::Name(x) => sea_query::WindowSelectType::Name(x.clone()),
-            SelectExprWindow::Query(x) => {
+            SelectLabelWindow::Query(x) => {
                 let statement = unsafe { x.cast_bound_unchecked::<PyWindowStatement>(py) };
                 let lock = statement.get().0.lock();
 
@@ -338,7 +334,7 @@ impl ToSeaQuery<sea_query::WindowSelectType> for SelectExprWindow {
     }
 }
 
-impl ToSeaQuery<sea_query::SelectExpr> for SelectExprState {
+impl ToSeaQuery<sea_query::SelectExpr> for SelectLabelState {
     fn to_sea_query<'a>(&self, py: pyo3::Python<'a>) -> sea_query::SelectExpr {
         if self.alias.is_none() {
             // If expr is column, setting alias can optimize the SQL query.
@@ -414,7 +410,7 @@ impl ToSeaQuery<sea_query::SelectStatement> for SelectStatementState {
 
         // Columns
         stmt.exprs(self.exprs.iter().map(|x| unsafe {
-            let expr = x.cast_bound_unchecked::<PySelectExpr>(py);
+            let expr = x.cast_bound_unchecked::<PySelectLabel>(py);
             expr.get().0.as_ref().to_sea_query(py)
         }));
 
@@ -531,7 +527,7 @@ impl ToSeaQuery<sea_query::SelectStatement> for SelectStatementState {
 }
 
 #[pyo3::pymethods]
-impl PySelectExpr {
+impl PySelectLabel {
     #[new]
     #[allow(unused_variables)]
     #[pyo3(signature=(*args, **kwds))]
@@ -547,12 +543,12 @@ impl PySelectExpr {
         window: Option<RefBoundObject<'_>>,
     ) -> pyo3::PyResult<()> {
         let window = match window {
-            Some(x) => Some(SelectExprWindow::try_from(x)?),
+            Some(x) => Some(SelectLabelWindow::try_from(x)?),
             None => None,
         };
         let expr = PyExpr::try_from(expr)?;
 
-        let state = SelectExprState {
+        let state = SelectLabelState {
             expr,
             alias,
             window,
@@ -563,19 +559,16 @@ impl PySelectExpr {
         Ok(())
     }
 
-    /// @signature (self) -> Expr
     #[getter]
     fn expr(&self) -> PyExpr {
         self.0.as_ref().expr.clone()
     }
 
-    /// @signature (self) -> str | None
     #[getter]
     fn alias(&self) -> Option<String> {
         self.0.as_ref().alias.clone()
     }
 
-    /// @signature (self) -> WindowStatement | str | None
     #[getter]
     fn window<'a>(&self, py: pyo3::Python<'a>) -> Option<BoundObject<'a>> {
         use pyo3::IntoPyObjectExt;
@@ -584,10 +577,10 @@ impl PySelectExpr {
 
         match &inner.window {
             Some(ref select_window) => match select_window {
-                SelectExprWindow::Name(name) => {
+                SelectLabelWindow::Name(name) => {
                     Some(name.to_string().into_bound_py_any(py).unwrap())
                 }
-                SelectExprWindow::Query(w) => Some(w.bind(py).clone()),
+                SelectLabelWindow::Query(w) => Some(w.bind(py).clone()),
             },
             None => None,
         }
@@ -602,10 +595,10 @@ impl PySelectExpr {
             .take();
 
         match &inner.window {
-            Some(SelectExprWindow::Name(x)) => {
+            Some(SelectLabelWindow::Name(x)) => {
                 fmt.iden("window", x);
             }
-            Some(SelectExprWindow::Query(x)) => {
+            Some(SelectLabelWindow::Query(x)) => {
                 fmt.display("window", x);
             }
             None => {}
@@ -639,7 +632,6 @@ impl PySelectStatement {
         Ok(())
     }
 
-    /// @signature (self, *on: Column | ColumnRef | str) -> typing.Self
     #[pyo3(signature=(*on))]
     fn distinct<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -661,7 +653,6 @@ impl PySelectStatement {
         Ok(slf)
     }
 
-    /// @signature (self, *args: Column | ColumnRef | str) -> typing.Self
     #[pyo3(signature=(*args))]
     fn columns<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -671,12 +662,12 @@ impl PySelectStatement {
         for item in args.iter() {
             let column_ref = PyColumnRef::try_from(&item)?;
 
-            let state = SelectExprState {
+            let state = SelectLabelState {
                 expr: PyExpr(sea_query::SimpleExpr::Column(column_ref.into_column_ref())),
                 alias: None,
                 window: None,
             };
-            let result: PySelectExpr = state.into();
+            let result: PySelectLabel = state.into();
 
             casted.push(pyo3::Py::new(slf.py(), result)?.into_any());
         }
@@ -685,7 +676,6 @@ impl PySelectStatement {
         Ok(slf)
     }
 
-    /// @signature (self, *args: object) -> typing.Self
     #[pyo3(signature=(*args))]
     fn exprs<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -700,7 +690,6 @@ impl PySelectStatement {
         Ok(slf)
     }
 
-    /// @signature (self, table: Table | TableName | str) -> typing.Self
     #[allow(clippy::wrong_self_convention)]
     fn from_table<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -712,7 +701,6 @@ impl PySelectStatement {
         Ok(slf)
     }
 
-    /// @signature (self, subquery: SelectStatement, alias: str) -> typing.Self
     #[allow(clippy::wrong_self_convention)]
     fn from_subquery<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -729,7 +717,6 @@ impl PySelectStatement {
         Ok(slf)
     }
 
-    /// @signature (self, function: Expr | Func, alias: str) -> typing.Self
     #[allow(clippy::wrong_self_convention)]
     fn from_function<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -742,19 +729,16 @@ impl PySelectStatement {
         Ok(slf)
     }
 
-    /// @signature (self, n: int) -> typing.Self
     fn limit(slf: pyo3::PyRef<'_, Self>, n: u64) -> pyo3::PyRef<'_, Self> {
         slf.0.lock().limit = Some(n);
         slf
     }
 
-    /// @signature (self, n: int) -> typing.Self
     fn offset(slf: pyo3::PyRef<'_, Self>, n: u64) -> pyo3::PyRef<'_, Self> {
         slf.0.lock().offset = Some(n);
         slf
     }
 
-    /// @signature (self, condition: Expr) -> typing.Self
     fn r#where<'a>(
         slf: pyo3::PyRef<'a, Self>,
         condition: RefBoundObject<'a>,
@@ -785,16 +769,12 @@ impl PySelectStatement {
     }
 
     /// Remove where conditions from statement.
-    ///
-    /// @signature (self) -> typing.Self
     fn clear_where(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyRef<'_, Self> {
         slf.0.lock().r#where = None;
         slf
     }
 
     /// Specify the order in which to delete rows.
-    ///
-    /// @signature (self, clause: Ordering) -> typing.Self
     #[pyo3(signature=(clause))]
     fn order_by<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -809,14 +789,11 @@ impl PySelectStatement {
     }
 
     /// Remove orders from statement.
-    ///
-    /// @signature (self) -> typing.Self
     fn clear_order_by(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyRef<'_, Self> {
         slf.0.lock().orders.clear();
         slf
     }
 
-    /// @signature (self, condition: Expr) -> typing.Self
     fn having<'a>(
         slf: pyo3::PyRef<'a, Self>,
         condition: RefBoundObject<'a>,
@@ -846,12 +823,6 @@ impl PySelectStatement {
         Ok(slf)
     }
 
-    /// @signature (
-    ///     self,
-    ///     type: typing.Literal["UPDATE", "NO KEY UPDATE", "SHARE", "KEY SHARE"] = "UPDATE",
-    ///     behavior: typing.Literal["NOWAIT", "SKIP"] | None = None,
-    ///     tables: typing.Iterable[Table | TableName | str] = (),
-    /// ) -> typing.Self
     #[pyo3(signature=(r#type=String::from("UPDATE"), behavior=None, tables=Vec::new()))]
     fn lock(
         slf: pyo3::PyRef<'_, Self>,
@@ -902,7 +873,6 @@ impl PySelectStatement {
         Ok(slf)
     }
 
-    /// @signature (self, *groups: object) -> typing.Self
     #[pyo3(signature=(*groups))]
     fn group_by<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -911,18 +881,23 @@ impl PySelectStatement {
         let mut exprs = Vec::with_capacity(groups.len());
 
         for expr in groups.iter() {
-            exprs.push(PyExpr::try_from(&expr)?);
+            let target = unsafe {
+                if pyo3::ffi::Py_TYPE(expr.as_ptr()) == crate::typeref::EXPR_TYPE {
+                    expr.cast_unchecked::<PyExpr>().get().clone()
+                } else {
+                    let column_ref = PyColumnRef::try_from(&expr)?;
+
+                    PyExpr(sea_query::SimpleExpr::Column(column_ref.into_column_ref()))
+                }
+            };
+
+            exprs.push(target);
         }
 
         slf.0.lock().groups.append(&mut exprs);
         Ok(slf)
     }
 
-    /// @signature (
-    ///     self,
-    ///     statement: SelectStatement,
-    ///     type: typing.Literal["ALL", "INTERSECT", "DISTINCT", "EXCEPT"] = "DISTINCT",
-    /// ) -> typing.Self
     #[pyo3(signature=(statement, r#type=String::from("DISTINCT")))]
     fn union<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -969,12 +944,6 @@ impl PySelectStatement {
         Ok(slf)
     }
 
-    /// @signature (
-    ///     self,
-    ///     table: Table | TableName | str,
-    ///     on: Expr,
-    ///     type: typing.Literal["CROSS", "FULL", "INNER", "LEFT", "RIGHT"] | None = None,
-    /// ) -> typing.Self
     #[pyo3(signature=(table, on, r#type=None))]
     fn join<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -995,13 +964,6 @@ impl PySelectStatement {
         Ok(slf)
     }
 
-    /// @signature (
-    ///     self,
-    ///     table: Func | Expr,
-    ///     alias: str,
-    ///     on: Expr,
-    ///     type: typing.Literal["CROSS", "FULL", "INNER", "LEFT", "RIGHT"] | None = None,
-    /// ) -> typing.Self
     #[pyo3(signature=(function, alias, on, r#type=None))]
     fn join_function<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -1023,14 +985,6 @@ impl PySelectStatement {
         Ok(slf)
     }
 
-    /// @signature (
-    ///     self,
-    ///     subquery: SelectStatement,
-    ///     alias: str,
-    ///     on: Expr,
-    ///     type: typing.Literal["CROSS", "FULL", "INNER", "LEFT", "RIGHT"] | None = None,
-    ///     lateral: bool = False
-    /// ) -> typing.Self
     #[pyo3(signature=(subquery, alias, on, r#type=None, lateral=false))]
     fn join_subquery<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -1056,7 +1010,6 @@ impl PySelectStatement {
         Ok(slf)
     }
 
-    /// @signature (self, name: str, statement: WindowStatement) -> typing.Self
     #[pyo3(signature=(name, statement))]
     fn window<'a>(
         slf: pyo3::PyRef<'a, Self>,

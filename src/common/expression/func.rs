@@ -11,8 +11,6 @@ crate::implement_pyclass! {
     ///
     /// This class provides a type-safe way to construct SQL function calls
     /// with proper argument handling and database dialect support.
-    ///
-    /// @signature (name: str, *args: object)
     #[derive(Debug, Clone)]
     [] PyFunc as "Func" (pub sea_query::FunctionCall);
 }
@@ -33,16 +31,12 @@ impl PyFunc {
     }
 
     /// Create a NOW() function call.
-    ///
-    /// @signature (cls) -> typing.Self
     #[classmethod]
     fn now(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         Self(sea_query::Func::cust(sea_query::Alias::new("NOW")))
     }
 
     /// Create a SUM(expr) function call.
-    ///
-    /// @signature (cls, /, expr: object) -> typing.Self
     #[classmethod]
     fn sum(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -53,8 +47,6 @@ impl PyFunc {
     }
 
     /// Create a MIN(expr) function call.
-    ///
-    /// @signature (cls, /, expr: object) -> typing.Self
     #[classmethod]
     fn min(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -65,8 +57,6 @@ impl PyFunc {
     }
 
     /// Create a MAX(expr) function call.
-    ///
-    /// @signature (cls, /, expr: object) -> typing.Self
     #[classmethod]
     fn max(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -77,8 +67,6 @@ impl PyFunc {
     }
 
     /// Create a ABS(expr) function call.
-    ///
-    /// @signature (cls, /, expr: object) -> typing.Self
     #[classmethod]
     fn abs(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -89,8 +77,6 @@ impl PyFunc {
     }
 
     /// Create a AVG(expr) function call.
-    ///
-    /// @signature (cls, /, expr: object) -> typing.Self
     #[classmethod]
     fn avg(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -101,8 +87,6 @@ impl PyFunc {
     }
 
     /// Create a COUNT(expr) function call.
-    ///
-    /// @signature (cls, /, expr: object) -> typing.Self
     #[classmethod]
     fn count(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -113,8 +97,6 @@ impl PyFunc {
     }
 
     /// Create a COUNT(DISTINCT expr) function call.
-    ///
-    /// @signature (cls, /, expr: object) -> typing.Self
     #[classmethod]
     fn count_distinct(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -125,8 +107,6 @@ impl PyFunc {
     }
 
     /// Create a IF_NULL(a, b) function call.
-    ///
-    /// @signature (cls, /, a: object, b: object) -> typing.Self
     #[classmethod]
     fn if_null(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -140,8 +120,6 @@ impl PyFunc {
     }
 
     /// Create a GREATEST function call.
-    ///
-    /// @signature (cls, /, *exprs: object) -> typing.Self
     #[classmethod]
     #[pyo3(signature=(*exprs))]
     fn greatest(
@@ -159,8 +137,6 @@ impl PyFunc {
     }
 
     /// Create a LEAST function call.
-    ///
-    /// @signature (cls, /, *exprs: object) -> typing.Self
     #[classmethod]
     #[pyo3(signature=(*exprs))]
     fn least(
@@ -178,8 +154,6 @@ impl PyFunc {
     }
 
     /// Create a CHAR_LENGTH(expr) function call.
-    ///
-    /// @signature (cls, /, expr: object) -> typing.Self
     #[classmethod]
     fn char_length(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -190,8 +164,6 @@ impl PyFunc {
     }
 
     /// Create a COALESCE function call.
-    ///
-    /// @signature (cls, /, *exprs: object) -> typing.Self
     #[classmethod]
     #[pyo3(signature=(*exprs))]
     fn coalesce(
@@ -209,8 +181,6 @@ impl PyFunc {
     }
 
     /// Create a LOWER(expr) function call.
-    ///
-    /// @signature (cls, /, expr: object) -> typing.Self
     #[classmethod]
     fn lower(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -221,8 +191,6 @@ impl PyFunc {
     }
 
     /// Create a UPPER(expr) function call.
-    ///
-    /// @signature (cls, /, expr: object) -> typing.Self
     #[classmethod]
     fn upper(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -233,8 +201,6 @@ impl PyFunc {
     }
 
     /// Create a BIT_AND(expr) function call - this is not supported on SQLite.
-    ///
-    /// @signature (cls, /, expr: object) -> typing.Self
     #[classmethod]
     fn bit_and(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -245,8 +211,6 @@ impl PyFunc {
     }
 
     /// Create a BIT_OR(expr) function call - this is not supported on SQLite.
-    ///
-    /// @signature (cls, /, expr: object) -> typing.Self
     #[classmethod]
     fn bit_or(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -257,40 +221,30 @@ impl PyFunc {
     }
 
     /// Create a RANDOM() function call.
-    ///
-    /// @signature (cls, /) -> typing.Self
     #[classmethod]
     fn random(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         Self(sea_query::Func::random())
     }
 
     /// Create a RANK() function call.
-    ///
-    /// @signature (cls, /) -> typing.Self
     #[classmethod]
     fn rank(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         Self(sea_query::Func::cust("RANK"))
     }
 
     /// Create a DENSE_RANK() function call.
-    ///
-    /// @signature (cls, /) -> typing.Self
     #[classmethod]
     fn dense_rank(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         Self(sea_query::Func::cust("DENSE_RANK"))
     }
 
     /// Create a PERCENT_RANK() function call.
-    ///
-    /// @signature (cls, /) -> typing.Self
     #[classmethod]
     fn percent_rank(_cls: &pyo3::Bound<'_, pyo3::types::PyType>) -> Self {
         Self(sea_query::Func::cust("PERCENT_RANK"))
     }
 
     /// Create a ROUND(expr) function call.
-    ///
-    /// @signature (cls, /, expr: object) -> typing.Self
     #[classmethod]
     fn round(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -301,8 +255,6 @@ impl PyFunc {
     }
 
     /// Create a ROUND(a, b) function call.
-    ///
-    /// @signature (cls, /, a: object, b: object) -> typing.Self
     #[classmethod]
     fn round_with_precision(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -316,8 +268,6 @@ impl PyFunc {
     }
 
     /// Create a MD5(expr) function call - this is only available in Postgres and MySQL.
-    ///
-    /// @signature (cls, /, expr: object) -> typing.Self
     #[classmethod]
     fn md5(
         _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
@@ -328,6 +278,14 @@ impl PyFunc {
     }
 
     pub fn __repr__(&self) -> String {
-        ReprFormatter::new("Func").pair("", "...").finish()
+        #[cfg(not(debug_assertions))]
+        {
+            ReprFormatter::new("Func").pair("", "...").finish()
+        }
+
+        #[cfg(debug_assertions)]
+        {
+            ReprFormatter::new("Func").debug("", &self.0).finish()
+        }
     }
 }

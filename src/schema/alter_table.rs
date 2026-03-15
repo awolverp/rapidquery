@@ -24,8 +24,6 @@ crate::implement_pyclass! {
     ///
     /// Adds a column to an existing table with optional IF NOT EXISTS clause
     /// to prevent errors if the column already exists.
-    ///
-    /// @signature (self, column: Column, if_not_exists: bool = False)
     #[derive(Debug)]
     immutable [subclass, extends=PyAlterTableBaseOption] PyAlterTableAddColumnOption(AlterTableAddColumnOptionState)
     as "AlterTableAddColumnOption" {
@@ -39,8 +37,6 @@ crate::implement_pyclass! {
     ///
     /// Adds referential integrity between tables by creating a foreign key
     /// relationship on an existing table.
-    ///
-    /// @signature (self, foreign_key: ForeignKey)
     #[derive(Debug)]
     immutable [subclass, extends=PyAlterTableBaseOption] PyAlterTableAddForeignKeyOption(AlterTableAddForeignKeyOptionState)
     as "AlterTableAddForeignKeyOption" {
@@ -53,8 +49,6 @@ crate::implement_pyclass! {
     ///
     /// Removes a column from the table. This operation may fail if the column
     /// is referenced by other database objects.
-    ///
-    /// @signature (self, name: Column | ColumnRef | str)
     #[derive(Debug, Clone)]
     immutable [subclass, extends=PyAlterTableBaseOption] PyAlterTableDropColumnOption(AlterTableDropColumnOptionState)
     as "AlterTableDropColumnOption" { name: sea_query::DynIden }
@@ -63,8 +57,6 @@ crate::implement_pyclass! {
     /// ALTER TABLE operation to drop a foreign key constraint.
     ///
     /// Removes a foreign key relationship by its constraint name.
-    ///
-    /// @signature (self, name: ForeignKey | str)
     #[derive(Debug, Clone)]
     immutable [subclass, extends=PyAlterTableBaseOption] PyAlterTableDropForeignKeyOption(AlterTableDropForeignKeyOptionState)
     as "AlterTableDropForeignKeyOption" { name: sea_query::DynIden }
@@ -74,8 +66,6 @@ crate::implement_pyclass! {
     ///
     /// Changes properties of an existing column such as type, nullability,
     /// default value, or other constraints.
-    ///
-    /// @signature (self, column: Column)
     #[derive(Debug)]
     immutable [subclass, extends=PyAlterTableBaseOption] PyAlterTableModifyColumnOption(AlterTableModifyColumnOptionState)
     as "AlterTableModifyColumnOption" {
@@ -88,8 +78,6 @@ crate::implement_pyclass! {
     ///
     /// Changes the name of an existing column without modifying its type
     /// or constraints.
-    ///
-    /// @signature (self, from_name: Column | ColumnRef | str, to_name: Column | ColumnRef | str)
     #[derive(Debug, Clone)]
     immutable [subclass, extends=PyAlterTableBaseOption] PyAlterTableRenameColumnOption(AlterTableRenameColumnOptionState)
     as "AlterTableRenameColumnOption" {
@@ -106,8 +94,6 @@ crate::implement_pyclass! {
     ///
     /// Multiple operations can be batched together in a single ALTER TABLE
     /// statement for efficiency.
-    ///
-    /// @signature (self, name: Table | TableName | str, options: typing.Iterable[AlterTableBaseOption] = ())
     #[derive(Debug)]
     mutable [subclass, extends=PySchemaStatement] PyAlterTable(AlterTableState) as "AlterTable" {
         name: PyTableName,
@@ -149,13 +135,11 @@ impl PyAlterTableAddColumnOption {
         Ok(())
     }
 
-    /// @signature (self) -> Column
     #[getter]
     fn column(&self, py: pyo3::Python) -> PyObject {
         self.0.as_ref().column.clone_ref(py)
     }
 
-    /// @signature (self) -> bool
     #[getter]
     fn if_not_exists(&self) -> bool {
         self.0.as_ref().if_not_exists
@@ -206,7 +190,6 @@ impl PyAlterTableAddForeignKeyOption {
         Ok(())
     }
 
-    /// @signature (self) -> ForeignKey
     #[getter]
     fn foreign_key(&self, py: pyo3::Python) -> PyObject {
         self.0.as_ref().foreign_key.clone_ref(py)
@@ -252,7 +235,6 @@ impl PyAlterTableDropColumnOption {
         }
     }
 
-    /// @signature (self) -> str
     #[getter]
     fn name(&self) -> String {
         self.0.as_ref().name.to_string()
@@ -305,7 +287,6 @@ impl PyAlterTableDropForeignKeyOption {
         Ok(())
     }
 
-    /// @signature (self) -> str
     #[getter]
     fn name(&self) -> String {
         self.0.as_ref().name.to_string()
@@ -353,7 +334,6 @@ impl PyAlterTableModifyColumnOption {
         Ok(())
     }
 
-    /// @signature (self) -> Column
     #[getter]
     fn column(&self, py: pyo3::Python) -> PyObject {
         self.0.as_ref().column.clone_ref(py)
@@ -410,14 +390,12 @@ impl PyAlterTableRenameColumnOption {
         }
     }
 
-    /// @signature (self) -> str
     #[getter]
     #[allow(clippy::wrong_self_convention)]
     fn from_name(&self) -> String {
         self.0.as_ref().from_name.clone().to_string()
     }
 
-    /// @signature (self) -> str
     #[getter]
     fn to_name(&self) -> String {
         self.0.as_ref().to_name.clone().to_string()
@@ -544,9 +522,6 @@ impl PyAlterTable {
     }
 
     /// The name of the table to alter.
-    ///
-    /// @signature (self) -> TableName
-    /// @setter Table | TableName | str
     #[getter]
     fn name(&self) -> PyTableName {
         self.0.lock().name.clone()
@@ -562,9 +537,6 @@ impl PyAlterTable {
     }
 
     /// The list of alteration operations to apply.
-    ///
-    /// @signature (self) -> typing.Sequence[AlterTableBaseOption]
-    /// @setter typing.Iterable[AlterTableBaseOption]
     #[getter]
     fn options(&self, py: pyo3::Python) -> Vec<PyObject> {
         self.0
@@ -599,8 +571,6 @@ impl PyAlterTable {
     }
 
     /// Add an alteration operation to this ALTER TABLE statement.
-    ///
-    /// @signature (self, opt: AlterTableBaseOption) -> typing.Self
     fn add_option<'a>(
         slf: pyo3::PyRef<'a, Self>,
         opt: BoundObject<'a>,
@@ -663,25 +633,4 @@ impl PyAlterTable {
             .map("name", &inner.name, |x| x.__repr__())
             .finish()
     }
-
-    // fn __repr__(&self) -> String {
-    //     use std::io::Write;
-
-    //     let lock = self.0.lock();
-    //     let mut s = Vec::with_capacity(50);
-
-    //     write!(s, "<AlterTable name={} options=[", lock.name.__repr__()).unwrap();
-
-    //     let n = lock.options.len().saturating_sub(1);
-    //     for (index, op) in lock.options.iter().enumerate() {
-    //         if index == n {
-    //             write!(s, "{op}").unwrap();
-    //         } else {
-    //             write!(s, "{op}, ").unwrap();
-    //         }
-    //     }
-    //     write!(s, "]>").unwrap();
-
-    //     unsafe { String::from_utf8_unchecked(s) }
-    // }
 }

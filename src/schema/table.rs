@@ -19,18 +19,6 @@ crate::implement_pyclass! {
     /// - Table-level options like engine, collation, and character set
     ///
     /// Used to generate CREATE TABLE SQL statements with full schema specifications.
-    ///
-    /// @signature (
-    ///     self,
-    ///     name: TableName | str,
-    ///     *args: Column | Index | ForeignKey | Expr,
-    ///     options: int = 0,
-    ///     comment: str | None = None,
-    ///     engine: str | None = None,
-    ///     collate: str | None = None,
-    ///     character_set: str | None = None,
-    ///     extra: str | None = None,
-    /// )
     mutable [subclass, extends=PySchemaStatement] PyTable(TableState) as "Table" {
         pub name: PyTableName,
 
@@ -230,8 +218,6 @@ impl PyTable {
     }
 
     /// The name of this table.
-    ///
-    /// @signature (self) -> TableName
     #[getter]
     fn name(&self) -> PyTableName {
         let lock = self.0.lock();
@@ -239,9 +225,6 @@ impl PyTable {
     }
 
     /// Table columns.
-    ///
-    /// @signature (self) -> typing.Sequence[Column]
-    /// @setter typing.Iterable[Column]
     #[getter]
     fn columns(&self, py: pyo3::Python) -> Vec<PyObject> {
         let lock = self.0.lock();
@@ -272,9 +255,6 @@ impl PyTable {
     }
 
     /// Table indexes.
-    ///
-    /// @signature (self) -> typing.Sequence[Index]
-    /// @setter typing.Iterable[Index]
     #[getter]
     fn indexes(&self, py: pyo3::Python) -> Vec<PyObject> {
         let lock = self.0.lock();
@@ -304,9 +284,6 @@ impl PyTable {
     }
 
     /// Table foreign keys.
-    ///
-    /// @signature (self) -> typing.Sequence[ForeignKey]
-    /// @setter typing.Iterable[ForeignKey]
     #[getter]
     fn foreign_keys(&self, py: pyo3::Python) -> Vec<PyObject> {
         let lock = self.0.lock();
@@ -338,9 +315,6 @@ impl PyTable {
     }
 
     /// Table check constraints.
-    ///
-    /// @signature (self) -> typing.Sequence[Expr]
-    /// @setter typing.Iterable[Expr]
     #[getter]
     fn checks(&self, py: pyo3::Python) -> Vec<PyObject> {
         let lock = self.0.lock();
@@ -370,25 +344,18 @@ impl PyTable {
     }
 
     /// Whether to use IF NOT EXISTS clause to avoid errors if table exists.
-    ///
-    /// @signature (self) -> bool
     #[getter]
     fn if_not_exists(&self) -> bool {
         self.0.lock().options & OPT_IF_NOT_EXISTS > 0
     }
 
     /// Whether this is a temporary table that exists only for the session.
-    ///
-    /// @signature (self) -> bool
     #[getter]
     fn temporary(&self) -> bool {
         self.0.lock().options & OPT_TEMPORARY > 0
     }
 
     /// Comment describing the purpose of this table.
-    ///
-    /// @signature (self) -> str | None
-    /// @setter str | None
     #[getter]
     fn comment(&self) -> Option<String> {
         self.0.lock().comment.clone()
@@ -400,9 +367,6 @@ impl PyTable {
     }
 
     /// Storage engine for the table (e.g., InnoDB, MyISAM for MySQL).
-    ///
-    /// @signature (self) -> str | None
-    /// @setter str | None
     #[getter]
     fn engine(&self) -> Option<String> {
         self.0.lock().engine.clone()
@@ -414,9 +378,6 @@ impl PyTable {
     }
 
     /// Collation for string comparisons and sorting in this table.
-    ///
-    /// @signature (self) -> str | None
-    /// @setter str | None
     #[getter]
     fn collate(&self) -> Option<String> {
         self.0.lock().collate.clone()
@@ -428,9 +389,6 @@ impl PyTable {
     }
 
     /// Character set encoding for text data in this table.
-    ///
-    /// @signature (self) -> str | None
-    /// @setter str | None
     #[getter]
     fn character_set(&self) -> Option<String> {
         self.0.lock().character_set.clone()
@@ -442,9 +400,6 @@ impl PyTable {
     }
 
     /// Additional table-specific options for the CREATE TABLE statement.
-    ///
-    /// @signature (self) -> str | None
-    /// @setter str | None
     #[getter]
     fn extra(&self) -> Option<String> {
         self.0.lock().extra.clone()
@@ -487,6 +442,11 @@ impl PyTable {
         }
 
         Ok(sqls.join(";\n"))
+    }
+
+    #[getter]
+    fn __table_name__(&self) -> PyTableName {
+        self.0.lock().name.clone()
     }
 
     fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
