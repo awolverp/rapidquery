@@ -431,12 +431,16 @@ impl PyTable {
             // Index name and table is necessary here
             if ix_lock.name.is_none() {
                 return Err(pyo3::exceptions::PyValueError::new_err(
-                    "You should always name for indexes that aren't primary or unique",
+                    "You should always set name for indexes that aren't primary or unique",
                 ));
             }
 
             let mut index_stmt = ix_lock.to_sea_query(py);
             index_stmt.table(lock.name.clone());
+
+            if lock.options & OPT_IF_NOT_EXISTS > 0 {
+                index_stmt.if_not_exists();
+            }
 
             sqls.push(crate::build_schema_statement!(&backend, index_stmt)?);
         }

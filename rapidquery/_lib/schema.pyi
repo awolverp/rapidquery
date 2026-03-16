@@ -33,6 +33,20 @@ class AlterTable(SchemaStatement):
         Args:
             name: The name of the table to alter.
             options: Iterable of alteration operations to apply.
+
+        Examples:
+        ```python
+        import rapidquery as rq
+
+        stmt = rq.AlterTable(
+            "users",
+            [
+                rq.AlterTableDropColumnOption("updated_at"),
+                rq.AlterTableRenameColumnOption("name", "username"),
+            ],
+        ).to_sql("postgres")
+        # ALTER TABLE "users" DROP COLUMN "updated_at", RENAME COLUMN "name" TO "username"
+        ```
         """
         ...
 
@@ -72,6 +86,25 @@ class AlterTableAddColumnOption(AlterTableBaseOption):
         Args:
             column: The column definition to add.
             if_not_exists: If `True`, uses `IF NOT EXISTS` clause.
+
+        Examples:
+        ```python
+        import rapidquery as rq
+
+        stmt = rq.AlterTable(
+            "users",
+            [
+                rq.AlterTableAddColumnOption(
+                    rq.Column(
+                        "updated_at",
+                        rq.sqltypes.Timestamp(timezone=True),
+                        default=rq.Expr.current_timestamp(),
+                    )
+                )
+            ],
+        ).to_sql("postgres")
+        # ALTER TABLE "users" ADD COLUMN "updated_at" timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ```
         """
         ...
 
@@ -100,6 +133,21 @@ class AlterTableAddForeignKeyOption(AlterTableBaseOption):
 
         Args:
             foreign_key: The foreign key definition to add.
+
+        Examples:
+        ```python
+        import rapidquery as rq
+
+        stmt = rq.AlterTable(
+            "users",
+            [
+                rq.AlterTableAddForeignKeyOption(
+                    rq.ForeignKey(["font_id"], "fonts", ["id"], on_delete="CASCADE")
+                )
+            ],
+        ).to_sql("postgres")
+        # ALTER TABLE "users" ADD CONSTRAINT "fk_fonts_font_id__id" FOREIGN KEY ("font_id") REFERENCES "fonts" ("id") ON DELETE CASCADE
+        ```
         """
         ...
 
@@ -133,6 +181,17 @@ class AlterTableDropColumnOption(AlterTableBaseOption):
 
         Args:
             name: The column name/reference to drop.
+
+        Examples:
+        ```python
+        import rapidquery as rq
+
+        stmt = rq.AlterTable(
+            "users",
+            [rq.AlterTableDropColumnOption("updated_at")],
+        ).to_sql("postgres")
+        # ALTER TABLE "users" DROP COLUMN "updated_at"
+        ```
         """
         ...
 
@@ -155,6 +214,17 @@ class AlterTableDropForeignKeyOption(AlterTableBaseOption):
 
         Args:
             name: The foreign key constraint name to drop.
+
+        Examples:
+        ```python
+        import rapidquery as rq
+
+        stmt = rq.AlterTable(
+            "users",
+            [rq.AlterTableDropForeignKeyOption("fk_users_id_fonts_id")],
+        ).to_sql("postgres")
+        # ALTER TABLE "users" DROP CONSTRAINT "fk_users_id_fonts_id"
+        ```
         """
         ...
 
@@ -176,6 +246,28 @@ class AlterTableModifyColumnOption(AlterTableBaseOption):
         # TODO: Complete this docstring.
         """
         Construct a new `AlterTableModifyColumnOption` instance.
+
+        Examples:
+        ```python
+        import rapidquery as rq
+
+        stmt = rq.AlterTable(
+            "users",
+            [
+                rq.AlterTableModifyColumnOption(
+                    rq.Column(
+                        "updated_at",
+                        rq.sqltypes.Date(),
+                        nullable=True,
+                        default=None,
+                    )
+                )
+            ],
+        ).to_sql("postgres")
+        # ALTER TABLE "users" ALTER COLUMN "updated_at" TYPE date,
+        # ALTER COLUMN "updated_at" DROP NOT NULL,
+        # ALTER COLUMN "updated_at" SET DEFAULT NULL
+        ```
         """
         ...
 
@@ -198,6 +290,17 @@ class AlterTableRenameColumnOption(AlterTableBaseOption):
         Args:
             from_name: The column name/reference to rename.
             to_name: New column name.
+
+        Examples:
+        ```python
+        import rapidquery as rq
+
+        stmt = rq.AlterTable(
+            "users",
+            [rq.AlterTableRenameColumnOption("hello", "world")],
+        ).to_sql("postgres")
+        # ALTER TABLE "users" RENAME COLUMN "hello" TO "world"
+        ```
         """
         ...
 
@@ -233,7 +336,15 @@ class DropIndex(SchemaStatement):
         Args:
             name: The name of the index to drop.
             table: The table from which to drop the index.
-            if_exists: If `True`, uses `IF EXISTS` clause.
+            if_exists: If `True`, uses `IF EXISTS` clause (is not supported by MySQL).
+
+        Examples:
+        ```python
+        import rapidquery as rq
+
+        stmt = rq.DropIndex("idx_glyph_aspect", "glyph").to_sql("mysql")
+        # DROP INDEX `idx_glyph_aspect` ON `glyph`
+        ```
         """
         ...
 
@@ -286,6 +397,16 @@ class DropTable(SchemaStatement):
             if_exists: If `True`, uses `IF EXISTS` clause.
             cascade: ...
             restrict: ...
+
+        Examples:
+        ```python
+        import rapidquery as rq
+
+        stmt = rq.DropTable("glyph", if_exists=True, cascade=True, restrict=True).to_sql(
+            "mysql"
+        )
+        # DROP TABLE IF EXISTS `glyph` RESTRICT CASCADE
+        ```
         """
         ...
 
@@ -324,8 +445,8 @@ class Index(SchemaStatement):
 
     def __init__(
         self,
+        name: str | None,
         columns: typing.Iterable[_IndexColumnValue],
-        name: str | None = None,
         table: _TableNameNew | None = None,
         *,
         primary: bool = False,
@@ -341,10 +462,10 @@ class Index(SchemaStatement):
         Also you can use it to generate `CREATE INDEX` SQL expression.
 
         Args:
-            columns: Column expressions to include in the index. You can use `IndexColumn` class
-                    if you want to specify prefix or order.
             name: The index name. You should always set for indexes that aren't primary or unique, or
                 you want use them to generate `CREATE INDEX` statement.
+            columns: Column expressions to include in the index. You can use `IndexColumn` class
+                    if you want to specify prefix or order.
             table: The table on which to create the index. You should always set for indexes that
                 you want use them to generate `CREATE INDEX` statement.
             primary: If `True`, means this is a primary key constraint.
@@ -354,6 +475,30 @@ class Index(SchemaStatement):
             index_type: The type/algorithm for this index. e.g. `"HASH"`, `"BTREE"`, `"FULL TEXT"`.
             where: Condition for partial indexing.
             include: Additional columns to include in the index for covering queries.
+
+        Examples:
+        ```python
+        import rapidquery as rq
+
+        stmt = rq.Index(["aspect"], "idx_glyph_aspect", "glyph", if_not_exists=True).to_sql(
+            "sqlite"
+        )
+        # CREATE INDEX IF NOT EXISTS "idx_glyph_aspect" ON "glyph" ("aspect")
+
+        stmt = rq.Index(
+            [rq.IndexColumn("aspect", "ASC", 128)], "idx_glyph_aspect", "glyph"
+        ).to_sql("mysql")
+        # CREATE INDEX `idx_glyph_aspect` ON `glyph` (`aspect` (128) ASC)
+
+        stmt = rq.Index(
+            ["name"],
+            "idx_font_name_include_language",
+            "fonts",
+            include=["language"],
+            where=rq.Expr.col("aspect").in_([3, 4]),
+        ).to_sql("postgresql")
+        # CREATE INDEX "idx_font_name_include_language" ON "fonts" ("name") INCLUDE ("language")
+        ```
         """
         ...
 
@@ -441,7 +586,17 @@ class IndexColumn:
         name: str,
         order: _IndexColumnOrder | None = None,
         prefix: int | None = None,
-    ) -> typing.Self: ...
+    ) -> typing.Self:
+        # TODO: complete this docstring
+        """
+        Construct a new `IndexColumn` instance.
+
+        Args:
+            name: The column name.
+            order: ...
+            prefix: ...
+        """
+        ...
     def __copy__(self) -> typing.Self: ...
     def __repr__(self, /) -> str: ...
     @property
@@ -474,6 +629,14 @@ class RenameTable(SchemaStatement):
         Args:
             from_name: The current name of the table.
             to_name: The new name for the table.
+
+        Examples:
+        ```python
+        import rapidquery as rq
+
+        stmt = rq.RenameTable("users", "accounts").to_sql("mysql")
+        # RENAME TABLE `users` TO `accounts`
+        ```
         """
         ...
 
@@ -530,7 +693,9 @@ class Table(SchemaStatement):
         to generate `CREATE TABLE` SQL statements with full schema specifications.
 
         Args:
-            name: The name of this table as represented in the database.
+            name: The name of this table as represented in the database. You can also specify database and schema here.
+                If you're using `TableName`, you can use `database` and `schema` parameters; but you can also do it with `str`.
+                Format: `"db_name.schema_name.table_name"`.
             args: List of columns (`Column`s), indexes (`Index`s), foreign keys (`ForeignKey`s), or
                 check constraints (`Expr`s).
             if_not_exists: If `True`, uses `IF NOT EXISTS` clause.
@@ -540,6 +705,34 @@ class Table(SchemaStatement):
             collate: Collation for string comparisons and sorting in this table.
             character_set: Character set encoding for text data in this table.
             extra: Additional table-specific options for the statement.
+
+        Examples:
+        ```python
+        import rapidquery as rq
+
+        table = rq.Table(
+            "public.characters",
+            rq.Column("id", rq.sqltypes.BigInteger(), primary_key=True, auto_increment=True),
+            rq.Column("character", rq.sqltypes.Char(1)),
+            rq.Column("font_size", rq.sqltypes.SmallInteger()),
+            rq.Column("font_id", rq.sqltypes.BigInteger()),
+            rq.ForeignKey(["font_id"], "fonts", ["id"], on_delete="CASCADE"),
+            rq.Index("ix_characters_fonts_id", ["font_id"]),
+            rq.Expr(rq.Func.char_length(rq.Expr.col("character"))) == 1,
+            if_not_exists=True,
+        )
+
+        table.to_sql("postgres")
+        # CREATE TABLE IF NOT EXISTS "public"."characters" (
+        #   "id" bigserial PRIMARY KEY NOT NULL,
+        #   "character" char(1) NOT NULL,
+        #   "font_size" smallint NOT NULL,
+        #   "font_id" bigint NOT NULL,
+        #   CONSTRAINT "fk_fonts_font_id__id" FOREIGN KEY ("font_id") REFERENCES "fonts" ("id") ON DELETE CASCADE,
+        #   CHECK (CHAR_LENGTH("character") = 1)
+        # );
+        # CREATE INDEX IF NOT EXISTS "ix_characters_fonts_id" ON "public"."characters" ("font_id")
+        ```
         """
         ...
 
@@ -633,6 +826,14 @@ class TruncateTable(SchemaStatement):
 
         Args:
             name: The name of the table to truncate.
+
+        Examples:
+        ```python
+        import rapidquery as rq
+
+        stmt = rq.TruncateTable("users").to_sql("mysql")
+        # TRUNCATE TABLE `users`
+        ```
         """
         ...
 

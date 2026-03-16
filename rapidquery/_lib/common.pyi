@@ -484,8 +484,8 @@ class ForeignKey:
     def __init__(
         self,
         from_columns: typing.Iterable[_ColumnRefNew],
-        to_columns: typing.Iterable[_ColumnRefNew],
         to_table: _TableNameNew,
+        to_columns: typing.Iterable[_ColumnRefNew],
         name: str | None = None,
         *,
         on_delete: _ForeignKeyActions | None = None,
@@ -497,10 +497,10 @@ class ForeignKey:
         Args:
             from_columns: An iterable of column references, or column names, or `Column` object.
                         The columns must defined and presented in the parent table.
+            to_table: The target table.
             to_columns: An iterable of column references, or column names, or `Column` object.
                         The columns must defined and presented in the target table.
-            to_table: The target table.
-            name: The in-database name of the key.
+            name: The in-database name of the key. If `None`, will be generated automatically.
             on_delete: The foreign key action for "ON DELETE".
             on_update: The foreign key action for "ON UPDATE".
         """

@@ -132,8 +132,8 @@ impl PyForeignKey {
         pyo3(
             signature=(
                 from_columns,
-                to_columns,
                 to_table,
+                to_columns,
                 from_table=None,
                 name=None,
                 *,
@@ -145,8 +145,8 @@ impl PyForeignKey {
     fn __init__(
         &self,
         from_columns: Vec<BoundObject<'_>>,
-        to_columns: Vec<BoundObject<'_>>,
         to_table: RefBoundObject<'_>,
+        to_columns: Vec<BoundObject<'_>>,
         from_table: Option<RefBoundObject<'_>>,
         name: Option<String>,
         on_delete: Option<String>,

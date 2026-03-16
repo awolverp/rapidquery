@@ -248,8 +248,8 @@ impl PyIndex {
     #[
         pyo3(
             signature = (
+                name,
                 columns,
-                name=None,
                 table=None,
                 *,
                 primary=false,
@@ -264,8 +264,8 @@ impl PyIndex {
     ]
     fn __init__(
         &self,
-        columns: Vec<BoundObject<'_>>,
         name: Option<String>,
+        columns: Vec<BoundObject<'_>>,
         table: Option<RefBoundObject<'_>>,
         primary: bool,
         if_not_exists: bool,
