@@ -672,7 +672,7 @@ impl PySelectStatement {
             casted.push(pyo3::Py::new(slf.py(), result)?.into_any());
         }
 
-        slf.0.lock().exprs = casted;
+        slf.0.lock().exprs.append(&mut casted);
         Ok(slf)
     }
 
@@ -686,7 +686,7 @@ impl PySelectStatement {
             casted.push(cast_into_select_expr(item)?.unbind());
         }
 
-        slf.0.lock().exprs = casted;
+        slf.0.lock().exprs.append(&mut casted);
         Ok(slf)
     }
 

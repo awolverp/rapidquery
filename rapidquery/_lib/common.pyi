@@ -694,6 +694,11 @@ class Func:
         """Create a UPPER(expr) function call."""
         ...
 
+    @classmethod
+    def cast_as(cls, /, expr: _ExprNew, alias: str) -> typing.Self:
+        """Call CAST function with a custom type."""
+        ...
+
 @typing.final
 class TableName:
     """

@@ -219,7 +219,7 @@ impl PyUpdateStatement {
 
         {
             let mut lock = slf.0.lock();
-            lock.values = values;
+            lock.values.append(&mut values);
         }
         Ok(slf)
     }

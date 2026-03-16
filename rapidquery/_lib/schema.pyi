@@ -12,7 +12,7 @@ _BackendName: typing.TypeAlias = typing.Literal[
 
 class AlterTable(SchemaStatement):
     """
-    Represents an ALTER TABLE SQL statement.
+    Represents an `ALTER TABLE` SQL statement.
 
     Provides a flexible way to modify existing table structures by applying
     one or more alteration operations such as adding/dropping columns,
@@ -27,16 +27,19 @@ class AlterTable(SchemaStatement):
         name: _TableNameNew,
         options: typing.Iterable[AlterTableBaseOption] = (),
     ) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+        """
+        Construct a new `ALTER TABLE` statement.
+
+        Args:
+            name: The name of the table to alter.
+            options: Iterable of alteration operations to apply.
+        """
         ...
 
     def __copy__(self) -> typing.Self: ...
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     def add_option(self, opt: AlterTableBaseOption) -> typing.Self:
-        """Add an alteration operation to this ALTER TABLE statement."""
+        """Add an alteration operation."""
         ...
 
     @property
@@ -51,137 +54,167 @@ class AlterTable(SchemaStatement):
         ...
     @options.setter
     def options(self, value: typing.Iterable[AlterTableBaseOption]) -> None: ...
-    def to_sql(self, backend: _BackendName, /) -> str:
-        """Build a SQL string representation."""
-        ...
 
 class AlterTableAddColumnOption(AlterTableBaseOption):
     """
-    ALTER TABLE operation to add a new column.
+    `ALTER TABLE` operation to add a new column.
 
     Adds a column to an existing table with optional IF NOT EXISTS clause
     to prevent errors if the column already exists.
+
+    NOTE: this class is immutable and frozen.
     """
 
     def __init__(self, column: Column, if_not_exists: bool = False) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+        """
+        Construct a new `AlterTableAddColumnOption` instance.
+
+        Args:
+            column: The column definition to add.
+            if_not_exists: If `True`, uses `IF NOT EXISTS` clause.
+        """
         ...
 
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
+    def __repr__(self, /) -> str: ...
+    @property
+    def column(self) -> Column:
+        """The column definition to add."""
         ...
 
     @property
-    def column(self) -> Column: ...
-    @property
-    def if_not_exists(self) -> bool: ...
+    def if_not_exists(self) -> bool:
+        """Whether to use IF NOT EXISTS clause."""
+        ...
 
 class AlterTableAddForeignKeyOption(AlterTableBaseOption):
     """
-    ALTER TABLE operation to add a foreign key constraint.
+    `ALTER TABLE` operation to add a foreign key constraint.
 
     Adds referential integrity between tables by creating a foreign key
     relationship on an existing table.
     """
 
     def __init__(self, foreign_key: ForeignKey) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+        """
+        Construct a new `AlterTableAddForeignKeyOption` instance.
+
+        Args:
+            foreign_key: The foreign key definition to add.
+        """
         ...
 
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     @property
-    def foreign_key(self) -> ForeignKey: ...
+    def foreign_key(self) -> ForeignKey:
+        """The foreign key definition to add."""
+        ...
 
 class AlterTableBaseOption:
     """
     This abstract base class represents the different types of modifications
     that can be made to an existing table structure, such as adding/dropping
     columns, modifying column definitions, or managing foreign keys.
+
+    NOTE: You cannot use this class as a parent (subclass), but you can use its children
+        as a parent (subclass). e.g. `AlterTableDropColumnOption`.
     """
 
 class AlterTableDropColumnOption(AlterTableBaseOption):
     """
-    ALTER TABLE operation to drop an existing column.
+    `ALTER TABLE` operation to drop an existing column.
 
     Removes a column from the table. This operation may fail if the column
     is referenced by other database objects.
     """
 
     def __init__(self, name: _ColumnRefNew) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+        """
+        Construct a new `AlterTableDropColumnOption` instance.
+
+        Args:
+            name: The column name/reference to drop.
+        """
         ...
 
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     @property
-    def name(self) -> str: ...
+    def name(self) -> str:
+        """The column name to drop."""
+        ...
 
 class AlterTableDropForeignKeyOption(AlterTableBaseOption):
     """
-    ALTER TABLE operation to drop a foreign key constraint.
+    `ALTER TABLE` operation to drop a foreign key constraint.
 
     Removes a foreign key relationship by its constraint name.
     """
 
     def __init__(self, name: ForeignKey | str) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+        """
+        Construct a new `AlterTableDropForeignKeyOption` instance.
+
+        Args:
+            name: The foreign key constraint name to drop.
+        """
         ...
 
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     @property
-    def name(self) -> str: ...
+    def name(self) -> str:
+        """The foreign key constraint name to drop."""
+        ...
 
 class AlterTableModifyColumnOption(AlterTableBaseOption):
     """
-    ALTER TABLE operation to modify a column definition.
+    `ALTER TABLE` operation to modify a column definition.
 
     Changes properties of an existing column such as type, nullability,
     default value, or other constraints.
     """
 
     def __init__(self, column: Column) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+        # TODO: Complete this docstring.
+        """
+        Construct a new `AlterTableModifyColumnOption` instance.
+        """
         ...
 
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     @property
     def column(self) -> Column: ...
 
 class AlterTableRenameColumnOption(AlterTableBaseOption):
     """
-    ALTER TABLE operation to rename a column.
+    `ALTER TABLE` operation to rename a column.
 
     Changes the name of an existing column without modifying its type
     or constraints.
     """
 
     def __init__(self, from_name: _ColumnRefNew, to_name: _ColumnRefNew) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+        """
+        Construct a new `AlterTableRenameColumnOption` instance.
+
+        Args:
+            from_name: The column name/reference to rename.
+            to_name: New column name.
+        """
         ...
 
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
+    def __repr__(self, /) -> str: ...
+    @property
+    def from_name(self) -> str:
+        """The column name/reference to rename."""
         ...
 
     @property
-    def from_name(self) -> str: ...
-    @property
-    def to_name(self) -> str: ...
+    def to_name(self) -> str:
+        """New column name."""
+        ...
 
 class DropIndex(SchemaStatement):
     """
-    Represents a DROP INDEX SQL statement.
+    Represents a `DROP INDEX` SQL statement.
 
     Builds index deletion statements with support for:
     - Conditional deletion (IF EXISTS)
@@ -189,20 +222,28 @@ class DropIndex(SchemaStatement):
     """
 
     def __init__(
-        self, name: str, table: _TableNameNew, if_exists: bool = False
+        self,
+        name: str,
+        table: _TableNameNew,
+        if_exists: bool = False,
     ) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+        """
+        Construct a new `DROP INDEX` statement.
+
+        Args:
+            name: The name of the index to drop.
+            table: The table from which to drop the index.
+            if_exists: If `True`, uses `IF EXISTS` clause.
+        """
         ...
 
     def __copy__(self) -> typing.Self: ...
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     @property
     def if_exists(self) -> bool:
         """Whether to use IF EXISTS clause to avoid errors."""
         ...
+
     @if_exists.setter
     def if_exists(self, value: bool) -> None: ...
     @property
@@ -217,13 +258,10 @@ class DropIndex(SchemaStatement):
         ...
     @table.setter
     def table(self, value: _TableNameNew) -> None: ...
-    def to_sql(self, backend: _BackendName, /) -> str:
-        """Build a SQL string representation."""
-        ...
 
 class DropTable(SchemaStatement):
     """
-    Represents a DROP TABLE SQL statement.
+    Represents a `DROP TABLE` SQL statement.
 
     Builds table deletion statements with support for:
     - Conditional deletion (IF EXISTS) to avoid errors
@@ -239,14 +277,20 @@ class DropTable(SchemaStatement):
         cascade: bool = False,
         restrict: bool = False,
     ) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+        # TODO: complete docstring
+        """
+        Construct a new `DROP TABLE` statement.
+
+        Args:
+            name: The table name to drop.
+            if_exists: If `True`, uses `IF EXISTS` clause.
+            cascade: ...
+            restrict: ...
+        """
         ...
 
     def __copy__(self) -> typing.Self: ...
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     @property
     def cascade(self) -> bool: ...
     @cascade.setter
@@ -259,15 +303,13 @@ class DropTable(SchemaStatement):
     def name(self) -> TableName:
         """The table name to drop."""
         ...
+
     @name.setter
     def name(self, value: _TableNameNew) -> None: ...
     @property
     def restrict(self) -> bool: ...
     @restrict.setter
     def restrict(self, value: bool) -> None: ...
-    def to_sql(self, backend: _BackendName, /) -> str:
-        """Build a SQL string representation."""
-        ...
 
 class Index(SchemaStatement):
     """
@@ -294,14 +336,29 @@ class Index(SchemaStatement):
         where: Expr | None = None,
         include: typing.Iterable[str] = (),
     ) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+        """
+        Construct a new database index specification.
+        Also you can use it to generate `CREATE INDEX` SQL expression.
+
+        Args:
+            columns: Column expressions to include in the index. You can use `IndexColumn` class
+                    if you want to specify prefix or order.
+            name: The index name. You should always set for indexes that aren't primary or unique, or
+                you want use them to generate `CREATE INDEX` statement.
+            table: The table on which to create the index. You should always set for indexes that
+                you want use them to generate `CREATE INDEX` statement.
+            primary: If `True`, means this is a primary key constraint.
+            if_not_exists: If `True`, uses `IF NOT EXISTS` clause.
+            nulls_not_distinct: If `True`, NULL values will be considered equal for uniqueness.
+            unique: If `True`, means this is a unique key constraint.
+            index_type: The type/algorithm for this index. e.g. `"HASH"`, `"BTREE"`, `"FULL TEXT"`.
+            where: Condition for partial indexing.
+            include: Additional columns to include in the index for covering queries.
+        """
         ...
 
     def __copy__(self) -> typing.Self: ...
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     @property
     def columns(self) -> typing.Sequence[IndexColumn]:
         """The columns that make up this index."""
@@ -350,10 +407,6 @@ class Index(SchemaStatement):
         ...
     @table.setter
     def table(self, value: _TableNameNew | None) -> None: ...
-    def to_sql(self, backend: _BackendName, /) -> str:
-        """Build a SQL string representation."""
-        ...
-
     @property
     def unique(self) -> bool:
         """Whether this is a unique constraint."""
@@ -390,10 +443,7 @@ class IndexColumn:
         prefix: int | None = None,
     ) -> typing.Self: ...
     def __copy__(self) -> typing.Self: ...
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     @property
     def name(self) -> str:
         """The name of the column to include in the index."""
@@ -411,21 +461,24 @@ class IndexColumn:
 
 class RenameTable(SchemaStatement):
     """
-    Represents a RENAME TABLE SQL statement.
+    Represents a `RENAME TABLE` SQL statement.
 
     Changes the name of an existing table to a new name. Both names can be
     schema-qualified if needed.
     """
 
     def __init__(self, from_name: _TableNameNew, to_name: _TableNameNew) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+        """
+        Construct a new `RENAME TABLE` statement.
+
+        Args:
+            from_name: The current name of the table.
+            to_name: The new name for the table.
+        """
         ...
 
     def __copy__(self) -> typing.Self: ...
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     @property
     def from_name(self) -> TableName:
         """The current name of the table."""
@@ -438,16 +491,9 @@ class RenameTable(SchemaStatement):
         ...
     @to_name.setter
     def to_name(self, value: _TableNameNew) -> None: ...
-    def to_sql(self, backend: _BackendName, /) -> str:
-        """Build a SQL string representation."""
-        ...
 
 class SchemaStatement:
     """Subclass of schema statements."""
-
-    def __init__(self) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
-        ...
 
     def to_sql(self, backend: _BackendName, /) -> str:
         """Build a SQL string representation."""
@@ -464,29 +510,42 @@ class Table(SchemaStatement):
     - Check constraints for data validation
     - Table-level options like engine, collation, and character set
 
-    Used to generate CREATE TABLE SQL statements with full schema specifications.
+    Used to generate `CREATE TABLE` SQL statements with full schema specifications.
     """
 
     def __init__(
         self,
         name: TableName | str,
         *args: Column | Index | ForeignKey | Expr,
-        options: int = 0,
+        if_not_exists: bool = False,
+        temporary: bool = False,
         comment: str | None = None,
         engine: str | None = None,
         collate: str | None = None,
         character_set: str | None = None,
         extra: str | None = None,
     ) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+        """
+        Construct a new database table definition. Also you can use it
+        to generate `CREATE TABLE` SQL statements with full schema specifications.
+
+        Args:
+            name: The name of this table as represented in the database.
+            args: List of columns (`Column`s), indexes (`Index`s), foreign keys (`ForeignKey`s), or
+                check constraints (`Expr`s).
+            if_not_exists: If `True`, uses `IF NOT EXISTS` clause.
+            temporary: If `True`, marks the table as a temporary table.
+            comment: Comment describing the purpose of this table.
+            engine: Storage engine for the table (e.g., InnoDB, MyISAM for MySQL).
+            collate: Collation for string comparisons and sorting in this table.
+            character_set: Character set encoding for text data in this table.
+            extra: Additional table-specific options for the statement.
+        """
         ...
 
     @property
     def __table_name__(self) -> TableName: ...
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     @property
     def character_set(self) -> str | None:
         """Character set encoding for text data in this table."""
@@ -539,7 +598,8 @@ class Table(SchemaStatement):
     def if_not_exists(self) -> bool:
         """Whether to use IF NOT EXISTS clause to avoid errors if table exists."""
         ...
-
+    @if_not_exists.setter
+    def if_not_exists(self, value: bool) -> None: ...
     @property
     def indexes(self) -> typing.Sequence[Index]:
         """Table indexes."""
@@ -555,14 +615,12 @@ class Table(SchemaStatement):
     def temporary(self) -> bool:
         """Whether this is a temporary table that exists only for the session."""
         ...
-
-    def to_sql(self, backend: _BackendName, /) -> str:
-        """Build a SQL string representation."""
-        ...
+    @temporary.setter
+    def temporary(self, value: bool) -> None: ...
 
 class TruncateTable(SchemaStatement):
     """
-    Represents a TRUNCATE TABLE SQL statement.
+    Represents a `TRUNCATE TABLE` SQL statement.
 
     Quickly removes all rows from a table, typically faster than DELETE
     and with different transaction and trigger behavior depending on the
@@ -570,20 +628,19 @@ class TruncateTable(SchemaStatement):
     """
 
     def __init__(self, name: _TableNameNew) -> None:
-        """Initialize self.  See help(type(self)) for accurate signature."""
+        """
+        Construct a new `TRUNCATE TABLE` statement.
+
+        Args:
+            name: The name of the table to truncate.
+        """
         ...
 
     def __copy__(self) -> typing.Self: ...
-    def __repr__(self, /) -> str:
-        """Return repr(self)."""
-        ...
-
+    def __repr__(self, /) -> str: ...
     @property
     def name(self) -> TableName:
         """The name of the table to truncate."""
         ...
     @name.setter
     def name(self, value: _TableNameNew) -> None: ...
-    def to_sql(self, backend: _BackendName, /) -> str:
-        """Build a SQL string representation."""
-        ...

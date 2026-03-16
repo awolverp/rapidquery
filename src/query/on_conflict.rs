@@ -12,8 +12,9 @@ pub enum OnConflictUpdate {
     Expr(sea_query::DynIden, PyExpr),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum OnConflictAction {
+    #[default]
     None,
     DoNothing(Vec<sea_query::DynIden>),
     DoUpdate(Vec<OnConflictUpdate>),
@@ -99,7 +100,15 @@ impl OnConflictState {
             }
         }
 
-        self.action = OnConflictAction::DoUpdate(actions);
+        match &mut self.action {
+            OnConflictAction::DoNothing(_) | OnConflictAction::None => {
+                self.action = OnConflictAction::DoUpdate(actions);
+            }
+            OnConflictAction::DoUpdate(x) => {
+                x.append(&mut actions);
+            }
+        }
+
         Ok(())
     }
 
@@ -119,7 +128,15 @@ impl OnConflictState {
             }
         }
 
-        self.action = OnConflictAction::DoUpdate(actions);
+        match &mut self.action {
+            OnConflictAction::DoNothing(_) | OnConflictAction::None => {
+                self.action = OnConflictAction::DoUpdate(actions);
+            }
+            OnConflictAction::DoUpdate(x) => {
+                x.append(&mut actions);
+            }
+        }
+
         Ok(())
     }
 }
@@ -201,9 +218,18 @@ impl PyOnConflict {
             }
         }
 
-        let mut lock = slf.0.lock();
-        lock.action = OnConflictAction::DoNothing(normalized_keys);
-        drop(lock);
+        {
+            let mut lock = slf.0.lock();
+
+            match &mut lock.action {
+                OnConflictAction::DoUpdate(_) | OnConflictAction::None => {
+                    lock.action = OnConflictAction::DoNothing(normalized_keys);
+                }
+                OnConflictAction::DoNothing(x) => {
+                    x.append(&mut normalized_keys);
+                }
+            }
+        }
 
         Ok(slf)
     }
@@ -215,19 +241,13 @@ impl PyOnConflict {
         args: BoundArgs<'a>,
         kwds: Option<BoundKwargs<'a>>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
-        if !PyTupleMethods::is_empty(args) && kwds.is_some() {
-            return crate::new_error!(
-                PyTypeError,
-                "cannot use both args and kwargs at the same time"
-            );
-        }
-
         if !PyTupleMethods::is_empty(args) {
             let mut lock = slf.0.lock();
             lock.update_from_tuple(args)?;
-        } else if kwds.is_some() {
+        }
+        if let Some(kwds) = kwds {
             let mut lock = slf.0.lock();
-            lock.update_from_dictionary(kwds.unwrap().clone())?;
+            lock.update_from_dictionary(kwds.clone())?;
         }
 
         Ok(slf)

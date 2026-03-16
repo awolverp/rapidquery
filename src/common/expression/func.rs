@@ -1,4 +1,5 @@
 use pyo3::types::PyTupleMethods;
+use sea_query::IntoIden;
 
 use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundArgs, RefBoundObject};
@@ -275,6 +276,19 @@ impl PyFunc {
     ) -> pyo3::PyResult<Self> {
         let expr = super::expr::PyExpr::try_from(expr)?;
         Ok(Self(sea_query::Func::md5(expr.0)))
+    }
+
+    #[classmethod]
+    fn cast_as(
+        _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
+        expr: RefBoundObject<'_>,
+        alias: String,
+    ) -> pyo3::PyResult<Self> {
+        let expr = super::expr::PyExpr::try_from(expr)?;
+        Ok(Self(sea_query::Func::cast_as(
+            expr.0,
+            sea_query::Alias::new(alias).into_iden(),
+        )))
     }
 
     pub fn __repr__(&self) -> String {

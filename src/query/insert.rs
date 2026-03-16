@@ -333,7 +333,7 @@ impl PyInsertStatement {
         action: RefBoundObject<'a>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         unsafe {
-            if pyo3::ffi::PyObject_TypeCheck(action.as_ptr(), crate::typeref::ON_CONFLICT_TYPE) == 1
+            if pyo3::ffi::PyObject_TypeCheck(action.as_ptr(), crate::typeref::ON_CONFLICT_TYPE) == 0
             {
                 return crate::new_error!(
                     PyTypeError,

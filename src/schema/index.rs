@@ -511,6 +511,23 @@ impl PyIndex {
     #[allow(clippy::wrong_self_convention)]
     fn to_sql(&self, py: pyo3::Python<'_>, backend: String) -> pyo3::PyResult<String> {
         let lock = self.0.lock();
+
+        if lock.table.is_none() {
+            return crate::new_error!(
+                PyRuntimeError,
+                "To generate a CREATE INDEX statement, both `table` and `name` parameters are \
+                 necessary."
+            );
+        }
+
+        if lock.name.is_none() {
+            return crate::new_error!(
+                PyRuntimeError,
+                "To generate a CREATE INDEX statement, both `table` and `name` parameters are \
+                 necessary."
+            );
+        }
+
         let stmt = lock.to_sea_query(py);
         drop(lock);
 

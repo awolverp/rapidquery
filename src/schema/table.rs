@@ -431,7 +431,7 @@ impl PyTable {
             // Index name and table is necessary here
             if ix_lock.name.is_none() {
                 return Err(pyo3::exceptions::PyValueError::new_err(
-                    "You should always name indexes that aren't primary or unique",
+                    "You should always name for indexes that aren't primary or unique",
                 ));
             }
 
