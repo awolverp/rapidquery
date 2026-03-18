@@ -9,9 +9,10 @@ use crate::sqltypes::SQLTypeTrait;
 
 pub const OPT_PRIMARY_KEY: u8 = 1 << 0;
 pub const OPT_UNIQUE_KEY: u8 = 1 << 1;
-pub const OPT_NULLABLE: u8 = 1 << 2;
-pub const OPT_AUTO_INCREMENT: u8 = 1 << 3;
-pub const OPT_STORED_GENERATED: u8 = 1 << 4;
+pub const OPT_NOT_NULL: u8 = 1 << 2;
+pub const OPT_NULL: u8 = 1 << 3;
+pub const OPT_AUTO_INCREMENT: u8 = 1 << 4;
+pub const OPT_STORED_GENERATED: u8 = 1 << 5;
 
 crate::implement_pyclass! {
     /// Defines a table column with its properties and constraints.
@@ -59,9 +60,10 @@ impl ToSeaQuery<sea_query::ColumnDef> for ColumnState {
         if self.options & OPT_AUTO_INCREMENT > 0 {
             column_def.auto_increment();
         }
-        if self.options & OPT_NULLABLE > 0 {
+        if self.options & OPT_NULL > 0 {
             column_def.null();
-        } else {
+        }
+        if self.options & OPT_NOT_NULL > 0 {
             column_def.not_null();
         }
         if self.options & OPT_UNIQUE_KEY > 0 {
@@ -103,7 +105,7 @@ impl PyColumn {
                 *,
                 primary_key=false,
                 unique_key=false,
-                nullable=false,
+                nullable=None,
                 auto_increment=false,
                 extra=None,
                 comment=None,
@@ -119,7 +121,7 @@ impl PyColumn {
         r#type: RefBoundObject<'_>,
         primary_key: bool,
         unique_key: bool,
-        nullable: bool,
+        nullable: Option<bool>,
         auto_increment: bool,
         extra: Option<String>,
         comment: Option<String>,
@@ -148,9 +150,13 @@ impl PyColumn {
         if unique_key {
             options |= OPT_UNIQUE_KEY;
         }
-        if nullable {
-            options |= OPT_NULLABLE;
+
+        match nullable {
+            Some(true) => options |= OPT_NULL,
+            Some(false) => options |= OPT_NOT_NULL,
+            None => (),
         }
+
         if auto_increment {
             options |= OPT_AUTO_INCREMENT;
         }
@@ -236,17 +242,35 @@ impl PyColumn {
     }
 
     #[getter]
-    fn nullable(&self) -> bool {
-        self.0.lock().options & OPT_NULLABLE > 0
+    fn nullable(&self) -> Option<bool> {
+        let options = self.0.lock().options;
+
+        if options & OPT_NOT_NULL > 0 {
+            Some(false)
+        } else if options & OPT_NULL > 0 {
+            Some(true)
+        } else {
+            None
+        }
     }
 
     #[setter]
-    fn set_nullable(&self, value: bool) {
+    fn set_nullable(&self, value: Option<bool>) {
         let mut lock = self.0.lock();
-        if value {
-            lock.options |= OPT_NULLABLE;
-        } else {
-            lock.options &= !OPT_NULLABLE;
+
+        match value {
+            Some(true) => {
+                lock.options |= OPT_NULL;
+                lock.options &= !OPT_NOT_NULL;
+            }
+            Some(false) => {
+                lock.options |= OPT_NOT_NULL;
+                lock.options &= !OPT_NULL;
+            }
+            None => {
+                lock.options &= !OPT_NOT_NULL;
+                lock.options &= !OPT_NULL;
+            }
         }
     }
 
@@ -356,7 +380,16 @@ impl PyColumn {
             .optional_boolean("primary_key", lock.options & OPT_PRIMARY_KEY > 0)
             .optional_boolean("unique_key", lock.options & OPT_UNIQUE_KEY > 0)
             .optional_boolean("auto_increment", lock.options & OPT_AUTO_INCREMENT > 0)
-            .optional_boolean("nullable", lock.options & OPT_NULLABLE > 0)
+            .optional_display(
+                "nullable",
+                if lock.options & OPT_NOT_NULL > 0 {
+                    Some(false)
+                } else if lock.options & OPT_NULL > 0 {
+                    Some(true)
+                } else {
+                    None
+                },
+            )
             .optional_boolean("stored_generated", lock.options & OPT_STORED_GENERATED > 0)
             .optional_quote("extra", lock.extra.as_ref())
             .optional_quote("comment", lock.comment.as_ref())

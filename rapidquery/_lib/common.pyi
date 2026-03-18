@@ -53,10 +53,10 @@ class Column(typing.Generic[T]):
         *,
         primary_key: bool = False,
         unique_key: bool = False,
-        nullable: bool = False,
+        nullable: bool | None = None,
         auto_increment: bool = False,
-        extra: str | None = ...,
-        comment: str | None = ...,
+        extra: str | None = None,
+        comment: str | None = None,
         default: typing.Any = ...,
         generated: typing.Any = ...,
         stored_generated: bool = False,
@@ -69,7 +69,7 @@ class Column(typing.Generic[T]):
             type: The column's type.
             primary_key: If `True`, marks this column as a primary key column.
             unique_key: If `True`, marks this column as a unique key column.
-            nullable: If `False`, marks this column as "NOT NULL", otherwise marks as "NULL".
+            nullable: If `False`, marks this column as "NOT NULL". If `True`, marks it as "NULL".
             auto_increment: If `True`, marks this column as auto increment. Auto increment phrase is
                             depended on backend/dialect.
             extra: Some extra options in custom string.
@@ -123,11 +123,9 @@ class Column(typing.Generic[T]):
     @name.setter
     def name(self, value: str) -> None: ...
     @property
-    def nullable(self) -> bool:
+    def nullable(self) -> bool | None:
         """Whether this is a nullable column."""
         ...
-    @nullable.setter
-    def nullable(self, value: bool) -> None: ...
     @property
     def primary_key(self) -> bool:
         """Whether this is a nullable column."""
@@ -484,8 +482,8 @@ class ForeignKey:
     def __init__(
         self,
         from_columns: typing.Iterable[_ColumnRefNew],
-        to_table: _TableNameNew,
         to_columns: typing.Iterable[_ColumnRefNew],
+        to_table: _TableNameNew | None = None,
         name: str | None = None,
         *,
         on_delete: _ForeignKeyActions | None = None,
@@ -496,11 +494,11 @@ class ForeignKey:
 
         Args:
             from_columns: An iterable of column references, or column names, or `Column` object.
-                        The columns must defined and presented in the parent table.
-            to_table: The target table.
+                        The columns must defined and presented in the parent table. Cannot be empty.
             to_columns: An iterable of column references, or column names, or `Column` object.
-                        The columns must defined and presented in the target table.
-            name: The in-database name of the key. If `None`, will be generated automatically.
+                        The columns must defined and presented in the target table. Cannot be empty.
+            to_table: The target table. If not specified, tries to detect it from `to_columns` argument.
+            name: The constraint name.
             on_delete: The foreign key action for "ON DELETE".
             on_update: The foreign key action for "ON UPDATE".
         """
@@ -514,17 +512,11 @@ class ForeignKey:
     @from_columns.setter
     def from_columns(self, value: typing.Iterable[_ColumnRefNew]) -> None: ...
     @property
-    def from_table(self) -> TableName | None:
-        """Key table, if specified."""
-        ...
-    @from_table.setter
-    def from_table(self, value: _TableNameNew | None) -> None: ...
-    @property
-    def name(self) -> str:
+    def name(self) -> str | None:
         """Foreign key constraint name"""
         ...
     @name.setter
-    def name(self, value: str) -> None: ...
+    def name(self, value: str | None) -> None: ...
     @property
     def on_delete(self) -> _ForeignKeyActions | None:
         """ON DELETE action."""

@@ -8,19 +8,6 @@
 #![feature(optimize_attribute)]
 #![feature(once_cell_try)]
 
-// TODO List
-// 1.  [x] Select statement
-// 2.  [x] Case statement
-// 3.  [x] Complete Expr
-// 4.  [x] Export package classes
-// 5.  [ ] Update docstrings & documentation
-// 6.  [ ] Write tests
-// 7.  [ ] Update & automate workflows
-// 8.  [ ] Write CTE
-// 9.  [ ] Bump version to 0.1.0
-// 10. [ ] Publish
-// 11. [ ] Complete Dialect-Only functions
-
 pub mod internal;
 mod typeref;
 

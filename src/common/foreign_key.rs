@@ -41,7 +41,7 @@ crate::implement_pyclass! {
     #[derive(Debug, Clone)]
     mutable [subclass] PyForeignKey(ForeignKeyState) as "ForeignKey" {
         /// Foreign key constraint name
-        pub name: String,
+        pub name: Option<String>,
 
         /// To table
         pub to_table: PyTableName,
@@ -49,8 +49,8 @@ crate::implement_pyclass! {
         /// To columns
         pub to_columns: Vec<String>,
 
-        /// From table
-        pub from_table: Option<PyTableName>,
+        // /// From table
+        // pub from_table: Option<PyTableName>,
 
         /// From columns
         pub from_columns: Vec<String>,
@@ -67,8 +67,11 @@ impl ToSeaQuery<sea_query::ForeignKeyCreateStatement> for ForeignKeyState {
     #[cfg_attr(feature = "optimize", optimize(speed))]
     fn to_sea_query<'a>(&self, _py: pyo3::Python<'a>) -> sea_query::ForeignKeyCreateStatement {
         let mut stmt = sea_query::ForeignKeyCreateStatement::new();
-        stmt.name(&self.name);
         stmt.to_tbl(self.to_table.clone());
+
+        if let Some(x) = &self.name {
+            stmt.name(x);
+        }
 
         for c in &self.from_columns {
             stmt.from_col(sea_query::Alias::new(c));
@@ -77,9 +80,6 @@ impl ToSeaQuery<sea_query::ForeignKeyCreateStatement> for ForeignKeyState {
             stmt.to_col(sea_query::Alias::new(c));
         }
 
-        if let Some(x) = &self.from_table {
-            stmt.from_tbl(x.clone());
-        }
         if let Some(x) = self.on_delete {
             stmt.on_delete(x);
         }
@@ -95,8 +95,11 @@ impl ToSeaQuery<sea_query::TableForeignKey> for ForeignKeyState {
     #[cfg_attr(feature = "optimize", optimize(speed))]
     fn to_sea_query<'a>(&self, _py: pyo3::Python<'a>) -> sea_query::TableForeignKey {
         let mut stmt = sea_query::TableForeignKey::new();
-        stmt.name(&self.name);
         stmt.to_tbl(self.to_table.clone());
+
+        if let Some(x) = &self.name {
+            stmt.name(x);
+        }
 
         for c in &self.from_columns {
             stmt.from_col(sea_query::Alias::new(c));
@@ -105,9 +108,6 @@ impl ToSeaQuery<sea_query::TableForeignKey> for ForeignKeyState {
             stmt.to_col(sea_query::Alias::new(c));
         }
 
-        if let Some(x) = &self.from_table {
-            stmt.from_tbl(x.clone());
-        }
         if let Some(x) = self.on_delete {
             stmt.on_delete(x);
         }
@@ -132,9 +132,8 @@ impl PyForeignKey {
         pyo3(
             signature=(
                 from_columns,
-                to_table,
                 to_columns,
-                from_table=None,
+                to_table=None,
                 name=None,
                 *,
                 on_delete=None,
@@ -145,9 +144,8 @@ impl PyForeignKey {
     fn __init__(
         &self,
         from_columns: Vec<BoundObject<'_>>,
-        to_table: RefBoundObject<'_>,
         to_columns: Vec<BoundObject<'_>>,
-        from_table: Option<RefBoundObject<'_>>,
+        to_table: Option<RefBoundObject<'_>>,
         name: Option<String>,
         on_delete: Option<String>,
         on_update: Option<String>,
@@ -162,30 +160,25 @@ impl PyForeignKey {
             Some(x) => Some(map_str_to_foreign_key_action(x)?),
         };
 
-        // Validate & convert tables
-        let from_table = match from_table {
-            None => None,
+        let mut to_table = match to_table {
             Some(x) => Some(PyTableName::try_from(x)?),
+            None => None,
         };
-        let to_table = PyTableName::try_from(to_table)?;
 
         // Validate from/to_columns
         if from_columns.is_empty() {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "from_columns is empty",
-            ));
+            return crate::new_error!(PyValueError, "from_columns cannot be empty.");
         }
         if to_columns.is_empty() {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "to_columns is empty",
-            ));
+            return crate::new_error!(PyValueError, "to_columns cannot be empty.");
         }
         if from_columns.len() != to_columns.len() {
-            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            return crate::new_error!(
+                PyValueError,
                 "from_columns and to_columns must have same length ({} != {})",
                 from_columns.len(),
                 to_columns.len()
-            )));
+            );
         }
 
         // Convert from_columns
@@ -197,9 +190,10 @@ impl PyForeignKey {
             match col_ref.name {
                 Some(x) => from_columns_str.push(x.to_string()),
                 None => {
-                    return Err(pyo3::exceptions::PyValueError::new_err(
-                        "ForeignKey cannot accept asterisk '*' as column",
-                    ))
+                    return crate::new_error!(
+                        PyValueError,
+                        "ForeignKey cannot accept asterisk '*' as column"
+                    );
                 }
             }
         }
@@ -210,42 +204,68 @@ impl PyForeignKey {
         for col in to_columns.into_iter() {
             let col_ref = super::column_ref::PyColumnRef::try_from(&col)?;
 
-            match col_ref.name {
+            match &col_ref.name {
                 Some(x) => to_columns_str.push(x.to_string()),
                 None => {
-                    return Err(pyo3::exceptions::PyValueError::new_err(
-                        "ForeignKey cannot accept asterisk '*' as column",
-                    ))
+                    return crate::new_error!(
+                        PyValueError,
+                        "ForeignKey cannot accept asterisk '*' as column"
+                    );
                 }
+            }
+
+            if let Some(detected_table_name) = col_ref.table {
+                let detected_table_name = PyTableName {
+                    name: detected_table_name,
+                    schema: col_ref.schema,
+                    database: None,
+                    alias: None,
+                };
+
+                if let Some(last) = &to_table {
+                    if last.ne(&detected_table_name) {
+                        return crate::new_error!(PyValueError, "multiple target table found");
+                    }
+                }
+
+                to_table = Some(detected_table_name);
             }
         }
 
-        let name = match name {
-            Some(x) => x,
-            None => {
-                let mut s = format!("fk_{}", to_table.name.to_string());
+        if to_table.is_none() {
+            return crate::new_error!(
+                PyValueError,
+                "No target table found. You should specify the target table with `to_table`, or \
+                 `to_columns` parameter."
+            );
+        }
+        let to_table = unsafe { to_table.unwrap_unchecked() };
 
-                for col in from_columns_str.iter() {
-                    s.push('_');
-                    s += col;
-                }
+        // let name = match name {
+        //     Some(x) => x,
+        //     None => {
+        //         let mut s = format!("fk_{}", to_table.name.to_string());
 
-                s.push('_');
+        //         for col in from_columns_str.iter() {
+        //             s.push('_');
+        //             s += col;
+        //         }
 
-                for col in to_columns_str.iter() {
-                    s.push('_');
-                    s += col;
-                }
+        //         s.push('_');
 
-                s
-            }
-        };
+        //         for col in to_columns_str.iter() {
+        //             s.push('_');
+        //             s += col;
+        //         }
+
+        //         s
+        //     }
+        // };
 
         let result = ForeignKeyState {
             name,
             to_table,
             to_columns: to_columns_str,
-            from_table,
             from_columns: from_columns_str,
             on_delete,
             on_update,
@@ -256,31 +276,14 @@ impl PyForeignKey {
 
     /// Foreign key constraint name
     #[getter]
-    fn name(&self) -> String {
+    fn name(&self) -> Option<String> {
         self.0.lock().name.clone()
     }
 
     #[setter]
-    fn set_name(&self, val: String) {
+    fn set_name(&self, val: Option<String>) {
         let mut lock = self.0.lock();
         lock.name = val;
-    }
-
-    /// Key table, if specified.
-    #[getter]
-    #[allow(clippy::wrong_self_convention)]
-    fn from_table(&self) -> Option<PyTableName> {
-        self.0.lock().from_table.as_ref().cloned()
-    }
-
-    #[setter]
-    fn set_from_table(&self, value: Option<RefBoundObject<'_>>) -> pyo3::PyResult<()> {
-        let mut lock = self.0.lock();
-        lock.from_table = match value {
-            None => None,
-            Some(x) => Some(super::table_ref::PyTableName::try_from(x)?),
-        };
-        Ok(())
     }
 
     /// Referencing table.
@@ -420,11 +423,10 @@ impl PyForeignKey {
         let lock = slf.0.lock();
 
         ReprFormatter::new_with_pyref(&slf)
-            .quote("name", &lock.name)
+            .optional_quote("name", lock.name.as_ref())
             .map("to_table", &lock.to_table, |x| x.__repr__())
             .debug("to_columns", &lock.to_columns)
             .debug("from_columns", &lock.from_columns)
-            .optional_map("from_table", lock.from_table.as_ref(), |x| x.__repr__())
             .optional_map("on_delete", lock.on_delete, map_foreign_key_action_to_str)
             .optional_map("on_update", lock.on_update, map_foreign_key_action_to_str)
             .finish()

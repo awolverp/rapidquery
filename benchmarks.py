@@ -13,7 +13,7 @@ import rapidquery as rq
 SA_DIALECT = dialect()
 
 # Benchmark configuration
-ITERATIONS = 10_000
+ITERATIONS = 100_000
 WARMUP_ITERATIONS = 100
 
 

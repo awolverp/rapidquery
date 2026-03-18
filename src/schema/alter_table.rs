@@ -6,7 +6,6 @@ use crate::common::table_ref::PyTableName;
 use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundArgs, BoundKwargs, BoundObject, PyObject, RefBoundObject, ToSeaQuery};
 
-use pyo3::types::PyAnyMethods;
 use pyo3::PyTypeInfo;
 use sea_query::IntoIden;
 
@@ -262,24 +261,9 @@ impl PyAlterTableDropForeignKeyOption {
     }
 
     #[pyo3(signature=(name))]
-    fn __init__(&self, name: RefBoundObject<'_>) -> pyo3::PyResult<()> {
-        let name_string = unsafe {
-            if pyo3::ffi::PyObject_TypeCheck(name.as_ptr(), crate::typeref::FOREIGN_KEY_TYPE) == 1 {
-                let fk = name.cast_unchecked::<PyForeignKey>();
-                fk.get().0.lock().name.clone()
-            } else if let Ok(x) = name.extract::<String>() {
-                x
-            } else {
-                return crate::new_error!(
-                    PyTypeError,
-                    "expected expected ForeignKey or str, got {}",
-                    crate::internal::get_type_name(name.py(), name.as_ptr())
-                );
-            }
-        };
-
+    fn __init__(&self, name: String) -> pyo3::PyResult<()> {
         let result = AlterTableDropForeignKeyOptionState {
-            name: sea_query::Alias::new(name_string).into_iden(),
+            name: sea_query::Alias::new(name).into_iden(),
         };
         unsafe {
             self.0.set(result);

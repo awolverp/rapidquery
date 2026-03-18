@@ -20,7 +20,7 @@ crate::implement_pyclass! {
     /// and supports comparison operations.
     ///
     /// NOTE: this class is immutable and frozen.
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq)]
     [] PyTableName as "TableName" {
         pub name: sea_query::DynIden,
         pub schema: Option<sea_query::DynIden>,
@@ -266,7 +266,7 @@ impl PyTableName {
         }
 
         let other = other.get();
-        Ok(slf.name == other.name && slf.database == other.database && slf.schema == other.schema)
+        Ok(slf.eq(other))
     }
 
     fn __ne__(slf: pyo3::PyRef<'_, Self>, other: &pyo3::Bound<'_, Self>) -> pyo3::PyResult<bool> {
@@ -275,7 +275,7 @@ impl PyTableName {
         }
 
         let other = other.get();
-        Ok(slf.name != other.name || slf.database != other.database || slf.schema != other.schema)
+        Ok(slf.ne(other))
     }
 
     fn __copy__(&self) -> Self {

@@ -142,7 +142,7 @@ class AlterTableAddForeignKeyOption(AlterTableBaseOption):
             "users",
             [
                 rq.AlterTableAddForeignKeyOption(
-                    rq.ForeignKey(["font_id"], "fonts", ["id"], on_delete="CASCADE")
+                    rq.ForeignKey(["font_id"], ["fonts.id"], on_delete="CASCADE")
                 )
             ],
         ).to_sql("postgres")
@@ -208,7 +208,7 @@ class AlterTableDropForeignKeyOption(AlterTableBaseOption):
     Removes a foreign key relationship by its constraint name.
     """
 
-    def __init__(self, name: ForeignKey | str) -> None:
+    def __init__(self, name: str) -> None:
         """
         Construct a new `AlterTableDropForeignKeyOption` instance.
 
@@ -247,6 +247,9 @@ class AlterTableModifyColumnOption(AlterTableBaseOption):
         """
         Construct a new `AlterTableModifyColumnOption` instance.
 
+        Args:
+            column: ...
+
         Examples:
         ```python
         import rapidquery as rq
@@ -255,18 +258,11 @@ class AlterTableModifyColumnOption(AlterTableBaseOption):
             "users",
             [
                 rq.AlterTableModifyColumnOption(
-                    rq.Column(
-                        "updated_at",
-                        rq.sqltypes.Date(),
-                        nullable=True,
-                        default=None,
-                    )
+                    rq.Column("updated_at", rq.sqltypes.Date(), default=None)
                 )
             ],
         ).to_sql("postgres")
-        # ALTER TABLE "users" ALTER COLUMN "updated_at" TYPE date,
-        # ALTER COLUMN "updated_at" DROP NOT NULL,
-        # ALTER COLUMN "updated_at" SET DEFAULT NULL
+        # ALTER TABLE "users" ALTER COLUMN "updated_at" TYPE date, ALTER COLUMN "updated_at" SET DEFAULT NULL
         ```
         """
         ...
@@ -716,7 +712,7 @@ class Table(SchemaStatement):
             rq.Column("character", rq.sqltypes.Char(1)),
             rq.Column("font_size", rq.sqltypes.SmallInteger()),
             rq.Column("font_id", rq.sqltypes.BigInteger()),
-            rq.ForeignKey(["font_id"], "fonts", ["id"], on_delete="CASCADE"),
+            rq.ForeignKey(["font_id"], ["fonts.id"], on_delete="CASCADE"),
             rq.Index("ix_characters_fonts_id", ["font_id"]),
             rq.Expr(rq.Func.char_length(rq.Expr.col("character"))) == 1,
             if_not_exists=True,
@@ -818,6 +814,8 @@ class TruncateTable(SchemaStatement):
     Quickly removes all rows from a table, typically faster than DELETE
     and with different transaction and trigger behavior depending on the
     database system.
+
+    NOTE: doesn't support TRUNCATE statement.
     """
 
     def __init__(self, name: _TableNameNew) -> None:
@@ -834,6 +832,8 @@ class TruncateTable(SchemaStatement):
         stmt = rq.TruncateTable("users").to_sql("mysql")
         # TRUNCATE TABLE `users`
         ```
+
+        NOTE: doesn't support TRUNCATE statement.
         """
         ...
 
