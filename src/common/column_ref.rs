@@ -277,6 +277,24 @@ impl PyColumnRef {
         self.clone()
     }
 
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+
+        let mut state = std::hash::DefaultHasher::new();
+
+        if let Some(x) = &self.name {
+            x.to_string().hash(&mut state);
+        }
+        if let Some(x) = &self.table {
+            x.to_string().hash(&mut state);
+        }
+        if let Some(x) = &self.schema {
+            x.to_string().hash(&mut state);
+        }
+
+        state.finish()
+    }
+
     pub fn __repr__(&self) -> String {
         let mut fmt = ReprFormatter::new("ColumnRef");
 

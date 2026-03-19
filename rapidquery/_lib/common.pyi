@@ -82,7 +82,7 @@ class Column(typing.Generic[T]):
 
     def __copy__(self) -> typing.Self: ...
     def __repr__(self, /) -> str: ...
-    def adapt(self, object: T) -> Value[T]:
+    def adapt(self, object: T | None) -> Value[T]:
         """Shorthand for `Value(object, self.type)`."""
         ...
 
@@ -170,17 +170,13 @@ class ColumnRef:
         schema: str | None = ...,
     ) -> typing.Self: ...
     def __copy__(self) -> typing.Self: ...
-    def __eq__(self, value, /) -> bool: ...
-    def __ge__(self, value, /) -> bool: ...
-    def __gt__(self, value, /) -> bool: ...
-    def __le__(self, value, /) -> bool: ...
-    def __lt__(self, value, /) -> bool: ...
-    def __ne__(self, value, /) -> bool: ...
+    def __eq__(self, value: object, /) -> bool: ...
+    def __ne__(self, value: object, /) -> bool: ...
     def __repr__(self, /) -> str: ...
     def copy_with(
         self,
         *,
-        name: str | None = ...,
+        name: str = ...,
         table: str | None = ...,
         schema: str | None = ...,
     ) -> typing.Self:
@@ -216,7 +212,7 @@ class ColumnRef:
         """Table name"""
         ...
 
-    __hash__ = None  # type: ignore
+    def __hash__(self) -> int: ...
 
 @typing.final
 class Expr:
@@ -463,6 +459,8 @@ class Expr:
         """Shorthand for `Expr(Value(value, sql_type))`"""
         ...
 
+    def _to_sql(self, backend: str) -> str: ...
+
     __hash__ = None  # type: ignore
 
 class ForeignKey:
@@ -490,7 +488,7 @@ class ForeignKey:
         on_update: _ForeignKeyActions | None = None,
     ) -> None:
         """
-        Construct a foreign key constraint.
+        Construct a foreign key constraint. You can use it with `Table` or `AlterTable`.
 
         Args:
             from_columns: An iterable of column references, or column names, or `Column` object.
@@ -715,24 +713,11 @@ class TableName:
         alias: str | None = None,
     ) -> typing.Self: ...
     def __copy__(self) -> typing.Self: ...
-    def __eq__(self, value, /) -> bool:
+    def __eq__(self, value: object, /) -> bool:
         """Return self==value."""
         ...
 
-    def __ge__(self, value, /) -> bool: ...
-    def __gt__(self, value, /) -> bool:
-        """Return self>value."""
-        ...
-
-    def __le__(self, value, /) -> bool:
-        """Return self<=value."""
-        ...
-
-    def __lt__(self, value, /) -> bool:
-        """Return self<value."""
-        ...
-
-    def __ne__(self, value, /) -> bool:
+    def __ne__(self, value: object, /) -> bool:
         """Return self!=value."""
         ...
 
@@ -771,8 +756,7 @@ class TableName:
 
     @property
     def schema(self) -> str | None: ...
-
-    __hash__ = None  # type: ignore
+    def __hash__(self) -> int: ...
 
 class Value(typing.Generic[T]):
     """

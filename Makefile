@@ -25,7 +25,7 @@ test:
 	-rm -rf .pytest_cache
 	-ruff check .
 	ruff clean
-	mypy rapidquery --disable-error-code override --disable-error-code type-arg --disable-error-code no-untyped-def --strict
+	mypy rapidquery --disable-error-code type-arg --strict
 
 fmt:
 	cargo fmt

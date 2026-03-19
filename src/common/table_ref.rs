@@ -180,6 +180,7 @@ impl PyTableName {
     /// - "database.schema.table_name"
     #[classmethod]
     fn parse(_cls: &pyo3::Bound<'_, pyo3::types::PyType>, string: String) -> pyo3::PyResult<Self> {
+        // TODO: support "AS <alias>"
         Self::from_str(&string)
     }
 
@@ -280,6 +281,26 @@ impl PyTableName {
 
     fn __copy__(&self) -> Self {
         self.clone()
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+
+        let mut state = std::hash::DefaultHasher::new();
+
+        self.name.to_string().hash(&mut state);
+
+        if let Some(x) = &self.database {
+            x.to_string().hash(&mut state);
+        }
+        if let Some(x) = &self.schema {
+            x.to_string().hash(&mut state);
+        }
+        if let Some(x) = &self.alias {
+            x.to_string().hash(&mut state);
+        }
+
+        state.finish()
     }
 
     pub fn __repr__(&self) -> String {

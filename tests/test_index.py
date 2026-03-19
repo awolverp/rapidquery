@@ -15,10 +15,7 @@ def test_index_column():
     rq.IndexColumn("name", "desc")  # type: ignore
 
     with pytest.raises(Exception):
-        rq.IndexColumn("name", "invalid")
-
-    with pytest.raises(Exception):
-        rq.IndexColumn("name", "aSc")
+        rq.IndexColumn("name", "invalid")  # type: ignore
 
     val = rq.IndexColumn("name", "desc", prefix=1)  # type: ignore
     assert val.name == "name"

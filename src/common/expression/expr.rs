@@ -123,23 +123,7 @@ impl PyExpr {
             Ok(Self(result))
         }
     }
-}
 
-impl From<sea_query::SimpleExpr> for PyExpr {
-    fn from(value: sea_query::SimpleExpr) -> Self {
-        Self(value)
-    }
-}
-
-impl TryFrom<RefBoundObject<'_>> for PyExpr {
-    type Error = pyo3::PyErr;
-
-    fn try_from(value: RefBoundObject<'_>) -> Result<Self, Self::Error> {
-        Self::try_from_specific_type(value, None)
-    }
-}
-
-impl PyExpr {
     #[inline]
     pub fn try_from_property(value: RefBoundObject) -> pyo3::PyResult<Option<Self>> {
         const PROPERTY_NAME: &std::ffi::CStr = c"__expr__";
@@ -171,6 +155,20 @@ impl PyExpr {
                 crate::internal::get_type_name(property.py(), property.as_ptr())
             )
         }
+    }
+}
+
+impl From<sea_query::SimpleExpr> for PyExpr {
+    fn from(value: sea_query::SimpleExpr) -> Self {
+        Self(value)
+    }
+}
+
+impl TryFrom<RefBoundObject<'_>> for PyExpr {
+    type Error = pyo3::PyErr;
+
+    fn try_from(value: RefBoundObject<'_>) -> Result<Self, Self::Error> {
+        Self::try_from_specific_type(value, None)
     }
 }
 
@@ -626,6 +624,22 @@ impl PyExpr {
         let b = Self::try_from(b)?;
 
         Ok(sea_query::ExprTrait::not_between(slf.0.clone(), a.0, b.0).into())
+    }
+
+    #[pyo3(signature = (backend, /))]
+    #[allow(clippy::wrong_self_convention)]
+    fn _to_sql(&self, _py: pyo3::Python<'_>, backend: String) -> pyo3::PyResult<String> {
+        let builder = crate::internal::get_schema_builder(backend)?;
+        let mut sql = String::new();
+
+        let assert_unwind = std::panic::AssertUnwindSafe(|| {
+            sea_query::QueryBuilder::prepare_simple_expr(&*builder, &self.0, &mut sql)
+        });
+
+        std::panic::catch_unwind(assert_unwind)
+            .map_err(|_| pyo3::PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("build failed"))?;
+
+        Ok(sql)
     }
 
     pub fn __repr__(&self) -> String {
