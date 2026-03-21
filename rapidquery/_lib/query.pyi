@@ -281,7 +281,7 @@ class InsertStatement(QueryStatement):
     def __repr__(self, /) -> str: ...
     def columns(self, *args: _ColumnRefNew) -> typing.Self:
         """
-        Specify the columns for insertion.
+        Specify (override) the columns for insertion.
 
         There's no need to use this method when you're specifying column
         names in `.values` method.
@@ -399,7 +399,8 @@ class InsertStatement(QueryStatement):
 
     def select_from(self, statement: SelectStatement) -> typing.Self:
         """
-        Specify a select query whose values to be inserted.
+        Specify a select query whose values to be inserted. Raises `ValueError` if
+        `self`s columns length and `statement`s columns length has mismatch.
 
         Examples:
         ```python
@@ -492,7 +493,17 @@ class OnConflict:
 
         Examples:
         ```python
+        import rapidquery as rq
 
+        stmt = (
+            rq.InsertStatement("glyph")
+            .columns("aspect", "image")
+            .values(aspect=3.1415, image="abcd")
+            .on_conflict(rq.OnConflict("id").do_update(image="ex"))
+        )
+        stmt.to_sql("postgres")
+        # INSERT INTO "glyph" ("aspect", "image") VALUES (3.1415, 'abcd')
+        # ON CONFLICT ("id") DO UPDATE SET "image" = 'ex'
         ```
         """
         ...

@@ -126,6 +126,10 @@ class TestColumnRef:
         rq.Expr.col(Var)
 
 
+class SelectStatementChild(rq.SelectStatement):
+    pass
+
+
 class TestExpr:
     def test_new(self):
         rq.Expr(rq.Expr.custom("WOW"))
@@ -133,6 +137,7 @@ class TestExpr:
         rq.Expr(rq.ColumnRef("id"))
         rq.Expr(rq.Func("NOW"))
         rq.Expr(rq.SelectStatement().columns("id"))
+        rq.Expr(SelectStatementChild().columns("id"))
         rq.Expr(
             rq.CaseStatement()
             .when(rq.Expr.col("aspect").in_([2, 4]), True)
@@ -177,11 +182,17 @@ class TestExpr:
         stmt = rq.SelectStatement().columns("id")
         assert "EXISTS" in rq.Expr.exists(stmt)._to_sql("postgres")
 
+        stmt = SelectStatementChild().columns("id")
+        assert "EXISTS" in rq.Expr.exists(stmt)._to_sql("postgres")
+
     def test_all(self):
         with pytest.raises(TypeError):
             rq.Expr.all(1)  # type: ignore
 
         stmt = rq.SelectStatement().columns("id")
+        assert "ALL" in rq.Expr.all(stmt)._to_sql("postgres")
+
+        stmt = SelectStatementChild().columns("id")
         assert "ALL" in rq.Expr.all(stmt)._to_sql("postgres")
 
     def test_any(self):
@@ -191,11 +202,17 @@ class TestExpr:
         stmt = rq.SelectStatement().columns("id")
         assert "ANY" in rq.Expr.any(stmt)._to_sql("postgres")
 
+        stmt = SelectStatementChild().columns("id")
+        assert "ANY" in rq.Expr.any(stmt)._to_sql("postgres")
+
     def test_some(self):
         with pytest.raises(TypeError):
             rq.Expr.some(1)  # type: ignore
 
         stmt = rq.SelectStatement().columns("id")
+        assert "SOME" in rq.Expr.some(stmt)._to_sql("postgres")
+
+        stmt = SelectStatementChild().columns("id")
         assert "SOME" in rq.Expr.some(stmt)._to_sql("postgres")
 
 

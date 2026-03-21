@@ -20,7 +20,6 @@ build-prod:
 	$(BUILD_CMD) --uv --release
 
 test:
-	$(BUILD_CMD) --uv
 	pytest -s -vv
 	-rm -rf .pytest_cache
 	-ruff check .

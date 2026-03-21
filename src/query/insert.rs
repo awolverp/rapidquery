@@ -263,12 +263,12 @@ impl PyInsertStatement {
             );
         }
 
-        if !PyTupleMethods::is_empty(args) {
-            let mut lock = slf.0.lock();
-            lock.values_from_tuple(args)?;
-        } else if kwds.is_some() {
+        if kwds.is_some() {
             let mut lock = slf.0.lock();
             lock.values_from_dictionary(kwds.unwrap().clone())?;
+        } else {
+            let mut lock = slf.0.lock();
+            lock.values_from_tuple(args)?;
         }
 
         Ok(slf)
