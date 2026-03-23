@@ -295,6 +295,8 @@ impl PyColumnRef {
         state.finish()
     }
 
+    // TODO: to_expr
+
     pub fn __repr__(&self) -> String {
         let mut fmt = ReprFormatter::new("ColumnRef");
 

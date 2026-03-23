@@ -79,6 +79,11 @@ class TestInsertStatement:
         stmt = rq.InsertStatement("public.users")
         assert '"public"."users"' in stmt.to_sql("postgres")
 
+    def test_replace(self):
+        stmt = rq.InsertStatement("public.users").replace().to_sql("postgres")
+        assert "INSERT" not in stmt
+        assert "REPLACE" in stmt
+
     def test_columns(self):
         stmt = rq.InsertStatement("users").columns("id", "name")
         assert '"id"' in stmt.to_sql("postgres")
@@ -132,10 +137,22 @@ class TestInsertStatement:
         assert "name_2" in stmt
         assert "name_1" not in stmt
 
-    # TODO: test_on_conflict
-    # TODO: test_returning
-    # TODO: test_replace
-    # TODO: test_or_default_values
+    def test_returning(self):
+        stmt = rq.InsertStatement("users").returning(rq.Returning("id"))
+        assert 'RETURNING "id"' in stmt.to_sql("postgres")
+
+        stmt = rq.InsertStatement("users").returning(rq.Returning.all())
+        assert "RETURNING *" in stmt.to_sql("postgres")
+
+    def test_or_default_values(self):
+        stmt = rq.InsertStatement("users").or_default_values()
+        assert stmt.to_sql("postgres").count("DEFAULT") == 1
+
+        stmt = rq.InsertStatement("users").or_default_values(4)
+        assert stmt.to_sql("postgres").count("DEFAULT") == 4
+
+        stmt = rq.InsertStatement("users").or_default_values(4).values(aspect=3.14)
+        assert stmt.to_sql("postgres").count("DEFAULT") == 0
 
     def test_select_from(self):
         valid_cols = rq.SelectStatement().columns("id", "name").from_table("fonts")
@@ -152,4 +169,181 @@ class TestInsertStatement:
 
 class TestOnConflict:
     def test_init(self):
-        pass
+        stmt = (
+            rq.InsertStatement("glyph")
+            .values(aspect=3.1415, image="abcd")
+            .on_conflict(rq.OnConflict("id").do_update(image="ex"))
+        )
+        assert 'ON CONFLICT ("id")' in stmt.to_sql("postgres")
+        assert "DO UPDATE" in stmt.to_sql("postgres")
+
+    def test_action_where(self):
+        stmt = (
+            rq.InsertStatement("glyph")
+            .values(aspect=3.1415, image="abcd")
+            .on_conflict(
+                rq.OnConflict("id")
+                .do_update(image="ex")
+                .action_where(rq.Expr.col("aspect").is_null())
+            )
+        )
+        assert "WHERE" in stmt.to_sql("postgres")
+
+    def test_target_where(self):
+        stmt = (
+            rq.InsertStatement("glyph")
+            .values(aspect=3.1415, image="abcd")
+            .on_conflict(
+                rq.OnConflict("id")
+                .do_update(image="ex")
+                .target_where(rq.Expr.col("aspect").is_null())
+            )
+        )
+        assert "WHERE" in stmt.to_sql("postgres")
+
+    def test_do_update(self):
+        stmt = (
+            rq.InsertStatement("glyph")
+            .values(aspect=3.1415, image="abcd")
+            .on_conflict(rq.OnConflict("id").do_update("aspect", image=rq.Expr(1) + 2))
+        )
+        assert "DO UPDATE" in stmt.to_sql("postgres")
+
+    def test_do_nothing(self):
+        stmt = (
+            rq.InsertStatement("glyph")
+            .values(aspect=3.1415, image="abcd")
+            .on_conflict(rq.OnConflict("id").do_nothing())
+        )
+        assert "DO NOTHING" in stmt.to_sql("postgres")
+
+        stmt = (
+            rq.InsertStatement("glyph")
+            .values(aspect=3.1415, image="abcd")
+            .on_conflict(rq.OnConflict("id").do_nothing("id"))
+        )
+        assert "DO NOTHING" in stmt.to_sql("postgres")
+
+
+class TestSelectStatement:
+    def test_init(self):
+        stmt = (
+            rq.SelectStatement()
+            .columns("character", "fonts.name")
+            .from_table("characters")
+            .join(
+                "fonts",
+                rq.Expr.col("characters.font_id") == rq.Expr.col("fonts.id"),
+                "LEFT",
+            )
+            .where(rq.Expr.col("size_w").in_((3, 4)))
+            .where(rq.Expr.col("character").like("A%"))
+            .to_sql("postgres")
+        )
+        assert 'LEFT JOIN "fonts" ON "characters"."font_id" = "fonts"."id"' in stmt
+
+        stmt = rq.SelectStatement(
+            rq.SelectLabel(1),
+            rq.SelectLabel("hello"),
+            rq.Expr.col("font"),
+        ).to_sql("postgres")
+        assert "SELECT 1, 'hello', \"font\"" in stmt
+
+    def test_columns(self):
+        stmt = (
+            rq.SelectStatement()
+            .columns("character", "size_w", "size_h")
+            .from_table("characters")
+            .to_sql("mysql")
+        )
+        assert (
+            "`character` AS `character`, `size_w` AS `size_w`, `size_h` AS `size_h`"
+            in stmt
+        )
+
+    def test_distinct(self):
+        stmt = (
+            rq.SelectStatement()
+            .distinct()
+            .columns("character", "size_w", "size_h")
+            .from_table("characters")
+            .to_sql("mysql")
+        )
+        assert "DISTINCT" in stmt
+
+    def test_from_function(self):
+        stmt = (
+            rq.SelectStatement(rq.Expr.asterisk())
+            .from_function(rq.Func.random(), "func")
+            .to_sql("postgres")
+        )
+        assert "FROM RANDOM()" in stmt
+
+    def test_from_subquery(self):
+        rq.SelectStatement().from_subquery(
+            rq.SelectStatement().columns("image", "aspect").from_table("glyph"),
+            "subglyph",
+        )
+
+        stmt = rq.SelectStatement()
+        with pytest.raises(ValueError):
+            stmt.from_subquery(stmt, "a")
+
+
+class TestUpdateStatement:
+    def test_init(self):
+        stmt = rq.UpdateStatement("public.users")
+        assert '"public"."users"' in stmt.to_sql("postgres")
+
+    def test_from_table(self):
+        stmt = (
+            rq.UpdateStatement("archive.users")
+            .from_table("public.users")
+            .to_sql("postgres")
+        )
+        assert "FROM" in stmt
+        assert '"public"."users"' in stmt
+        assert '"archive"."users"' in stmt
+
+    def test_returning(self):
+        stmt = rq.UpdateStatement("users").returning(rq.Returning("id"))
+        assert 'RETURNING "id"' in stmt.to_sql("postgres")
+
+        stmt = rq.UpdateStatement("users").returning(rq.Returning.all())
+        assert "RETURNING *" in stmt.to_sql("postgres")
+
+    def test_table(self):
+        stmt = (
+            rq.UpdateStatement("name_1")
+            .values(aspect=1.23, image=123)
+            .table("name_2")
+            .to_sql("sqlite")
+        )
+        assert "name_1" not in stmt
+        assert "name_2" in stmt
+
+    def test_values(self):
+        stmt = (
+            rq.UpdateStatement("glyph")
+            .values(aspect=1.23, image=123)
+            .values(font_id=20)
+            .to_sql("sqlite")
+        )
+        assert "aspect" in stmt
+        assert "image" in stmt
+        assert "font_id" in stmt
+
+    def test_where(self):
+        stmt = (
+            rq.UpdateStatement("glyph")
+            .values(aspect=1.23, image=123)
+            .where(rq.Expr.col("id") > 10)
+            .where(rq.Expr.col("name") < 20)
+            .to_sql("sqlite")
+        )
+        assert "name" in stmt
+        assert "id" in stmt
+
+
+# TODO: test WindowStatement
+# TODO: test Frame

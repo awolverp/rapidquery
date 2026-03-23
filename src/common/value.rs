@@ -156,6 +156,8 @@ impl PyValue {
             .map(|x| unsafe { pyo3::ffi::PyObject_Hash(x.as_ptr()) })
     }
 
+    // TODO: to_expr
+
     fn __repr__(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<String> {
         let value = slf.value(slf.py())?;
 

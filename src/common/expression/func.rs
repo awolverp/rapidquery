@@ -291,6 +291,8 @@ impl PyFunc {
         )))
     }
 
+    // TODO: to_expr
+
     pub fn __repr__(&self) -> String {
         #[cfg(not(debug_assertions))]
         {

@@ -497,7 +497,6 @@ class OnConflict:
 
         stmt = (
             rq.InsertStatement("glyph")
-            .columns("aspect", "image")
             .values(aspect=3.1415, image="abcd")
             .on_conflict(rq.OnConflict("id").do_update(image="ex"))
         )
@@ -519,7 +518,6 @@ class OnConflict:
 
         stmt = (
             rq.InsertStatement("glyph")
-            .columns("aspect", "image")
             .values(aspect=3.1415, image="abcd")
             .on_conflict(
                 rq.OnConflict("id")
@@ -552,7 +550,6 @@ class OnConflict:
 
         stmt = (
             rq.InsertStatement("glyph")
-            .columns("aspect", "image")
             .values(aspect=3.1415, image="abcd")
             .on_conflict(rq.OnConflict("id").do_nothing())
         )
@@ -564,7 +561,6 @@ class OnConflict:
 
         stmt = (
             rq.InsertStatement("glyph")
-            .columns("aspect", "image")
             .values(aspect=3.1415, image="abcd")
             .on_conflict(rq.OnConflict("id").do_nothing("id"))
         )
@@ -587,7 +583,6 @@ class OnConflict:
 
         stmt = (
             rq.InsertStatement("glyph")
-            .columns("aspect", "image")
             .values(aspect=3.1415, image="abcd")
             .on_conflict(rq.OnConflict("id").do_update("aspect", image=rq.Expr(1) + 2))
         )
@@ -612,7 +607,6 @@ class OnConflict:
 
         stmt = (
             rq.InsertStatement("glyph")
-            .columns("aspect", "image")
             .values(aspect=3.1415, image="abcd")
             .on_conflict(
                 rq.OnConflict("id")

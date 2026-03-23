@@ -600,8 +600,6 @@ impl PyExpr {
         Ok(sea_query::ExprTrait::mul(slf.0.clone(), other.0).into())
     }
 
-    // TODO: sqlite_*, pg_*, mysql_*
-
     /// Create a BETWEEN range comparison expression.
     fn between<'a>(
         slf: pyo3::PyRef<'a, Self>,
@@ -641,6 +639,12 @@ impl PyExpr {
 
         Ok(sql)
     }
+
+    // TODO: sqlite_*, pg_*, mysql_*
+    // TODO: get_column_ref and is_column_ref
+    // TODO: get_value and is_value
+    // TODO: get_func and is_func
+    // TODO: max and min and abs
 
     pub fn __repr__(&self) -> String {
         #[cfg(not(debug_assertions))]

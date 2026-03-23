@@ -371,6 +371,8 @@ impl PyColumn {
         lock.clone().into()
     }
 
+    // TODO: to_expr
+
     pub fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
         let lock = slf.0.lock();
 
