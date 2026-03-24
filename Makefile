@@ -11,7 +11,6 @@ help:
 	@echo -e "    test          run clippy and pytest in debug mode"
 	@echo -e "    test-full     run clippy and pytest in debug mode and release mode"
 	@echo -e "    fmt           format rust and python code"
-	@echo -e "    stubgen       Use pyo3-inspection to generate stubfiles"
 
 build-dev:
 	UV_OFFLINE=1 $(BUILD_CMD) --uv
@@ -32,11 +31,3 @@ fmt:
 	ruff clean
 
 ready: fmt test-full
-
-stubgen:
-	python3 tools/stubgen.py rapidquery._lib
-	ruff check --fix rapidquery/_lib
-	ruff format --line-length=100 .
-	mypy rapidquery --disable-error-code override --disable-error-code type-arg --disable-error-code no-untyped-def --strict
-	ruff clean
-	rm -rf .mypy_cache

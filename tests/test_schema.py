@@ -13,9 +13,7 @@ class TestAlterTable(TableNameInitMixin):
         rq.AlterTableAddForeignKeyOption(rq.ForeignKey(["id"], ["fonts.id"])),
         rq.AlterTableDropColumnOption("id"),
         rq.AlterTableDropForeignKeyOption("fk_12"),
-        rq.AlterTableModifyColumnOption(
-            rq.Column("name", rq.sqltypes.Char(64), nullable=True)
-        ),
+        rq.AlterTableModifyColumnOption(rq.Column("name", rq.sqltypes.Char(64), nullable=True)),
         rq.AlterTableRenameColumnOption("id", "user_id"),
     ]
 
@@ -103,17 +101,14 @@ class TestIndex(TableNameInitMixin):
         return rq.Index(None, ["id"], tb)
 
     def test_init(self):
-        stmt = rq.Index(
-            "idx_glyph_aspect", ["aspect"], "glyph", if_not_exists=True
-        ).to_sql("sqlite")
-        assert (
-            stmt
-            == 'CREATE INDEX IF NOT EXISTS "idx_glyph_aspect" ON "glyph" ("aspect")'
+        stmt = rq.Index("idx_glyph_aspect", ["aspect"], "glyph", if_not_exists=True).to_sql(
+            "sqlite"
         )
+        assert stmt == 'CREATE INDEX IF NOT EXISTS "idx_glyph_aspect" ON "glyph" ("aspect")'
 
-        stmt = rq.Index(
-            "idx_glyph_aspect", [rq.IndexColumn("aspect", "ASC", 128)], "glyph"
-        ).to_sql("mysql")
+        stmt = rq.Index("idx_glyph_aspect", [rq.IndexColumn("aspect", "ASC", 128)], "glyph").to_sql(
+            "mysql"
+        )
         assert stmt == "CREATE INDEX `idx_glyph_aspect` ON `glyph` (`aspect` (128) ASC)"
 
         stmt = rq.Index(
@@ -193,15 +188,9 @@ class TestTable:
 
         table = rq.Table(
             "pub.users",
-            rq.Column(
-                "id", rq.sqltypes.Integer(), primary_key=True, auto_increment=True
-            ),
-            rq.Column(
-                "username", rq.sqltypes.Integer(), unique_key=True, nullable=False
-            ),
-            rq.Column(
-                "font_id", rq.sqltypes.Integer(), unique_key=True, nullable=False
-            ),
+            rq.Column("id", rq.sqltypes.Integer(), primary_key=True, auto_increment=True),
+            rq.Column("username", rq.sqltypes.Integer(), unique_key=True, nullable=False),
+            rq.Column("font_id", rq.sqltypes.Integer(), unique_key=True, nullable=False),
             rq.ForeignKey(["font_id"], ["fonts.id"], on_delete="CASCADE"),
             rq.Index("idx_name", ["id", "font_id"]),
             rq.Expr.col("username").like("A%"),
@@ -233,9 +222,7 @@ class TestTable:
         with pytest.raises(TypeError):
             rq.Table(
                 "pub.users",
-                rq.Column(
-                    "id", rq.sqltypes.Integer(), primary_key=True, auto_increment=True
-                ),
+                rq.Column("id", rq.sqltypes.Integer(), primary_key=True, auto_increment=True),
                 complex(),  # type: ignore
             )
 

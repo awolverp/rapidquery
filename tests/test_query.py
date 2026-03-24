@@ -11,9 +11,7 @@ class TestCaseStatement:
 
     def test_when_else(self):
         stmt = (
-            rq.CaseStatement()
-            .when(rq.Expr.col("id") == 1, 1)
-            .when(rq.Expr.col("name") == "ali", 1)
+            rq.CaseStatement().when(rq.Expr.col("id") == 1, 1).when(rq.Expr.col("name") == "ali", 1)
         )
         sql = rq.SelectStatement(rq.SelectLabel(stmt, "test")).to_sql("postgres")
         assert '"id"' in sql
@@ -90,11 +88,7 @@ class TestInsertStatement(TableNameInitMixin, ReturningMixin):
         assert "ali" in stmt.to_sql("postgres")
         assert "1" in stmt.to_sql("postgres")
 
-        stmt = (
-            rq.InsertStatement("users")
-            .values(name="ali", id=1)
-            .values(name="ali", id=1)
-        )
+        stmt = rq.InsertStatement("users").values(name="ali", id=1).values(name="ali", id=1)
         assert stmt.to_sql("postgres").count("ali") == 2
         assert stmt.to_sql("postgres").count("1") == 2
 
@@ -225,10 +219,7 @@ class TestSelectStatement(WhereMixin, OrderByMixin):
             .from_table("characters")
             .to_sql("mysql")
         )
-        assert (
-            "`character` AS `character`, `size_w` AS `size_w`, `size_h` AS `size_h`"
-            in stmt
-        )
+        assert "`character` AS `character`, `size_w` AS `size_w`, `size_h` AS `size_h`" in stmt
 
     def test_distinct(self):
         stmt = (
@@ -266,11 +257,7 @@ class TestUpdateStatement(WhereMixin, OrderByMixin):
         return rq.UpdateStatement("users")
 
     def test_from_table(self):
-        stmt = (
-            rq.UpdateStatement("archive.users")
-            .from_table("public.users")
-            .to_sql("postgres")
-        )
+        stmt = rq.UpdateStatement("archive.users").from_table("public.users").to_sql("postgres")
         assert "FROM" in stmt
         assert '"public"."users"' in stmt
         assert '"archive"."users"' in stmt

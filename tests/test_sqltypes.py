@@ -63,9 +63,7 @@ TEST_CASES = [
         datetime.datetime.now(tz=datetime.timezone.utc),
         None,
     ),
-    Case(
-        rq.sqltypes.Timestamp(), datetime.datetime.now(tz=datetime.timezone.min), None
-    ),
+    Case(rq.sqltypes.Timestamp(), datetime.datetime.now(tz=datetime.timezone.min), None),
     Case(rq.sqltypes.Timestamp(), datetime.datetime.now().date(), TypeError),
     Case(rq.sqltypes.Timestamp(), datetime.datetime.now().time(), TypeError),
     Case(rq.sqltypes.Timestamp(), datetime.datetime.now().timestamp(), None),
