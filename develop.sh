@@ -4,6 +4,7 @@ function help() {
     echo -e "    test     run mypy & python tests"
     echo -e "    clippy   run rust tests (check, clippy)"
     echo -e "    fmt      format rust & python codes"
+    echo -e "    bench    run benchmarks"
     echo -e ""
     echo -e "Uses debug mode on default, use -p command to switch to production mode"
 }
@@ -51,6 +52,13 @@ function fmt() {
 	ruff clean
 }
 
+function bench() {
+    echo "Running benchmark ..."
+
+    build -p
+    python3 benchmarks.py
+}
+
 case "${1:-help}" in
     help)
         help
@@ -70,6 +78,10 @@ case "${1:-help}" in
     fmt)
         shift
         fmt $@
+        ;;
+    bench)
+        shift
+        bench $@
         ;;
     *)
         echo -e "Unknown command: $1. Use 'help' command to see help menu."
