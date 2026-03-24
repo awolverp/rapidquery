@@ -2,6 +2,8 @@ import pytest
 
 import rapidquery as rq
 
+from .mixin import OrderByMixin, ReturningMixin, TableNameInitMixin, WhereMixin
+
 
 class TestCaseStatement:
     def test_init(self):
@@ -23,24 +25,11 @@ class TestCaseStatement:
         rq.CaseStatement().when(rq.Expr("Ali"), 1).else_(1)
 
 
-class TestDeleteStatement:
-    def test_init(self):
-        stmt = rq.DeleteStatement("public.users")
-        assert '"public"."users"' in stmt.to_sql("postgres")
+class TestDeleteStatement(TableNameInitMixin, ReturningMixin, WhereMixin, OrderByMixin):
+    table_name_instance = rq.DeleteStatement
 
-    def test_clear_order_by(self):
-        stmt = rq.DeleteStatement("users").order_by(rq.Ordering("id"))
-        assert "ORDER BY" in stmt.to_sql("mysql")
-
-        stmt = stmt.clear_order_by()
-        assert "ORDER BY" not in stmt.to_sql("mysql")
-
-    def test_clear_where(self):
-        stmt = rq.DeleteStatement("users").where(rq.Expr.val(True))
-        assert "WHERE" in stmt.to_sql("mysql")
-
-        stmt = stmt.clear_where()
-        assert "WHERE" not in stmt.to_sql("mysql")
+    def get_statement(self):
+        return rq.DeleteStatement("users")
 
     def test_from_table(self):
         stmt = rq.DeleteStatement("users")
@@ -54,30 +43,12 @@ class TestDeleteStatement:
         stmt = rq.DeleteStatement("users").limit(20)
         assert "LIMIT" in stmt.to_sql("postgres")
 
-    def test_order_by(self):
-        stmt = rq.DeleteStatement("users").limit(20).order_by(rq.Ordering("id", "DESC"))
-        assert 'ORDER BY "id" DESC' in stmt.to_sql("postgres")
 
-    def test_returning(self):
-        stmt = rq.DeleteStatement("users").returning(rq.Returning("id"))
-        assert 'RETURNING "id"' in stmt.to_sql("postgres")
+class TestInsertStatement(TableNameInitMixin, ReturningMixin):
+    table_name_instance = rq.InsertStatement
 
-        stmt = rq.DeleteStatement("users").returning(rq.Returning.all())
-        assert "RETURNING *" in stmt.to_sql("postgres")
-
-    def test_where(self):
-        stmt = (
-            rq.DeleteStatement("users")
-            .where(rq.Expr.col("id") == 1)
-            .where(rq.Expr.col("id") == 2)
-        )
-        assert "AND" in stmt.to_sql("postgres")
-
-
-class TestInsertStatement:
-    def test_init(self):
-        stmt = rq.InsertStatement("public.users")
-        assert '"public"."users"' in stmt.to_sql("postgres")
+    def get_statement(self):
+        return rq.InsertStatement("users")
 
     def test_replace(self):
         stmt = rq.InsertStatement("public.users").replace().to_sql("postgres")
@@ -136,13 +107,6 @@ class TestInsertStatement:
         )
         assert "name_2" in stmt
         assert "name_1" not in stmt
-
-    def test_returning(self):
-        stmt = rq.InsertStatement("users").returning(rq.Returning("id"))
-        assert 'RETURNING "id"' in stmt.to_sql("postgres")
-
-        stmt = rq.InsertStatement("users").returning(rq.Returning.all())
-        assert "RETURNING *" in stmt.to_sql("postgres")
 
     def test_or_default_values(self):
         stmt = rq.InsertStatement("users").or_default_values()
@@ -225,7 +189,12 @@ class TestOnConflict:
         assert "DO NOTHING" in stmt.to_sql("postgres")
 
 
-class TestSelectStatement:
+class TestSelectStatement(WhereMixin, OrderByMixin):
+    table_name_instance = rq.SelectStatement
+
+    def get_statement(self):
+        return rq.SelectStatement().columns("character").from_table("characters")
+
     def test_init(self):
         stmt = (
             rq.SelectStatement()
@@ -290,10 +259,11 @@ class TestSelectStatement:
             stmt.from_subquery(stmt, "a")
 
 
-class TestUpdateStatement:
-    def test_init(self):
-        stmt = rq.UpdateStatement("public.users")
-        assert '"public"."users"' in stmt.to_sql("postgres")
+class TestUpdateStatement(WhereMixin, OrderByMixin):
+    table_name_instance = rq.UpdateStatement
+
+    def get_statement(self):
+        return rq.UpdateStatement("users")
 
     def test_from_table(self):
         stmt = (
@@ -304,13 +274,6 @@ class TestUpdateStatement:
         assert "FROM" in stmt
         assert '"public"."users"' in stmt
         assert '"archive"."users"' in stmt
-
-    def test_returning(self):
-        stmt = rq.UpdateStatement("users").returning(rq.Returning("id"))
-        assert 'RETURNING "id"' in stmt.to_sql("postgres")
-
-        stmt = rq.UpdateStatement("users").returning(rq.Returning.all())
-        assert "RETURNING *" in stmt.to_sql("postgres")
 
     def test_table(self):
         stmt = (
@@ -332,17 +295,6 @@ class TestUpdateStatement:
         assert "aspect" in stmt
         assert "image" in stmt
         assert "font_id" in stmt
-
-    def test_where(self):
-        stmt = (
-            rq.UpdateStatement("glyph")
-            .values(aspect=1.23, image=123)
-            .where(rq.Expr.col("id") > 10)
-            .where(rq.Expr.col("name") < 20)
-            .to_sql("sqlite")
-        )
-        assert "name" in stmt
-        assert "id" in stmt
 
 
 # TODO: test WindowStatement

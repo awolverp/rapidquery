@@ -476,19 +476,19 @@ class Index(SchemaStatement):
         ```python
         import rapidquery as rq
 
-        stmt = rq.Index(["aspect"], "idx_glyph_aspect", "glyph", if_not_exists=True).to_sql(
+        stmt = rq.Index("idx_glyph_aspect", ["aspect"], "glyph", if_not_exists=True).to_sql(
             "sqlite"
         )
         # CREATE INDEX IF NOT EXISTS "idx_glyph_aspect" ON "glyph" ("aspect")
 
         stmt = rq.Index(
-            [rq.IndexColumn("aspect", "ASC", 128)], "idx_glyph_aspect", "glyph"
+            "idx_glyph_aspect", [rq.IndexColumn("aspect", "ASC", 128)], "glyph"
         ).to_sql("mysql")
         # CREATE INDEX `idx_glyph_aspect` ON `glyph` (`aspect` (128) ASC)
 
         stmt = rq.Index(
-            ["name"],
             "idx_font_name_include_language",
+            ["name"],
             "fonts",
             include=["language"],
             where=rq.Expr.col("aspect").in_([3, 4]),
@@ -815,7 +815,7 @@ class TruncateTable(SchemaStatement):
     and with different transaction and trigger behavior depending on the
     database system.
 
-    NOTE: doesn't support TRUNCATE statement.
+    NOTE: SQLite doesn't support TRUNCATE statement.
     """
 
     def __init__(self, name: _TableNameNew) -> None:
@@ -833,7 +833,7 @@ class TruncateTable(SchemaStatement):
         # TRUNCATE TABLE `users`
         ```
 
-        NOTE: doesn't support TRUNCATE statement.
+        NOTE: SQLite doesn't support TRUNCATE statement.
         """
         ...
 

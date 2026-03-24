@@ -192,6 +192,12 @@ impl PyUpdateStatement {
         Ok(slf)
     }
 
+    /// Remove orders from statement.
+    fn clear_order_by(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyRef<'_, Self> {
+        slf.0.lock().orders.clear();
+        slf
+    }
+
     /// Specify columns and their new values.
     #[pyo3(signature=(**kwds))]
     fn values<'a>(
