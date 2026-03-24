@@ -263,9 +263,9 @@ impl PyInsertStatement {
             );
         }
 
-        if kwds.is_some() {
+        if let Some(kwds) = kwds {
             let mut lock = slf.0.lock();
-            lock.values_from_dictionary(kwds.unwrap().clone())?;
+            lock.values_from_dictionary(kwds.clone())?;
         } else {
             let mut lock = slf.0.lock();
             lock.values_from_tuple(args)?;

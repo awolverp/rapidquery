@@ -3,6 +3,14 @@ __*RapidQuery: High-Performance SQL Query Builder for Python*__
 
 RapidQuery is a powerful SQL query builder library designed for Python, combining the simplicity of Python with the raw speed of **Rust**. Build complex SQL queries effortlessly and efficiently, with a library that prioritizes both performance and ease of use.
 
+- [**Installation**](#install)
+- [**Why RapidQuery?**](#why-rapidquery)
+- [**Supported Backends**](#backends)
+- [**Usage**](#usage)
+- [**Performance**](#performance)
+- [**Known Issues**](#known-issues)
+- [**License**](#license)
+
 ## Install
 
 You can use **PIP**:
@@ -55,9 +63,6 @@ When building SQL statements, you should specify your target backend.
     1. [**More About Column References**](#more-about-column-references)
     2. [**More About TableName**](#more-about-tablename)
     3. [**More About Expr**](#more-about-expr)
-6. Performance
-    1. [**Benchmarks**](#benchmarks)
-
 
 ### Core Concepts
 #### Value
@@ -557,8 +562,8 @@ stmt = rq.SelectStatement(TextClause("WOW!"))
 
 2. Second, same as `ColumnRef`, `Expr` also supports `__column_ref__` property.
 
-### Performance
-#### Benchmarks
+## Performance
+### Benchmarks
 Benchmarks run on *Linux 6.18.12-1-MANJARO x86_64* with CPython 3.14. Your results may vary.
 
 Iterations per test: 100,000 \
@@ -603,7 +608,7 @@ SQLAlchemy              7924.52     17.95x slower
 ```
 
 ## Known Issues
-### Unmanaged Rust Panic Output in Error Handling
+### Unmanaged Rust Panic Output in Building SQL
 The library may encounter errors during SQL query construction, which are correctly raised as *RuntimeError* exceptions. For instance, this occurs when using a function that isn't supported by your target database. **While this error-raising behavior is intentional and logical, the issue is that unmanaged Rust panic information is also printed to stderr**. Currently, there is no way to suppress or manage this panic output. We are working to resolve this problem as much as possible in future updates.
 
 ```python
@@ -620,10 +625,14 @@ Traceback (most recent call last):
 RuntimeError: build failed
 ```
 
-# TODO
-- [ ] Write tests
-- [ ] Update & automate workflows
+### Unmanaged Rust Panic Output if you do not call `__init__`
+Comming soon ...
+
+## TODO
+- [x] Write tests
+- [x] Update & automate workflows
 - [ ] Write CTE
+- [ ] Complete README.md
 - [ ] Bump version to 0.1.0
 - [ ] Complete dialect-only functions
 
