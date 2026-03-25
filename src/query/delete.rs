@@ -14,6 +14,7 @@ crate::implement_pyclass! {
     /// - LIMIT for restricting deletion count
     /// - ORDER BY for determining deletion order
     /// - RETURNING clauses for getting deleted data
+    #[derive(Clone)]
     mutable [subclass, extends=PyQueryStatement] PyDeleteStatement(DeleteStatementState) as "DeleteStatement" {
         pub table: PyTableName,
         pub r#where: Option<PyExpr>,
@@ -191,6 +192,11 @@ impl PyDeleteStatement {
         drop(lock);
 
         crate::build_query_parts!(py, backend, stmt)
+    }
+
+    fn __copy__<'a>(&self, py: pyo3::Python<'a>) -> pyo3::PyResult<pyo3::Bound<'a, Self>> {
+        let lock = self.0.lock();
+        pyo3::Bound::new(py, (lock.clone().into(), PyQueryStatement))
     }
 
     fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {

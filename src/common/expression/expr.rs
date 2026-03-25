@@ -624,6 +624,30 @@ impl PyExpr {
         Ok(sea_query::ExprTrait::not_between(slf.0.clone(), a.0, b.0).into())
     }
 
+    /// Create `MAX(self)` function call.
+    ///
+    /// Shorthand for `Func.max(self).to_expr()`
+    fn max(&self) -> Self {
+        let expr: sea_query::SimpleExpr = sea_query::Func::max(self.0.clone()).into();
+        Self(expr)
+    }
+
+    /// Create `MIN(self)` function call.
+    ///
+    /// Shorthand for `Func.min(self).to_expr()`
+    fn min(&self) -> Self {
+        let expr: sea_query::SimpleExpr = sea_query::Func::min(self.0.clone()).into();
+        Self(expr)
+    }
+
+    /// Create `ABS(self)` function call.
+    ///
+    /// Shorthand for `Func.abs(self).to_expr()`
+    fn abs(&self) -> Self {
+        let expr: sea_query::SimpleExpr = sea_query::Func::abs(self.0.clone()).into();
+        Self(expr)
+    }
+
     #[pyo3(signature = (backend, /))]
     #[allow(clippy::wrong_self_convention)]
     fn _to_sql(&self, _py: pyo3::Python<'_>, backend: String) -> pyo3::PyResult<String> {
@@ -641,10 +665,6 @@ impl PyExpr {
     }
 
     // TODO: sqlite_*, pg_*, mysql_*
-    // TODO: get_column_ref and is_column_ref
-    // TODO: get_value and is_value
-    // TODO: get_func and is_func
-    // TODO: max and min and abs
 
     pub fn __repr__(&self) -> String {
         #[cfg(not(debug_assertions))]

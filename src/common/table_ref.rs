@@ -90,6 +90,7 @@ impl FromStr for PyTableName {
         //    name
         //    schema.name
         //    database.schema.name
+        //    database.schema.name AS alias
         let mut s: Vec<String> = s.split('.').map(String::from).collect();
 
         if s.len() > 3 {
@@ -98,19 +99,23 @@ impl FromStr for PyTableName {
             ));
         }
 
-        let name = s
-            .pop()
-            .map(|x| sea_query::Alias::new(x).into_iden())
-            .unwrap();
-
+        let name = s.pop().unwrap();
         let schema = s.pop().map(|x| sea_query::Alias::new(x).into_iden());
         let database = s.pop().map(|x| sea_query::Alias::new(x).into_iden());
 
+        let (name, alias) = match name.to_ascii_lowercase().find("as") {
+            None => (name, None),
+            Some(position) => (
+                name[..position].trim().to_string(),
+                Some(name[position + 2..].trim().to_string()),
+            ),
+        };
+
         Ok(Self {
-            name,
+            name: sea_query::Alias::new(name).into_iden(),
             schema,
             database,
-            alias: None,
+            alias: alias.map(|x| sea_query::Alias::new(x).into_iden()),
         })
     }
 }
@@ -178,9 +183,9 @@ impl PyTableName {
     /// - "table_name"
     /// - "schema.table_name"
     /// - "database.schema.table_name"
+    /// - "database.schema.table_name as alias"
     #[classmethod]
     fn parse(_cls: &pyo3::Bound<'_, pyo3::types::PyType>, string: String) -> pyo3::PyResult<Self> {
-        // TODO: support "AS <alias>"
         Self::from_str(&string)
     }
 

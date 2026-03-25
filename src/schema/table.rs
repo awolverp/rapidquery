@@ -43,6 +43,24 @@ crate::implement_pyclass! {
     }
 }
 
+impl TableState {
+    fn clone_ref(&self, py: pyo3::Python) -> Self {
+        Self {
+            name: self.name.clone(),
+            columns: self.columns.iter().map(|x| x.clone_ref(py)).collect(),
+            indexes: self.indexes.iter().map(|x| x.clone_ref(py)).collect(),
+            foreign_keys: self.foreign_keys.iter().map(|x| x.clone_ref(py)).collect(),
+            checks: self.checks.iter().map(|x| x.clone_ref(py)).collect(),
+            options: self.options,
+            comment: self.comment.clone(),
+            engine: self.engine.clone(),
+            collate: self.collate.clone(),
+            character_set: self.character_set.clone(),
+            extra: self.extra.clone(),
+        }
+    }
+}
+
 impl ToSeaQuery<sea_query::TableCreateStatement> for TableState {
     #[cfg_attr(feature = "optimize", optimize(speed))]
     fn to_sea_query<'a>(&self, py: pyo3::Python<'a>) -> sea_query::TableCreateStatement {
@@ -451,6 +469,11 @@ impl PyTable {
     #[getter]
     fn __table_name__(&self) -> PyTableName {
         self.0.lock().name.clone()
+    }
+
+    fn __copy__<'a>(&self, py: pyo3::Python<'a>) -> pyo3::PyResult<pyo3::Bound<'a, Self>> {
+        let lock = self.0.lock();
+        pyo3::Bound::new(py, (lock.clone_ref(py).into(), PySchemaStatement))
     }
 
     fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {

@@ -138,7 +138,11 @@ class TestExpr:
         rq.Expr(rq.Func("NOW"))
         rq.Expr(rq.SelectStatement().columns("id"))
         rq.Expr(SelectStatementChild().columns("id"))
-        rq.Expr(rq.CaseStatement().when(rq.Expr.col("aspect").in_([2, 4]), True).else_(False))
+        rq.Expr(
+            rq.CaseStatement()
+            .when(rq.Expr.col("aspect").in_([2, 4]), True)
+            .else_(False)
+        )
 
         rq.Expr((rq.Expr.custom("TUPLE"), rq.Expr.custom("TUPLE")))
 
@@ -296,7 +300,26 @@ class TestTableName:
         class Var:
             __table_name__ = "world.public.users"
 
-        rq.DeleteStatement(rq.TableName("users", "public", "world"))
-        rq.DeleteStatement("world.public.users")
-        rq.DeleteStatement(Prop())
-        rq.DeleteStatement(Var)
+        stmt = rq.AlterTable(rq.TableName("users", "public", "world"))
+        assert stmt.name == rq.TableName("users", "public", "world")
+
+        stmt = rq.AlterTable("world.public.users")
+        assert stmt.name == rq.TableName("users", "public", "world")
+
+        stmt = rq.AlterTable(Prop())
+        assert stmt.name == rq.TableName("users", "public", "world")
+
+        stmt = rq.AlterTable(Var)
+        assert stmt.name == rq.TableName("users", "public", "world")
+
+        stmt = rq.AlterTable("world.public.users as t1")
+        assert stmt.name == rq.TableName("users", "public", "world", "t1")
+
+        stmt = rq.AlterTable("world.public.users AS       t1")
+        assert stmt.name == rq.TableName("users", "public", "world", "t1")
+
+        stmt = rq.AlterTable("world.public.users      As      t1")
+        assert stmt.name == rq.TableName("users", "public", "world", "t1")
+
+        stmt = rq.AlterTable("world.public.users      As   s t1")
+        assert stmt.name == rq.TableName("users", "public", "world", "s t1")

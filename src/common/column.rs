@@ -355,6 +355,12 @@ impl PyColumn {
         Ok(result.into())
     }
 
+    /// Shorthand for `Expr(self)`
+    fn to_expr(&self) -> PyExpr {
+        let col_ref = Self::__column_ref__(self);
+        PyExpr(sea_query::Expr::column(col_ref))
+    }
+
     #[getter]
     fn __column_ref__(&self) -> super::column_ref::PyColumnRef {
         let lock = self.0.lock();
@@ -370,8 +376,6 @@ impl PyColumn {
         let lock = self.0.lock();
         lock.clone().into()
     }
-
-    // TODO: to_expr
 
     pub fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
         let lock = slf.0.lock();

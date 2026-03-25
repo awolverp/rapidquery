@@ -188,6 +188,11 @@ impl PyWindowStatement {
         Ok(slf)
     }
 
+    fn __copy__<'a>(&self) -> Self {
+        let lock = self.0.lock();
+        lock.clone().into()
+    }
+
     pub fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
         let lock = slf.0.lock();
 

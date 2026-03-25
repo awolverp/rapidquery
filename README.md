@@ -634,7 +634,7 @@ Comming soon ...
 - [ ] Write CTE
 - [ ] Complete README.md
 - [ ] Bump version to 0.1.0
-- [ ] Complete dialect-only functions
+- [ ] Complete backend-only functions
 
 ## License
 This repository is licensed under the [GNU GPLv3 License](LICENSE)

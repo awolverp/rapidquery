@@ -69,6 +69,10 @@ impl PyReturning {
         Self(ReturningState::All)
     }
 
+    fn __copy__(&self) -> Self {
+        self.clone()
+    }
+
     pub fn __repr__(&self) -> String {
         let mut fmt = ReprFormatter::new("Returning");
 

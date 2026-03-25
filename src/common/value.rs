@@ -156,7 +156,11 @@ impl PyValue {
             .map(|x| unsafe { pyo3::ffi::PyObject_Hash(x.as_ptr()) })
     }
 
-    // TODO: to_expr
+    /// Shorthand for `Expr(self)`
+    fn to_expr(&self, py: pyo3::Python) -> pyo3::PyResult<super::expression::PyExpr> {
+        let mut lock = self.0.lock();
+        lock.simple_expr(py).map(super::expression::PyExpr)
+    }
 
     fn __repr__(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<String> {
         let value = slf.value(slf.py())?;

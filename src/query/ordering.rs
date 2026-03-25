@@ -100,6 +100,10 @@ impl PyOrdering {
         map_null_ordering_to_str(self.null_order)
     }
 
+    fn __copy__(&self) -> Self {
+        self.clone()
+    }
+
     pub fn __repr__(&self) -> String {
         ReprFormatter::new("Ordering")
             .map("target", &self.target, |x| x.__repr__())

@@ -41,6 +41,31 @@ crate::implement_pyclass! {
     }
 }
 
+impl InsertValueSource {
+    fn clone_ref(&self, py: pyo3::Python) -> Self {
+        match self {
+            Self::Single(x) => Self::Single(x.clone()),
+            Self::Many(x) => Self::Many(x.clone()),
+            Self::Select(x) => Self::Select(x.clone_ref(py)),
+            Self::None => Self::None,
+        }
+    }
+}
+
+impl InsertStatementState {
+    fn clone_ref(&self, py: pyo3::Python) -> Self {
+        Self {
+            replace: self.replace,
+            table: self.table.clone(),
+            columns: self.columns.clone(),
+            source: self.source.clone_ref(py),
+            on_conflict: self.on_conflict.as_ref().map(|x| x.clone_ref(py)),
+            returning_clause: self.returning_clause.clone(),
+            default_values: self.default_values.clone(),
+        }
+    }
+}
+
 impl ToSeaQuery<sea_query::InsertStatement> for InsertStatementState {
     #[cfg_attr(feature = "optimize", optimize(speed))]
     fn to_sea_query<'a>(&self, py: pyo3::Python<'a>) -> sea_query::InsertStatement {
@@ -383,6 +408,11 @@ impl PyInsertStatement {
         drop(lock);
 
         crate::build_query_parts!(py, backend, stmt)
+    }
+
+    fn __copy__<'a>(&self, py: pyo3::Python<'a>) -> pyo3::PyResult<pyo3::Bound<'a, Self>> {
+        let lock = self.0.lock();
+        pyo3::Bound::new(py, (lock.clone_ref(py).into(), PyQueryStatement))
     }
 
     fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {

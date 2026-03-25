@@ -151,6 +151,9 @@ class Column(typing.Generic[T]):
     def unique_key(self, value: bool) -> None: ...
     @property
     def __column_ref__(self) -> ColumnRef: ...
+    def to_expr(self) -> Expr:
+        """Shorthand for `Expr(self)`"""
+        ...
 
 @typing.final
 class ColumnRef:
@@ -213,6 +216,9 @@ class ColumnRef:
         ...
 
     def __hash__(self) -> int: ...
+    def to_expr(self) -> Expr:
+        """Shorthand for `Expr(self)`"""
+        ...
 
 @typing.final
 class Expr:
@@ -437,6 +443,30 @@ class Expr:
 
     def not_like(self, pattern: str, escape: str | None = ...) -> typing.Self:
         """Create a NOT LIKE pattern matching expression."""
+        ...
+
+    def max(self) -> typing.Self:
+        """
+        Create `MAX(self)` function call.
+
+        Shorthand for `Func.max(self).to_expr()`.
+        """
+        ...
+
+    def min(self) -> typing.Self:
+        """
+        Create `MIN(self)` function call.
+
+        Shorthand for `Func.min(self).to_expr()`.
+        """
+        ...
+
+    def abs(self) -> typing.Self:
+        """
+        Create `ABS(self)` function call.
+
+        Shorthand for `Func.abs(self).to_expr()`.
+        """
         ...
 
     @classmethod
@@ -689,6 +719,10 @@ class Func:
         """Call CAST function with a custom type."""
         ...
 
+    def to_expr(self) -> Expr:
+        """Shorthand for `Expr(self)`"""
+        ...
+
 @typing.final
 class TableName:
     """
@@ -796,6 +830,10 @@ class Value(typing.Generic[T]):
     @property
     def value(self) -> T | None:
         """Converts the adapted value back to Python."""
+        ...
+
+    def to_expr(self) -> Expr:
+        """Shorthand for `Expr(self)`"""
         ...
 
 def all(arg1: Expr, *args: Expr) -> Expr:

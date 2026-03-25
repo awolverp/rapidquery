@@ -6,7 +6,9 @@ from .common import Column, Expr, ForeignKey, TableName, _ColumnRefNew, _TableNa
 
 _IndexColumnValue: typing.TypeAlias = IndexColumn | _ColumnRefNew
 _IndexColumnOrder: typing.TypeAlias = typing.Literal["ASC", "DESC"]
-_BackendName: typing.TypeAlias = typing.Literal["sqlite", "postgresql", "postgres", "mysql"]
+_BackendName: typing.TypeAlias = typing.Literal[
+    "sqlite", "postgresql", "postgres", "mysql"
+]
 
 class AlterTable(SchemaStatement):
     """
@@ -241,12 +243,11 @@ class AlterTableModifyColumnOption(AlterTableBaseOption):
     """
 
     def __init__(self, column: Column) -> None:
-        # TODO: Complete this docstring.
         """
         Construct a new `AlterTableModifyColumnOption` instance.
 
         Args:
-            column: ...
+            column: The column you want to modify with changes.
 
         Examples:
         ```python
@@ -732,6 +733,7 @@ class Table(SchemaStatement):
 
     @property
     def __table_name__(self) -> TableName: ...
+    def __copy__(self) -> typing.Self: ...
     def __repr__(self, /) -> str: ...
     @property
     def character_set(self) -> str | None:

@@ -295,7 +295,10 @@ impl PyColumnRef {
         state.finish()
     }
 
-    // TODO: to_expr
+    /// Shorthand for `Expr(self)`
+    fn to_expr(&self) -> super::expression::PyExpr {
+        super::expression::PyExpr(sea_query::Expr::column(self.clone()))
+    }
 
     pub fn __repr__(&self) -> String {
         let mut fmt = ReprFormatter::new("ColumnRef");

@@ -33,15 +33,16 @@ pub enum SelectReference {
 }
 
 /// Distinct mode in [`PySelectStatement`]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum DistinctMode {
+    #[default]
     None,
     Distinct,
     DistinctOn(Vec<PyColumnRef>),
 }
 
 /// Lock mode and options in [`PySelectStatement`]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LockMode {
     pub r#type: sea_query::LockType,
     pub behavior: Option<sea_query::LockBehavior>,
@@ -119,12 +120,73 @@ impl Default for SelectStatementState {
             unions: Default::default(),
             having: Default::default(),
             orders: Default::default(),
-            distinct: DistinctMode::None,
+            distinct: Default::default(),
             joins: Default::default(),
             lock: Default::default(),
             limit: Default::default(),
             offset: Default::default(),
             window: Default::default(),
+        }
+    }
+}
+
+impl SelectLabelState {
+    fn clone_ref(&self, py: pyo3::Python) -> Self {
+        Self {
+            expr: self.expr.clone(),
+            alias: self.alias.clone(),
+            window: self.window.as_ref().map(|x| match x {
+                SelectLabelWindow::Name(x) => SelectLabelWindow::Name(x.clone()),
+                SelectLabelWindow::Query(x) => SelectLabelWindow::Query(x.clone_ref(py)),
+            }),
+        }
+    }
+}
+
+impl SelectReference {
+    fn clone_ref(&self, py: pyo3::Python) -> Self {
+        match self {
+            Self::Func(x, y) => Self::Func(x.clone(), y.clone()),
+            Self::TableName(x) => Self::TableName(x.clone()),
+            Self::SubQuery(x, y) => Self::SubQuery(x.clone_ref(py), y.clone()),
+        }
+    }
+}
+
+impl JoinMode {
+    fn clone_ref(&self, py: pyo3::Python) -> Self {
+        Self {
+            r#type: self.r#type,
+            reference: self.reference.clone_ref(py),
+            on: self.on.clone(),
+            lateral: self.lateral,
+        }
+    }
+}
+
+impl SelectStatementState {
+    fn clone_ref(&self, py: pyo3::Python) -> Self {
+        Self {
+            references: self.references.iter().map(|x| x.clone_ref(py)).collect(),
+            exprs: self.exprs.iter().map(|x| x.clone_ref(py)).collect(),
+            r#where: self.r#where.clone(),
+            groups: self.groups.clone(),
+            having: self.having.clone(),
+            orders: self.orders.clone(),
+            distinct: self.distinct.clone(),
+            joins: self.joins.iter().map(|x| x.clone_ref(py)).collect(),
+            lock: self.lock.clone(),
+            limit: self.limit.clone(),
+            offset: self.offset.clone(),
+            window: self
+                .window
+                .as_ref()
+                .map(|(x, y)| (x.clone(), y.clone_ref(py))),
+            unions: self
+                .unions
+                .iter()
+                .map(|(x, y)| (x.clone(), y.clone_ref(py)))
+                .collect(),
         }
     }
 }
@@ -584,6 +646,11 @@ impl PySelectLabel {
             },
             None => None,
         }
+    }
+
+    fn __copy__(&self, py: pyo3::Python<'_>) -> Self {
+        let lock = self.0.as_ref();
+        lock.clone_ref(py).into()
     }
 
     fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
@@ -1058,6 +1125,11 @@ impl PySelectStatement {
         drop(lock);
 
         crate::build_query_parts!(py, backend, stmt)
+    }
+
+    fn __copy__<'a>(&self, py: pyo3::Python<'a>) -> pyo3::PyResult<pyo3::Bound<'a, Self>> {
+        let lock = self.0.lock();
+        pyo3::Bound::new(py, (lock.clone_ref(py).into(), PyQueryStatement))
     }
 
     fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {

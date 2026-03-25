@@ -9,6 +9,15 @@ crate::implement_pyclass! {
     }
 }
 
+impl Clone for CaseStatementState {
+    fn clone(&self) -> Self {
+        Self {
+            when: self.when.clone(),
+            r#else: self.r#else.clone(),
+        }
+    }
+}
+
 impl ToSeaQuery<sea_query::CaseStatement> for CaseStatementState {
     #[cfg_attr(feature = "optimize", optimize(speed))]
     fn to_sea_query<'a>(&self, _py: pyo3::Python<'a>) -> sea_query::CaseStatement {
@@ -74,6 +83,11 @@ impl PyCaseStatement {
         slf.0.lock().r#else = Some(result);
 
         Ok(slf)
+    }
+
+    fn __copy__(&self) -> Self {
+        let lock = self.0.lock();
+        lock.clone().into()
     }
 
     fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {

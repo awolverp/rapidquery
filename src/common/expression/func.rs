@@ -291,7 +291,10 @@ impl PyFunc {
         )))
     }
 
-    // TODO: to_expr
+    /// Shorthand for `Expr(self)`
+    fn to_expr(&self) -> super::expr::PyExpr {
+        super::expr::PyExpr(sea_query::SimpleExpr::FunctionCall(self.0.clone()))
+    }
 
     pub fn __repr__(&self) -> String {
         #[cfg(not(debug_assertions))]

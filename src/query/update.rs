@@ -17,6 +17,7 @@ crate::implement_pyclass! {
     /// - LIMIT for restricting update count
     /// - ORDER BY for determining update order
     /// - RETURNING clauses for getting updated data
+    #[derive(Clone)]
     mutable [subclass, extends=PyQueryStatement] PyUpdateStatement(UpdateStatementState) as "UpdateStatement" {
         pub table: PyTableName,
         pub from_table: Option<PyTableName>,
@@ -251,6 +252,11 @@ impl PyUpdateStatement {
         drop(lock);
 
         crate::build_query_parts!(py, backend, stmt)
+    }
+
+    fn __copy__<'a>(&self, py: pyo3::Python<'a>) -> pyo3::PyResult<pyo3::Bound<'a, Self>> {
+        let lock = self.0.lock();
+        pyo3::Bound::new(py, (lock.clone().into(), PyQueryStatement))
     }
 
     fn __repr__(slf: pyo3::PyRef<'_, Self>) -> String {
