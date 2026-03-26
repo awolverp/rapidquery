@@ -61,7 +61,7 @@ impl InsertStatementState {
             source: self.source.clone_ref(py),
             on_conflict: self.on_conflict.as_ref().map(|x| x.clone_ref(py)),
             returning_clause: self.returning_clause.clone(),
-            default_values: self.default_values.clone(),
+            default_values: self.default_values,
         }
     }
 }

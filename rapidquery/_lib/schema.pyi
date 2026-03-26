@@ -6,9 +6,7 @@ from .common import Column, Expr, ForeignKey, TableName, _ColumnRefNew, _TableNa
 
 _IndexColumnValue: typing.TypeAlias = IndexColumn | _ColumnRefNew
 _IndexColumnOrder: typing.TypeAlias = typing.Literal["ASC", "DESC"]
-_BackendName: typing.TypeAlias = typing.Literal[
-    "sqlite", "postgresql", "postgres", "mysql"
-]
+_BackendName: typing.TypeAlias = typing.Literal["sqlite", "postgresql", "postgres", "mysql"]
 
 class AlterTable(SchemaStatement):
     """

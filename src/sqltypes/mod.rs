@@ -23,8 +23,6 @@ pub mod sqltypes_module {
     // NOTE: SQLTypes, PyExpr, PyFunc, PyTableName & PyColumnRef could never mark as subclass.
     // these should be immutable and final types.
 
-    use pyo3::types::PyModuleMethods;
-
     // sqltypes::abstracts
     #[pymodule_export]
     use super::PySQLTypeAbstract;
@@ -104,18 +102,4 @@ pub mod sqltypes_module {
     use super::PyTinyUnsignedType;
     #[pymodule_export]
     use super::PyUnsignedType;
-
-    #[pymodule_init]
-    #[cold]
-    fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
-        m.add(
-            "__stub_imports__",
-            vec![
-                "import datetime",
-                "import uuid",
-                "import enum",
-                "import decimal",
-            ],
-        )
-    }
 }

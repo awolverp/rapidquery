@@ -8,11 +8,10 @@ pub mod returning;
 pub mod select;
 pub mod update;
 pub mod window;
+pub mod with;
 
 #[pyo3::pymodule(name = "query")]
 pub mod query_module {
-    use pyo3::types::PyModuleMethods;
-
     #[pymodule_export]
     use super::base::PyQueryStatement;
 
@@ -49,15 +48,9 @@ pub mod query_module {
     #[pymodule_export]
     use super::case::PyCaseStatement;
 
-    #[pymodule_init]
-    #[cold]
-    fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
-        m.add(
-            "__stub_imports__",
-            vec![
-                "from .common import Value, Expr, Column, ColumnRef, TableName, Func",
-                "from .schema import Table",
-            ],
-        )
-    }
+    #[pymodule_export]
+    use super::with::PyWithClause;
+
+    #[pymodule_export]
+    use super::with::PyWithQuery;
 }

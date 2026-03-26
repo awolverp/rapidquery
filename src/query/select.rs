@@ -53,7 +53,7 @@ pub struct LockMode {
 pub struct JoinMode {
     pub r#type: sea_query::JoinType,
     pub reference: SelectReference,
-    pub on: PyExpr,
+    pub on: Option<PyExpr>,
     pub lateral: bool,
 }
 
@@ -110,6 +110,7 @@ crate::implement_pyclass! {
     }
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for SelectStatementState {
     fn default() -> Self {
         Self {
@@ -176,8 +177,8 @@ impl SelectStatementState {
             distinct: self.distinct.clone(),
             joins: self.joins.iter().map(|x| x.clone_ref(py)).collect(),
             lock: self.lock.clone(),
-            limit: self.limit.clone(),
-            offset: self.offset.clone(),
+            limit: self.limit,
+            offset: self.offset,
             window: self
                 .window
                 .as_ref()
@@ -185,7 +186,7 @@ impl SelectStatementState {
             unions: self
                 .unions
                 .iter()
-                .map(|(x, y)| (x.clone(), y.clone_ref(py)))
+                .map(|(x, y)| (*x, y.clone_ref(py)))
                 .collect(),
         }
     }
@@ -339,13 +340,17 @@ impl std::fmt::Display for JoinMode {
             sea_query::JoinType::RightJoin => write!(f, "RIGHT, ")?,
         }
 
-        write!(f, "{}, {}", self.reference, self.on.__repr__())?;
+        if let Some(on) = &self.on {
+            write!(f, "{}, {}", self.reference, on.__repr__())?;
+        } else {
+            write!(f, "{}", self.reference)?;
+        }
 
         if self.lateral {
             write!(f, ", LATERAL")?;
         }
 
-        Ok(())
+        f.write_str(")")
     }
 }
 
@@ -536,7 +541,8 @@ impl ToSeaQuery<sea_query::SelectStatement> for SelectStatementState {
 
         // Joins
         for join in self.joins.iter() {
-            let condition = join.on.0.clone();
+            let condition =
+                sea_query::Condition::all().add_option(join.on.as_ref().map(|x| x.0.clone()));
 
             match (&join.reference, join.lateral) {
                 (SelectReference::TableName(x), _) => {
@@ -1011,19 +1017,21 @@ impl PySelectStatement {
         Ok(slf)
     }
 
-    #[pyo3(signature=(table, on, r#type=None))]
+    #[pyo3(signature=(table, on=None, r#type=None))]
     fn join<'a>(
         slf: pyo3::PyRef<'a, Self>,
         table: RefBoundObject<'a>,
-        on: RefBoundObject<'a>,
+        on: Option<RefBoundObject<'a>>,
         r#type: Option<String>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         let reference = SelectReference::from_table(table)?;
-
         let join_mode = JoinMode {
             r#type: map_str_to_join_type(r#type)?,
             reference,
-            on: PyExpr::try_from(on)?,
+            on: match on {
+                Some(x) => Some(PyExpr::try_from(x)?),
+                None => None,
+            },
             lateral: false,
         };
 
@@ -1031,12 +1039,12 @@ impl PySelectStatement {
         Ok(slf)
     }
 
-    #[pyo3(signature=(function, alias, on, r#type=None))]
+    #[pyo3(signature=(function, alias, on=None, r#type=None))]
     fn join_function<'a>(
         slf: pyo3::PyRef<'a, Self>,
         function: RefBoundObject<'a>,
         alias: String,
-        on: RefBoundObject<'a>,
+        on: Option<RefBoundObject<'a>>,
         r#type: Option<String>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         let reference = SelectReference::from_function(function, alias)?;
@@ -1044,7 +1052,10 @@ impl PySelectStatement {
         let join_mode = JoinMode {
             r#type: map_str_to_join_type(r#type)?,
             reference,
-            on: PyExpr::try_from(on)?,
+            on: match on {
+                Some(x) => Some(PyExpr::try_from(x)?),
+                None => None,
+            },
             lateral: false,
         };
 
@@ -1052,12 +1063,12 @@ impl PySelectStatement {
         Ok(slf)
     }
 
-    #[pyo3(signature=(subquery, alias, on, r#type=None, lateral=false))]
+    #[pyo3(signature=(subquery, alias, on=None, r#type=None, lateral=false))]
     fn join_subquery<'a>(
         slf: pyo3::PyRef<'a, Self>,
         subquery: RefBoundObject<'a>,
         alias: String,
-        on: RefBoundObject<'a>,
+        on: Option<RefBoundObject<'a>>,
         r#type: Option<String>,
         lateral: bool,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
@@ -1070,7 +1081,10 @@ impl PySelectStatement {
         let join_mode = JoinMode {
             r#type: map_str_to_join_type(r#type)?,
             reference,
-            on: PyExpr::try_from(on)?,
+            on: match on {
+                Some(x) => Some(PyExpr::try_from(x)?),
+                None => None,
+            },
             lateral,
         };
         slf.0.lock().joins.push(join_mode);

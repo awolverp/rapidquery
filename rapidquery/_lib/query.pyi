@@ -986,7 +986,7 @@ class SelectStatement(QueryStatement):
     def join(
         self,
         table: _TableNameNew,
-        on: Expr,
+        on: Expr | None = None,
         type: typing.Literal["CROSS", "FULL", "INNER", "LEFT", "RIGHT"] | None = None,
     ) -> typing.Self:
         """
@@ -1022,7 +1022,7 @@ class SelectStatement(QueryStatement):
         self,
         function: Func | Expr,
         alias: str,
-        on: Expr,
+        on: Expr | None = None,
         type: typing.Literal["CROSS", "FULL", "INNER", "LEFT", "RIGHT"] | None = None,
     ) -> typing.Self:
         """
@@ -1041,7 +1041,7 @@ class SelectStatement(QueryStatement):
         self,
         subquery: SelectStatement,
         alias: str,
-        on: Expr,
+        on: Expr | None = None,
         type: typing.Literal["CROSS", "FULL", "INNER", "LEFT", "RIGHT"] | None = None,
         lateral: bool = False,
     ) -> typing.Self:
@@ -1460,4 +1460,178 @@ class WindowStatement:
     def order_by(self, clause: Ordering) -> typing.Self: ...
     def partition(self, partition_by: Expr | _ColumnRefNew) -> typing.Self:
         """Partition by column or custom expression."""
+        ...
+
+_CommonTableExpressionQuery = (
+    SelectStatement | DeleteStatement | UpdateStatement | InsertStatement
+)
+
+class WithClause:
+    """
+    A WITH clause can contain one or multiple common table expressions (CTEs).
+
+    These named queries can act as a "query local table" that are materialized during execution and
+    then can be used by the query prefixed with the WITH clause.
+
+    A CTE is a name, column names and a query returning data for those columns.
+
+    Some databases (like sqlite) restrict the acceptable kinds of queries inside of the WITH clause
+    CTEs. These databases only allow `SelectStatement`s to form a CTE.
+
+    Other databases like postgres allow modification queries (UPDATE, DELETE) inside of the WITH
+    clause but they have to return a table. (They must have a RETURNING clause).
+
+    RapidQuery doesn't check this or restrict the kind of CTE that you can create
+    in rust. This means that you can put an UPDATE or DELETE queries into WITH clause and RapidQuery
+    will succeed in generating that kind of sql query but the execution inside the database will
+    fail because they are invalid.
+
+    It is your responsibility to ensure that the kind of WITH clause that you put together makes
+    sense and valid for that database that you are using.
+
+    NOTE that for recursive WITH queries (in sql: "WITH RECURSIVE") you can only have a
+    single CTE inside of the WITH clause. That query must match certain
+    requirements:
+      * It is a query of UNION or UNION ALL of two queries.
+      * The first part of the query (the left side of the UNION) must be executable first in itself.
+        It must be non-recursive. (Cannot contain self reference)
+      * The self reference must appear in the right hand side of the UNION.
+      * The query can only have a single self-reference.
+      * Recursive data-modifying statements are not supported, but you can use the results of a
+        recursive SELECT query in a data-modifying statement. (like so: WITH RECURSIVE
+        cte_name(a,b,c,d) AS (SELECT ... UNION SELECT ... FROM ... JOIN cte_name ON ... WHERE ...)
+        DELETE FROM table WHERE table.a = cte_name.a)
+
+    Recursive with query generation will raise `RuntimeError` if you specify more than one CTE.
+
+    Note that this type is not a `QueryStatement`. To generate `WITH` statement, you must convert this type to
+    `WithQuery` type, using `WithClause.query` method.
+    """
+
+    def __init__(self) -> None:
+        """
+        Construct a new `WithClause` instance.
+
+        Note that this type is not a `QueryStatement`. To generate `WITH` statement, you must convert this type to
+        `WithQuery` type, using `WithClause.query` method.
+
+        Examples:
+        ```python
+        import rapidquery as rq
+
+        select = (
+            rq.SelectStatement()
+            .columns("names.id", "names.name")
+            .from_table("filtered_names AS fil")
+            .join("names", rq.Expr.col("fil.name_id") == rq.Expr.col("names.id"))
+        )
+        clause = (
+            rq.WithClause()
+            .cte(
+                "source_filtered_names",
+                select.__copy__().where(rq.Expr.col("fil.user_id") == 5),
+            )
+            .cte(
+                "dest_filtered_names",
+                select.where(rq.Expr.col("fil.user_id") == 8),
+            )
+            .cte(
+                "missing_names",
+                rq.SelectStatement()
+                .columns("dest.name")
+                .from_table("dest_filtered_names AS dest")
+                .join(
+                    "source_filtered_names AS source",
+                    rq.Expr.col("dest.id") == rq.Expr.col("source.id"),
+                )
+                .where(rq.Expr.col("source.id").is_null()),
+            )
+            .query(rq.SelectStatement().columns("name").from_table("missing_names"))
+        )
+        clause.to_sql("postgres")
+        # WITH
+        #   "source_filtered_names" ("id", "name") AS (
+        #       SELECT "names"."id" AS "id", "names"."name" AS "name" FROM "filtered_names" AS "fil"
+        #       JOIN "names" ON "fil"."name_id" = "names"."id" WHERE "fil"."user_id" = 5
+        #   ) ,
+        #   "dest_filtered_names" ("id", "name") AS (
+        #       SELECT "names"."id" AS "id", "names"."name" AS "name" FROM "filtered_names" AS "fil"
+        #       JOIN "names" ON "fil"."name_id" = "names"."id"
+        #       WHERE "fil"."user_id" = 8
+        #   ) ,
+        #   "missing_names" ("name") AS (
+        #       SELECT "dest"."name" AS "name" FROM "dest_filtered_names" AS "dest"
+        #       JOIN "source_filtered_names" AS "source" ON "dest"."id" = "source"."id"
+        #       WHERE "source"."id" IS NULL
+        #   )
+        #   SELECT "name" AS "name" FROM "missing_names"
+        ```
+        """
+        ...
+
+    def recursive(self) -> typing.Self:
+        """
+        Sets whether this clause is a recursive with clause of not.
+        It will generate a 'WITH RECURSIVE' query.
+        """
+        ...
+
+    def cte(
+        self,
+        name: str,
+        query: _CommonTableExpressionQuery,
+        columns: typing.Iterable[str] = (),
+        materialized: bool = False,
+    ) -> typing.Self:
+        """Add a CTE to this with clause."""
+        ...
+
+    def query(self, val: _CommonTableExpressionQuery) -> WithQuery:
+        """
+        You can turn this into a `WithQuery` using this function.
+        The resulting WITH query will execute the argument query with this WITH clause.
+        """
+        ...
+
+class WithQuery(QueryStatement):
+    """
+    A WITH query. A simple SQL query that has a WITH clause (`WithClause`).
+
+    It's recommended to use `WithClause.query` method instead of directly constructing
+    this type.
+
+    For full description, see `WithClause`'s documentation.
+    """
+
+    def __init__(
+        self,
+        clause: WithClause,
+        query: _CommonTableExpressionQuery,
+    ) -> None:
+        # TODO: complete docstring
+        """
+        Construct a new `WithQuery` instance.
+
+        Args:
+            clause: The `WITH` clause.
+            query: ...
+        """
+        ...
+
+    def recursive(self) -> typing.Self:
+        """Same as `WithClause.recursive` method."""
+        ...
+
+    def cte(
+        self,
+        name: str,
+        query: _CommonTableExpressionQuery,
+        columns: typing.Iterable[str] = (),
+        materialized: bool = False,
+    ) -> typing.Self:
+        """
+        Same as `WithClause.cte` method.
+
+        Useful when you wanna add a new CTE to WITH clause.
+        """
         ...

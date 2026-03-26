@@ -38,6 +38,8 @@ SelectLabel = query.SelectLabel
 SelectStatement = query.SelectStatement
 UpdateStatement = query.UpdateStatement
 WindowStatement = query.WindowStatement
+WithClause = query.WithClause
+WithQuery = query.WithQuery
 
 # Export .schema
 AlterTable = schema.AlterTable

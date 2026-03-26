@@ -608,7 +608,7 @@ SQLAlchemy              7924.52     17.95x slower
 ```
 
 ## Known Issues
-### Unmanaged Rust Panic Output in Building SQL
+### Unmanaged Rust panic output in building SQL
 The library may encounter errors during SQL query construction, which are correctly raised as *RuntimeError* exceptions. For instance, this occurs when using a function that isn't supported by your target database. **While this error-raising behavior is intentional and logical, the issue is that unmanaged Rust panic information is also printed to stderr**. Currently, there is no way to suppress or manage this panic output. We are working to resolve this problem as much as possible in future updates.
 
 ```python
@@ -625,13 +625,16 @@ Traceback (most recent call last):
 RuntimeError: build failed
 ```
 
-### Unmanaged Rust Panic Output if you do not call `__init__`
+### Unmanaged Rust panic output if you do not call `__init__`
+Comming soon ...
+
+### Join conditions are not optional
 Comming soon ...
 
 ## TODO
 - [x] Write tests
 - [x] Update & automate workflows
-- [ ] Write CTE
+- [x] Write CTE
 - [ ] Complete README.md
 - [ ] Bump version to 0.1.0
 - [ ] Complete backend-only functions

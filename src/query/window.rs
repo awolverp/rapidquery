@@ -188,7 +188,7 @@ impl PyWindowStatement {
         Ok(slf)
     }
 
-    fn __copy__<'a>(&self) -> Self {
+    fn __copy__(&self) -> Self {
         let lock = self.0.lock();
         lock.clone().into()
     }

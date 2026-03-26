@@ -6,7 +6,6 @@ pub mod table_operations;
 
 #[pyo3::pymodule(name = "schema")]
 pub mod schema_module {
-    use pyo3::types::PyModuleMethods;
 
     #[pymodule_export]
     use super::base::PySchemaStatement;
@@ -44,13 +43,4 @@ pub mod schema_module {
     use super::table_operations::PyRenameTable;
     #[pymodule_export]
     use super::table_operations::PyTruncateTable;
-
-    #[pymodule_init]
-    #[cold]
-    fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
-        m.add(
-            "__stub_imports__",
-            vec!["from .common import Column, ColumnRef, TableName, ForeignKey, Expr"],
-        )
-    }
 }
