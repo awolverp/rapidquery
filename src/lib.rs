@@ -19,10 +19,9 @@ mod schema;
 mod sqlite;
 mod sqltypes;
 
+/// RapidQuery core which is written in Rust.
 #[pyo3::pymodule(gil_used = false)]
 mod _lib {
-    use pyo3::types::PyModuleMethods;
-
     #[pymodule_export]
     use super::common::common_module;
     #[pymodule_export]
@@ -41,19 +40,6 @@ mod _lib {
     #[pymodule_init]
     #[cold]
     fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
-        m.add(
-            "__stub_imports__",
-            vec![
-                "from . import sqltypes as sqltypes",
-                "from . import schema as schema",
-                "from . import query as query",
-                "from . import common as common",
-                "from . import sqlite as sqlite",
-                "from . import postgres as postgres",
-                "from . import mysql as mysql",
-            ],
-        )?;
-
         crate::typeref::initialize_typeref(m.py());
         Ok(())
     }

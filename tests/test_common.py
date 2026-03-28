@@ -56,6 +56,10 @@ class TestColumn:
         col = rq.Column("name", rq.sqltypes.String())
         rq.AlterTableDropColumnOption(col)
 
+    def test_to_expr(self):
+        col = rq.Column("name", rq.sqltypes.String())
+        assert type(col.to_expr()) is rq.Expr
+
 
 class TestColumnRef:
     def test_new(self):
@@ -125,6 +129,10 @@ class TestColumnRef:
         rq.Expr.col(Prop())
         rq.Expr.col(Var)
 
+    def test_to_expr(self):
+        ref = rq.ColumnRef("id")
+        assert type(ref.to_expr()) is rq.Expr
+
 
 class SelectStatementChild(rq.SelectStatement):
     pass
@@ -138,7 +146,11 @@ class TestExpr:
         rq.Expr(rq.Func("NOW"))
         rq.Expr(rq.SelectStatement().columns("id"))
         rq.Expr(SelectStatementChild().columns("id"))
-        rq.Expr(rq.CaseStatement().when(rq.Expr.col("aspect").in_([2, 4]), True).else_(False))
+        rq.Expr(
+            rq.CaseStatement()
+            .when(rq.Expr.col("aspect").in_([2, 4]), True)
+            .else_(False)
+        )
 
         rq.Expr((rq.Expr.custom("TUPLE"), rq.Expr.custom("TUPLE")))
 

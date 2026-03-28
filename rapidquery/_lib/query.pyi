@@ -1581,9 +1581,22 @@ class WithClause:
         name: str,
         query: _CommonTableExpressionQuery,
         columns: typing.Iterable[str] = (),
-        materialized: bool = False,
+        materialized: bool | None = None,
     ) -> typing.Self:
-        """Add a CTE to this with clause."""
+        """
+        Add a CTE to this with clause.
+
+        Args:
+            name: The common table expression (CTE) name.
+            query: The query, which have to return data.
+            columns: Named columns for the CTE table definition.
+                     If empty, tries to detect them from the `query`.
+            materialized: Some databases allow you to put “MATERIALIZED” or “NOT MATERIALIZED” in the
+                          CTE definition. This will affect how during the execution of WithQuery the
+                          CTE in the WithClause will be executed. If the database doesn’t support this
+                          syntax this option specified here will be ignored and not appear in the
+                          generated sql.
+        """
         ...
 
     def query(self, val: _CommonTableExpressionQuery) -> WithQuery:
@@ -1608,13 +1621,12 @@ class WithQuery(QueryStatement):
         clause: WithClause,
         query: _CommonTableExpressionQuery,
     ) -> None:
-        # TODO: complete docstring
         """
         Construct a new `WithQuery` instance.
 
         Args:
             clause: The `WITH` clause.
-            query: ...
+            query: The final query.
         """
         ...
 
@@ -1627,7 +1639,7 @@ class WithQuery(QueryStatement):
         name: str,
         query: _CommonTableExpressionQuery,
         columns: typing.Iterable[str] = (),
-        materialized: bool = False,
+        materialized: bool | None = None,
     ) -> typing.Self:
         """
         Same as `WithClause.cte` method.

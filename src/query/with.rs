@@ -27,7 +27,7 @@ pub struct CommonTableExpression {
     pub name: String,
     pub query: CommonTableExpressionQuery,
     pub columns: Vec<String>,
-    pub materialized: bool,
+    pub materialized: Option<bool>,
 }
 
 crate::implement_pyclass! {
@@ -166,8 +166,10 @@ impl std::fmt::Display for CommonTableExpression {
         if !self.columns.is_empty() {
             write!(f, ", {:?}", self.columns)?;
         }
-        if self.materialized {
-            write!(f, ", materialized")?;
+        match self.materialized {
+            Some(true) => write!(f, ", materialized")?,
+            Some(false) => write!(f, ", not materialized")?,
+            None => {}
         }
 
         write!(f, ")")
@@ -219,8 +221,8 @@ impl ToSeaQuery<sea_query::CommonTableExpression> for CommonTableExpression {
         if !self.columns.is_empty() {
             stmt.columns(self.columns.iter().map(sea_query::Alias::new));
         }
-        if self.materialized {
-            stmt.materialized(true);
+        if let Some(x) = self.materialized {
+            stmt.materialized(x);
         }
 
         stmt
@@ -314,13 +316,13 @@ impl PyWithClause {
     }
 
     /// Add a CTE to this with clause.
-    #[pyo3(signature=(name, query, columns=Vec::new(), materialized=false))]
+    #[pyo3(signature=(name, query, columns=Vec::new(), materialized=None))]
     fn cte<'a>(
         slf: pyo3::PyRef<'a, Self>,
         name: String,
         query: RefBoundObject<'a>,
         columns: Vec<String>,
-        materialized: bool,
+        materialized: Option<bool>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         let query = CommonTableExpressionQuery::try_from(query)?;
 
@@ -410,13 +412,13 @@ impl PyWithQuery {
     /// Same as `WithClause.cte` method.
     ///
     /// Useful when you wanna add a new CTE to WITH clause.
-    #[pyo3(signature=(name, query, columns=Vec::new(), materialized=false))]
+    #[pyo3(signature=(name, query, columns=Vec::new(), materialized=None))]
     fn cte<'a>(
         slf: pyo3::PyRef<'a, Self>,
         name: String,
         query: RefBoundObject<'a>,
         columns: Vec<String>,
-        materialized: bool,
+        materialized: Option<bool>,
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         let query = CommonTableExpressionQuery::try_from(query)?;
 

@@ -49,6 +49,7 @@ When building SQL statements, you should specify your target backend.
     2. [**Query Insert**](#query-insert)
     3. [**Query Update**](#query-update)
     4. [**Query Delete**](#query-delete)
+    5. [**Query With**](#query-with)
 3. More About Queries
     1. [**Custom Function**](#custom-functions)
 4. Schema Statements
@@ -285,6 +286,70 @@ print(stmt.to_sql("mysql"))
 
 print(stmt.to_sql("sqlite"))
 # DELETE FROM "glyph" WHERE "id" < 1 OR "id" > 10
+```
+
+### Query With
+We have two types here: `rapidquery.WithClause` and `rapidquery.WithQuery`.
+
+```txt
+         WithQuery
+             |
+|------------------------|
+WITH [... CTEs ...] QUERY
+|------------------|
+         |
+     WithClause
+```
+
+
+As you can see, `rapidquery.WithClause` includes common table expressions (CTEs),
+and `rapidquery.WithQuery` includes `rapidquery.WithClause` and the final query.
+
+```python
+import rapidquery as rq
+
+clause = (
+    rq.WithClause()
+    .cte(
+        "users_count",
+        (
+            rq.UpdateStatement("users")
+            .values(amount=rq.Expr.col("amount") + 10)
+            .where(rq.Expr.col("id") > 50)
+            .returning(rq.Returning(rq.Expr.val(1)))
+        ),
+    )
+    .cte(
+        "teams_count",
+        (
+            rq.UpdateStatement("teams")
+            .values(amount=rq.Expr.col("amount") + 10)
+            .where(rq.Expr.col("id") > 50)
+            .returning(rq.Returning(rq.Expr.val(1)))
+        ),
+    )
+)
+
+users_count_select = rq.SelectStatement(rq.Func.count(rq.Expr.asterisk())).from_table("users_count")
+teams_count_select = rq.SelectStatement(rq.Func.count(rq.Expr.asterisk())).from_table("teams_count")
+
+query: WithQuery = clause.query(
+    rq.SelectStatement(
+        rq.SelectLabel(users_count_select, "users"),
+        rq.SelectLabel(teams_count_select, "teams"),
+    )
+)
+query.to_sql("postgres")
+# WITH 
+#   "users_count" AS (
+#       UPDATE "users" SET "amount" = "amount" + 10 WHERE "id" > 50 RETURNING 1
+#   ) ,
+#   "teams_count" AS (
+#       UPDATE "teams" SET "amount" = "amount" + 10 WHERE "id" > 50 RETURNING 1
+#   )
+#   SELECT
+#       (SELECT COUNT(*) FROM "users_count") AS "users",
+#       (SELECT COUNT(*) FROM "teams_count") AS "teams"
 ```
 
 ### Custom Functions

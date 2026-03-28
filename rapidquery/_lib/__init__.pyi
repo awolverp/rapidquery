@@ -1,3 +1,7 @@
+"""
+RapidQuery core which is written in Rust.
+"""
+
 from __future__ import annotations
 
 from . import common as common
