@@ -179,22 +179,31 @@ impl std::fmt::Display for CommonTableExpression {
 impl ToSeaQuery<sea_query::CommonTableExpression> for CommonTableExpression {
     #[cfg_attr(feature = "optimize", optimize(speed))]
     fn to_sea_query<'a>(&self, py: pyo3::Python<'a>) -> sea_query::CommonTableExpression {
-        let mut stmt = {
-            if let CommonTableExpressionQuery::Select(x) = &self.query {
-                let select =
-                    unsafe { x.cast_bound_unchecked::<super::select::PySelectStatement>(py) };
+        let (mut stmt, select_used) = {
+            match &self.query {
+                CommonTableExpressionQuery::Select(x) if self.columns.is_empty() => {
+                    let select =
+                        unsafe { x.cast_bound_unchecked::<super::select::PySelectStatement>(py) };
 
-                let result = select.get().0.lock().to_sea_query(py);
+                    let result = select.get().0.lock().to_sea_query(py);
 
-                sea_query::CommonTableExpression::from_select(result)
-            } else {
-                sea_query::CommonTableExpression::new()
+                    (sea_query::CommonTableExpression::from_select(result), true)
+                }
+                _ => (sea_query::CommonTableExpression::new(), false),
             }
         };
         stmt.table_name(sea_query::Alias::new(&self.name).into_iden());
 
         match &self.query {
-            CommonTableExpressionQuery::Select(_) => {}
+            CommonTableExpressionQuery::Select(x) => {
+                if !select_used {
+                    let delete =
+                        unsafe { x.cast_bound_unchecked::<super::select::PySelectStatement>(py) };
+
+                    let result = delete.get().0.lock().to_sea_query(py);
+                    stmt.query(result);
+                }
+            }
             CommonTableExpressionQuery::Delete(x) => {
                 let delete =
                     unsafe { x.cast_bound_unchecked::<super::delete::PyDeleteStatement>(py) };

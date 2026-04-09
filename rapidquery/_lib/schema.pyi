@@ -6,7 +6,9 @@ from .common import Column, Expr, ForeignKey, TableName, _ColumnRefNew, _TableNa
 
 _IndexColumnValue: typing.TypeAlias = IndexColumn | _ColumnRefNew
 _IndexColumnOrder: typing.TypeAlias = typing.Literal["ASC", "DESC"]
-_BackendName: typing.TypeAlias = typing.Literal["sqlite", "postgresql", "postgres", "mysql"]
+_BackendName: typing.TypeAlias = typing.Literal[
+    "sqlite", "postgresql", "postgres", "mysql"
+]
 
 class AlterTable(SchemaStatement):
     """
@@ -381,36 +383,43 @@ class DropTable(SchemaStatement):
         cascade: bool = False,
         restrict: bool = False,
     ) -> None:
-        # TODO: complete docstring
         """
         Construct a new `DROP TABLE` statement.
 
         Args:
             name: The table name to drop.
-            if_exists: If `True`, uses `IF EXISTS` clause.
-            cascade: ...
-            restrict: ...
+            if_exists: If `True`, adds the `IF EXISTS` clause to avoid an error if the table does not exist.
+            cascade: If `True`, adds the `CASCADE` clause to automatically drop objects that depend on
+                the table (such as foreign keys or views).
+            restrict: If `True`, adds the `RESTRICT` clause to refuse to drop the table if any
+                objects depend on it. This is typically the default behavior in many SQL dialects.
 
         Examples:
-        ```python
-        import rapidquery as rq
+            ```python
+            import rapidquery as rq
 
-        stmt = rq.DropTable("glyph", if_exists=True, cascade=True, restrict=True).to_sql(
-            "mysql"
-        )
-        # DROP TABLE IF EXISTS `glyph` RESTRICT CASCADE
-        ```
+            stmt = rq.DropTable("glyph", if_exists=True, cascade=True, restrict=True).to_sql(
+                "mysql"
+            )
+            # DROP TABLE IF EXISTS `glyph` RESTRICT CASCADE
+            ```
         """
         ...
 
     def __copy__(self) -> typing.Self: ...
     def __repr__(self, /) -> str: ...
     @property
-    def cascade(self) -> bool: ...
+    def cascade(self) -> bool:
+        """Whether to automatically drop dependent objects."""
+        ...
+
     @cascade.setter
     def cascade(self, value: bool) -> None: ...
     @property
-    def if_exists(self) -> bool: ...
+    def if_exists(self) -> bool:
+        """Whether to use the `IF EXISTS` clause."""
+        ...
+
     @if_exists.setter
     def if_exists(self, value: bool) -> None: ...
     @property
@@ -421,7 +430,10 @@ class DropTable(SchemaStatement):
     @name.setter
     def name(self, value: _TableNameNew) -> None: ...
     @property
-    def restrict(self) -> bool: ...
+    def restrict(self) -> bool:
+        """Whether to prevent deletion if dependencies exist."""
+        ...
+
     @restrict.setter
     def restrict(self, value: bool) -> None: ...
 
@@ -580,16 +592,18 @@ class IndexColumn:
         order: _IndexColumnOrder | None = None,
         prefix: int | None = None,
     ) -> typing.Self:
-        # TODO: complete this docstring
         """
         Construct a new `IndexColumn` instance.
 
         Args:
-            name: The column name.
-            order: ...
-            prefix: ...
+            name: The column name to be indexed.
+            order: The sort order for the column, typically 'ASC' for ascending
+                or 'DESC' for descending. If `None`, the database default is used.
+            prefix: The number of characters to index for string/text columns.
+                Used for prefix indexing to save space or handle large text fields.
         """
         ...
+
     def __copy__(self) -> typing.Self: ...
     def __repr__(self, /) -> str: ...
     @property
@@ -599,7 +613,7 @@ class IndexColumn:
 
     @property
     def order(self) -> _IndexColumnOrder | None:
-        """Sort order for this column."""
+        """Sort order for this column (e.g., ASC or DESC)."""
         ...
 
     @property

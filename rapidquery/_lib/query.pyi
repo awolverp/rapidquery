@@ -234,18 +234,49 @@ class DeleteStatement(QueryStatement):
 
 @typing.final
 class Frame:
-    """Window frame start and frame end clause. Use its classmethods."""
+    """
+    Defines the window frame start and end boundaries for window functions.
+
+    A frame allows you to constrain the set of rows used by the window function
+    to a subset relative to the current row.
+
+    Use the provided classmethods to construct specific frame boundaries.
+    """
 
     @classmethod
-    def current_row(cls) -> typing.Self: ...
+    def current_row(cls) -> typing.Self:
+        """The boundary is the current row being processed."""
+        ...
+
     @classmethod
-    def following(cls, val: int) -> typing.Self: ...
+    def following(cls, val: int) -> typing.Self:
+        """
+        The boundary is a fixed number of rows/values after the current row.
+
+        Args:
+            val: The number of rows or the value range following the current row.
+        """
+        ...
+
     @classmethod
-    def preceding(cls, val: int) -> typing.Self: ...
+    def preceding(cls, val: int) -> typing.Self:
+        """
+        The boundary is a fixed number of rows/values before the current row.
+
+        Args:
+            val: The number of rows or the value range preceding the current row.
+        """
+        ...
+
     @classmethod
-    def unbounded_following(cls) -> typing.Self: ...
+    def unbounded_following(cls) -> typing.Self:
+        """The boundary is the last row of the partition."""
+        ...
+
     @classmethod
-    def unbounded_preceding(cls) -> typing.Self: ...
+    def unbounded_preceding(cls) -> typing.Self:
+        """The boundary is the first row of the partition."""
+        ...
 
 class InsertStatement(QueryStatement):
     """
@@ -1392,10 +1423,13 @@ class UpdateStatement(QueryStatement):
 
 class WindowStatement:
     """
-    Window expression.
+    Represents an `OVER` clause used with window functions.
+
+    Window functions perform calculations across a set of table rows that are
+    somehow related to the current row. This class builds the specification
+    of that set (the window), including partitioning, ordering, and framing.
 
     # References:
-
     1. <https://dev.mysql.com/doc/refman/8.0/en/window-function-descriptions.html>
     2. <https://www.sqlite.org/windowfunctions.html>
     3. <https://www.postgresql.org/docs/current/tutorial-window.html>
@@ -1403,49 +1437,49 @@ class WindowStatement:
 
     def __init__(self, *partition_by: Expr | _ColumnRefNew) -> None:
         """
-        Construct a `WINDOW` statement.
+        Construct a new `WINDOW` specification.
+
+        Args:
+            *partition_by: One or more columns or expressions to divide
+                the result set into partitions.
 
         Examples:
-        ```python
-        import rapidquery as rq
+            ```python
+            import rapidquery as rq
 
-        stmt = (
-            rq.SelectStatement(
-                rq.SelectLabel(
-                    rq.Expr.col("character"),
-                    "C",
-                    rq.WindowStatement("font_size").frame(
-                        "ROWS",
-                        rq.Frame.preceding(10),
-                    ),
+            # Example 1: Defining a simple frame
+            stmt = (
+                rq.SelectStatement(
+                    rq.SelectLabel(
+                        rq.Expr.col("character"),
+                        "C",
+                        rq.WindowStatement("font_size").frame(
+                            "ROWS",
+                            rq.Frame.preceding(10),
+                        ),
+                    )
                 )
+                .from_table("characters")
+                .to_sql("postgres")
             )
-            .from_table("characters")
-            .to_sql("postgres")
-        )
-        # SELECT "character" OVER (
-        #   PARTITION BY "font_size" ROWS 10PRECEDING
-        # ) AS "C" FROM "characters"
 
-        stmt = (
-            rq.SelectStatement(
-                rq.SelectLabel(
-                    rq.Expr.col("character"),
-                    "C",
-                    rq.WindowStatement("font_size").frame(
-                        "ROWS",
-                        rq.Frame.unbounded_preceding(),
-                        rq.Frame.unbounded_following(),
-                    ),
+            # Example 2: Defining a frame with start and end
+            stmt = (
+                rq.SelectStatement(
+                    rq.SelectLabel(
+                        rq.Expr.col("character"),
+                        "C",
+                        rq.WindowStatement("font_size").frame(
+                            "ROWS",
+                            rq.Frame.unbounded_preceding(),
+                            rq.Frame.unbounded_following(),
+                        ),
+                    )
                 )
+                .from_table("characters")
+                .to_sql("postgres")
             )
-            .from_table("characters")
-            .to_sql("postgres")
-        )
-        # SELECT "character" OVER (
-        #   PARTITION BY "font_size" ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
-        # ) AS "C" FROM "characters"
-        ```
+            ```
         """
         ...
 
@@ -1456,10 +1490,34 @@ class WindowStatement:
         frame_type: typing.Literal["ROWS", "RANGE"],
         frame_start: Frame,
         frame_end: Frame | None = None,
-    ) -> typing.Self: ...
-    def order_by(self, clause: Ordering) -> typing.Self: ...
+    ) -> typing.Self:
+        """
+        Set the window frame clause.
+
+        Args:
+            frame_type: Either "ROWS" (physical rows) or "RANGE" (logical values).
+            frame_start: The starting boundary of the frame.
+            frame_end: Optional ending boundary. If not provided, the frame
+                typically defaults to the current row or the database default.
+        """
+        ...
+
+    def order_by(self, clause: Ordering) -> typing.Self:
+        """
+        Specify the order of rows within each partition.
+
+        Args:
+            clause: An `Ordering` instance defining the sort key and direction.
+        """
+        ...
+
     def partition(self, partition_by: Expr | _ColumnRefNew) -> typing.Self:
-        """Partition by column or custom expression."""
+        """
+        Add a column or expression to the `PARTITION BY` clause.
+
+        Args:
+            partition_by: The column or expression to partition by.
+        """
         ...
 
 _CommonTableExpressionQuery = (
@@ -1501,8 +1559,6 @@ class WithClause:
         recursive SELECT query in a data-modifying statement. (like so: WITH RECURSIVE
         cte_name(a,b,c,d) AS (SELECT ... UNION SELECT ... FROM ... JOIN cte_name ON ... WHERE ...)
         DELETE FROM table WHERE table.a = cte_name.a)
-
-    Recursive with query generation will raise `RuntimeError` if you specify more than one CTE.
 
     Note that this type is not a `QueryStatement`. To generate `WITH` statement, you must convert this type to
     `WithQuery` type, using `WithClause.query` method.

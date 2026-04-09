@@ -297,7 +297,137 @@ class TestUpdateStatement(WhereMixin, OrderByMixin):
         assert "font_id" in stmt
 
 
-# TODO: test WindowStatement
-# TODO: test Frame
-# TODO: test WithClause
-# TODO: test WithQuery
+class TestWindowStatement:
+    def test_basic_partition(self):
+        """Test a basic OVER clause with PARTITION BY."""
+        window = rq.WindowStatement("department").order_by(
+            rq.Ordering("salary", order="DESC")
+        )
+
+        # Using it in a SelectStatement context
+        stmt = rq.SelectStatement(
+            rq.SelectLabel(rq.Expr.custom("AVG(salary)"), "avg_sal", window)
+        ).from_table("employees")
+
+        sql = stmt.to_sql("postgres")
+        assert 'PARTITION BY "department"' in sql
+        assert 'ORDER BY "salary" DESC' in sql
+        assert "OVER" in sql
+
+    def test_frame_rows(self):
+        """Test WINDOW with ROWS framing."""
+        window = (
+            rq.WindowStatement()
+            .order_by(rq.Ordering("id"))
+            .frame("ROWS", rq.Frame.preceding(5), rq.Frame.current_row())
+        )
+
+        stmt = rq.SelectStatement(
+            rq.SelectLabel(rq.Expr.custom("SUM(val)"), "running_sum", window)
+        ).from_table("data")
+
+        sql = stmt.to_sql("postgres")
+        assert "ROWS BETWEEN 5PRECEDING AND CURRENT ROW" in sql
+
+    def test_frame_unbounded(self):
+        """Test WINDOW with UNBOUNDED boundaries."""
+        window = rq.WindowStatement().frame(
+            "RANGE", rq.Frame.unbounded_preceding(), rq.Frame.unbounded_following()
+        )
+
+        stmt = rq.SelectStatement(
+            rq.SelectLabel(rq.Expr.custom("COUNT(*)"), "total", window)
+        ).from_table("users")
+
+        sql = stmt.to_sql("mysql")
+        assert "RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING" in sql
+
+
+class TestWith:
+    def test_simple_cte(self):
+        """Test a basic CTE using WithClause."""
+        cte_query = (
+            rq.SelectStatement()
+            .columns("id", "name")
+            .from_table("users")
+            .where(rq.Expr.col("active").is_(True))
+        )
+
+        with_query = (
+            rq.WithClause()
+            .cte("active_users", cte_query)
+            .query(rq.SelectStatement().columns("*").from_table("active_users"))
+        )
+
+        sql = with_query.to_sql("postgres")
+        assert 'WITH "active_users"' in sql
+        assert 'SELECT "id" AS "id", "name" AS "name" FROM "users"' in sql
+        assert 'SELECT * FROM "active_users"' in sql
+
+    def test_multiple_ctes(self):
+        """Test multiple CTEs in a single WITH clause."""
+        q1 = rq.SelectStatement().columns("id").from_table("table_a")
+        q2 = rq.SelectStatement().columns("id").from_table("table_b")
+
+        with_query = (
+            rq.WithClause()
+            .cte("cte_a", q1)
+            .cte("cte_b", q2)
+            .query(
+                rq.SelectStatement()
+                .columns("cte_a.id")
+                .from_table("cte_a")
+                .join("cte_b", rq.Expr.col("cte_a.id") == rq.Expr.col("cte_b.id"))
+            )
+        )
+
+        sql = with_query.to_sql("postgres")
+        assert 'WITH "cte_a"' in sql
+        assert '"cte_b"' in sql
+        assert 'JOIN "cte_b"' in sql
+
+    def test_recursive(self):
+        """Test RECURSIVE WITH clause generation."""
+        # A simplified recursive CTE for sequence generation
+        base_part = rq.SelectStatement(rq.SelectLabel(rq.Expr.val(1), "n"))
+        recursive_part = (
+            rq.SelectStatement(rq.SelectLabel(rq.Expr.col("n") + 1, "n"))
+            .from_table("nums")
+            .where(rq.Expr.col("n") < 5)
+        )
+
+        # SeaQuery/RapidQuery typically uses Union to combine parts for recursion
+        union_query = base_part.union(recursive_part)
+
+        with_query = (
+            rq.WithClause()
+            .recursive()
+            .cte("nums", union_query, columns=["n"])
+            .query(rq.SelectStatement().columns("*").from_table("nums"))
+        )
+
+        sql = with_query.to_sql("postgres")
+        assert "WITH RECURSIVE" in sql
+        assert '"nums" ("n") AS' in sql
+
+    def test_materialized(self):
+        """Test the MATERIALIZED hint in CTEs (Postgres specific)."""
+        q = rq.SelectStatement().columns("id").from_table("very_large_table")
+
+        # Materialized True
+        sql_mat = (
+            rq.WithClause()
+            .cte("cached_data", q, materialized=True)
+            .query(rq.SelectStatement().from_table("cached_data"))
+            .to_sql("postgres")
+        )
+        assert "MATERIALIZED" in sql_mat
+
+        # Materialized False (NOT MATERIALIZED)
+        sql_not_mat = (
+            rq.WithClause()
+            .cte("raw_data", q, materialized=False)
+            .query(rq.SelectStatement().from_table("raw_data"))
+            .to_sql("postgres")
+        )
+        assert "NOT MATERIALIZED" in sql_not_mat

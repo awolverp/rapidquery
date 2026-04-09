@@ -35,8 +35,7 @@ uv add rapidquery
 > In a landscape filled with SQL libraries, we noticed a critical gap: **performance was often an afterthought**. That's why we built RapidQuery with speed as our primary and enduring focus.
 
 ## Backends
-RapidQuery supports `PostgreSQL`, `MySQL`, and `SQLite` databases. In RapidQuery, these are referred to as `backend`s.
-When building SQL statements, you should specify your target backend.
+RapidQuery supports `PostgreSQL`, `MySQL`, and `SQLite`. These are referred to as `backend`s. When building SQL statements, you must specify your target backend.
 
 ## Usage
 
@@ -690,18 +689,18 @@ Traceback (most recent call last):
 RuntimeError: build failed
 ```
 
-### Unmanaged Rust panic output if you do not call `__init__`
-Comming soon ...
+### Missing `__init__` Calls
+If a RapidQuery object is instantiated without calling its `__init__` method (e.g., via certain serialization tricks or `__new__` alone), the internal Rust pointer will be null. Accessing methods on such objects will cause an unmanaged Rust panic. Always use the provided constructors.
 
 ### Join conditions are not optional
-Comming soon ...
+Currently, `JOIN` operations require an explicit ON or USING condition.
 
 ## TODO
 - [x] Write tests
 - [x] Update & automate workflows
 - [x] Write CTE
-- [ ] Complete README.md
-- [ ] Bump version to 0.1.0
+- [x] Complete README.md
+- [x] Bump version to 0.1.0
 - [ ] Complete backend-only functions
 
 ## License
