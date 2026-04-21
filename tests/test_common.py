@@ -56,6 +56,13 @@ class TestColumn:
         col = rq.Column("name", rq.sqltypes.String())
         rq.AlterTableDropColumnOption(col)
 
+    def test_label(self):
+        col = rq.Column("name", rq.sqltypes.String())
+        label = col.label("a")
+        assert type(label) is rq.SelectLabel
+        assert label.alias == "a"
+        assert label.window is None
+
     def test_to_expr(self):
         col = rq.Column("name", rq.sqltypes.String())
         assert type(col.to_expr()) is rq.Expr
@@ -132,6 +139,13 @@ class TestColumnRef:
     def test_to_expr(self):
         ref = rq.ColumnRef("id")
         assert type(ref.to_expr()) is rq.Expr
+
+    def test_label(self):
+        ref = rq.ColumnRef("id")
+        label = ref.label("a")
+        assert type(label) is rq.SelectLabel
+        assert label.alias == "a"
+        assert label.window is None
 
 
 class SelectStatementChild(rq.SelectStatement):

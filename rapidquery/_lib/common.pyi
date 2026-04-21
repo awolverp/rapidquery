@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing
 
-from .query import SelectStatement
+from .query import SelectLabel, SelectStatement, WindowStatement
 from .sqltypes import SQLTypeAbstract
 
 T = typing.TypeVar("T")
@@ -155,6 +155,12 @@ class Column(typing.Generic[T]):
         """Shorthand for `Expr(self)`"""
         ...
 
+    def label(
+        self, alias: str, window: WindowStatement | str | None = None
+    ) -> SelectLabel:
+        """Shorthand for `SelectLabel(self, alias, window)`"""
+        pass
+
 @typing.final
 class ColumnRef:
     """
@@ -219,6 +225,12 @@ class ColumnRef:
     def to_expr(self) -> Expr:
         """Shorthand for `Expr(self)`"""
         ...
+
+    def label(
+        self, alias: str, window: WindowStatement | str | None = None
+    ) -> SelectLabel:
+        """Shorthand for `SelectLabel(self, alias, window)`"""
+        pass
 
 @typing.final
 class Expr:
@@ -489,6 +501,12 @@ class Expr:
         """Shorthand for `Expr(Value(value, sql_type))`"""
         ...
 
+    def label(
+        self, alias: str, window: WindowStatement | str | None = None
+    ) -> SelectLabel:
+        """Shorthand for `SelectLabel(self, alias, window)`"""
+        pass
+
     def _to_sql(self, backend: str) -> str: ...
 
     __hash__ = None  # type: ignore
@@ -722,6 +740,12 @@ class Func:
     def to_expr(self) -> Expr:
         """Shorthand for `Expr(self)`"""
         ...
+
+    def label(
+        self, alias: str, window: WindowStatement | str | None = None
+    ) -> SelectLabel:
+        """Shorthand for `SelectLabel(self, alias, window)`"""
+        pass
 
 @typing.final
 class TableName:

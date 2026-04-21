@@ -355,6 +355,27 @@ impl PyColumn {
         Ok(result.into())
     }
 
+    /// Shorthand for `SelectLabel(self, alias, window)`
+    #[pyo3(signature=(alias, window=None))]
+    fn label(
+        &self,
+        alias: String,
+        window: Option<RefBoundObject<'_>>,
+    ) -> pyo3::PyResult<crate::query::select::PySelectLabel> {
+        let window = match window {
+            Some(x) => Some(crate::query::select::SelectLabelWindow::try_from(x)?),
+            None => None,
+        };
+        let expr = self.to_expr();
+
+        let state = crate::query::select::SelectLabelState {
+            expr,
+            alias: Some(alias),
+            window,
+        };
+        Ok(state.into())
+    }
+
     /// Shorthand for `Expr(self)`
     fn to_expr(&self) -> PyExpr {
         let col_ref = Self::__column_ref__(self);

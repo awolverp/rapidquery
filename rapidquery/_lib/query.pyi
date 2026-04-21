@@ -76,25 +76,23 @@ class CaseStatement:
 
         stmt = (
             rq.SelectStatement(
-                rq.SelectLabel(
-                    rq.CaseStatement()
-                    .when(
-                        rq.any(
-                            rq.Expr.col("font_size") > 48,
-                            rq.Expr.col("size_w") > 500,
-                        ),
-                        "large",
-                    )
-                    .when(
-                        rq.any(
-                            rq.Expr.col("font_size").between(24, 48),
-                            rq.Expr.col("size_w").between(300, 500),
-                        ),
-                        "medium",
-                    )
-                    .else_("small"),
-                    "char_size",
-                ),
+                rq.CaseStatement()
+                .when(
+                    rq.any(
+                        rq.Expr.col("font_size") > 48,
+                        rq.Expr.col("size_w") > 500,
+                    ),
+                    "large",
+                )
+                .when(
+                    rq.any(
+                        rq.Expr.col("font_size").between(24, 48),
+                        rq.Expr.col("size_w").between(300, 500),
+                    ),
+                    "medium",
+                )
+                .else_("small")
+                .label("char_size"),
             )
             .from_table("characters")
             .to_sql("postgres")
@@ -107,6 +105,16 @@ class CaseStatement:
         ```
         """
         ...
+
+    def to_expr(self) -> Expr:
+        """Shorthand for `Expr(self)`"""
+        ...
+
+    def label(
+        self, alias: str, window: WindowStatement | str | None = None
+    ) -> SelectLabel:
+        """Shorthand for `SelectLabel(self, alias, window)`"""
+        pass
 
 class DeleteStatement(QueryStatement):
     """
@@ -1244,7 +1252,7 @@ class SelectStatement(QueryStatement):
 
         stmt = (
             rq.SelectStatement(
-                rq.SelectLabel(rq.Expr.col("character"), "w", "C")
+                rq.Expr.col("character").label("w", "C")
             )
             .window("C", rq.WindowStatement("font_size"))
             .from_table("characters")
@@ -1254,6 +1262,16 @@ class SelectStatement(QueryStatement):
         ```
         """
         ...
+
+    def to_expr(self) -> Expr:
+        """Shorthand for `Expr(self)`"""
+        ...
+
+    def label(
+        self, alias: str, window: WindowStatement | str | None = None
+    ) -> SelectLabel:
+        """Shorthand for `SelectLabel(self, alias, window)`"""
+        pass
 
 class UpdateStatement(QueryStatement):
     """
@@ -1450,13 +1468,12 @@ class WindowStatement:
             # Example 1: Defining a simple frame
             stmt = (
                 rq.SelectStatement(
-                    rq.SelectLabel(
-                        rq.Expr.col("character"),
+                    rq.Expr.col("character").label(
                         "C",
                         rq.WindowStatement("font_size").frame(
                             "ROWS",
                             rq.Frame.preceding(10),
-                        ),
+                        )
                     )
                 )
                 .from_table("characters")
@@ -1466,14 +1483,13 @@ class WindowStatement:
             # Example 2: Defining a frame with start and end
             stmt = (
                 rq.SelectStatement(
-                    rq.SelectLabel(
-                        rq.Expr.col("character"),
+                    rq.Expr.col("character").label(
                         "C",
                         rq.WindowStatement("font_size").frame(
                             "ROWS",
                             rq.Frame.unbounded_preceding(),
                             rq.Frame.unbounded_following(),
-                        ),
+                        )
                     )
                 )
                 .from_table("characters")

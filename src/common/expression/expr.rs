@@ -648,6 +648,26 @@ impl PyExpr {
         Self(expr)
     }
 
+    /// Shorthand for `SelectLabel(self, alias, window)`
+    #[pyo3(signature=(alias, window=None))]
+    fn label(
+        &self,
+        alias: String,
+        window: Option<RefBoundObject<'_>>,
+    ) -> pyo3::PyResult<crate::query::select::PySelectLabel> {
+        let window = match window {
+            Some(x) => Some(crate::query::select::SelectLabelWindow::try_from(x)?),
+            None => None,
+        };
+
+        let state = crate::query::select::SelectLabelState {
+            expr: self.clone(),
+            alias: Some(alias),
+            window,
+        };
+        Ok(state.into())
+    }
+
     #[pyo3(signature = (backend, /))]
     #[allow(clippy::wrong_self_convention)]
     fn _to_sql(&self, _py: pyo3::Python<'_>, backend: String) -> pyo3::PyResult<String> {

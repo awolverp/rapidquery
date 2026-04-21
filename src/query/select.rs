@@ -1118,6 +1118,35 @@ impl PySelectStatement {
         Ok(slf)
     }
 
+    /// Shorthand for `Expr(self)`
+    fn to_expr(&self, py: pyo3::Python) -> PyExpr {
+        let stmt = self.0.lock().to_sea_query(py);
+        let subquery = sea_query::SubQueryStatement::SelectStatement(stmt);
+        PyExpr(sea_query::SimpleExpr::SubQuery(None, Box::new(subquery)))
+    }
+
+    /// Shorthand for `SelectLabel(self, alias, window)`
+    #[pyo3(signature=(alias, window=None))]
+    fn label(
+        &self,
+        py: pyo3::Python,
+        alias: String,
+        window: Option<RefBoundObject<'_>>,
+    ) -> pyo3::PyResult<crate::query::select::PySelectLabel> {
+        let window = match window {
+            Some(x) => Some(crate::query::select::SelectLabelWindow::try_from(x)?),
+            None => None,
+        };
+        let expr = self.to_expr(py);
+
+        let state = crate::query::select::SelectLabelState {
+            expr,
+            alias: Some(alias),
+            window,
+        };
+        Ok(state.into())
+    }
+
     #[pyo3(signature = (backend, /))]
     #[allow(clippy::wrong_self_convention)]
     fn to_sql(&self, py: pyo3::Python<'_>, backend: String) -> pyo3::PyResult<String> {

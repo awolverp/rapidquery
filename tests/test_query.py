@@ -18,6 +18,17 @@ class TestCaseStatement:
         sql = rq.SelectStatement(rq.SelectLabel(stmt, "test")).to_sql("postgres")
         assert '"id"' in sql
         assert '"name"' in sql
+        assert '"test"' in sql
+
+        stmt = (
+            rq.CaseStatement()
+            .when(rq.Expr.col("id") == 1, 1)
+            .when(rq.Expr.col("name") == "ali", 1)
+        )
+        sql = rq.SelectStatement(stmt.label("test")).to_sql("postgres")
+        assert '"id"' in sql
+        assert '"name"' in sql
+        assert '"test"' in sql
 
         with pytest.raises(TypeError):
             rq.CaseStatement().when("Ali", 1)  # type: ignore
@@ -306,7 +317,7 @@ class TestWindowStatement:
 
         # Using it in a SelectStatement context
         stmt = rq.SelectStatement(
-            rq.SelectLabel(rq.Expr.custom("AVG(salary)"), "avg_sal", window)
+            rq.Expr.custom("AVG(salary)").label("svg_sal", window)
         ).from_table("employees")
 
         sql = stmt.to_sql("postgres")
@@ -323,7 +334,7 @@ class TestWindowStatement:
         )
 
         stmt = rq.SelectStatement(
-            rq.SelectLabel(rq.Expr.custom("SUM(val)"), "running_sum", window)
+            rq.Expr.custom("SUM(val)").label("running_sum", window)
         ).from_table("data")
 
         sql = stmt.to_sql("postgres")
@@ -389,9 +400,9 @@ class TestWith:
     def test_recursive(self):
         """Test RECURSIVE WITH clause generation."""
         # A simplified recursive CTE for sequence generation
-        base_part = rq.SelectStatement(rq.SelectLabel(rq.Expr.val(1), "n"))
+        base_part = rq.SelectStatement(rq.Expr.val(1).label("n"))
         recursive_part = (
-            rq.SelectStatement(rq.SelectLabel(rq.Expr.col("n") + 1, "n"))
+            rq.SelectStatement((rq.Expr.col("n") + 1).label("n"))
             .from_table("nums")
             .where(rq.Expr.col("n") < 5)
         )

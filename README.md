@@ -334,8 +334,8 @@ teams_count_select = rq.SelectStatement(rq.Func.count(rq.Expr.asterisk())).from_
 
 query: WithQuery = clause.query(
     rq.SelectStatement(
-        rq.SelectLabel(users_count_select, "users"),
-        rq.SelectLabel(teams_count_select, "teams"),
+        users_count_select.label("users"),
+        teams_count_select.label("teams"),
     )
 )
 query.to_sql("postgres")

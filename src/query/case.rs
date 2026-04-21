@@ -85,6 +85,34 @@ impl PyCaseStatement {
         Ok(slf)
     }
 
+    /// Shorthand for `Expr(self)`
+    fn to_expr(&self, py: pyo3::Python) -> PyExpr {
+        let stmt = self.0.lock().to_sea_query(py);
+        PyExpr(sea_query::SimpleExpr::Case(Box::new(stmt)))
+    }
+
+    /// Shorthand for `SelectLabel(self, alias, window)`
+    #[pyo3(signature=(alias, window=None))]
+    fn label(
+        &self,
+        py: pyo3::Python,
+        alias: String,
+        window: Option<RefBoundObject<'_>>,
+    ) -> pyo3::PyResult<crate::query::select::PySelectLabel> {
+        let window = match window {
+            Some(x) => Some(crate::query::select::SelectLabelWindow::try_from(x)?),
+            None => None,
+        };
+        let expr = self.to_expr(py);
+
+        let state = crate::query::select::SelectLabelState {
+            expr,
+            alias: Some(alias),
+            window,
+        };
+        Ok(state.into())
+    }
+
     fn __copy__(&self) -> Self {
         let lock = self.0.lock();
         lock.clone().into()
