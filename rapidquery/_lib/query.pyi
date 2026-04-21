@@ -4,9 +4,7 @@ import typing
 
 from .common import Expr, Func, Value, _ColumnRefNew, _ExprNew, _TableNameNew
 
-_BackendName: typing.TypeAlias = typing.Literal[
-    "sqlite", "postgresql", "postgres", "mysql"
-]
+_BackendName: typing.TypeAlias = typing.Literal["sqlite", "postgresql", "postgres", "mysql"]
 
 class CaseStatement:
     """
@@ -110,9 +108,7 @@ class CaseStatement:
         """Shorthand for `Expr(self)`"""
         ...
 
-    def label(
-        self, alias: str, window: WindowStatement | str | None = None
-    ) -> SelectLabel:
+    def label(self, alias: str, window: WindowStatement | str | None = None) -> SelectLabel:
         """Shorthand for `SelectLabel(self, alias, window)`"""
         pass
 
@@ -1122,9 +1118,7 @@ class SelectStatement(QueryStatement):
 
     def lock(
         self,
-        type: typing.Literal[
-            "UPDATE", "NO KEY UPDATE", "SHARE", "KEY SHARE"
-        ] = "UPDATE",
+        type: typing.Literal["UPDATE", "NO KEY UPDATE", "SHARE", "KEY SHARE"] = "UPDATE",
         behavior: typing.Literal["NOWAIT", "SKIP"] | None = None,
         tables: typing.Iterable[_TableNameNew] = (),
     ) -> typing.Self:
@@ -1267,9 +1261,7 @@ class SelectStatement(QueryStatement):
         """Shorthand for `Expr(self)`"""
         ...
 
-    def label(
-        self, alias: str, window: WindowStatement | str | None = None
-    ) -> SelectLabel:
+    def label(self, alias: str, window: WindowStatement | str | None = None) -> SelectLabel:
         """Shorthand for `SelectLabel(self, alias, window)`"""
         pass
 
@@ -1536,9 +1528,7 @@ class WindowStatement:
         """
         ...
 
-_CommonTableExpressionQuery = (
-    SelectStatement | DeleteStatement | UpdateStatement | InsertStatement
-)
+_CommonTableExpressionQuery = SelectStatement | DeleteStatement | UpdateStatement | InsertStatement
 
 class WithClause:
     """

@@ -155,9 +155,7 @@ class Column(typing.Generic[T]):
         """Shorthand for `Expr(self)`"""
         ...
 
-    def label(
-        self, alias: str, window: WindowStatement | str | None = None
-    ) -> SelectLabel:
+    def label(self, alias: str, window: WindowStatement | str | None = None) -> SelectLabel:
         """Shorthand for `SelectLabel(self, alias, window)`"""
         pass
 
@@ -226,9 +224,7 @@ class ColumnRef:
         """Shorthand for `Expr(self)`"""
         ...
 
-    def label(
-        self, alias: str, window: WindowStatement | str | None = None
-    ) -> SelectLabel:
+    def label(self, alias: str, window: WindowStatement | str | None = None) -> SelectLabel:
         """Shorthand for `SelectLabel(self, alias, window)`"""
         pass
 
@@ -501,9 +497,7 @@ class Expr:
         """Shorthand for `Expr(Value(value, sql_type))`"""
         ...
 
-    def label(
-        self, alias: str, window: WindowStatement | str | None = None
-    ) -> SelectLabel:
+    def label(self, alias: str, window: WindowStatement | str | None = None) -> SelectLabel:
         """Shorthand for `SelectLabel(self, alias, window)`"""
         pass
 
@@ -741,9 +735,7 @@ class Func:
         """Shorthand for `Expr(self)`"""
         ...
 
-    def label(
-        self, alias: str, window: WindowStatement | str | None = None
-    ) -> SelectLabel:
+    def label(self, alias: str, window: WindowStatement | str | None = None) -> SelectLabel:
         """Shorthand for `SelectLabel(self, alias, window)`"""
         pass
 

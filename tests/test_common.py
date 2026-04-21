@@ -160,11 +160,7 @@ class TestExpr:
         rq.Expr(rq.Func("NOW"))
         rq.Expr(rq.SelectStatement().columns("id"))
         rq.Expr(SelectStatementChild().columns("id"))
-        rq.Expr(
-            rq.CaseStatement()
-            .when(rq.Expr.col("aspect").in_([2, 4]), True)
-            .else_(False)
-        )
+        rq.Expr(rq.CaseStatement().when(rq.Expr.col("aspect").in_([2, 4]), True).else_(False))
 
         rq.Expr((rq.Expr.custom("TUPLE"), rq.Expr.custom("TUPLE")))
 
