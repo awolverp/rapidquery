@@ -221,7 +221,7 @@ impl TryFrom<RefBoundObject<'_>> for SelectLabelWindow {
 }
 
 #[inline]
-fn cast_into_select_expr<'a>(value: BoundObject<'a>) -> pyo3::PyResult<BoundObject<'a>> {
+pub fn cast_into_select_label<'a>(value: BoundObject<'a>) -> pyo3::PyResult<BoundObject<'a>> {
     unsafe {
         // SelectLabel itself
         if pyo3::ffi::PyObject_TypeCheck(value.as_ptr(), crate::typeref::SELECT_LABEL_TYPE) == 1 {
@@ -694,7 +694,7 @@ impl PySelectStatement {
     pub fn __init__(&self, exprs: BoundArgs<'_>) -> pyo3::PyResult<()> {
         let mut casted = Vec::new();
         for item in exprs.iter() {
-            casted.push(cast_into_select_expr(item)?.unbind());
+            casted.push(cast_into_select_label(item)?.unbind());
         }
 
         let state = SelectStatementState {
@@ -756,7 +756,7 @@ impl PySelectStatement {
     ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
         let mut casted = Vec::new();
         for item in args.iter() {
-            casted.push(cast_into_select_expr(item)?.unbind());
+            casted.push(cast_into_select_label(item)?.unbind());
         }
 
         slf.0.lock().exprs.append(&mut casted);

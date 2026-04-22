@@ -1,7 +1,9 @@
 use sea_query::IntoIden;
 
+use crate::common::expression::PyExpr;
 use crate::internal::repr::ReprFormatter;
 use crate::internal::{BoundArgs, BoundKwargs, BoundObject, PyObject, RefBoundObject, ToSeaQuery};
+use crate::new_error;
 use crate::query::base::PyQueryStatement;
 
 pub enum CommonTableExpressionQuery {
@@ -69,10 +71,8 @@ crate::implement_pyclass! {
     mutable [subclass] PyWithClause(WithClauseState) as "WithClause" {
         pub recursive: bool,
         pub cte_expressions: Vec<CommonTableExpression>,
-
-        // TODO
-        // search: PySearch,
-        // cycle: PyCycle,
+        pub cycle: Option<sea_query::Cycle>,
+        pub search: Option<sea_query::Search>,
     }
 }
 crate::implement_pyclass! {
@@ -246,9 +246,14 @@ impl ToSeaQuery<sea_query::WithClause> for WithClauseState {
         if self.recursive {
             stmt.recursive(true);
         }
-
         for cte in self.cte_expressions.iter() {
             stmt.cte(cte.to_sea_query(py));
+        }
+        if let Some(x) = &self.cycle {
+            stmt.cycle(x.clone());
+        }
+        if let Some(x) = &self.search {
+            stmt.search(x.clone());
         }
 
         stmt
@@ -309,6 +314,8 @@ impl PyWithClause {
         let state = WithClauseState {
             recursive: false,
             cte_expressions: vec![],
+            cycle: None,
+            search: None,
         };
         self.0.set(state);
         Ok(())
@@ -341,6 +348,77 @@ impl PyWithClause {
             columns,
             materialized,
         });
+        Ok(slf)
+    }
+
+    /// For recursive `WithQuery` `WithClause`s the CYCLE sql clause can be specified to avoid creating
+    /// an infinite traversals that loops on graph cycles indefinitely. You specify an expression that
+    /// identifies a node in the graph and that will be used to determine during the iteration of
+    /// the execution of the query when appending of new values whether the new values are distinct new
+    /// nodes or are already visited and therefore they should be added again into the result.
+    ///
+    /// A query can have both SEARCH and CYCLE clauses.
+    ///
+    /// This setting is not meaningful if the query is not recursive.
+    /// Some databases don’t support this clause. In that case this option will be silently ignored.
+    fn cycle<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        expr: Option<RefBoundObject<'a>>,
+        set_as: Option<String>,
+        using: Option<String>,
+    ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
+        let mut cycle = sea_query::Cycle::new();
+
+        if let Some(x) = expr {
+            let val = PyExpr::try_from(x)?;
+            cycle.expr(val.0);
+        }
+        if let Some(x) = set_as {
+            cycle.set(sea_query::Alias::new(x));
+        }
+        if let Some(x) = using {
+            cycle.using(sea_query::Alias::new(x));
+        }
+
+        slf.0.lock().cycle = Some(cycle);
+        Ok(slf)
+    }
+
+    /// For recursive `WithQuery` `WithClause`s the traversing order can be specified in some databases
+    /// that support this functionality.
+    ///
+    /// A query can have both SEARCH and CYCLE clauses.
+    ///
+    /// This setting is not meaningful if the query is not recursive.
+    /// Some databases don’t support this clause. In that case this option will be silently ignored.
+    ///
+    /// The `expr` used must specify an alias which will be the name that you can use to order
+    /// the result of the CTE.
+    fn search<'a>(
+        slf: pyo3::PyRef<'a, Self>,
+        expr: Option<BoundObject<'a>>,
+        order: Option<String>,
+    ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
+        let mut search = sea_query::Search::new();
+
+        if let Some(x) = expr {
+            let val = x.cast_into::<super::select::PySelectLabel>()?;
+
+            search.expr(val.get().as_ref().to_sea_query(slf.py()));
+        }
+
+        if let Some(x) = order {
+            match x.to_ascii_lowercase().as_str() {
+                "breadth" => {
+                    search.order(sea_query::SearchOrder::BREADTH);
+                }
+                "depth" => {
+                    search.order(sea_query::SearchOrder::DEPTH);
+                }
+                _ => return new_error!(PyValueError, "unknown order: {}", x),
+            }
+        }
+        slf.0.lock().search = Some(search);
         Ok(slf)
     }
 
@@ -404,46 +482,6 @@ impl PyWithQuery {
         };
         self.0.set(state);
         Ok(())
-    }
-
-    /// Same as `WithClause.recursive` method.
-    fn recursive<'a>(slf: pyo3::PyRef<'a, Self>) -> pyo3::PyRef<'a, Self> {
-        {
-            let lock = slf.0.lock();
-            let clause = cast_into_with_clause(slf.py(), &lock.with_clause);
-
-            clause.0.lock().recursive = true;
-        }
-
-        slf
-    }
-
-    /// Same as `WithClause.cte` method.
-    ///
-    /// Useful when you wanna add a new CTE to WITH clause.
-    #[pyo3(signature=(name, query, columns=Vec::new(), materialized=None))]
-    fn cte<'a>(
-        slf: pyo3::PyRef<'a, Self>,
-        name: String,
-        query: RefBoundObject<'a>,
-        columns: Vec<String>,
-        materialized: Option<bool>,
-    ) -> pyo3::PyResult<pyo3::PyRef<'a, Self>> {
-        let query = CommonTableExpressionQuery::try_from(query)?;
-
-        {
-            let lock = slf.0.lock();
-            let clause = cast_into_with_clause(slf.py(), &lock.with_clause);
-
-            clause.0.lock().cte_expressions.push(CommonTableExpression {
-                name,
-                query,
-                columns,
-                materialized,
-            });
-        }
-
-        Ok(slf)
     }
 
     #[pyo3(signature = (backend, /))]

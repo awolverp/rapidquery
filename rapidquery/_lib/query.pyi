@@ -4,7 +4,9 @@ import typing
 
 from .common import Expr, Func, Value, _ColumnRefNew, _ExprNew, _TableNameNew
 
-_BackendName: typing.TypeAlias = typing.Literal["sqlite", "postgresql", "postgres", "mysql"]
+_BackendName: typing.TypeAlias = typing.Literal[
+    "sqlite", "postgresql", "postgres", "mysql"
+]
 
 class CaseStatement:
     """
@@ -108,7 +110,9 @@ class CaseStatement:
         """Shorthand for `Expr(self)`"""
         ...
 
-    def label(self, alias: str, window: WindowStatement | str | None = None) -> SelectLabel:
+    def label(
+        self, alias: str, window: WindowStatement | str | None = None
+    ) -> SelectLabel:
         """Shorthand for `SelectLabel(self, alias, window)`"""
         pass
 
@@ -1118,7 +1122,9 @@ class SelectStatement(QueryStatement):
 
     def lock(
         self,
-        type: typing.Literal["UPDATE", "NO KEY UPDATE", "SHARE", "KEY SHARE"] = "UPDATE",
+        type: typing.Literal[
+            "UPDATE", "NO KEY UPDATE", "SHARE", "KEY SHARE"
+        ] = "UPDATE",
         behavior: typing.Literal["NOWAIT", "SKIP"] | None = None,
         tables: typing.Iterable[_TableNameNew] = (),
     ) -> typing.Self:
@@ -1261,7 +1267,9 @@ class SelectStatement(QueryStatement):
         """Shorthand for `Expr(self)`"""
         ...
 
-    def label(self, alias: str, window: WindowStatement | str | None = None) -> SelectLabel:
+    def label(
+        self, alias: str, window: WindowStatement | str | None = None
+    ) -> SelectLabel:
         """Shorthand for `SelectLabel(self, alias, window)`"""
         pass
 
@@ -1454,40 +1462,40 @@ class WindowStatement:
                 the result set into partitions.
 
         Examples:
-            ```python
-            import rapidquery as rq
+        ```python
+        import rapidquery as rq
 
-            # Example 1: Defining a simple frame
-            stmt = (
-                rq.SelectStatement(
-                    rq.Expr.col("character").label(
-                        "C",
-                        rq.WindowStatement("font_size").frame(
-                            "ROWS",
-                            rq.Frame.preceding(10),
-                        )
+        # Example 1: Defining a simple frame
+        stmt = (
+            rq.SelectStatement(
+                rq.Expr.col("character").label(
+                    "C",
+                    rq.WindowStatement("font_size").frame(
+                        "ROWS",
+                        rq.Frame.preceding(10),
                     )
                 )
-                .from_table("characters")
-                .to_sql("postgres")
             )
+            .from_table("characters")
+            .to_sql("postgres")
+        )
 
-            # Example 2: Defining a frame with start and end
-            stmt = (
-                rq.SelectStatement(
-                    rq.Expr.col("character").label(
-                        "C",
-                        rq.WindowStatement("font_size").frame(
-                            "ROWS",
-                            rq.Frame.unbounded_preceding(),
-                            rq.Frame.unbounded_following(),
-                        )
+        # Example 2: Defining a frame with start and end
+        stmt = (
+            rq.SelectStatement(
+                rq.Expr.col("character").label(
+                    "C",
+                    rq.WindowStatement("font_size").frame(
+                        "ROWS",
+                        rq.Frame.unbounded_preceding(),
+                        rq.Frame.unbounded_following(),
                     )
                 )
-                .from_table("characters")
-                .to_sql("postgres")
             )
-            ```
+            .from_table("characters")
+            .to_sql("postgres")
+        )
+        ```
         """
         ...
 
@@ -1528,7 +1536,9 @@ class WindowStatement:
         """
         ...
 
-_CommonTableExpressionQuery = SelectStatement | DeleteStatement | UpdateStatement | InsertStatement
+_CommonTableExpressionQuery = (
+    SelectStatement | DeleteStatement | UpdateStatement | InsertStatement
+)
 
 class WithClause:
     """
@@ -1661,6 +1671,139 @@ class WithClause:
         """
         ...
 
+    def cycle(
+        self,
+        expr: _ExprNew | None = None,
+        set_as: str | None = None,
+        using: str | None = None,
+    ) -> typing.Self:
+        """
+        For recursive `WithQuery` `WithClause`s the CYCLE sql clause can be specified to avoid creating
+        an infinite traversals that loops on graph cycles indefinitely. You specify an expression that
+        identifies a node in the graph and that will be used to determine during the iteration of
+        the execution of the query when appending of new values whether the new values are distinct new
+        nodes or are already visited and therefore they should be added again into the result.
+
+        A query can have both SEARCH and CYCLE clauses.
+
+        This setting is not meaningful if the query is not recursive.
+        Some databases don’t support this clause. In that case this option will be silently ignored.
+
+        Examples:
+        ```python
+        base_query = rq.SelectStatement(
+            rq.Expr.col("id"),
+            1,
+            rq.Expr.col("next"),
+            rq.Expr.col("value"),
+        ).from_table("table")
+
+        cte_referencing = (
+            rq.SelectStatement(
+                rq.Expr.col("id"),
+                rq.Expr.col("depth") + 1,
+                rq.Expr.col("next"),
+                rq.Expr.col("value"),
+            )
+            .from_table("table")
+            .join(
+                "cte_traversal",
+                rq.Expr.col("cte_traversal.next") == rq.Expr.col("table.id"),
+                "INNER",
+            )
+        )
+
+        clause = (
+            rq.WithClause()
+            .recursive()
+            .cte(
+                "cte_traversal",
+                base_query.union(cte_referencing, "ALL"),
+                columns=["id", "depth", "next", "value"],
+            )
+            .cycle(rq.Expr.col("id"), set_as="looped", using="traversal_path")
+            .query(rq.SelectStatement().columns("*").from_table("cte_traversal"))
+        )
+        clause.to_sql("postgres")
+        # WITH RECURSIVE "cte_traversal" ("id", "depth", "next", "value") AS (
+        #   SELECT "id" AS "id", 1, "next" AS "next", "value" AS "value" FROM "table"
+        #   UNION ALL (
+        #       SELECT "id" AS "id", "depth" + 1, "next" AS "next", "value" AS "value" FROM "table"
+        #       INNER JOIN "cte_traversal" ON "cte_traversal"."next" = "table"."id"
+        #   )
+        # )
+        # CYCLE "id" SET "looped" USING "traversal_path" SELECT * FROM "cte_traversal"
+        ```
+        """
+        ...
+
+    def search(
+        self,
+        expr: SelectLabel | None = None,
+        order: typing.Literal["BREADTH", "DEPTH"] | str | None = None,
+    ) -> typing.Self:
+        """
+        For recursive `WithQuery` `WithClause`s the traversing order can be specified in some databases
+        that support this functionality.
+
+        A query can have both SEARCH and CYCLE clauses.
+
+        This setting is not meaningful if the query is not recursive.
+        Some databases don’t support this clause. In that case this option will be silently ignored.
+
+        The `SelectLabel` used must specify an alias which will be the name that you can use to order
+        the result of the CTE.
+
+        Examples:
+        ```python
+        base_query = (
+            rq.SelectStatement()
+            .columns("id", "parent_id")
+            .from_table("nodes")
+            .where(rq.Expr.col("parent_id").is_null())
+        )
+        reference_query = (
+            rq.SelectStatement()
+            .columns("n.id", "n.parent_id")
+            .from_table("nodes as n")
+            .join(
+                "tree as t",
+                rq.Expr.col("n.parent_id") == rq.Expr.col("t.id"),
+            )
+        )
+
+        clause = (
+            rq.WithClause()
+            .recursive()
+            .cte(
+                "tree",
+                base_query.union(reference_query, "ALL"),
+                columns=["id", "parent_id"],
+            )
+            .search(rq.Expr.col("id").label("traversal_order"), "DEPTH")
+            .query(
+                rq.SelectStatement()
+                .columns("*")
+                .from_table("tree")
+                .order_by(rq.Ordering("traversal_order"))
+            )
+        )
+        clause.to_sql("postgresql")
+        # WITH RECURSIVE "tree" ("id", "parent_id") AS (
+        #   SELECT "id" AS "id", "parent_id" AS "parent_id" FROM "nodes"
+        #   WHERE "parent_id" IS NULL
+        #   UNION ALL (
+        #       SELECT "n"."id" AS "id", "n"."parent_id" AS "parent_id"
+        #       FROM "nodes" AS "n"
+        #       JOIN "tree" AS "t" ON "n"."parent_id" = "t"."id"
+        #   )
+        # )
+        # SEARCH DEPTH FIRST BY "id" SET "traversal_order"
+        # SELECT * FROM "tree" ORDER BY "traversal_order" ASC
+        ```
+        """
+        ...
+
     def query(self, val: _CommonTableExpressionQuery) -> WithQuery:
         """
         You can turn this into a `WithQuery` using this function.
@@ -1689,23 +1832,5 @@ class WithQuery(QueryStatement):
         Args:
             clause: The `WITH` clause.
             query: The final query.
-        """
-        ...
-
-    def recursive(self) -> typing.Self:
-        """Same as `WithClause.recursive` method."""
-        ...
-
-    def cte(
-        self,
-        name: str,
-        query: _CommonTableExpressionQuery,
-        columns: typing.Iterable[str] = (),
-        materialized: bool | None = None,
-    ) -> typing.Self:
-        """
-        Same as `WithClause.cte` method.
-
-        Useful when you wanna add a new CTE to WITH clause.
         """
         ...
