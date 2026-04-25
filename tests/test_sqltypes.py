@@ -18,11 +18,11 @@ class Enum(enum.Enum):
     FIELD = "field"
 
 
-class StrEnum(enum.StrEnum):
+class StrEnum(str, enum.Enum):
     FIELD = "field"
 
 
-class IntEnum(enum.IntEnum):
+class IntEnum(int, enum.Enum):
     FIELD = 1
 
 
