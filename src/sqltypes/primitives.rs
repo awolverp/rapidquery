@@ -230,19 +230,19 @@ macro_rules! implement_numeric_SQLTypeTrait {
             ) -> pyo3::PyResult<*mut pyo3::ffi::PyObject> {
                 let val = match value {
                     sea_query::Value::BigInt(Some(x)) => pyo3::ffi::PyLong_FromLongLong(*x),
-                    sea_query::Value::Int(Some(x)) => pyo3::ffi::PyLong_FromLong((*x) as i64),
-                    sea_query::Value::SmallInt(Some(x)) => pyo3::ffi::PyLong_FromLong((*x) as i64),
-                    sea_query::Value::TinyInt(Some(x)) => pyo3::ffi::PyLong_FromLong((*x) as i64),
+                    sea_query::Value::Int(Some(x)) => pyo3::ffi::PyLong_FromLong((*x) as _),
+                    sea_query::Value::SmallInt(Some(x)) => pyo3::ffi::PyLong_FromLong((*x) as _),
+                    sea_query::Value::TinyInt(Some(x)) => pyo3::ffi::PyLong_FromLong((*x) as _),
                     sea_query::Value::BigUnsigned(Some(x)) => pyo3::ffi::PyLong_FromUnsignedLongLong(*x),
-                    sea_query::Value::Unsigned(Some(x)) => pyo3::ffi::PyLong_FromUnsignedLong((*x) as u64),
+                    sea_query::Value::Unsigned(Some(x)) => pyo3::ffi::PyLong_FromUnsignedLong((*x) as _),
                     sea_query::Value::SmallUnsigned(Some(x)) => {
-                        pyo3::ffi::PyLong_FromUnsignedLong((*x) as u64)
+                        pyo3::ffi::PyLong_FromUnsignedLong((*x) as _)
                     }
                     sea_query::Value::TinyUnsigned(Some(x)) => {
-                        pyo3::ffi::PyLong_FromUnsignedLong((*x) as u64)
+                        pyo3::ffi::PyLong_FromUnsignedLong((*x) as _)
                     }
                     sea_query::Value::Double(Some(x)) => pyo3::ffi::PyFloat_FromDouble(*x),
-                    sea_query::Value::Float(Some(x)) => pyo3::ffi::PyFloat_FromDouble((*x) as f64),
+                    sea_query::Value::Float(Some(x)) => pyo3::ffi::PyFloat_FromDouble((*x) as _),
                     sea_query::Value::BigInt(None)
                     | sea_query::Value::Int(None)
                     | sea_query::Value::SmallInt(None)

@@ -44,19 +44,17 @@ where
 
         while size > 0 {
             // item is a owned pointer
-            let item = pyo3::ffi::PyList_GetItemRef(ptr, size - 1);
+            let item = pyo3::ffi::PyList_GetItem(ptr, size - 1);
             if item.is_null() {
                 return Err(pyo3::PyErr::fetch(py));
             }
 
             if !condition(item) {
-                pyo3::ffi::Py_DECREF(item);
                 return Err(pyo3::exceptions::PyTypeError::new_err(
                     "invalid type found in the list",
                 ));
             }
 
-            pyo3::ffi::Py_DECREF(item);
             size /= 2;
         }
 
@@ -71,7 +69,7 @@ where
 
         while size > 0 {
             // item is a borrowed pointer
-            let item = pyo3::ffi::PyTuple_GetItem(ptr, 0);
+            let item = pyo3::ffi::PyTuple_GetItem(ptr, size - 1);
             if item.is_null() {
                 return Err(pyo3::PyErr::fetch(py));
             }
