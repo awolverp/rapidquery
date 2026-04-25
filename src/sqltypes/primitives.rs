@@ -228,21 +228,19 @@ macro_rules! implement_numeric_SQLTypeTrait {
                 py: pyo3::Python,
                 value: &sea_query::Value,
             ) -> pyo3::PyResult<*mut pyo3::ffi::PyObject> {
-                let val = match value {
-                    sea_query::Value::BigInt(Some(x)) => pyo3::ffi::PyLong_FromLongLong(*x),
-                    sea_query::Value::Int(Some(x)) => pyo3::ffi::PyLong_FromLong((*x) as _),
-                    sea_query::Value::SmallInt(Some(x)) => pyo3::ffi::PyLong_FromLong((*x) as _),
-                    sea_query::Value::TinyInt(Some(x)) => pyo3::ffi::PyLong_FromLong((*x) as _),
-                    sea_query::Value::BigUnsigned(Some(x)) => pyo3::ffi::PyLong_FromUnsignedLongLong(*x),
-                    sea_query::Value::Unsigned(Some(x)) => pyo3::ffi::PyLong_FromUnsignedLong((*x) as _),
-                    sea_query::Value::SmallUnsigned(Some(x)) => {
-                        pyo3::ffi::PyLong_FromUnsignedLong((*x) as _)
-                    }
-                    sea_query::Value::TinyUnsigned(Some(x)) => {
-                        pyo3::ffi::PyLong_FromUnsignedLong((*x) as _)
-                    }
-                    sea_query::Value::Double(Some(x)) => pyo3::ffi::PyFloat_FromDouble(*x),
-                    sea_query::Value::Float(Some(x)) => pyo3::ffi::PyFloat_FromDouble((*x) as _),
+                use pyo3::IntoPyObject;
+
+                match value {
+                    sea_query::Value::BigInt(Some(x))         => Ok((*x).into_pyobject(py).unwrap().into_ptr()),
+                    sea_query::Value::Int(Some(x))            => Ok((*x).into_pyobject(py).unwrap().into_ptr()),
+                    sea_query::Value::SmallInt(Some(x))       => Ok((*x).into_pyobject(py).unwrap().into_ptr()),
+                    sea_query::Value::TinyInt(Some(x))        => Ok((*x).into_pyobject(py).unwrap().into_ptr()),
+                    sea_query::Value::BigUnsigned(Some(x))    => Ok((*x).into_pyobject(py).unwrap().into_ptr()),
+                    sea_query::Value::Unsigned(Some(x))       => Ok((*x).into_pyobject(py).unwrap().into_ptr()),
+                    sea_query::Value::SmallUnsigned(Some(x))  => Ok((*x).into_pyobject(py).unwrap().into_ptr()),
+                    sea_query::Value::TinyUnsigned(Some(x))   => Ok((*x).into_pyobject(py).unwrap().into_ptr()),
+                    sea_query::Value::Double(Some(x))         => Ok((*x).into_pyobject(py).unwrap().into_ptr()),
+                    sea_query::Value::Float(Some(x))          => Ok((*x as f64).into_pyobject(py).unwrap().into_ptr()),
                     sea_query::Value::BigInt(None)
                     | sea_query::Value::Int(None)
                     | sea_query::Value::SmallInt(None)
@@ -250,19 +248,13 @@ macro_rules! implement_numeric_SQLTypeTrait {
                     | sea_query::Value::BigUnsigned(None)
                     | sea_query::Value::Unsigned(None)
                     | sea_query::Value::SmallUnsigned(None)
-                    | sea_query::Value::TinyUnsigned(None) => pyo3::ffi::Py_None(),
-                    _ => return crate::new_error!(
+                    | sea_query::Value::TinyUnsigned(None)    => Ok(py.None().into_ptr()),
+                    _ => crate::new_error!(
                         PyTypeError,
                         "expected int for {} deserialization, got {:?}",
                         self.to_sql_type_name(),
                         value
                     ),
-                };
-
-                if val.is_null() {
-                    Err(pyo3::PyErr::fetch(py))
-                } else {
-                    Ok(val)
                 }
             }
         }
