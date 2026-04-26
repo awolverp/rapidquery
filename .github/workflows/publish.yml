@@ -112,11 +112,11 @@ jobs:
     strategy:
       matrix:
         platform:
-          - runner: window-latest
+          - runner: windows-latest
             target: x64
             interpreter: "3.10 3.11 3.12 3.13 3.13t 3.14 3.14t pypy3.11"
 
-          - runner: window-latest
+          - runner: windows-latest
             target: x86
             interpreter: "3.10 3.11 3.12 3.13 3.13t 3.14 3.14t pypy3.11"
 
