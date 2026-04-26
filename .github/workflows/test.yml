@@ -22,7 +22,6 @@ jobs:
 
     runs-on: ubuntu-latest
     continue-on-error: ${{ endsWith(matrix.python-version, 't') }}
-
     steps:
       - uses: actions/checkout@v4
 
@@ -50,7 +49,6 @@ jobs:
 
   test-os:
     name: test on ${{ matrix.os }}
-
     strategy:
       fail-fast: false
       matrix:
