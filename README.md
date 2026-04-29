@@ -9,6 +9,7 @@ RapidQuery is a powerful SQL query builder library designed for Python, combinin
 - [**Usage**](#usage)
 - [**Performance**](#performance)
 - [**Known Issues**](#known-issues)
+- [**Supported Platforms**](#supported-platforms)
 - [**License**](#license)
 
 ## Install
@@ -694,6 +695,46 @@ If a RapidQuery object is instantiated without calling its `__init__` method (e.
 
 ### Join conditions are not optional
 Currently, `JOIN` operations require an explicit ON or USING condition.
+
+## Supported Platforms
+
+Pre-built wheels are available for the following platforms and Python interpreters:
+
+### Linux (manylinux)
+
+| Architecture | Python Versions |
+|---|---|
+| x86_64 | 3.10 – 3.14, 3.14t, PyPy 3.11, GraalPy 3.11/3.12 |
+| i686 | 3.10 – 3.14, 3.14t, PyPy 3.11 |
+| aarch64 | 3.10 – 3.14, 3.14t, PyPy 3.11, GraalPy 3.11/3.12 |
+| armv7 | 3.10 – 3.14, 3.14t |
+| s390x | 3.10 – 3.14, 3.14t |
+| ppc64le | 3.10 – 3.14, 3.14t |
+| riscv64 | 3.10 – 3.14, 3.14t |
+
+### Linux (musllinux 1.1)
+
+| Architecture | Python Versions |
+|---|---|
+| x86_64 | 3.10 – 3.14, 3.14t, PyPy 3.11 |
+| aarch64 | 3.10 – 3.14, 3.14t, PyPy 3.11 |
+| armv7 | 3.10 – 3.14, 3.14t, PyPy 3.11 |
+
+### Windows
+
+| Architecture | Python Versions |
+|---|---|
+| x64 | 3.10 – 3.14, 3.14t |
+| x86 | 3.10 – 3.14, 3.14t |
+
+### macOS
+
+| Architecture | Python Versions |
+|---|---|
+| x86_64 | 3.10 – 3.14, 3.13t, 3.14t, PyPy 3.11 |
+| aarch64 (Apple Silicon) | 3.10 – 3.14, 3.13t, 3.14t, PyPy 3.11 |
+
+A source distribution (sdist) is also published for platforms not listed above, which requires a Rust nightly toolchain to build from source.
 
 ## TODO
 - [x] Write tests
