@@ -139,6 +139,12 @@ jobs:
           python-version: "3.x"
           architecture: ${{ matrix.platform.target }}
 
+      - uses: actions/setup-python@v6
+        if: contains(matrix.platform.interpreter, 'pypy')
+        with:
+          python-version: "pypy3.11"
+          architecture: ${{ matrix.platform.target }}
+
       - uses: PyO3/maturin-action@v1.51.0
         with:
           target: ${{ matrix.platform.target }}
