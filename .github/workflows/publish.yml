@@ -121,38 +121,29 @@ jobs:
           - {
               runner: windows-latest,
               target: x64,
-              interpreter: "3.10 3.11 3.12 3.13 3.14 3.14t pypy3.11",
+              interpreter: "pypy3.11 3.10 3.11 3.12 3.13 3.14",
             }
           - {
               runner: windows-latest,
               target: x86,
-              interpreter: "3.10 3.11 3.12 3.13 3.14 3.14t",
+              interpreter: "3.10 3.11 3.12 3.13 3.14",
             }
-
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.0.0
         with:
           persist-credentials: false
-
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v6.0.0
         with:
-          python-version: "3.x"
+          python-version: 3.x
           architecture: ${{ matrix.platform.target }}
-
-      - uses: actions/setup-python@v6
-        if: contains(matrix.platform.interpreter, 'pypy')
-        with:
-          python-version: "pypy3.11"
-          architecture: ${{ matrix.platform.target }}
-
-      - uses: PyO3/maturin-action@v1.51.0
+      - uses: PyO3/maturin-action@v1.49.4
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --interpreter ${{ matrix.platform.interpreter }}
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           rust-toolchain: nightly
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4.6.2
         with:
           name: wheels-windows-${{ matrix.platform.target }}
           path: dist
@@ -165,35 +156,33 @@ jobs:
           - {
               runner: macos-latest,
               target: x86_64,
-              interpreter: "3.10 3.11 3.12 3.13 3.14 3.14t pypy3.11 graalpy3.11 graalpy3.12",
+              interpreter: "3.10 3.11 3.12 3.13 3.13t 3.14 3.14t pypy3.11",
             }
           - {
               runner: macos-latest,
               target: aarch64,
-              interpreter: "3.10 3.11 3.12 3.13 3.14 3.14t pypy3.11 graalpy3.11 graalpy3.12",
+              interpreter: "3.10 3.11 3.12 3.13 3.13t 3.14 3.14t pypy3.11",
             }
-
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5.0.0
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v6.0.0
         with:
-          python-version: "3.x"
+          python-version: 3.x
 
-      - uses: PyO3/maturin-action@v1.51.0
+      - uses: PyO3/maturin-action@v1.49.4
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --interpreter ${{ matrix.platform.interpreter }}
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           rust-toolchain: nightly
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4.6.2
         with:
           name: wheels-macos-${{ matrix.platform.target }}
           path: dist
-
   build-sdist:
     runs-on: ubuntu-latest
     steps:
