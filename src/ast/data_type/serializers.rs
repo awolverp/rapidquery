@@ -176,97 +176,24 @@ pub enum DataTypeSerializer {
 
 impl DataTypeSerializer {
     pub fn infer_from_name(value: &super::name::DataTypeName) -> Self {
-        use super::name::*;
+        use super::name::DataTypeGroup;
 
-        if value == &BOOLEAN_DATA_TYPE || value == &BOOL_DATA_TYPE {
-            return Self::Boolean(PyBooleanSerializer);
+        match value.group() {
+            DataTypeGroup::STRING => Self::String(PyStringSerializer),
+            DataTypeGroup::UUID => Self::Uuid(PyUuidSerializer),
+            DataTypeGroup::BYTES => Self::Bytes(PyBytesSerializer),
+            DataTypeGroup::BIT => Self::Bit(PyBitSerializer),
+            DataTypeGroup::INTEGER => Self::Integer(PyIntegerSerializer),
+            DataTypeGroup::FLOAT => Self::Float(PyFloatSerializer),
+            DataTypeGroup::BOOLEAN => Self::Boolean(PyBooleanSerializer),
+            DataTypeGroup::DATE => Self::Date(PyDateSerializer),
+            DataTypeGroup::TIME => Self::Time(PyTimeSerializer),
+            DataTypeGroup::DATETIME => Self::Datetime(PyDatetimeSerializer),
+            DataTypeGroup::JSON | DataTypeGroup::JSONB => Self::JSON(PyJSONSerializer),
+            DataTypeGroup::INET => Self::Inet(PyInetSerializer),
+            DataTypeGroup::MACADDRESS => Self::MacAddress(PyMacAddressSerializer),
+            DataTypeGroup::CUSTOM => Self::Unspecified(PyUnspecifiedSerializer),
         }
-
-        if [
-            &U_TINY_INT_DATA_TYPE,
-            &U_SMALL_INT_DATA_TYPE,
-            &INT64_DATA_TYPE,
-            &HUGE_INT_DATA_TYPE,
-            &U_HUGE_INT_DATA_TYPE,
-            &U_BIG_INT_DATA_TYPE,
-            &SIGNED_DATA_TYPE,
-            &SIGNED_INTEGER_DATA_TYPE,
-            &UNSIGNED_DATA_TYPE,
-            &UNSIGNED_INTEGER_DATA_TYPE,
-            &INTEGER_DATA_TYPE,
-        ]
-        .contains(&value)
-        {
-            return Self::Integer(PyIntegerSerializer);
-        }
-
-        if [
-            &FLOAT4_DATA_TYPE,
-            &FLOAT64_DATA_TYPE,
-            &REAL_DATA_TYPE,
-            &REAL_UNSIGNED_DATA_TYPE,
-            &FLOAT8_DATA_TYPE,
-            &DOUBLE_PRECISION_DATA_TYPE,
-            &DOUBLE_PRECISION_UNSIGNED_DATA_TYPE,
-        ]
-        .contains(&value)
-        {
-            return Self::Float(PyFloatSerializer);
-        }
-
-        if value == &DATE_DATA_TYPE {
-            return Self::Date(PyDateSerializer);
-        }
-
-        if [
-            &REGCLASS_DATA_TYPE,
-            &TEXT_DATA_TYPE,
-            &TINY_TEXT_DATA_TYPE,
-            &MEDIUM_TEXT_DATA_TYPE,
-            &LONG_TEXT_DATA_TYPE,
-        ]
-        .contains(&value)
-        {
-            return Self::String(PyStringSerializer);
-        }
-
-        if value == &UUID_DATA_TYPE {
-            return Self::Uuid(PyUuidSerializer);
-        }
-
-        if [
-            &BYTEA_DATA_TYPE,
-            &TINY_BLOB_DATA_TYPE,
-            &MEDIUM_BLOB_DATA_TYPE,
-            &LONG_BLOB_DATA_TYPE,
-        ]
-        .contains(&value)
-        {
-            return Self::Bytes(PyBytesSerializer);
-        }
-
-        if value == &JSON_DATA_TYPE || value == &JSONB_DATA_TYPE {
-            return Self::JSON(PyJSONSerializer);
-        }
-
-        if value == &TIME_DATA_TYPE || value == &TIME_WITH_TIME_ZONE_DATA_TYPE {
-            return Self::Time(PyTimeSerializer);
-        }
-
-        if [
-            &DATETIME_DATA_TYPE,
-            &TIMESTAMP_DATA_TYPE,
-            &TIMESTAMP_NTZ_DATA_TYPE,
-            &TIMESTAMP_WITH_TZ_DATA_TYPE,
-        ]
-        .contains(&value)
-        {
-            return Self::Datetime(PyDatetimeSerializer);
-        }
-
-        // INTERVAL, TRIGGER, ANY TYPE, TSVECTOR, TSQUERY, UNSPECIFIED
-        // have no sensible scalar serializer; fall through to Unspecified.
-        Self::Unspecified(PyUnspecifiedSerializer)
     }
 
     pub fn to_pyobject<'py>(

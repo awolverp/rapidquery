@@ -22,7 +22,7 @@ mod _lib {
     #[pymodule_init]
     #[cold]
     fn init(_m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
-        // sqlparser::ast::DataType::Tiny
+        // sqlparser::ast::DataType::USmallInt
         Ok(())
     }
 }

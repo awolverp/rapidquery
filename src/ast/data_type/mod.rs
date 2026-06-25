@@ -9,6 +9,7 @@ pub use serializers::DataTypeSerializer;
 use crate::internal::alias;
 
 implement_pyclass! {
+    /// SQL data type.
     #[derive(Debug, Clone)]
     [skip_from_py_object] PyDataType as "DataType" {
         pub name: DataTypeName,
