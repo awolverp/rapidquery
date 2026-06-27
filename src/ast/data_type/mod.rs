@@ -4,8 +4,9 @@ mod name;
 pub use name::DataTypeName;
 
 pub mod serializers;
-pub use serializers::DataTypeSerializer;
+pub use serializers::{DataTypeSerializerUnion, Serialize};
 
+use crate::dialect::DialectUnion;
 use crate::internal::alias;
 
 implement_pyclass! {
@@ -13,7 +14,7 @@ implement_pyclass! {
     #[derive(Debug, Clone)]
     [skip_from_py_object] PyDataType as "DataType" {
         pub name: DataTypeName,
-        pub serializer: Arc<DataTypeSerializer>,
+        pub serializer: Arc<DataTypeSerializerUnion>,
     }
 }
 
@@ -21,12 +22,12 @@ implement_pyclass! {
 impl PyDataType {
     #[new]
     #[pyo3(signature = (name, serializer=None) )]
-    fn __new__(name: String, serializer: Option<DataTypeSerializer>) -> Self {
+    fn __new__(name: String, serializer: Option<DataTypeSerializerUnion>) -> Self {
         let name = DataTypeName::from(name.as_str());
 
         let serializer = match serializer {
             Some(x) => Arc::new(x),
-            None => Arc::new(DataTypeSerializer::infer_from_name(&name)),
+            None => Arc::new(DataTypeSerializerUnion::infer_from_name(&name)),
         };
 
         Self { name, serializer }
@@ -40,6 +41,22 @@ impl PyDataType {
     #[getter]
     fn serializer<'a>(&self, py: pyo3::Python<'a>) -> pyo3::PyResult<alias::BoundObject<'a>> {
         self.serializer.to_pyobject(py)
+    }
+
+    fn serialize(
+        &self,
+        py: pyo3::Python,
+        dialect: DialectUnion,
+        value: alias::PyObject,
+    ) -> pyo3::PyResult<String> {
+        unsafe { self.serializer.serialize(py, value.as_ptr(), &dialect) }
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "DataType(name={}, serializer={:?})",
+            self.name, self.serializer,
+        )
     }
 }
 

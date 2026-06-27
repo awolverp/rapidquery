@@ -23,7 +23,7 @@ pub trait Serialize {
 /// One variant per *distinct serialization behaviour* - many SQL data types
 /// collapse onto the same serializer.
 #[derive(Debug)]
-pub enum DataTypeSerializer {
+pub enum DataTypeSerializerUnion {
     /// Every signed/unsigned integer width.
     ///
     /// Supports:
@@ -174,7 +174,7 @@ pub enum DataTypeSerializer {
     Unspecified(PyUnspecifiedSerializer),
 }
 
-impl DataTypeSerializer {
+impl DataTypeSerializerUnion {
     pub fn infer_from_name(value: &super::name::DataTypeName) -> Self {
         use super::name::DataTypeGroup;
 
@@ -221,7 +221,7 @@ impl DataTypeSerializer {
     }
 }
 
-impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for DataTypeSerializer {
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for DataTypeSerializerUnion {
     type Error = pyo3::PyErr;
 
     #[cfg(feature = "experimental-inspect")]
@@ -245,7 +245,21 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for DataTypeSerializer {
             type_hint_identifier!("typing", "Callable"),
             pyo3::inspect::PyStaticExpr::List {
                 elts: &[
-                    type_hint_identifier!("typing", "Any"),
+                    type_hint_union!(
+                        type_hint_identifier!("rapidquery._lib.dialect", "BigQueryDialect"),
+                        type_hint_identifier!("rapidquery._lib.dialect", "DatabricksDialect"),
+                        type_hint_identifier!("rapidquery._lib.dialect", "DuckDbDialect"),
+                        type_hint_identifier!("rapidquery._lib.dialect", "HiveDialect"),
+                        type_hint_identifier!("rapidquery._lib.dialect", "MsSqlDialect"),
+                        type_hint_identifier!("rapidquery._lib.dialect", "MySqlDialect"),
+                        type_hint_identifier!("rapidquery._lib.dialect", "OracleDialect"),
+                        type_hint_identifier!("rapidquery._lib.dialect", "PostgreSqlDialect"),
+                        type_hint_identifier!("rapidquery._lib.dialect", "RedshiftDialect"),
+                        type_hint_identifier!("rapidquery._lib.dialect", "SnowflakeDialect"),
+                        type_hint_identifier!("rapidquery._lib.dialect", "SparkDialect"),
+                        type_hint_identifier!("rapidquery._lib.dialect", "SqliteDialect"),
+                        type_hint_identifier!("rapidquery._lib.dialect", "TeradataDialect")
+                    ),
                     type_hint_identifier!("str")
                 ]
             },
@@ -316,7 +330,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for DataTypeSerializer {
     }
 }
 
-impl Serialize for DataTypeSerializer {
+impl Serialize for DataTypeSerializerUnion {
     unsafe fn serialize(
         &self,
         py: pyo3::Python,
@@ -937,14 +951,14 @@ implement_pyclass! {
     /// and wrapping in `ARRAY[...]`.
     #[derive(Debug, Clone)]
     [skip_from_py_object] PyArraySerializer as "ArraySerializer" {
-        pub element: Arc<DataTypeSerializer>,
+        pub element: Arc<DataTypeSerializerUnion>,
     }
 }
 
 #[pyo3::pymethods]
 impl PyArraySerializer {
     #[new]
-    fn __new__(element: DataTypeSerializer) -> Self {
+    fn __new__(element: DataTypeSerializerUnion) -> Self {
         Self {
             element: Arc::new(element),
         }

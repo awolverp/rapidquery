@@ -19,10 +19,16 @@ mod _lib {
     #[pymodule_export]
     pub use super::ast::ast_module;
 
+    #[pymodule_export]
+    pub use super::dialect::dialect_module;
+
     #[pymodule_init]
     #[cold]
-    fn init(_m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
-        // sqlparser::ast::DataType::USmallInt
-        Ok(())
+    fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
+        use crate::internal::utils::PyModuleSubmoduleExt;
+
+        crate::typeref::initialize_typeref(m.py());
+
+        m.init_submodules()
     }
 }

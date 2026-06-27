@@ -1,3 +1,4 @@
+from rapidquery._lib.dialect import BigQueryDialect, DatabricksDialect, DuckDbDialect, HiveDialect, MsSqlDialect, MySqlDialect, OracleDialect, PostgreSqlDialect, RedshiftDialect, SnowflakeDialect, SparkDialect, SqliteDialect, TeradataDialect
 from typing import Any, Callable, final
 
 @final
@@ -6,7 +7,7 @@ class ArraySerializer:
     Serializes a Python `list`/`tuple` by serializing each element with `element`
     and wrapping in `ARRAY[...]`.
     """
-    def __new__(cls, /, element: 'ArraySerializer' |'BitSerializer' |'BooleanSerializer' |'BytesSerializer' |'DateSerializer' |'DatetimeSerializer' |'FloatSerializer' |'InetSerializer' |'IntegerSerializer' |'JSONSerializer' |'MacAddressSerializer' |'StringSerializer' |'TimeSerializer' |'UnspecifiedSerializer' |'UuidSerializer' |Callable[[Any, str], str]) -> ArraySerializer: ...
+    def __new__(cls, /, element: 'ArraySerializer' |'BitSerializer' |'BooleanSerializer' |'BytesSerializer' |'DateSerializer' |'DatetimeSerializer' |'FloatSerializer' |'InetSerializer' |'IntegerSerializer' |'JSONSerializer' |'MacAddressSerializer' |'StringSerializer' |'TimeSerializer' |'UnspecifiedSerializer' |'UuidSerializer' |Callable[[BigQueryDialect |DatabricksDialect |DuckDbDialect |HiveDialect |MsSqlDialect |MySqlDialect |OracleDialect |PostgreSqlDialect |RedshiftDialect |SnowflakeDialect |SparkDialect |SqliteDialect |TeradataDialect, str], str]) -> ArraySerializer: ...
 
 @final
 class BitSerializer:
@@ -29,9 +30,14 @@ class BytesSerializer:
 
 @final
 class DataType:
-    def __new__(cls, /, name: str, serializer: 'ArraySerializer' |'BitSerializer' |'BooleanSerializer' |'BytesSerializer' |'DateSerializer' |'DatetimeSerializer' |'FloatSerializer' |'InetSerializer' |'IntegerSerializer' |'JSONSerializer' |'MacAddressSerializer' |'StringSerializer' |'TimeSerializer' |'UnspecifiedSerializer' |'UuidSerializer' |Callable[[Any, str], str] |None = None) -> DataType: ...
+    """
+    SQL data type.
+    """
+    def __new__(cls, /, name: str, serializer: 'ArraySerializer' |'BitSerializer' |'BooleanSerializer' |'BytesSerializer' |'DateSerializer' |'DatetimeSerializer' |'FloatSerializer' |'InetSerializer' |'IntegerSerializer' |'JSONSerializer' |'MacAddressSerializer' |'StringSerializer' |'TimeSerializer' |'UnspecifiedSerializer' |'UuidSerializer' |Callable[[BigQueryDialect |DatabricksDialect |DuckDbDialect |HiveDialect |MsSqlDialect |MySqlDialect |OracleDialect |PostgreSqlDialect |RedshiftDialect |SnowflakeDialect |SparkDialect |SqliteDialect |TeradataDialect, str], str] |None = None) -> DataType: ...
+    def __repr__(self, /) -> str: ...
     @property
     def name(self, /) -> str: ...
+    def serialize(self, /, dialect: BigQueryDialect |DatabricksDialect |DuckDbDialect |HiveDialect |MsSqlDialect |MySqlDialect |OracleDialect |PostgreSqlDialect |RedshiftDialect |SnowflakeDialect |SparkDialect |SqliteDialect |TeradataDialect |type[BigQueryDialect] |type[DatabricksDialect] |type[DuckDbDialect] |type[HiveDialect] |type[MsSqlDialect] |type[MySqlDialect] |type[OracleDialect] |type[PostgreSqlDialect] |type[RedshiftDialect] |type[SnowflakeDialect] |type[SparkDialect] |type[SqliteDialect] |type[TeradataDialect], value: Any) -> str: ...
     @property
     def serializer(self, /) -> Any: ...
 
