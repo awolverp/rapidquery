@@ -34,7 +34,7 @@ pub trait Dialect {
     /// Escapes string literals.
     fn escape_string(&self, string: &str) -> String;
 
-    /// (zero-copy) Quotes string literals.
+    /// Quotes string literals.
     ///
     /// You should call [`Dialect::escape`] before this method.
     fn quote_string(&self, string: &mut String);
@@ -90,27 +90,71 @@ macro_rules! implement_dialect_pymethods {
                 Self
             }
 
+            /// Returns dialect name
+            ///
+            /// Example:
+            /// ```python
+            /// dialect = SQLiteDialect()
+            /// assert dialect.get_name() == "SQLite"
+            /// ```
             fn get_name(&self) -> &'static str {
                 super::Dialect::name(self)
             }
 
+            /// Returns the start/end characters used to quote identifiers.
+            ///
+            /// Example:
+            /// ```python
+            /// dialect = SQLiteDialect()
+            /// assert dialect.get_identifier_quotes() == ('"', '"')
+            /// ```
             fn get_identifier_quotes(&self) -> Option<(char, char)> {
                 super::Dialect::identifier_quotes(self)
             }
 
+            /// Escapes string literals.
+            ///
+            /// Example:
+            /// ```python
+            /// dialect = SQLiteDialect()
+            /// assert dialect.escape_string("A'Wolver'P\0") == "A''Wolver''P"
+            /// ```
             fn escape_string(&self, s: String) -> String {
                 super::Dialect::escape_string(self, &s)
             }
 
+            /// Quotes string literals. this method DOES NOT escape characters.
+            ///
+            /// Example:
+            /// ```python
+            /// dialect = SQLiteDialect()
+            /// assert dialect.quote_string("string") == "'string'"
+            /// ```
             fn quote_string(&self, mut s: String) -> String {
                 super::Dialect::quote_string(self, &mut s);
                 s
             }
 
+            /// Render a byte slice as a literal in the configured form.
+            ///
+            /// Example:
+            /// ```python
+            /// dialect = SQLiteDialect()
+            /// assert dialect.encode_bytes(b"bytes") == "X'6279746573'"
+            /// ```
             fn encode_bytes(&self, bytes: Vec<u8>) -> String {
                 super::Dialect::encode_bytes(self, &bytes)
             }
 
+            /// Render a byte slice as a literal in the configured form.
+            ///
+            /// Raises `ValueError` if `bits` includes something other than `0` and `1`.
+            ///
+            /// Example:
+            /// ```python
+            /// dialect = SQLiteDialect()
+            /// assert dialect.encode_bits("10101010001") == "1361"
+            /// ```
             fn encode_bits(&self, bits: &str) -> pyo3::PyResult<String> {
                 if !bits.chars().all(|c| c == '0' || c == '1') {
                     return Err(new_py_error!(PyValueError, "invalid input: {}", bits));
@@ -157,7 +201,7 @@ mod spark;
 pub use spark::PySparkDialect;
 
 mod sqlite;
-pub use sqlite::PySqliteDialect;
+pub use sqlite::PySQLiteDialect;
 
 mod teradata;
 pub use teradata::PyTeradataDialect;
@@ -175,7 +219,7 @@ pub enum DialectUnion {
     Redshift(PyRedshiftDialect),
     Snowflake(PySnowflakeDialect),
     Spark(PySparkDialect),
-    Sqlite(PySqliteDialect),
+    Sqlite(PySQLiteDialect),
     Teradata(PyTeradataDialect),
 }
 
@@ -196,7 +240,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for DialectUnion {
         type_hint_identifier!("rapidquery._lib.dialect", "RedshiftDialect"),
         type_hint_identifier!("rapidquery._lib.dialect", "SnowflakeDialect"),
         type_hint_identifier!("rapidquery._lib.dialect", "SparkDialect"),
-        type_hint_identifier!("rapidquery._lib.dialect", "SqliteDialect"),
+        type_hint_identifier!("rapidquery._lib.dialect", "SQLiteDialect"),
         type_hint_identifier!("rapidquery._lib.dialect", "TeradataDialect"),
         // as type
         type_hint_subscript!(
@@ -245,7 +289,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for DialectUnion {
         ),
         type_hint_subscript!(
             type_hint_identifier!("type"),
-            type_hint_identifier!("rapidquery._lib.dialect", "SqliteDialect")
+            type_hint_identifier!("rapidquery._lib.dialect", "SQLiteDialect")
         ),
         type_hint_subscript!(
             type_hint_identifier!("type"),
@@ -301,7 +345,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for DialectUnion {
                 return Ok(Self::Spark(PySparkDialect));
             }
             if type_ptr == crate::typeref::SQLITE_DIALECT_TYPE {
-                return Ok(Self::Sqlite(PySqliteDialect));
+                return Ok(Self::Sqlite(PySQLiteDialect));
             }
             if type_ptr == crate::typeref::TERADATA_DIALECT_TYPE {
                 return Ok(Self::Teradata(PyTeradataDialect));
@@ -371,7 +415,7 @@ pub mod dialect_module {
     #[pymodule_export]
     pub use super::{
         PyBigQueryDialect, PyDatabricksDialect, PyDuckDbDialect, PyHiveDialect, PyMsSqlDialect,
-        PyMySqlDialect, PyOracleDialect, PyPostgreSqlDialect, PyRedshiftDialect,
-        PySnowflakeDialect, PySparkDialect, PySqliteDialect, PyTeradataDialect,
+        PyMySqlDialect, PyOracleDialect, PyPostgreSqlDialect, PyRedshiftDialect, PySQLiteDialect,
+        PySnowflakeDialect, PySparkDialect, PyTeradataDialect,
     };
 }

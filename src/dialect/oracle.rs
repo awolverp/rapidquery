@@ -9,6 +9,7 @@
 //           We default to 1/0 for broadest compatibility.
 
 implement_pyclass! {
+    /// A [`Dialect`] for [Oracle Databases](https://docs.oracle.com/en/database/oracle/oracle-database/21/sqlrf/index.html)
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     [skip_from_py_object] PyOracleDialect as "OracleDialect";
 }

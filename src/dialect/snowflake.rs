@@ -8,6 +8,7 @@
 //      https://docs.snowflake.com/en/sql-reference/literals
 
 implement_pyclass! {
+    /// A dialect for [Snowflake](https://www.snowflake.com/)
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     [skip_from_py_object] PySnowflakeDialect as "SnowflakeDialect";
 }

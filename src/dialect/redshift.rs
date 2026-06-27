@@ -10,6 +10,7 @@
 //      https://docs.aws.amazon.com/redshift/latest/dg/r_VARBYTE_type.html
 
 implement_pyclass! {
+    /// A dialect for [RedShift](https://aws.amazon.com/redshift/)
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     [skip_from_py_object] PyRedshiftDialect as "RedshiftDialect";
 }

@@ -10,6 +10,7 @@
 //      https://www.postgresql.org/docs/current/datatype-bit.html
 
 implement_pyclass! {
+    /// A dialect for [PostgreSQL](https://www.postgresql.org/)
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     [skip_from_py_object] PyPostgreSqlDialect as "PostgreSqlDialect";
 }

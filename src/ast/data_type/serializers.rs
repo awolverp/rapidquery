@@ -257,7 +257,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for DataTypeSerializerUnion {
                         type_hint_identifier!("rapidquery._lib.dialect", "RedshiftDialect"),
                         type_hint_identifier!("rapidquery._lib.dialect", "SnowflakeDialect"),
                         type_hint_identifier!("rapidquery._lib.dialect", "SparkDialect"),
-                        type_hint_identifier!("rapidquery._lib.dialect", "SqliteDialect"),
+                        type_hint_identifier!("rapidquery._lib.dialect", "SQLiteDialect"),
                         type_hint_identifier!("rapidquery._lib.dialect", "TeradataDialect")
                     ),
                     type_hint_identifier!("str")

@@ -1,4 +1,4 @@
-from rapidquery._lib.dialect import BigQueryDialect, DatabricksDialect, DuckDbDialect, HiveDialect, MsSqlDialect, MySqlDialect, OracleDialect, PostgreSqlDialect, RedshiftDialect, SnowflakeDialect, SparkDialect, SqliteDialect, TeradataDialect
+from rapidquery._lib.dialect import BigQueryDialect, DatabricksDialect, DuckDbDialect, HiveDialect, MsSqlDialect, MySqlDialect, OracleDialect, PostgreSqlDialect, RedshiftDialect, SQLiteDialect, SnowflakeDialect, SparkDialect, TeradataDialect
 from typing import Any, Callable, final
 
 @final
@@ -7,7 +7,7 @@ class ArraySerializer:
     Serializes a Python `list`/`tuple` by serializing each element with `element`
     and wrapping in `ARRAY[...]`.
     """
-    def __new__(cls, /, element: 'ArraySerializer' |'BitSerializer' |'BooleanSerializer' |'BytesSerializer' |'DateSerializer' |'DatetimeSerializer' |'FloatSerializer' |'InetSerializer' |'IntegerSerializer' |'JSONSerializer' |'MacAddressSerializer' |'StringSerializer' |'TimeSerializer' |'UnspecifiedSerializer' |'UuidSerializer' |Callable[[BigQueryDialect |DatabricksDialect |DuckDbDialect |HiveDialect |MsSqlDialect |MySqlDialect |OracleDialect |PostgreSqlDialect |RedshiftDialect |SnowflakeDialect |SparkDialect |SqliteDialect |TeradataDialect, str], str]) -> ArraySerializer: ...
+    def __new__(cls, /, element: 'ArraySerializer' |'BitSerializer' |'BooleanSerializer' |'BytesSerializer' |'DateSerializer' |'DatetimeSerializer' |'FloatSerializer' |'InetSerializer' |'IntegerSerializer' |'JSONSerializer' |'MacAddressSerializer' |'StringSerializer' |'TimeSerializer' |'UnspecifiedSerializer' |'UuidSerializer' |Callable[[BigQueryDialect |DatabricksDialect |DuckDbDialect |HiveDialect |MsSqlDialect |MySqlDialect |OracleDialect |PostgreSqlDialect |RedshiftDialect |SnowflakeDialect |SparkDialect |SQLiteDialect |TeradataDialect, str], str]) -> ArraySerializer: ...
 
 @final
 class BitSerializer:
@@ -31,15 +31,42 @@ class BytesSerializer:
 @final
 class DataType:
     """
-    SQL data type.
+    Reperesents a SQL data type. It includes a name, and a serializer.
+    
+    The name of a SQL data type can be any string; it is not limited to a set of predefined values.
+    Additionally, the serializer for each data type is fully customizable.
     """
-    def __new__(cls, /, name: str, serializer: 'ArraySerializer' |'BitSerializer' |'BooleanSerializer' |'BytesSerializer' |'DateSerializer' |'DatetimeSerializer' |'FloatSerializer' |'InetSerializer' |'IntegerSerializer' |'JSONSerializer' |'MacAddressSerializer' |'StringSerializer' |'TimeSerializer' |'UnspecifiedSerializer' |'UuidSerializer' |Callable[[BigQueryDialect |DatabricksDialect |DuckDbDialect |HiveDialect |MsSqlDialect |MySqlDialect |OracleDialect |PostgreSqlDialect |RedshiftDialect |SnowflakeDialect |SparkDialect |SqliteDialect |TeradataDialect, str], str] |None = None) -> DataType: ...
+    def __new__(cls, /, name: str, serializer: 'ArraySerializer' |'BitSerializer' |'BooleanSerializer' |'BytesSerializer' |'DateSerializer' |'DatetimeSerializer' |'FloatSerializer' |'InetSerializer' |'IntegerSerializer' |'JSONSerializer' |'MacAddressSerializer' |'StringSerializer' |'TimeSerializer' |'UnspecifiedSerializer' |'UuidSerializer' |Callable[[BigQueryDialect |DatabricksDialect |DuckDbDialect |HiveDialect |MsSqlDialect |MySqlDialect |OracleDialect |PostgreSqlDialect |RedshiftDialect |SnowflakeDialect |SparkDialect |SQLiteDialect |TeradataDialect, str], str] |None = None) -> DataType:
+        """
+        Creates a new SQL data type.
+        
+        Args:
+            name: The name of a data type. it is not limited to a set of predefined values.
+            serializer: The `serializer` is used whenever a Python object needs to be converted
+                        into a valid SQL value during query construction. This is commonly required
+                        when setting default values, inserting data, or generating other SQL statements.
+                        You can use one of the built-in serializers (we provide ready-to-use
+                        serializers for most common data types), or you can create and register your
+                        own custom serializer. This parameter is optional. However, it is strongly
+                        recommended to always specify it explicitly. If you do not provide a serializer,
+                        the `DataType` will attempt to automatically detect and assign one based on the
+                        `name`. If no suitable serializer is found, it will fall back to `UnspecifiedSerializer`.
+        """
     def __repr__(self, /) -> str: ...
     @property
-    def name(self, /) -> str: ...
-    def serialize(self, /, dialect: BigQueryDialect |DatabricksDialect |DuckDbDialect |HiveDialect |MsSqlDialect |MySqlDialect |OracleDialect |PostgreSqlDialect |RedshiftDialect |SnowflakeDialect |SparkDialect |SqliteDialect |TeradataDialect |type[BigQueryDialect] |type[DatabricksDialect] |type[DuckDbDialect] |type[HiveDialect] |type[MsSqlDialect] |type[MySqlDialect] |type[OracleDialect] |type[PostgreSqlDialect] |type[RedshiftDialect] |type[SnowflakeDialect] |type[SparkDialect] |type[SqliteDialect] |type[TeradataDialect], value: Any) -> str: ...
+    def name(self, /) -> str:
+        """
+        Returns data type name.
+        """
+    def serialize(self, /, dialect: BigQueryDialect |DatabricksDialect |DuckDbDialect |HiveDialect |MsSqlDialect |MySqlDialect |OracleDialect |PostgreSqlDialect |RedshiftDialect |SnowflakeDialect |SparkDialect |SQLiteDialect |TeradataDialect |type[BigQueryDialect] |type[DatabricksDialect] |type[DuckDbDialect] |type[HiveDialect] |type[MsSqlDialect] |type[MySqlDialect] |type[OracleDialect] |type[PostgreSqlDialect] |type[RedshiftDialect] |type[SnowflakeDialect] |type[SparkDialect] |type[SQLiteDialect] |type[TeradataDialect], value: Any) -> str:
+        """
+        Uses configured serializer to serialize `value` to SQL, depend on the specified `dialect`.
+        """
     @property
-    def serializer(self, /) -> Any: ...
+    def serializer(self, /) -> Any:
+        """
+        Returns data type serializer.
+        """
 
 @final
 class DateSerializer:

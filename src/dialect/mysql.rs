@@ -8,6 +8,7 @@
 //      https://dev.mysql.com/doc/refman/8.0/en/bit-value-literals.html
 
 implement_pyclass! {
+    /// A dialect for [MySQL](https://www.mysql.com/)
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     [skip_from_py_object] PyMySqlDialect as "MySqlDialect";
 }

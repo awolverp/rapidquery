@@ -7,6 +7,9 @@
 // Ref: https://spark.apache.org/docs/latest/sql-ref-literals.html
 
 implement_pyclass! {
+    /// A [`Dialect`] for [Apache Spark SQL](https://spark.apache.org/docs/latest/sql-ref.html).
+    ///
+    /// See <https://spark.apache.org/docs/latest/sql-ref-syntax.html>.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     [skip_from_py_object] PySparkDialect as "SparkDialect";
 }

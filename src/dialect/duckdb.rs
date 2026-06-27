@@ -7,6 +7,7 @@
 // Ref: https://duckdb.org/docs/sql/data_types/literal_types
 
 implement_pyclass! {
+    /// A dialect for [DuckDB](https://duckdb.org/)
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     [skip_from_py_object] PyDuckDbDialect as "DuckDbDialect";
 }

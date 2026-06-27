@@ -7,6 +7,9 @@
 // Ref: https://docs.databricks.com/en/sql/language-manual/sql-ref-literals.html
 
 implement_pyclass! {
+    /// A dialect for [Databricks SQL](https://www.databricks.com/)
+    ///
+    /// See <https://docs.databricks.com/en/sql/language-manual/index.html>.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     [skip_from_py_object] PyDatabricksDialect as "DatabricksDialect";
 }

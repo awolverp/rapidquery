@@ -10,7 +10,10 @@ use crate::dialect::DialectUnion;
 use crate::internal::alias;
 
 implement_pyclass! {
-    /// SQL data type.
+    /// Reperesents a SQL data type. It includes a name, and a serializer.
+    ///
+    /// The name of a SQL data type can be any string; it is not limited to a set of predefined values.
+    /// Additionally, the serializer for each data type is fully customizable.
     #[derive(Debug, Clone)]
     [skip_from_py_object] PyDataType as "DataType" {
         pub name: DataTypeName,
@@ -20,6 +23,19 @@ implement_pyclass! {
 
 #[pyo3::pymethods]
 impl PyDataType {
+    /// Creates a new SQL data type.
+    ///
+    /// Args:
+    ///     name: The name of a data type. it is not limited to a set of predefined values.
+    ///     serializer: The `serializer` is used whenever a Python object needs to be converted
+    ///                 into a valid SQL value during query construction. This is commonly required
+    ///                 when setting default values, inserting data, or generating other SQL statements.
+    ///                 You can use one of the built-in serializers (we provide ready-to-use
+    ///                 serializers for most common data types), or you can create and register your
+    ///                 own custom serializer. This parameter is optional. However, it is strongly
+    ///                 recommended to always specify it explicitly. If you do not provide a serializer,
+    ///                 the `DataType` will attempt to automatically detect and assign one based on the
+    ///                 `name`. If no suitable serializer is found, it will fall back to `UnspecifiedSerializer`.
     #[new]
     #[pyo3(signature = (name, serializer=None) )]
     fn __new__(name: String, serializer: Option<DataTypeSerializerUnion>) -> Self {
@@ -33,16 +49,19 @@ impl PyDataType {
         Self { name, serializer }
     }
 
+    /// Returns data type name.
     #[getter]
     fn name(&self) -> String {
         self.name.to_string()
     }
 
+    /// Returns data type serializer.
     #[getter]
     fn serializer<'a>(&self, py: pyo3::Python<'a>) -> pyo3::PyResult<alias::BoundObject<'a>> {
         self.serializer.to_pyobject(py)
     }
 
+    /// Uses configured serializer to serialize `value` to SQL, depend on the specified `dialect`.
     fn serialize(
         &self,
         py: pyo3::Python,

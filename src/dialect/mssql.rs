@@ -8,6 +8,7 @@
 // Ref: https://learn.microsoft.com/en-us/sql/t-sql/data-types/constants-transact-sql
 
 implement_pyclass! {
+/// A dialect for [Microsoft SQL Server](https://www.microsoft.com/en-us/sql-server/)
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     [skip_from_py_object] PyMsSqlDialect as "MsSqlDialect";
 }

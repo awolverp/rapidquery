@@ -7,6 +7,7 @@
 // Ref: https://cwiki.apache.org/confluence/display/Hive/LanguageManual+Types
 
 implement_pyclass! {
+    /// A [`Dialect`] for [Hive](https://hive.apache.org/).
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     [skip_from_py_object] PyHiveDialect as "HiveDialect";
 }

@@ -8,6 +8,7 @@
 // Ref: https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical
 
 implement_pyclass! {
+    /// A dialect for [Google Bigquery](https://cloud.google.com/bigquery/)
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     [skip_from_py_object] PyBigQueryDialect as "BigQueryDialect";
 }

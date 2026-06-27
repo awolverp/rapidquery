@@ -10,6 +10,7 @@
 // Ref: https://docs.teradata.com/r/Teradata-VantageCloud-Lake/SQL-Fundamentals/SQL-Data-Types-and-Literals
 
 implement_pyclass! {
+    /// A Dialect for [Teradata](https://docs.teradata.com/).
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     [skip_from_py_object] PyTeradataDialect as "TeradataDialect";
 }

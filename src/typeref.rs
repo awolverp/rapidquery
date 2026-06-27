@@ -100,7 +100,7 @@ fn _initialize_typeref(py: pyo3::Python) {
             crate::dialect::PyRedshiftDialect => REDSHIFT_DIALECT_TYPE,
             crate::dialect::PySnowflakeDialect => SNOWFLAKE_DIALECT_TYPE,
             crate::dialect::PySparkDialect => SPARK_DIALECT_TYPE,
-            crate::dialect::PySqliteDialect => SQLITE_DIALECT_TYPE,
+            crate::dialect::PySQLiteDialect => SQLITE_DIALECT_TYPE,
             crate::dialect::PyTeradataDialect => TERADATA_DIALECT_TYPE,
         );
 

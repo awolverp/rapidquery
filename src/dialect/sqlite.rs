@@ -8,11 +8,12 @@
 // Ref: https://www.sqlite.org/lang_expr.html
 
 implement_pyclass! {
+    /// A dialect for [SQLite](https://www.sqlite.org)
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    [skip_from_py_object] PySqliteDialect as "SqliteDialect";
+    [skip_from_py_object] PySQLiteDialect as "SQLiteDialect";
 }
 
-impl super::Dialect for PySqliteDialect {
+impl super::Dialect for PySQLiteDialect {
     fn name(&self) -> &'static str {
         "SQLite"
     }
@@ -50,4 +51,4 @@ impl super::Dialect for PySqliteDialect {
     }
 }
 
-super::implement_dialect_pymethods!(PySqliteDialect);
+super::implement_dialect_pymethods!(PySQLiteDialect);
