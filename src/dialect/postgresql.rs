@@ -12,21 +12,17 @@
 implement_pyclass! {
     /// A dialect for [PostgreSQL](https://www.postgresql.org/)
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    [skip_from_py_object] PyPostgreSqlDialect as "PostgreSqlDialect";
+    [skip_from_py_object, extends=super::base::PyBaseDialect] PyPostgreSqlDialect as "PostgreSqlDialect";
 }
 
 impl super::Dialect for PyPostgreSqlDialect {
-    fn name(&self) -> &'static str {
-        "PostgreSQL"
-    }
+    const NAME: &'static str = "PostgreSQL";
 
-    fn bool_format(&self) -> super::BoolFormat {
-        super::BoolFormat::Keyword
-    }
+    const IDENTIFIER_QUOTE: Option<super::IdentifierQuote> =
+        Some(super::IdentifierQuote::DoubleQuote);
 
-    fn identifier_quotes(&self) -> Option<(char, char)> {
-        Some(('"', '"'))
-    }
+    /// This is not natively supported, and should be rendered on client-side, and many clients do.
+    const PLACEHOLDER_SYNTAX: super::PlaceholderSyntax = super::PlaceholderSyntax::Colon;
 
     fn escape_string(&self, s: &str) -> String {
         // Use PostgreSQL escape-string syntax (E'…') when control chars present.
@@ -50,13 +46,13 @@ impl super::Dialect for PyPostgreSqlDialect {
         out
     }
 
-    fn quote_string(&self, s: &mut String) {
+    fn quote_string(&self, s: &str) -> String {
         // Use E'…' escape string syntax so our \-sequences are interpreted.
         let mut out = String::with_capacity(s.len() + 3);
         out.push_str("E'");
         out.push_str(s);
         out.push('\'');
-        *s = out;
+        out
     }
 
     fn encode_bytes(&self, bytes: &[u8]) -> String {

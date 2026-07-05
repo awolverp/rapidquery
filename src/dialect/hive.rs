@@ -9,21 +9,16 @@
 implement_pyclass! {
     /// A [`Dialect`] for [Hive](https://hive.apache.org/).
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    [skip_from_py_object] PyHiveDialect as "HiveDialect";
+    [skip_from_py_object, extends=super::base::PyBaseDialect] PyHiveDialect as "HiveDialect";
 }
 
 impl super::Dialect for PyHiveDialect {
-    fn name(&self) -> &'static str {
-        "Hive"
-    }
+    const NAME: &'static str = "Hive";
 
-    fn bool_format(&self) -> super::BoolFormat {
-        super::BoolFormat::Keyword
-    }
+    const IDENTIFIER_QUOTE: Option<super::IdentifierQuote> = Some(super::IdentifierQuote::Backtick);
 
-    fn identifier_quotes(&self) -> Option<(char, char)> {
-        Some(('`', '`'))
-    }
+    /// This is not natively support by Hive, and should be rendered on client-side.
+    const PLACEHOLDER_SYNTAX: super::PlaceholderSyntax = super::PlaceholderSyntax::Colon;
 
     fn escape_string(&self, s: &str) -> String {
         let mut out = String::with_capacity(s.len() + s.len() / 4);
@@ -44,8 +39,8 @@ impl super::Dialect for PyHiveDialect {
         out
     }
 
-    fn quote_string(&self, s: &mut String) {
-        super::wrap_single_quote(s);
+    fn quote_string(&self, s: &str) -> String {
+        super::wrap_single_quote(s)
     }
 
     fn encode_bytes(&self, bytes: &[u8]) -> String {

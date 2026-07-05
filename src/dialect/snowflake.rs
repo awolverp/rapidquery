@@ -10,21 +10,16 @@
 implement_pyclass! {
     /// A dialect for [Snowflake](https://www.snowflake.com/)
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    [skip_from_py_object] PySnowflakeDialect as "SnowflakeDialect";
+    [skip_from_py_object, extends=super::base::PyBaseDialect] PySnowflakeDialect as "SnowflakeDialect";
 }
 
 impl super::Dialect for PySnowflakeDialect {
-    fn name(&self) -> &'static str {
-        "Snowflake"
-    }
+    const NAME: &'static str = "Snowflake";
 
-    fn bool_format(&self) -> super::BoolFormat {
-        super::BoolFormat::Keyword
-    }
+    const IDENTIFIER_QUOTE: Option<super::IdentifierQuote> =
+        Some(super::IdentifierQuote::DoubleQuote);
 
-    fn identifier_quotes(&self) -> Option<(char, char)> {
-        Some(('"', '"'))
-    }
+    const PLACEHOLDER_SYNTAX: super::PlaceholderSyntax = super::PlaceholderSyntax::Colon;
 
     fn escape_string(&self, s: &str) -> String {
         let mut out = String::with_capacity(s.len() + s.len() / 4);
@@ -45,8 +40,8 @@ impl super::Dialect for PySnowflakeDialect {
         out
     }
 
-    fn quote_string(&self, s: &mut String) {
-        super::wrap_single_quote(s);
+    fn quote_string(&self, s: &str) -> String {
+        super::wrap_single_quote(s)
     }
 
     fn encode_bytes(&self, bytes: &[u8]) -> String {

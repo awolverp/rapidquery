@@ -1,4 +1,5 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// Represents that how a boolean should be serialized.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BoolFormat {
     /// `TRUE` / `FALSE`
     Keyword,
@@ -17,19 +18,41 @@ impl BoolFormat {
     }
 }
 
+/// Represents the various identifier quote styles.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IdentifierQuote {
+    SingleQuote,
+    DoubleQuote,
+    Backtick,
+    SquareBracket,
+}
+
+/// Represents the various placeholder syntaxes used for parameterized queries
+/// and prepared statements across different SQL dialects.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlaceholderSyntax {
+    /// At-Sign Named Parameter syntax (`@param_name`).
+    AtSign,
+
+    /// Colon Named Parameter syntax (`:param_name`).
+    Colon,
+
+    /// Dollar-Sign Named Parameter syntax (`$param_name`).
+    DollarNamed,
+}
+
 pub trait Dialect {
-    /// Dialect name
-    fn name(&self) -> &'static str;
+    /// Dialect name.
+    const NAME: &'static str;
 
-    /// How a boolean should be rendered.
-    fn bool_format(&self) -> BoolFormat {
-        BoolFormat::Int
-    }
+    /// How a boolean should be serialized.
+    const BOOL_FORMAT: BoolFormat = BoolFormat::Keyword;
 
-    /// The start/end characters used to quote identifiers.
-    fn identifier_quotes(&self) -> Option<(char, char)> {
-        None
-    }
+    /// The identifier quote style.
+    const IDENTIFIER_QUOTE: Option<IdentifierQuote>;
+
+    /// The placeholder syntax.
+    const PLACEHOLDER_SYNTAX: PlaceholderSyntax;
 
     /// Escapes string literals.
     fn escape_string(&self, string: &str) -> String;
@@ -37,14 +60,7 @@ pub trait Dialect {
     /// Quotes string literals.
     ///
     /// You should call [`Dialect::escape`] before this method.
-    fn quote_string(&self, string: &mut String);
-
-    /// Calls [`Self::escape_string`] and [`Self::quote_string`] in order.
-    fn escape_and_quote_string(&self, string: &str) -> String {
-        let mut result = self.escape_string(string);
-        self.quote_string(&mut result);
-        result
-    }
+    fn quote_string(&self, string: &str) -> String;
 
     /// Render a byte slice as a literal in the configured form.
     fn encode_bytes(&self, bytes: &[u8]) -> String;
@@ -75,9 +91,12 @@ pub(super) fn escape_single_quote(s: &str) -> String {
 
 /// Wraps a (pre-escaped) string in single quotes.
 #[inline]
-pub(super) fn wrap_single_quote(s: &mut String) {
-    s.insert(0, '\'');
-    s.push('\'');
+pub(super) fn wrap_single_quote(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('\'');
+    out.push_str(s);
+    out.push('\'');
+    out
 }
 
 #[macro_export]
@@ -86,86 +105,16 @@ macro_rules! implement_dialect_pymethods {
         #[pyo3::pymethods]
         impl $name {
             #[new]
-            fn __new__() -> Self {
-                Self
-            }
-
-            /// Returns dialect name
-            ///
-            /// Example:
-            /// ```python
-            /// dialect = SQLiteDialect()
-            /// assert dialect.get_name() == "SQLite"
-            /// ```
-            fn get_name(&self) -> &'static str {
-                super::Dialect::name(self)
-            }
-
-            /// Returns the start/end characters used to quote identifiers.
-            ///
-            /// Example:
-            /// ```python
-            /// dialect = SQLiteDialect()
-            /// assert dialect.get_identifier_quotes() == ('"', '"')
-            /// ```
-            fn get_identifier_quotes(&self) -> Option<(char, char)> {
-                super::Dialect::identifier_quotes(self)
-            }
-
-            /// Escapes string literals.
-            ///
-            /// Example:
-            /// ```python
-            /// dialect = SQLiteDialect()
-            /// assert dialect.escape_string("A'Wolver'P\0") == "A''Wolver''P"
-            /// ```
-            fn escape_string(&self, s: String) -> String {
-                super::Dialect::escape_string(self, &s)
-            }
-
-            /// Quotes string literals. this method DOES NOT escape characters.
-            ///
-            /// Example:
-            /// ```python
-            /// dialect = SQLiteDialect()
-            /// assert dialect.quote_string("string") == "'string'"
-            /// ```
-            fn quote_string(&self, mut s: String) -> String {
-                super::Dialect::quote_string(self, &mut s);
-                s
-            }
-
-            /// Render a byte slice as a literal in the configured form.
-            ///
-            /// Example:
-            /// ```python
-            /// dialect = SQLiteDialect()
-            /// assert dialect.encode_bytes(b"bytes") == "X'6279746573'"
-            /// ```
-            fn encode_bytes(&self, bytes: Vec<u8>) -> String {
-                super::Dialect::encode_bytes(self, &bytes)
-            }
-
-            /// Render a byte slice as a literal in the configured form.
-            ///
-            /// Raises `ValueError` if `bits` includes something other than `0` and `1`.
-            ///
-            /// Example:
-            /// ```python
-            /// dialect = SQLiteDialect()
-            /// assert dialect.encode_bits("10101010001") == "1361"
-            /// ```
-            fn encode_bits(&self, bits: &str) -> pyo3::PyResult<String> {
-                if !bits.chars().all(|c| c == '0' || c == '1') {
-                    return Err(new_py_error!(PyValueError, "invalid input: {}", bits));
-                }
-
-                Ok(super::Dialect::encode_bits(self, bits))
+            fn __new__() -> pyo3::PyClassInitializer<Self> {
+                pyo3::PyClassInitializer::from(super::base::PyBaseDialect).add_subclass(Self)
             }
         }
     };
 }
 pub(super) use implement_dialect_pymethods;
+
+mod base;
+pub use base::PyBaseDialect;
 
 mod bigquery;
 pub use bigquery::PyBigQueryDialect;
@@ -229,71 +178,11 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for DialectUnion {
     #[cfg(feature = "experimental-inspect")]
     const INPUT_TYPE: pyo3::inspect::PyStaticExpr = type_hint_union!(
         // as object
-        type_hint_identifier!("rapidquery._lib.dialect", "BigQueryDialect"),
-        type_hint_identifier!("rapidquery._lib.dialect", "DatabricksDialect"),
-        type_hint_identifier!("rapidquery._lib.dialect", "DuckDbDialect"),
-        type_hint_identifier!("rapidquery._lib.dialect", "HiveDialect"),
-        type_hint_identifier!("rapidquery._lib.dialect", "MsSqlDialect"),
-        type_hint_identifier!("rapidquery._lib.dialect", "MySqlDialect"),
-        type_hint_identifier!("rapidquery._lib.dialect", "OracleDialect"),
-        type_hint_identifier!("rapidquery._lib.dialect", "PostgreSqlDialect"),
-        type_hint_identifier!("rapidquery._lib.dialect", "RedshiftDialect"),
-        type_hint_identifier!("rapidquery._lib.dialect", "SnowflakeDialect"),
-        type_hint_identifier!("rapidquery._lib.dialect", "SparkDialect"),
-        type_hint_identifier!("rapidquery._lib.dialect", "SQLiteDialect"),
-        type_hint_identifier!("rapidquery._lib.dialect", "TeradataDialect"),
+        type_hint_identifier!("rapidquery._lib.dialect", "BaseDialect"),
         // as type
         type_hint_subscript!(
             type_hint_identifier!("type"),
-            type_hint_identifier!("rapidquery._lib.dialect", "BigQueryDialect")
-        ),
-        type_hint_subscript!(
-            type_hint_identifier!("type"),
-            type_hint_identifier!("rapidquery._lib.dialect", "DatabricksDialect")
-        ),
-        type_hint_subscript!(
-            type_hint_identifier!("type"),
-            type_hint_identifier!("rapidquery._lib.dialect", "DuckDbDialect")
-        ),
-        type_hint_subscript!(
-            type_hint_identifier!("type"),
-            type_hint_identifier!("rapidquery._lib.dialect", "HiveDialect")
-        ),
-        type_hint_subscript!(
-            type_hint_identifier!("type"),
-            type_hint_identifier!("rapidquery._lib.dialect", "MsSqlDialect")
-        ),
-        type_hint_subscript!(
-            type_hint_identifier!("type"),
-            type_hint_identifier!("rapidquery._lib.dialect", "MySqlDialect")
-        ),
-        type_hint_subscript!(
-            type_hint_identifier!("type"),
-            type_hint_identifier!("rapidquery._lib.dialect", "OracleDialect")
-        ),
-        type_hint_subscript!(
-            type_hint_identifier!("type"),
-            type_hint_identifier!("rapidquery._lib.dialect", "PostgreSqlDialect")
-        ),
-        type_hint_subscript!(
-            type_hint_identifier!("type"),
-            type_hint_identifier!("rapidquery._lib.dialect", "RedshiftDialect")
-        ),
-        type_hint_subscript!(
-            type_hint_identifier!("type"),
-            type_hint_identifier!("rapidquery._lib.dialect", "SnowflakeDialect")
-        ),
-        type_hint_subscript!(
-            type_hint_identifier!("type"),
-            type_hint_identifier!("rapidquery._lib.dialect", "SparkDialect")
-        ),
-        type_hint_subscript!(
-            type_hint_identifier!("type"),
-            type_hint_identifier!("rapidquery._lib.dialect", "SQLiteDialect")
-        ),
-        type_hint_subscript!(
-            type_hint_identifier!("type"),
-            type_hint_identifier!("rapidquery._lib.dialect", "TeradataDialect")
+            type_hint_identifier!("rapidquery._lib.dialect", "BaseDialect")
         )
     );
 
@@ -360,7 +249,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for DialectUnion {
     }
 }
 
-macro_rules! impl_for_all_fields {
+macro_rules! impl_fields {
     ($self:expr, $dialect:ident => $expr:expr) => {
         match $self {
             Self::BigQuery($dialect) => $expr,
@@ -378,35 +267,57 @@ macro_rules! impl_for_all_fields {
             Self::Teradata($dialect) => $expr,
         }
     };
+
+    ($self:expr, $variable:ident) => {
+        match $self {
+            DialectUnion::BigQuery(_) => <PyBigQueryDialect as Dialect>::$variable,
+            DialectUnion::Databricks(_) => <PyDatabricksDialect as Dialect>::$variable,
+            DialectUnion::DuckDb(_) => <PyDuckDbDialect as Dialect>::$variable,
+            DialectUnion::Hive(_) => <PyHiveDialect as Dialect>::$variable,
+            DialectUnion::MsSql(_) => <PyMsSqlDialect as Dialect>::$variable,
+            DialectUnion::MySql(_) => <PyMySqlDialect as Dialect>::$variable,
+            DialectUnion::Oracle(_) => <PyOracleDialect as Dialect>::$variable,
+            DialectUnion::PostgreSql(_) => <PyPostgreSqlDialect as Dialect>::$variable,
+            DialectUnion::Redshift(_) => <PyRedshiftDialect as Dialect>::$variable,
+            DialectUnion::Snowflake(_) => <PySnowflakeDialect as Dialect>::$variable,
+            DialectUnion::Spark(_) => <PySparkDialect as Dialect>::$variable,
+            DialectUnion::Sqlite(_) => <PySQLiteDialect as Dialect>::$variable,
+            DialectUnion::Teradata(_) => <PyTeradataDialect as Dialect>::$variable,
+        }
+    };
 }
 
-impl Dialect for DialectUnion {
-    fn name(&self) -> &'static str {
-        impl_for_all_fields!(self, s => s.name())
+impl DialectUnion {
+    pub fn name(&self) -> &'static str {
+        impl_fields!(self, NAME)
     }
 
-    fn bool_format(&self) -> BoolFormat {
-        impl_for_all_fields!(self, s => s.bool_format())
+    pub fn bool_format(&self) -> BoolFormat {
+        impl_fields!(self, BOOL_FORMAT)
     }
 
-    fn identifier_quotes(&self) -> Option<(char, char)> {
-        impl_for_all_fields!(self, s => s.identifier_quotes())
+    pub fn identifier_quote(&self) -> Option<IdentifierQuote> {
+        impl_fields!(self, IDENTIFIER_QUOTE)
     }
 
-    fn escape_string(&self, string: &str) -> String {
-        impl_for_all_fields!(self, s => s.escape_string(string))
+    pub fn placeholder_syntax(&self) -> PlaceholderSyntax {
+        impl_fields!(self, PLACEHOLDER_SYNTAX)
     }
 
-    fn quote_string(&self, string: &mut String) {
-        impl_for_all_fields!(self, s => s.quote_string(string))
+    pub fn escape_string(&self, string: &str) -> String {
+        impl_fields!(self, s => s.escape_string(string))
     }
 
-    fn encode_bits(&self, bits: &str) -> String {
-        impl_for_all_fields!(self, s => s.encode_bits(bits))
+    pub fn quote_string(&self, string: &str) -> String {
+        impl_fields!(self, s => s.quote_string(string))
     }
 
-    fn encode_bytes(&self, bytes: &[u8]) -> String {
-        impl_for_all_fields!(self, s => s.encode_bytes(bytes))
+    pub fn encode_bits(&self, bits: &str) -> String {
+        impl_fields!(self, s => s.encode_bits(bits))
+    }
+
+    pub fn encode_bytes(&self, bytes: &[u8]) -> String {
+        impl_fields!(self, s => s.encode_bytes(bytes))
     }
 }
 
@@ -414,8 +325,8 @@ impl Dialect for DialectUnion {
 pub mod dialect_module {
     #[pymodule_export]
     pub use super::{
-        PyBigQueryDialect, PyDatabricksDialect, PyDuckDbDialect, PyHiveDialect, PyMsSqlDialect,
-        PyMySqlDialect, PyOracleDialect, PyPostgreSqlDialect, PyRedshiftDialect, PySQLiteDialect,
-        PySnowflakeDialect, PySparkDialect, PyTeradataDialect,
+        PyBaseDialect, PyBigQueryDialect, PyDatabricksDialect, PyDuckDbDialect, PyHiveDialect,
+        PyMsSqlDialect, PyMySqlDialect, PyOracleDialect, PyPostgreSqlDialect, PyRedshiftDialect,
+        PySQLiteDialect, PySnowflakeDialect, PySparkDialect, PyTeradataDialect,
     };
 }

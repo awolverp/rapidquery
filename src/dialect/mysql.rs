@@ -10,21 +10,18 @@
 implement_pyclass! {
     /// A dialect for [MySQL](https://www.mysql.com/)
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    [skip_from_py_object] PyMySqlDialect as "MySqlDialect";
+    [skip_from_py_object, extends=super::base::PyBaseDialect] PyMySqlDialect as "MySqlDialect";
 }
 
 impl super::Dialect for PyMySqlDialect {
-    fn name(&self) -> &'static str {
-        "MySQL"
-    }
+    const NAME: &'static str = "MySQL";
 
-    fn bool_format(&self) -> super::BoolFormat {
-        super::BoolFormat::Int
-    }
+    const BOOL_FORMAT: super::BoolFormat = super::BoolFormat::Int;
 
-    fn identifier_quotes(&self) -> Option<(char, char)> {
-        Some(('`', '`'))
-    }
+    const IDENTIFIER_QUOTE: Option<super::IdentifierQuote> = Some(super::IdentifierQuote::Backtick);
+
+    /// This is not natively supported, and should be rendered on client-side, and many clients do.
+    const PLACEHOLDER_SYNTAX: super::PlaceholderSyntax = super::PlaceholderSyntax::Colon;
 
     fn escape_string(&self, s: &str) -> String {
         let mut out = String::with_capacity(s.len() + s.len() / 4);
@@ -43,8 +40,8 @@ impl super::Dialect for PyMySqlDialect {
         out
     }
 
-    fn quote_string(&self, s: &mut String) {
-        super::wrap_single_quote(s);
+    fn quote_string(&self, s: &str) -> String {
+        super::wrap_single_quote(s)
     }
 
     fn encode_bytes(&self, bytes: &[u8]) -> String {

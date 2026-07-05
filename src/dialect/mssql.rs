@@ -10,22 +10,18 @@
 implement_pyclass! {
 /// A dialect for [Microsoft SQL Server](https://www.microsoft.com/en-us/sql-server/)
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    [skip_from_py_object] PyMsSqlDialect as "MsSqlDialect";
+    [skip_from_py_object, extends=super::base::PyBaseDialect] PyMsSqlDialect as "MsSqlDialect";
 }
 
 impl super::Dialect for PyMsSqlDialect {
-    fn name(&self) -> &'static str {
-        "MsSQL"
-    }
+    const NAME: &'static str = "MsSQL";
 
-    fn bool_format(&self) -> super::BoolFormat {
-        // MSSQL BIT type uses 1/0
-        super::BoolFormat::Int
-    }
+    const BOOL_FORMAT: super::BoolFormat = super::BoolFormat::Int;
 
-    fn identifier_quotes(&self) -> Option<(char, char)> {
-        Some(('[', ']'))
-    }
+    const IDENTIFIER_QUOTE: Option<super::IdentifierQuote> =
+        Some(super::IdentifierQuote::SquareBracket);
+
+    const PLACEHOLDER_SYNTAX: super::PlaceholderSyntax = super::PlaceholderSyntax::AtSign;
 
     fn escape_string(&self, s: &str) -> String {
         // T-SQL: only single-quote needs doubling.
@@ -34,13 +30,13 @@ impl super::Dialect for PyMsSqlDialect {
         super::escape_single_quote(s).replace('\0', "")
     }
 
-    fn quote_string(&self, s: &mut String) {
+    fn quote_string(&self, s: &str) -> String {
         // Prefix with N for Unicode safety (NVARCHAR)
         let mut out = String::with_capacity(s.len() + 3);
         out.push_str("N'");
         out.push_str(s);
         out.push('\'');
-        *s = out;
+        out
     }
 
     fn encode_bytes(&self, bytes: &[u8]) -> String {

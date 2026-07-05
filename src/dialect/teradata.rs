@@ -12,21 +12,17 @@
 implement_pyclass! {
     /// A Dialect for [Teradata](https://docs.teradata.com/).
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    [skip_from_py_object] PyTeradataDialect as "TeradataDialect";
+    [skip_from_py_object, extends=super::base::PyBaseDialect] PyTeradataDialect as "TeradataDialect";
 }
 
 impl super::Dialect for PyTeradataDialect {
-    fn name(&self) -> &'static str {
-        "Teradata"
-    }
+    const NAME: &'static str = "Teradata";
 
-    fn bool_format(&self) -> super::BoolFormat {
-        super::BoolFormat::Keyword
-    }
+    const IDENTIFIER_QUOTE: Option<super::IdentifierQuote> =
+        Some(super::IdentifierQuote::SingleQuote);
 
-    fn identifier_quotes(&self) -> Option<(char, char)> {
-        Some(('"', '"'))
-    }
+    /// This is not natively supported, and should be rendered on client-side.
+    const PLACEHOLDER_SYNTAX: super::PlaceholderSyntax = super::PlaceholderSyntax::Colon;
 
     fn escape_string(&self, s: &str) -> String {
         // Teradata: only single-quote doubling; no backslash interpretation.
@@ -34,8 +30,8 @@ impl super::Dialect for PyTeradataDialect {
         super::escape_single_quote(s).replace('\0', "")
     }
 
-    fn quote_string(&self, s: &mut String) {
-        super::wrap_single_quote(s);
+    fn quote_string(&self, s: &str) -> String {
+        super::wrap_single_quote(s)
     }
 
     fn encode_bytes(&self, bytes: &[u8]) -> String {

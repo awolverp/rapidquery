@@ -11,21 +11,15 @@ implement_pyclass! {
     ///
     /// See <https://spark.apache.org/docs/latest/sql-ref-syntax.html>.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    [skip_from_py_object] PySparkDialect as "SparkDialect";
+    [skip_from_py_object, extends=super::base::PyBaseDialect] PySparkDialect as "SparkDialect";
 }
 
 impl super::Dialect for PySparkDialect {
-    fn name(&self) -> &'static str {
-        "Spark"
-    }
+    const NAME: &'static str = "Spark";
 
-    fn bool_format(&self) -> super::BoolFormat {
-        super::BoolFormat::Keyword
-    }
+    const IDENTIFIER_QUOTE: Option<super::IdentifierQuote> = Some(super::IdentifierQuote::Backtick);
 
-    fn identifier_quotes(&self) -> Option<(char, char)> {
-        Some(('`', '`'))
-    }
+    const PLACEHOLDER_SYNTAX: super::PlaceholderSyntax = super::PlaceholderSyntax::Colon;
 
     fn escape_string(&self, s: &str) -> String {
         let mut out = String::with_capacity(s.len() + s.len() / 4);
@@ -47,8 +41,8 @@ impl super::Dialect for PySparkDialect {
         out
     }
 
-    fn quote_string(&self, s: &mut String) {
-        super::wrap_single_quote(s);
+    fn quote_string(&self, s: &str) -> String {
+        super::wrap_single_quote(s)
     }
 
     fn encode_bytes(&self, bytes: &[u8]) -> String {

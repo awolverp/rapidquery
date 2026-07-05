@@ -10,21 +10,18 @@
 implement_pyclass! {
     /// A dialect for [SQLite](https://www.sqlite.org)
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    [skip_from_py_object] PySQLiteDialect as "SQLiteDialect";
+    [skip_from_py_object, extends=super::base::PyBaseDialect] PySQLiteDialect as "SQLiteDialect";
 }
 
 impl super::Dialect for PySQLiteDialect {
-    fn name(&self) -> &'static str {
-        "SQLite"
-    }
+    const NAME: &'static str = "SQLite";
 
-    fn bool_format(&self) -> super::BoolFormat {
-        super::BoolFormat::Int
-    }
+    const BOOL_FORMAT: super::BoolFormat = super::BoolFormat::Int;
 
-    fn identifier_quotes(&self) -> Option<(char, char)> {
-        Some(('"', '"'))
-    }
+    const IDENTIFIER_QUOTE: Option<super::IdentifierQuote> =
+        Some(super::IdentifierQuote::DoubleQuote);
+
+    const PLACEHOLDER_SYNTAX: super::PlaceholderSyntax = super::PlaceholderSyntax::Colon;
 
     fn escape_string(&self, s: &str) -> String {
         // SQLite does not recognise backslash escape sequences.
@@ -33,8 +30,8 @@ impl super::Dialect for PySQLiteDialect {
         super::escape_single_quote(s).replace('\0', "")
     }
 
-    fn quote_string(&self, s: &mut String) {
-        super::wrap_single_quote(s);
+    fn quote_string(&self, s: &str) -> String {
+        super::wrap_single_quote(s)
     }
 
     fn encode_bytes(&self, bytes: &[u8]) -> String {

@@ -12,21 +12,17 @@
 implement_pyclass! {
     /// A dialect for [RedShift](https://aws.amazon.com/redshift/)
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    [skip_from_py_object] PyRedshiftDialect as "RedshiftDialect";
+    [skip_from_py_object, extends=super::base::PyBaseDialect] PyRedshiftDialect as "RedshiftDialect";
 }
 
 impl super::Dialect for PyRedshiftDialect {
-    fn name(&self) -> &'static str {
-        "Redshift"
-    }
+    const NAME: &'static str = "Redshift";
 
-    fn bool_format(&self) -> super::BoolFormat {
-        super::BoolFormat::Keyword
-    }
+    const IDENTIFIER_QUOTE: Option<super::IdentifierQuote> =
+        Some(super::IdentifierQuote::DoubleQuote);
 
-    fn identifier_quotes(&self) -> Option<(char, char)> {
-        Some(('"', '"'))
-    }
+    /// This is not natively supported, and should be rendered on client-side.
+    const PLACEHOLDER_SYNTAX: super::PlaceholderSyntax = super::PlaceholderSyntax::Colon;
 
     fn escape_string(&self, s: &str) -> String {
         // Redshift: backslash is NOT an escape character in standard mode.
@@ -35,8 +31,8 @@ impl super::Dialect for PyRedshiftDialect {
         super::escape_single_quote(s).replace('\0', "")
     }
 
-    fn quote_string(&self, s: &mut String) {
-        super::wrap_single_quote(s);
+    fn quote_string(&self, s: &str) -> String {
+        super::wrap_single_quote(s)
     }
 
     fn encode_bytes(&self, bytes: &[u8]) -> String {

@@ -14,7 +14,7 @@ pub trait Serialize {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        _dialect: &dyn crate::dialect::Dialect,
+        _dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String>;
 }
 
@@ -335,7 +335,7 @@ impl Serialize for DataTypeSerializerUnion {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        dialect: &dyn crate::dialect::Dialect,
+        dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String> {
         match self {
             Self::Integer(s) => s.serialize(py, ptr, dialect),
@@ -385,7 +385,7 @@ impl Serialize for PyIntegerSerializer {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        _dialect: &dyn crate::dialect::Dialect,
+        _dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String> {
         if pyo3::ffi::PyLong_CheckExact(ptr) == 1 {
             // bool is a subclass of int in Python, but PyLong_CheckExact rejects
@@ -424,7 +424,7 @@ impl Serialize for PyFloatSerializer {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        _dialect: &dyn crate::dialect::Dialect,
+        _dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String> {
         if pyo3::ffi::PyFloat_CheckExact(ptr) == 1 {
             let v = pyo3::ffi::PyFloat_AsDouble(ptr);
@@ -490,7 +490,7 @@ impl Serialize for PyBooleanSerializer {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        dialect: &dyn crate::dialect::Dialect,
+        dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String> {
         if pyo3::ffi::PyBool_Check(ptr) == 1 {
             let value = pyo3::ffi::Py_True() == ptr;
@@ -525,11 +525,12 @@ impl Serialize for PyStringSerializer {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        dialect: &dyn crate::dialect::Dialect,
+        dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String> {
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
             let raw = _serialize_string(py, ptr)?;
-            return Ok(dialect.escape_and_quote_string(&raw));
+            let raw = dialect.escape_string(&raw);
+            return Ok(dialect.quote_string(&raw));
         }
 
         // Accept enum members whose `.value` is a string (mirrors PyEnumType).
@@ -548,7 +549,8 @@ impl Serialize for PyStringSerializer {
 
             pyo3::ffi::Py_DECREF(value);
             if is_str {
-                return Ok(dialect.escape_and_quote_string(&raw?));
+                let raw = dialect.escape_string(&raw?);
+                return Ok(dialect.quote_string(&raw));
             }
         }
 
@@ -579,13 +581,14 @@ impl Serialize for PyUuidSerializer {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        dialect: &dyn crate::dialect::Dialect,
+        dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String> {
         if pyo3::ffi::Py_TYPE(ptr) == crate::typeref::STD_UUID_TYPE
             || pyo3::ffi::PyUnicode_CheckExact(ptr) == 1
         {
             let text = py_to_string(py, ptr)?;
-            Ok(dialect.escape_and_quote_string(&text))
+            let text = dialect.escape_string(&text);
+            return Ok(dialect.quote_string(&text));
         } else {
             Err(new_py_error!(
                 PyTypeError,
@@ -615,7 +618,7 @@ impl Serialize for PyBytesSerializer {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        dialect: &dyn crate::dialect::Dialect,
+        dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String> {
         if pyo3::ffi::PyBytes_CheckExact(ptr) == 1 {
             Ok(dialect.encode_bytes(read_bytes(ptr)))
@@ -649,7 +652,7 @@ impl Serialize for PyBitSerializer {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        dialect: &dyn crate::dialect::Dialect,
+        dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String> {
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
             let raw = _serialize_string(py, ptr)?;
@@ -692,15 +695,15 @@ impl Serialize for PyJSONSerializer {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        dialect: &dyn crate::dialect::Dialect,
+        dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String> {
         // Reuse the existing json-dumps helper from sqltypes::json.
         let dumped = _serialize_object_with_pyjson(py, ptr)?;
         let text = _serialize_string(py, dumped);
         pyo3::ffi::Py_DECREF(dumped);
 
-        let literal = dialect.escape_and_quote_string(&text?);
-        Ok(literal)
+        let text = dialect.escape_string(&text?);
+        Ok(dialect.quote_string(&text))
     }
 }
 
@@ -723,7 +726,7 @@ impl Serialize for PyDateSerializer {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        dialect: &dyn crate::dialect::Dialect,
+        dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String> {
         if pyo3::ffi::Py_TYPE(ptr) == crate::typeref::STD_DATE_TYPE {
             let val: pyo3::Bound<'_, pyo3::types::PyDate> =
@@ -763,7 +766,7 @@ impl Serialize for PyTimeSerializer {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        dialect: &dyn crate::dialect::Dialect,
+        dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String> {
         if pyo3::ffi::Py_TYPE(ptr) == crate::typeref::STD_TIME_TYPE {
             let val: pyo3::Bound<'_, pyo3::types::PyTime> =
@@ -805,7 +808,7 @@ impl Serialize for PyDatetimeSerializer {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        dialect: &dyn crate::dialect::Dialect,
+        dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String> {
         use chrono::TimeZone;
         use pyo3::types::PyTzInfoAccess;
@@ -899,7 +902,7 @@ impl Serialize for PyInetSerializer {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        dialect: &dyn crate::dialect::Dialect,
+        dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String> {
         use std::str::FromStr;
 
@@ -932,7 +935,7 @@ impl Serialize for PyMacAddressSerializer {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        dialect: &dyn crate::dialect::Dialect,
+        dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String> {
         use std::str::FromStr;
         let text = py_to_string(py, ptr)?;
@@ -970,7 +973,7 @@ impl Serialize for PyArraySerializer {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        dialect: &dyn crate::dialect::Dialect,
+        dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String> {
         let (len, getter): (
             isize,
@@ -1024,7 +1027,7 @@ impl Serialize for PyUnspecifiedSerializer {
         &self,
         py: pyo3::Python,
         ptr: *mut pyo3::ffi::PyObject,
-        _dialect: &dyn crate::dialect::Dialect,
+        _dialect: &crate::dialect::DialectUnion,
     ) -> pyo3::PyResult<String> {
         py_to_string(py, ptr)
     }

@@ -1,4 +1,18 @@
-from rapidquery._lib.dialect import BigQueryDialect, DatabricksDialect, DuckDbDialect, HiveDialect, MsSqlDialect, MySqlDialect, OracleDialect, PostgreSqlDialect, RedshiftDialect, SQLiteDialect, SnowflakeDialect, SparkDialect, TeradataDialect
+from rapidquery._lib.dialect import (
+    BigQueryDialect,
+    DatabricksDialect,
+    DuckDbDialect,
+    HiveDialect,
+    MsSqlDialect,
+    MySqlDialect,
+    OracleDialect,
+    PostgreSqlDialect,
+    RedshiftDialect,
+    SQLiteDialect,
+    SnowflakeDialect,
+    SparkDialect,
+    TeradataDialect,
+)
 from typing import Any, Callable, final
 
 @final
@@ -7,7 +21,44 @@ class ArraySerializer:
     Serializes a Python `list`/`tuple` by serializing each element with `element`
     and wrapping in `ARRAY[...]`.
     """
-    def __new__(cls, /, element: 'ArraySerializer' |'BitSerializer' |'BooleanSerializer' |'BytesSerializer' |'DateSerializer' |'DatetimeSerializer' |'FloatSerializer' |'InetSerializer' |'IntegerSerializer' |'JSONSerializer' |'MacAddressSerializer' |'StringSerializer' |'TimeSerializer' |'UnspecifiedSerializer' |'UuidSerializer' |Callable[[BigQueryDialect |DatabricksDialect |DuckDbDialect |HiveDialect |MsSqlDialect |MySqlDialect |OracleDialect |PostgreSqlDialect |RedshiftDialect |SnowflakeDialect |SparkDialect |SQLiteDialect |TeradataDialect, str], str]) -> ArraySerializer: ...
+    def __new__(
+        cls,
+        /,
+        element: "ArraySerializer"
+        | "BitSerializer"
+        | "BooleanSerializer"
+        | "BytesSerializer"
+        | "DateSerializer"
+        | "DatetimeSerializer"
+        | "FloatSerializer"
+        | "InetSerializer"
+        | "IntegerSerializer"
+        | "JSONSerializer"
+        | "MacAddressSerializer"
+        | "StringSerializer"
+        | "TimeSerializer"
+        | "UnspecifiedSerializer"
+        | "UuidSerializer"
+        | Callable[
+            [
+                BigQueryDialect
+                | DatabricksDialect
+                | DuckDbDialect
+                | HiveDialect
+                | MsSqlDialect
+                | MySqlDialect
+                | OracleDialect
+                | PostgreSqlDialect
+                | RedshiftDialect
+                | SnowflakeDialect
+                | SparkDialect
+                | SQLiteDialect
+                | TeradataDialect,
+                str,
+            ],
+            str,
+        ],
+    ) -> ArraySerializer: ...
 
 @final
 class BitSerializer:
@@ -32,14 +83,53 @@ class BytesSerializer:
 class DataType:
     """
     Reperesents a SQL data type. It includes a name, and a serializer.
-    
+
     The name of a SQL data type can be any string; it is not limited to a set of predefined values.
     Additionally, the serializer for each data type is fully customizable.
     """
-    def __new__(cls, /, name: str, serializer: 'ArraySerializer' |'BitSerializer' |'BooleanSerializer' |'BytesSerializer' |'DateSerializer' |'DatetimeSerializer' |'FloatSerializer' |'InetSerializer' |'IntegerSerializer' |'JSONSerializer' |'MacAddressSerializer' |'StringSerializer' |'TimeSerializer' |'UnspecifiedSerializer' |'UuidSerializer' |Callable[[BigQueryDialect |DatabricksDialect |DuckDbDialect |HiveDialect |MsSqlDialect |MySqlDialect |OracleDialect |PostgreSqlDialect |RedshiftDialect |SnowflakeDialect |SparkDialect |SQLiteDialect |TeradataDialect, str], str] |None = None) -> DataType:
+    def __new__(
+        cls,
+        /,
+        name: str,
+        serializer: "ArraySerializer"
+        | "BitSerializer"
+        | "BooleanSerializer"
+        | "BytesSerializer"
+        | "DateSerializer"
+        | "DatetimeSerializer"
+        | "FloatSerializer"
+        | "InetSerializer"
+        | "IntegerSerializer"
+        | "JSONSerializer"
+        | "MacAddressSerializer"
+        | "StringSerializer"
+        | "TimeSerializer"
+        | "UnspecifiedSerializer"
+        | "UuidSerializer"
+        | Callable[
+            [
+                BigQueryDialect
+                | DatabricksDialect
+                | DuckDbDialect
+                | HiveDialect
+                | MsSqlDialect
+                | MySqlDialect
+                | OracleDialect
+                | PostgreSqlDialect
+                | RedshiftDialect
+                | SnowflakeDialect
+                | SparkDialect
+                | SQLiteDialect
+                | TeradataDialect,
+                str,
+            ],
+            str,
+        ]
+        | None = None,
+    ) -> DataType:
         """
         Creates a new SQL data type.
-        
+
         Args:
             name: The name of a data type. it is not limited to a set of predefined values.
             serializer: The `serializer` is used whenever a Python object needs to be converted
@@ -58,7 +148,37 @@ class DataType:
         """
         Returns data type name.
         """
-    def serialize(self, /, dialect: BigQueryDialect |DatabricksDialect |DuckDbDialect |HiveDialect |MsSqlDialect |MySqlDialect |OracleDialect |PostgreSqlDialect |RedshiftDialect |SnowflakeDialect |SparkDialect |SQLiteDialect |TeradataDialect |type[BigQueryDialect] |type[DatabricksDialect] |type[DuckDbDialect] |type[HiveDialect] |type[MsSqlDialect] |type[MySqlDialect] |type[OracleDialect] |type[PostgreSqlDialect] |type[RedshiftDialect] |type[SnowflakeDialect] |type[SparkDialect] |type[SQLiteDialect] |type[TeradataDialect], value: Any) -> str:
+    def serialize(
+        self,
+        /,
+        dialect: BigQueryDialect
+        | DatabricksDialect
+        | DuckDbDialect
+        | HiveDialect
+        | MsSqlDialect
+        | MySqlDialect
+        | OracleDialect
+        | PostgreSqlDialect
+        | RedshiftDialect
+        | SnowflakeDialect
+        | SparkDialect
+        | SQLiteDialect
+        | TeradataDialect
+        | type[BigQueryDialect]
+        | type[DatabricksDialect]
+        | type[DuckDbDialect]
+        | type[HiveDialect]
+        | type[MsSqlDialect]
+        | type[MySqlDialect]
+        | type[OracleDialect]
+        | type[PostgreSqlDialect]
+        | type[RedshiftDialect]
+        | type[SnowflakeDialect]
+        | type[SparkDialect]
+        | type[SQLiteDialect]
+        | type[TeradataDialect],
+        value: Any,
+    ) -> str:
         """
         Uses configured serializer to serialize `value` to SQL, depend on the specified `dialect`.
         """
@@ -79,7 +199,7 @@ class DateSerializer:
 class DatetimeSerializer:
     """
     `datetime.datetime` -> `'YYYY-MM-DD HH:MM:SS[.ffffff][+HH:MM]'`.
-    
+
     `int`/`float` are treated as a UTC epoch and accepted too.
     """
     def __new__(cls, /) -> DatetimeSerializer: ...
@@ -89,7 +209,7 @@ class FloatSerializer:
     """
     Serializes Python `float`, `int`, `decimal.Decimal`, or numeric `str` as a
     bare numeric literal.
-    
+
     `Decimal`/`str`/`int` go through their exact text form (no precision loss);
     only a real `float` is formatted from the f64. Non-finite floats are rejected.
     """
@@ -106,7 +226,7 @@ class InetSerializer:
 class IntegerSerializer:
     """
     Serializes any Python `int` as a bare decimal literal.
-    
+
     Uses `str(int)` so arbitrary precision (beyond i64/u64) is preserved - one
     serializer genuinely covers TINYINT through BIGINT and the unsigned variants.
     """

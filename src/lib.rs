@@ -8,10 +8,14 @@
 #[macro_use]
 pub mod macro_rules;
 
-pub mod ast;
-pub mod dialect;
 pub mod internal;
+
+pub mod prepare;
 pub mod typeref;
+
+pub mod dialect;
+
+pub mod ast;
 
 /// RapidQuery core which is written in Rust.
 #[pyo3::pymodule(gil_used = false)]
