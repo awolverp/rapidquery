@@ -1,30 +1,18 @@
-#![warn(clippy::print_stdout)]
-#![warn(clippy::print_stderr)]
-#![warn(clippy::dbg_macro)]
-#![feature(likely_unlikely)]
-#![feature(optimize_attribute)]
 #![feature(once_cell_try)]
 
 #[macro_use]
-pub mod macro_rules;
+pub mod macros;
 
 pub mod internal;
+pub mod native;
+pub mod pybindings;
 
-pub mod prepare;
 pub mod typeref;
 
-pub mod dialect;
-
-pub mod ast;
-
-/// RapidQuery core which is written in Rust.
 #[pyo3::pymodule(gil_used = false)]
-mod _lib {
+mod _native {
     #[pymodule_export]
-    pub use super::ast::ast_module;
-
-    #[pymodule_export]
-    pub use super::dialect::dialect_module;
+    use super::pybindings::{data_type_mod, dialect_mod};
 
     #[pymodule_init]
     #[cold]

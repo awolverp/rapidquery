@@ -1,28 +1,9 @@
-// Serializer types
-pub(crate) static mut INTEGER_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut FLOAT_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut BOOLEAN_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut STRING_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut UUID_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut BYTES_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut BIT_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut JSON_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut DATE_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut TIME_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut DATETIME_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut INET_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut MAC_ADDRESS_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject =
-    std::ptr::null_mut();
-pub(crate) static mut ARRAY_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut UNSPECIFIED_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject =
-    std::ptr::null_mut();
-
 // Dialect types
 pub(crate) static mut BIGQUERY_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut DATABRICKS_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut DUCKDB_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut HIVE_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut MS_SQL_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut MSSQL_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut MYSQL_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut ORACLE_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut POSTGRESQL_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -31,6 +12,9 @@ pub(crate) static mut SNOWFLAKE_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std
 pub(crate) static mut SPARK_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut SQLITE_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut TERADATA_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+
+// Date type serializer types
+pub(crate) static mut DATATYPE_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
 // Python standard libraries types
 pub(crate) static mut STD_DECIMAL_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -67,41 +51,26 @@ macro_rules! multiple_get_type_object_for {
 }
 
 #[cold]
-#[optimize(size)]
 fn _initialize_typeref(py: pyo3::Python) {
     unsafe {
         multiple_get_type_object_for!(
             py,
-            // serializers
-            crate::ast::data_type::serializers::PyIntegerSerializer => INTEGER_SERIALIZER_TYPE,
-            crate::ast::data_type::serializers::PyFloatSerializer => FLOAT_SERIALIZER_TYPE,
-            crate::ast::data_type::serializers::PyBooleanSerializer => BOOLEAN_SERIALIZER_TYPE,
-            crate::ast::data_type::serializers::PyStringSerializer => STRING_SERIALIZER_TYPE,
-            crate::ast::data_type::serializers::PyUuidSerializer => UUID_SERIALIZER_TYPE,
-            crate::ast::data_type::serializers::PyBytesSerializer => BYTES_SERIALIZER_TYPE,
-            crate::ast::data_type::serializers::PyBitSerializer => BIT_SERIALIZER_TYPE,
-            crate::ast::data_type::serializers::PyJSONSerializer => JSON_SERIALIZER_TYPE,
-            crate::ast::data_type::serializers::PyDateSerializer => DATE_SERIALIZER_TYPE,
-            crate::ast::data_type::serializers::PyTimeSerializer => TIME_SERIALIZER_TYPE,
-            crate::ast::data_type::serializers::PyDatetimeSerializer => DATETIME_SERIALIZER_TYPE,
-            crate::ast::data_type::serializers::PyInetSerializer => INET_SERIALIZER_TYPE,
-            crate::ast::data_type::serializers::PyMacAddressSerializer => MAC_ADDRESS_SERIALIZER_TYPE,
-            crate::ast::data_type::serializers::PyArraySerializer => ARRAY_SERIALIZER_TYPE,
-            crate::ast::data_type::serializers::PyUnspecifiedSerializer => UNSPECIFIED_SERIALIZER_TYPE,
             // dialects
-            crate::dialect::PyBigQueryDialect => BIGQUERY_DIALECT_TYPE,
-            crate::dialect::PyDatabricksDialect => DATABRICKS_DIALECT_TYPE,
-            crate::dialect::PyDuckDbDialect => DUCKDB_DIALECT_TYPE,
-            crate::dialect::PyHiveDialect => HIVE_DIALECT_TYPE,
-            crate::dialect::PyMsSqlDialect => MS_SQL_DIALECT_TYPE,
-            crate::dialect::PyMySqlDialect => MYSQL_DIALECT_TYPE,
-            crate::dialect::PyOracleDialect => ORACLE_DIALECT_TYPE,
-            crate::dialect::PyPostgreSqlDialect => POSTGRESQL_DIALECT_TYPE,
-            crate::dialect::PyRedshiftDialect => REDSHIFT_DIALECT_TYPE,
-            crate::dialect::PySnowflakeDialect => SNOWFLAKE_DIALECT_TYPE,
-            crate::dialect::PySparkDialect => SPARK_DIALECT_TYPE,
-            crate::dialect::PySQLiteDialect => SQLITE_DIALECT_TYPE,
-            crate::dialect::PyTeradataDialect => TERADATA_DIALECT_TYPE,
+            crate::pybindings::dialect::PyBigQuery => BIGQUERY_DIALECT_TYPE,
+            crate::pybindings::dialect::PyDatabricks => DATABRICKS_DIALECT_TYPE,
+            crate::pybindings::dialect::PyDuckDb => DUCKDB_DIALECT_TYPE,
+            crate::pybindings::dialect::PyHive => HIVE_DIALECT_TYPE,
+            crate::pybindings::dialect::PyMsSql => MSSQL_DIALECT_TYPE,
+            crate::pybindings::dialect::PyMySql => MYSQL_DIALECT_TYPE,
+            crate::pybindings::dialect::PyOracle => ORACLE_DIALECT_TYPE,
+            crate::pybindings::dialect::PyPostgreSql => POSTGRESQL_DIALECT_TYPE,
+            crate::pybindings::dialect::PyRedshift => REDSHIFT_DIALECT_TYPE,
+            crate::pybindings::dialect::PySnowflake => SNOWFLAKE_DIALECT_TYPE,
+            crate::pybindings::dialect::PySpark => SPARK_DIALECT_TYPE,
+            crate::pybindings::dialect::PySqlite => SQLITE_DIALECT_TYPE,
+            crate::pybindings::dialect::PyTeradata => TERADATA_DIALECT_TYPE,
+            // data type serializers
+            crate::pybindings::data_type::PySerializer => DATATYPE_SERIALIZER_TYPE,
         );
 
         STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");

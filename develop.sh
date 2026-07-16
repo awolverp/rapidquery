@@ -12,17 +12,17 @@ function help() {
 function build() {
     if [[ "$1" == "-p" ]]; then
         echo "Building sources (production mode) ..."
-        UV_OFFLINE=1 maturin develop --uv --release
+        UV_OFFLINE=1 maturin develop --release
     else
         echo "Building sources (debug mode) ..."
-        UV_OFFLINE=1 maturin develop --uv
+        UV_OFFLINE=1 maturin develop
     fi
 }
 
 function test() {
     echo "Running tests ..."
 
-    pytest -s -vv
+    pytest -s -v
     rm -rf .pytest_cache 2>/dev/null
 }
 

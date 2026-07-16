@@ -6,3 +6,7 @@ backup/
 backup-py/
 /.vscode
 /*_cache
+
+# Claude Code local files (do not push to GitHub)
+/CLAUDE.md
+/.claude/

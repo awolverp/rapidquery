@@ -5,4 +5,4 @@ Build complex SQL queries effortlessly and efficiently, with a library that
 prioritizes both performance and ease of use.
 """
 
-from . import _lib as _lib
+from ._native import data_type as data_type, dialect as dialect
