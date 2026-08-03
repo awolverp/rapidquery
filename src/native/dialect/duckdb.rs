@@ -8,6 +8,8 @@
 //!
 //! Ref: <https://duckdb.org/docs/sql/data_types/literal_types>
 
+use crate::internal::utils::str_replace_to;
+
 use super::{BoolFormat, IdentifierQuote, PlaceholderSyntax};
 
 pub(super) const NAME: &str = "DuckDb";
@@ -18,26 +20,36 @@ pub(super) const IDENTIFIER_QUOTE: Option<IdentifierQuote> = Some(IdentifierQuot
 
 pub(super) const PLACEHOLDER_SYNTAX: PlaceholderSyntax = PlaceholderSyntax::DollarNamed;
 
-pub(super) fn escape_string(s: &str) -> String {
+pub(super) fn escape_string<T: std::fmt::Write>(writer: &mut T, string: &str) -> std::fmt::Result {
     // DuckDB uses '' for quote escaping (ANSI-compatible).
     // Backslash is NOT a special escape character in default mode.
-    super::escape_single_quote(s)
+    super::escape_single_quote(writer, string)
 }
 
-pub(super) fn quote_string(s: &str) -> String {
-    super::wrap_single_quote(s)
+pub(super) fn quote_string<T: std::fmt::Write>(writer: &mut T, string: &str) -> std::fmt::Result {
+    super::wrap_single_quote(writer, string)
 }
 
-pub(super) fn encode_bytes(bytes: &[u8]) -> String {
-    format!("X'{}'", super::bytes_to_hex(bytes))
+pub(super) fn escape_identifier<T: std::fmt::Write>(
+    writer: &mut T,
+    ident: &str,
+) -> std::fmt::Result {
+    str_replace_to(ident, '"', "\"\"", writer)
 }
 
-pub(super) fn encode_bits(bits: &str) -> String {
+pub(super) fn encode_bytes<T: std::fmt::Write>(writer: &mut T, bytes: &[u8]) -> std::fmt::Result {
+    // write!(writer, "X'{}'", super::bytes_to_hex(writer, bytes))
+    writer.write_str("X'")?;
+    super::bytes_to_hex(writer, bytes)?;
+    writer.write_char('\'')
+}
+
+pub(super) fn encode_bits<T: std::fmt::Write>(writer: &mut T, bits: &str) -> std::fmt::Result {
     debug_assert!(
         bits.chars().all(|c| c == '0' || c == '1'),
         "encode_bits: invalid input: {bits}"
     );
 
     // DuckDB supports bitstring literals with B prefix
-    format!("B'{}'", bits)
+    write!(writer, "B'{}'", bits)
 }

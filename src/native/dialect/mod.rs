@@ -3,6 +3,10 @@
 //! Each dialect encodes how SQL literals (strings, bytes, bit-strings) and
 //! identifiers should be quoted/escaped/rendered for a particular database
 //! engine. Dialects are selected at runtime via the [`SqlDialect`] enum.
+//!
+//! Assisted-by: Claude
+
+use crate::internal::utils::str_replace_to;
 
 mod bigquery;
 mod databricks;
@@ -25,17 +29,6 @@ pub enum BoolFormat {
     Keyword,
     /// `1` / `0`
     Int,
-}
-
-impl BoolFormat {
-    pub fn format(self, value: bool) -> &'static str {
-        match (self, value) {
-            (Self::Keyword, true) => "TRUE",
-            (Self::Keyword, false) => "FALSE",
-            (Self::Int, true) => "1",
-            (Self::Int, false) => "0",
-        }
-    }
 }
 
 /// Represents the various identifier quote styles.
@@ -63,30 +56,30 @@ pub enum PlaceholderSyntax {
 
 /// Converts a byte slice to an uppercase hex string.
 #[inline]
-pub(super) fn bytes_to_hex(bytes: &[u8]) -> String {
-    use std::fmt::Write;
-    let mut out = String::with_capacity(bytes.len() * 2);
+pub(super) fn bytes_to_hex<T: std::fmt::Write>(out: &mut T, bytes: &[u8]) -> std::fmt::Result {
     for b in bytes {
-        write!(out, "{:02X}", b).unwrap();
+        write!(out, "{:02X}", b)?;
     }
-    out
+    Ok(())
 }
 
 /// Standard single-quote escape: `'` → `''`.
 /// Used by most SQL dialects.
 #[inline]
-pub(super) fn escape_single_quote(s: &str) -> String {
-    s.replace('\'', "''")
+pub(super) fn escape_single_quote<T: std::fmt::Write>(
+    writer: &mut T,
+    string: &str,
+) -> std::fmt::Result {
+    str_replace_to(string, '\'', "''", writer)
 }
 
 /// Wraps a (pre-escaped) string in single quotes.
 #[inline]
-pub(super) fn wrap_single_quote(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + 2);
-    out.push('\'');
-    out.push_str(s);
-    out.push('\'');
-    out
+pub(super) fn wrap_single_quote<T: std::fmt::Write>(
+    writer: &mut T,
+    string: &str,
+) -> std::fmt::Result {
+    write!(writer, "'{string}'")
 }
 
 /// Dispatches to the per-dialect free function of the same name, forwarding
@@ -167,24 +160,98 @@ pub enum SqlDialect {
     /// [Teradata](https://docs.teradata.com/)
     Teradata,
 }
-
 impl SqlDialect {
     /// The dialect's display name (e.g. `"PostgreSQL"`, `"BigQuery"`).
+    #[inline]
     pub fn name(&self) -> &'static str {
         dispatch!(self, const NAME)
     }
 
     /// How this dialect renders boolean literals.
-    pub fn bool_format(&self) -> BoolFormat {
-        dispatch!(self, const BOOL_FORMAT)
+    #[inline]
+    pub fn format_boolean<T: std::fmt::Write>(
+        &self,
+        writer: &mut T,
+        value: bool,
+    ) -> std::fmt::Result {
+        let format = dispatch!(self, const BOOL_FORMAT);
+
+        match (format, value) {
+            (BoolFormat::Keyword, true) => write!(writer, "TRUE"),
+            (BoolFormat::Keyword, false) => write!(writer, "FALSE"),
+            (BoolFormat::Int, true) => write!(writer, "1"),
+            (BoolFormat::Int, false) => write!(writer, "0"),
+        }
     }
 
-    /// The identifier quoting style used by this dialect, if any.
-    pub fn identifier_quote(&self) -> Option<IdentifierQuote> {
-        dispatch!(self, const IDENTIFIER_QUOTE)
+    /// How this dialect renders boolean literals, returning an owned `String`.
+    #[inline]
+    pub fn format_boolean_as_string(&self, value: bool) -> String {
+        let mut buf = String::new();
+        // Writing to a `String` is infallible.
+        let _ = self.format_boolean(&mut buf, value);
+        buf
+    }
+
+    /// Escapes special characters within a identifier.
+    ///
+    /// Call this before [`SqlDialect::quote_identifier`].
+    #[inline]
+    pub fn escape_identifier<T: std::fmt::Write>(
+        &self,
+        writer: &mut T,
+        ident: &str,
+    ) -> std::fmt::Result {
+        dispatch!(self, fn escape_identifier, writer, ident)
+    }
+
+    /// Escapes special characters within an identifier, returning an owned `String`.
+    ///
+    /// Call this before [`SqlDialect::quote_identifier`] / [`SqlDialect::quote_identifier_as_string`].
+    #[inline]
+    pub fn escape_identifier_as_string(&self, ident: &str) -> String {
+        let mut buf = String::new();
+        let _ = self.escape_identifier(&mut buf, ident);
+        buf
+    }
+
+    /// Wraps an already-escaped identifier in this dialect's identifier quoting.
+    #[inline]
+    pub fn quote_identifier<T: std::fmt::Write>(
+        &self,
+        writer: &mut T,
+        ident: &str,
+    ) -> std::fmt::Result {
+        let format = dispatch!(self, const IDENTIFIER_QUOTE);
+
+        match format {
+            Some(IdentifierQuote::SingleQuote) => {
+                write!(writer, "'{ident}'")
+            }
+            Some(IdentifierQuote::DoubleQuote) => {
+                write!(writer, "\"{ident}\"")
+            }
+            Some(IdentifierQuote::Backtick) => {
+                write!(writer, "`{ident}`")
+            }
+            Some(IdentifierQuote::SquareBracket) => {
+                write!(writer, "[{ident}]")
+            }
+            None => writer.write_str(ident),
+        }
+    }
+
+    /// Wraps an already-escaped identifier in this dialect's identifier quoting,
+    /// returning an owned `String`.
+    #[inline]
+    pub fn quote_identifier_as_string(&self, ident: &str) -> String {
+        let mut buf = String::new();
+        let _ = self.quote_identifier(&mut buf, ident);
+        buf
     }
 
     /// The placeholder syntax used for parameterized queries in this dialect.
+    #[inline]
     pub fn placeholder_syntax(&self) -> PlaceholderSyntax {
         dispatch!(self, const PLACEHOLDER_SYNTAX)
     }
@@ -192,18 +259,62 @@ impl SqlDialect {
     /// Escapes special characters within a string literal's contents.
     ///
     /// Call this before [`SqlDialect::quote_string`].
-    pub fn escape_string(&self, string: &str) -> String {
-        dispatch!(self, fn escape_string, string)
+    #[inline]
+    pub fn escape_string<T: std::fmt::Write>(
+        &self,
+        writer: &mut T,
+        string: &str,
+    ) -> std::fmt::Result {
+        dispatch!(self, fn escape_string, writer, string)
+    }
+
+    /// Escapes special characters within a string literal's contents,
+    /// returning an owned `String`.
+    ///
+    /// Call this before [`SqlDialect::quote_string`] / [`SqlDialect::quote_string_as_string`].
+    #[inline]
+    pub fn escape_string_as_string(&self, string: &str) -> String {
+        let mut buf = String::new();
+        let _ = self.escape_string(&mut buf, string);
+        buf
     }
 
     /// Wraps an already-escaped string in this dialect's literal quoting.
-    pub fn quote_string(&self, string: &str) -> String {
-        dispatch!(self, fn quote_string, string)
+    #[inline]
+    pub fn quote_string<T: std::fmt::Write>(
+        &self,
+        writer: &mut T,
+        string: &str,
+    ) -> std::fmt::Result {
+        dispatch!(self, fn quote_string, writer, string)
+    }
+
+    /// Wraps an already-escaped string in this dialect's literal quoting,
+    /// returning an owned `String`.
+    #[inline]
+    pub fn quote_string_as_string(&self, string: &str) -> String {
+        let mut buf = String::new();
+        let _ = self.quote_string(&mut buf, string);
+        buf
     }
 
     /// Renders a byte slice as a literal in this dialect's native form.
-    pub fn encode_bytes(&self, bytes: &[u8]) -> String {
-        dispatch!(self, fn encode_bytes, bytes)
+    #[inline]
+    pub fn encode_bytes<T: std::fmt::Write>(
+        &self,
+        writer: &mut T,
+        bytes: &[u8],
+    ) -> std::fmt::Result {
+        dispatch!(self, fn encode_bytes, writer, bytes)
+    }
+
+    /// Renders a byte slice as a literal in this dialect's native form,
+    /// returning an owned `String`.
+    #[inline]
+    pub fn encode_bytes_as_string(&self, bytes: &[u8]) -> String {
+        let mut buf = String::new();
+        let _ = self.encode_bytes(&mut buf, bytes);
+        buf
     }
 
     /// Renders a bit-string (a string of `'0'`/`'1'` characters) as a
@@ -211,8 +322,21 @@ impl SqlDialect {
     ///
     /// `bits` is validated via `debug_assert!` in each dialect's
     /// implementation; callers should ensure it only contains `'0'`/`'1'`.
-    pub fn encode_bits(&self, bits: &str) -> String {
-        dispatch!(self, fn encode_bits, bits)
+    #[inline]
+    pub fn encode_bits<T: std::fmt::Write>(&self, writer: &mut T, bits: &str) -> std::fmt::Result {
+        dispatch!(self, fn encode_bits, writer, bits)
+    }
+
+    /// Renders a bit-string (a string of `'0'`/`'1'` characters) as a
+    /// literal in this dialect's native form, returning an owned `String`.
+    ///
+    /// `bits` is validated via `debug_assert!` in each dialect's
+    /// implementation; callers should ensure it only contains `'0'`/`'1'`.
+    #[inline]
+    pub fn encode_bits_as_string(&self, bits: &str) -> String {
+        let mut buf = String::new();
+        let _ = self.encode_bits(&mut buf, bits);
+        buf
     }
 }
 
@@ -292,7 +416,7 @@ mod tests {
     fn quote_only_dialects_double_a_lone_single_quote() {
         sanity_check_coverage();
         for dialect in QUOTE_ONLY_DIALECTS {
-            let escaped = dialect.escape_string("'");
+            let escaped = dialect.escape_string_as_string("'");
             assert_eq!(
                 escaped,
                 "''",
@@ -305,7 +429,7 @@ mod tests {
     #[test]
     fn backslash_escaping_dialects_prefix_a_lone_single_quote() {
         for dialect in BACKSLASH_ESCAPING_DIALECTS {
-            let escaped = dialect.escape_string("'");
+            let escaped = dialect.escape_string_as_string("'");
             assert_eq!(
                 escaped,
                 "\\'",
@@ -318,7 +442,7 @@ mod tests {
     #[test]
     fn quote_only_dialects_double_multiple_single_quotes() {
         for dialect in QUOTE_ONLY_DIALECTS.iter() {
-            let escaped = dialect.escape_string("''''");
+            let escaped = dialect.escape_string_as_string("''''");
             assert_eq!(
                 escaped,
                 "''''''''",
@@ -331,7 +455,7 @@ mod tests {
     #[test]
     fn backslash_escaping_dialects_prefix_multiple_single_quotes() {
         for dialect in BACKSLASH_ESCAPING_DIALECTS {
-            let escaped = dialect.escape_string("''''");
+            let escaped = dialect.escape_string_as_string("''''");
             assert_eq!(
                 escaped,
                 "\\'\\'\\'\\'",
@@ -344,7 +468,7 @@ mod tests {
     #[test]
     fn every_dialect_neutralizes_the_apostrophe_in_a_classic_name() {
         for dialect in ALL_DIALECTS {
-            let escaped = dialect.escape_string("O'Brien");
+            let escaped = dialect.escape_string_as_string("O'Brien");
             let uses_backslash = BACKSLASH_ESCAPING_DIALECTS.contains(&dialect);
             let expected = if uses_backslash {
                 "O\\'Brien"
@@ -367,7 +491,7 @@ mod tests {
     #[test]
     fn backslash_escaping_dialects_double_a_lone_backslash() {
         for dialect in BACKSLASH_ESCAPING_DIALECTS {
-            let escaped = dialect.escape_string("\\");
+            let escaped = dialect.escape_string_as_string("\\");
             assert_eq!(
                 escaped,
                 "\\\\",
@@ -380,7 +504,7 @@ mod tests {
     #[test]
     fn quote_only_dialects_pass_backslash_through_unchanged() {
         for dialect in QUOTE_ONLY_DIALECTS.iter() {
-            let escaped = dialect.escape_string("\\");
+            let escaped = dialect.escape_string_as_string("\\");
             assert_eq!(
                 escaped,
                 "\\",
@@ -397,7 +521,7 @@ mod tests {
         // interpret backslash-quote as an escape sequence — the backslash
         // stays literal and the quote still gets doubled independently.
         for dialect in QUOTE_ONLY_DIALECTS.iter() {
-            let escaped = dialect.escape_string("\\'");
+            let escaped = dialect.escape_string_as_string("\\'");
             assert_eq!(
                 escaped,
                 "\\''",
@@ -410,7 +534,7 @@ mod tests {
     #[test]
     fn backslash_escaping_dialects_handle_backslash_next_to_quote() {
         for dialect in BACKSLASH_ESCAPING_DIALECTS {
-            let escaped = dialect.escape_string("\\'");
+            let escaped = dialect.escape_string_as_string("\\'");
             assert_eq!(
                 escaped,
                 "\\\\\\'",
@@ -440,7 +564,7 @@ mod tests {
     #[test]
     fn nul_stripping_dialects_remove_nul_entirely() {
         for dialect in NUL_STRIPPING_DIALECTS {
-            let escaped = dialect.escape_string("a\0b");
+            let escaped = dialect.escape_string_as_string("a\0b");
             assert_eq!(
                 escaped,
                 "ab",
@@ -458,7 +582,7 @@ mod tests {
     #[test]
     fn nul_escaping_dialects_replace_nul_with_an_escape_sequence() {
         for dialect in NUL_ESCAPING_DIALECTS {
-            let escaped = dialect.escape_string("a\0b");
+            let escaped = dialect.escape_string_as_string("a\0b");
             assert!(
                 !escaped.contains('\0'),
                 "{} left a raw NUL byte in escaped output (got {escaped:?})",
@@ -479,7 +603,7 @@ mod tests {
         // unsupported, unlike MsSql/Oracle/Redshift/Sqlite/Teradata, which
         // explicitly strip it. This test exists to make that asymmetry
         // explicit and catch it if DuckDB's contract ever changes.
-        let escaped = SqlDialect::DuckDb.escape_string("a\0b");
+        let escaped = SqlDialect::DuckDb.escape_string_as_string("a\0b");
         assert_eq!(escaped, "a\0b");
     }
 
@@ -492,7 +616,7 @@ mod tests {
         // \n and \r get an explicit backslash-escape arm in every
         // backslash-escaping dialect's implementation.
         for dialect in BACKSLASH_ESCAPING_DIALECTS {
-            let escaped = dialect.escape_string("a\nb\rc");
+            let escaped = dialect.escape_string_as_string("a\nb\rc");
             assert!(
                 !escaped.contains('\n') && !escaped.contains('\r'),
                 "{} left a raw \\n or \\r in escaped output (got {escaped:?})",
@@ -514,7 +638,7 @@ mod tests {
             .collect();
 
         for dialect in tab_escaping {
-            let escaped = dialect.escape_string("a\tb");
+            let escaped = dialect.escape_string_as_string("a\tb");
             assert!(
                 !escaped.contains('\t'),
                 "{} left a raw tab in escaped output (got {escaped:?})",
@@ -527,7 +651,7 @@ mod tests {
     fn mysql_passes_a_raw_tab_through_unchanged() {
         // Documents MySQL's actual (intentional) behavior explicitly, so a
         // future change is a deliberate decision rather than a silent drift.
-        let escaped = SqlDialect::MySql.escape_string("a\tb");
+        let escaped = SqlDialect::MySql.escape_string_as_string("a\tb");
         assert_eq!(escaped, "a\tb");
     }
 
@@ -539,7 +663,7 @@ mod tests {
         // engines and is NOT an injection risk on its own — only the quote
         // character matters for breaking out of the literal.
         for dialect in QUOTE_ONLY_DIALECTS.iter() {
-            let escaped = dialect.escape_string("a\nb\rc\td");
+            let escaped = dialect.escape_string_as_string("a\nb\rc\td");
             assert_eq!(
                 escaped,
                 "a\nb\rc\td",
@@ -559,7 +683,7 @@ mod tests {
             for byte in [0x01u8, 0x07, 0x1b, 0x1f, 0x7f] {
                 let ch = byte as char;
                 let input = format!("x{ch}y");
-                let escaped = dialect.escape_string(&input);
+                let escaped = dialect.escape_string_as_string(&input);
                 // The escape function must not panic and must not introduce
                 // an unbalanced quote by accident.
                 assert_eq!(
@@ -664,8 +788,8 @@ mod tests {
         for dialect in ALL_DIALECTS {
             let uses_backslash = BACKSLASH_ESCAPING_DIALECTS.contains(&dialect);
             for payload in HOSTILE_INPUTS {
-                let escaped = dialect.escape_string(payload);
-                let quoted = dialect.quote_string(&escaped);
+                let escaped = dialect.escape_string_as_string(payload);
+                let quoted = dialect.quote_string_as_string(&escaped);
                 assert_no_premature_close(dialect, &quoted, uses_backslash);
             }
         }
@@ -677,8 +801,8 @@ mod tests {
         // is itself a correctness bug worth catching explicitly.
         for dialect in ALL_DIALECTS {
             for payload in HOSTILE_INPUTS {
-                let escaped = dialect.escape_string(payload);
-                let _ = dialect.quote_string(&escaped);
+                let escaped = dialect.escape_string_as_string(payload);
+                let _ = dialect.quote_string_as_string(&escaped);
             }
         }
     }
@@ -692,7 +816,7 @@ mod tests {
         let samples = ["héllo", "日本語", "emoji😀🎉", "Ñoño", "Straße"];
         for dialect in ALL_DIALECTS {
             for sample in samples {
-                let escaped = dialect.escape_string(sample);
+                let escaped = dialect.escape_string_as_string(sample);
                 assert_eq!(
                     escaped,
                     sample,
@@ -701,7 +825,7 @@ mod tests {
                 );
                 // Must still be valid UTF-8 after quoting (String guarantees
                 // this, but we assert to document the expectation).
-                let quoted = dialect.quote_string(&escaped);
+                let quoted = dialect.quote_string_as_string(&escaped);
                 assert!(quoted.contains(sample));
             }
         }
@@ -710,7 +834,7 @@ mod tests {
     #[test]
     fn unicode_mixed_with_quotes_still_escapes_correctly() {
         for dialect in ALL_DIALECTS {
-            let escaped = dialect.escape_string("日本語'quote'😀");
+            let escaped = dialect.escape_string_as_string("日本語'quote'😀");
             let uses_backslash = BACKSLASH_ESCAPING_DIALECTS.contains(&dialect);
             let quote_marker_count = if uses_backslash {
                 escaped.matches("\\'").count()
@@ -735,14 +859,14 @@ mod tests {
     #[test]
     fn empty_string_escapes_to_empty_string() {
         for dialect in ALL_DIALECTS {
-            assert_eq!(dialect.escape_string(""), "");
+            assert_eq!(dialect.escape_string_as_string(""), "");
         }
     }
 
     #[test]
     fn empty_string_quoted_is_just_the_delimiters() {
         for dialect in ALL_DIALECTS {
-            let quoted = dialect.quote_string("");
+            let quoted = dialect.quote_string_as_string("");
             // Must contain exactly 2 single quotes and nothing else meaningful
             // (allowing for a dialect-specific prefix like `E` or `N`).
             assert_eq!(
@@ -761,7 +885,7 @@ mod tests {
     #[test]
     fn encode_bytes_empty_slice_does_not_panic_and_contains_no_hex_pairs() {
         for dialect in ALL_DIALECTS {
-            let out = dialect.encode_bytes(&[]);
+            let out = dialect.encode_bytes_as_string(&[]);
             // No stray "00" or similar should appear from an off-by-one bug.
             assert!(
                 !out.is_empty(),
@@ -792,7 +916,7 @@ mod tests {
         let expected_hex_run: String = bytes.iter().map(|b| format!("{:02X}", b)).collect();
 
         for dialect in plain_hex_run_dialects {
-            let out = dialect.encode_bytes(&bytes);
+            let out = dialect.encode_bytes_as_string(&bytes);
             assert!(
                 out.contains(&expected_hex_run),
                 "{}: encode_bytes did not contain the expected uppercase hex run for all 256 byte \
@@ -804,7 +928,7 @@ mod tests {
         // BigQuery: each byte must appear as its own \xNN, in order, with
         // uppercase hex digits.
         let expected_bigquery: String = bytes.iter().map(|b| format!("\\x{:02X}", b)).collect();
-        let bigquery_out = SqlDialect::BigQuery.encode_bytes(&bytes);
+        let bigquery_out = SqlDialect::BigQuery.encode_bytes_as_string(&bytes);
         assert!(
             bigquery_out.contains(&expected_bigquery),
             "BigQuery: encode_bytes did not contain the expected \\xNN-per-byte run (got \
@@ -815,8 +939,8 @@ mod tests {
     #[test]
     fn encode_bytes_single_byte_zero_and_single_byte_max() {
         for dialect in ALL_DIALECTS {
-            let zero = dialect.encode_bytes(&[0x00]);
-            let max = dialect.encode_bytes(&[0xFF]);
+            let zero = dialect.encode_bytes_as_string(&[0x00]);
+            let max = dialect.encode_bytes_as_string(&[0xFF]);
             assert!(zero.contains("00"), "{}: {zero:?}", dialect.name());
             assert!(max.contains("FF"), "{}: {max:?}", dialect.name());
             assert_ne!(zero, max);
@@ -830,8 +954,8 @@ mod tests {
     #[test]
     fn encode_bits_all_zero_and_all_one_single_bit() {
         for dialect in ALL_DIALECTS {
-            let zero = dialect.encode_bits("0");
-            let one = dialect.encode_bits("1");
+            let zero = dialect.encode_bits_as_string("0");
+            let one = dialect.encode_bits_as_string("1");
             assert_ne!(
                 zero,
                 one,
@@ -847,7 +971,7 @@ mod tests {
         // i64::from_str_radix-based implementations.
         let sixty_four_ones = "1".repeat(64);
         for dialect in ALL_DIALECTS {
-            let _ = dialect.encode_bits(&sixty_four_ones);
+            let _ = dialect.encode_bits_as_string(&sixty_four_ones);
         }
     }
 
@@ -859,14 +983,14 @@ mod tests {
         // fallback value chosen.
         let too_many_ones = "1".repeat(100);
         for dialect in ALL_DIALECTS {
-            let _ = dialect.encode_bits(&too_many_ones);
+            let _ = dialect.encode_bits_as_string(&too_many_ones);
         }
     }
 
     #[test]
     fn encode_bits_empty_string_does_not_panic() {
         for dialect in ALL_DIALECTS {
-            let _ = dialect.encode_bits("");
+            let _ = dialect.encode_bits_as_string("");
         }
     }
 
@@ -887,7 +1011,7 @@ mod tests {
             SqlDialect::Sqlite,     // bare decimal
         ];
         for dialect in &integer_based {
-            let out = dialect.encode_bits(bits);
+            let out = dialect.encode_bits_as_string(bits);
             if *dialect == SqlDialect::BigQuery {
                 assert!(
                     out.contains("0b10110101"),
@@ -909,10 +1033,19 @@ mod tests {
         // Dialects with a native bit-string literal syntax should embed the
         // exact input bits, not a numeric conversion.
         let bits = "10110101";
-        assert_eq!(SqlDialect::PostgreSql.encode_bits(bits), "B'10110101'");
-        assert_eq!(SqlDialect::DuckDb.encode_bits(bits), "B'10110101'");
-        assert_eq!(SqlDialect::MySql.encode_bits(bits), "b'10110101'");
-        assert_eq!(SqlDialect::Teradata.encode_bits(bits), "'10110101'B");
+        assert_eq!(
+            SqlDialect::PostgreSql.encode_bits_as_string(bits),
+            "B'10110101'"
+        );
+        assert_eq!(
+            SqlDialect::DuckDb.encode_bits_as_string(bits),
+            "B'10110101'"
+        );
+        assert_eq!(SqlDialect::MySql.encode_bits_as_string(bits), "b'10110101'");
+        assert_eq!(
+            SqlDialect::Teradata.encode_bits_as_string(bits),
+            "'10110101'B"
+        );
     }
 
     // ---------------------------------------------------------------------
@@ -922,10 +1055,16 @@ mod tests {
     #[test]
     fn quote_string_wraps_with_expected_prefix_per_dialect() {
         let escaped = "abc";
-        assert!(SqlDialect::PostgreSql
-            .quote_string(escaped)
-            .starts_with("E'"));
-        assert!(SqlDialect::MsSql.quote_string(escaped).starts_with("N'"));
+        assert!(
+            SqlDialect::PostgreSql
+                .quote_string_as_string(escaped)
+                .starts_with("E'")
+        );
+        assert!(
+            SqlDialect::MsSql
+                .quote_string_as_string(escaped)
+                .starts_with("N'")
+        );
         // Plain single-quote wrapping dialects: no special prefix letter.
         for dialect in &[
             SqlDialect::BigQuery,
@@ -940,7 +1079,7 @@ mod tests {
             SqlDialect::Databricks,
             SqlDialect::DuckDb,
         ] {
-            let quoted = dialect.quote_string(escaped);
+            let quoted = dialect.quote_string_as_string(escaped);
             assert!(
                 quoted.starts_with('\''),
                 "{}: expected plain single-quote wrapping (got {quoted:?})",
@@ -952,7 +1091,7 @@ mod tests {
     #[test]
     fn quote_string_always_ends_with_a_single_quote() {
         for dialect in ALL_DIALECTS {
-            let quoted = dialect.quote_string("abc");
+            let quoted = dialect.quote_string_as_string("abc");
             assert!(
                 quoted.ends_with('\''),
                 "{}: quoted string should end with a closing quote (got {quoted:?})",

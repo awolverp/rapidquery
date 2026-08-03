@@ -9,6 +9,8 @@
 //! Ref: <https://dev.mysql.com/doc/refman/8.0/en/string-literals.html>
 //!      <https://dev.mysql.com/doc/refman/8.0/en/bit-value-literals.html>
 
+use crate::internal::utils::str_replace_to;
+
 use super::{BoolFormat, IdentifierQuote, PlaceholderSyntax};
 
 pub(super) const NAME: &str = "MySql";
@@ -20,37 +22,45 @@ pub(super) const IDENTIFIER_QUOTE: Option<IdentifierQuote> = Some(IdentifierQuot
 /// This is not natively supported, and should be rendered on client-side, and many clients do.
 pub(super) const PLACEHOLDER_SYNTAX: PlaceholderSyntax = PlaceholderSyntax::Colon;
 
-pub(super) fn escape_string(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + s.len() / 4);
-    for ch in s.chars() {
+pub(super) fn escape_string<T: std::fmt::Write>(writer: &mut T, string: &str) -> std::fmt::Result {
+    for ch in string.chars() {
         match ch {
-            '\\' => out.push_str("\\\\"),
-            '\'' => out.push_str("\\'"),
-            '"' => out.push_str("\\\""),
-            '\0' => out.push_str("\\0"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\x1a' => out.push_str("\\Z"), // Ctrl+Z / SUB (Windows EOF)
-            c => out.push(c),
+            '\\' => writer.write_str("\\\\")?,
+            '\'' => writer.write_str("\\'")?,
+            '"' => writer.write_str("\\\"")?,
+            '\0' => writer.write_str("\\0")?,
+            '\n' => writer.write_str("\\n")?,
+            '\r' => writer.write_str("\\r")?,
+            '\x1a' => writer.write_str("\\Z")?, // Ctrl+Z / SUB (Windows EOF)
+            c => writer.write_char(c)?,
         }
     }
-    out
+    Ok(())
 }
 
-pub(super) fn quote_string(s: &str) -> String {
-    super::wrap_single_quote(s)
+pub(super) fn quote_string<T: std::fmt::Write>(writer: &mut T, string: &str) -> std::fmt::Result {
+    super::wrap_single_quote(writer, string)
 }
 
-pub(super) fn encode_bytes(bytes: &[u8]) -> String {
-    format!("X'{}'", super::bytes_to_hex(bytes))
+pub(super) fn escape_identifier<T: std::fmt::Write>(
+    writer: &mut T,
+    ident: &str,
+) -> std::fmt::Result {
+    str_replace_to(ident, '`', "``", writer)
 }
 
-pub(super) fn encode_bits(bits: &str) -> String {
+pub(super) fn encode_bytes<T: std::fmt::Write>(writer: &mut T, bytes: &[u8]) -> std::fmt::Result {
+    // write!(writer, "X'{}'", super::bytes_to_hex(writer, bytes))
+    writer.write_str("X'")?;
+    super::bytes_to_hex(writer, bytes)?;
+    writer.write_char('\'')
+}
+
+pub(super) fn encode_bits<T: std::fmt::Write>(writer: &mut T, bits: &str) -> std::fmt::Result {
     debug_assert!(
         bits.chars().all(|c| c == '0' || c == '1'),
         "encode_bits: invalid input: {bits}"
     );
 
-    format!("b'{}'", bits)
+    write!(writer, "b'{}'", bits)
 }

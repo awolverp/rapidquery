@@ -19,47 +19,52 @@ pub(super) const IDENTIFIER_QUOTE: Option<IdentifierQuote> = Some(IdentifierQuot
 
 pub(super) const PLACEHOLDER_SYNTAX: PlaceholderSyntax = PlaceholderSyntax::AtSign;
 
-pub(super) fn escape_string(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + s.len() / 4);
-    for ch in s.chars() {
+pub(super) fn escape_string<T: std::fmt::Write>(writer: &mut T, string: &str) -> std::fmt::Result {
+    for ch in string.chars() {
         match ch {
-            '\\' => out.push_str("\\\\"),
-            '\'' => out.push_str("\\'"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\0' => out.push_str("\\0"),
+            '\\' => writer.write_str("\\\\")?,
+            '\'' => writer.write_str("\\'")?,
+            '\n' => writer.write_str("\\n")?,
+            '\r' => writer.write_str("\\r")?,
+            '\t' => writer.write_str("\\t")?,
+            '\0' => writer.write_str("\\x00")?,
             // ASCII control characters
             c if (c as u32) < 32 || c as u32 == 127 => {
-                out.push_str(&format!("\\x{:02X}", c as u32));
+                writer.write_str(&format!("\\x{:02X}", c as u32))?;
             }
-            c => out.push(c),
+            c => writer.write_char(c)?,
         }
     }
-    out
+
+    Ok(())
 }
 
-pub(super) fn quote_string(s: &str) -> String {
-    super::wrap_single_quote(s)
+pub(super) fn quote_string<T: std::fmt::Write>(writer: &mut T, string: &str) -> std::fmt::Result {
+    super::wrap_single_quote(writer, string)
 }
 
-pub(super) fn encode_bytes(bytes: &[u8]) -> String {
+pub(super) fn escape_identifier<T: std::fmt::Write>(
+    writer: &mut T,
+    ident: &str,
+) -> std::fmt::Result {
+    escape_string(writer, ident)
+}
+
+pub(super) fn encode_bytes<T: std::fmt::Write>(writer: &mut T, bytes: &[u8]) -> std::fmt::Result {
     // BigQuery byte literal: B'\xNN\xNN…'
-    let mut out = String::with_capacity(4 + bytes.len() * 4);
-    out.push_str("B'");
+    writer.write_str("B'")?;
     for b in bytes {
-        out.push_str(&format!("\\x{:02X}", b));
+        writer.write_str(&format!("\\x{:02X}", b))?;
     }
-    out.push('\'');
-    out
+    writer.write_char('\'')
 }
 
-pub(super) fn encode_bits(bits: &str) -> String {
+pub(super) fn encode_bits<T: std::fmt::Write>(writer: &mut T, bits: &str) -> std::fmt::Result {
     debug_assert!(
         bits.chars().all(|c| c == '0' || c == '1'),
         "encode_bits: invalid input: {bits}"
     );
 
     // BigQuery has no native bit literal; represent as INT64 binary literal.
-    format!("CAST(0b{} AS INT64)", bits)
+    write!(writer, "CAST(0b{} AS INT64)", bits)
 }

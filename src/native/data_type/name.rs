@@ -1,3 +1,5 @@
+use crate::native::prepare::PrepareStatement;
+
 /// Specifies data type groups
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum DataTypeGroup {
@@ -165,31 +167,46 @@ simple_data_types! {
 }
 
 impl DataTypeName {
+    #[inline]
     pub fn group(&self) -> DataTypeGroup {
         self.1
     }
 }
 
 impl From<String> for DataTypeName {
+    #[inline]
     fn from(value: String) -> Self {
         DataTypeName::from(value.as_str())
     }
 }
 
 impl AsRef<str> for DataTypeName {
+    #[inline]
     fn as_ref(&self) -> &str {
         &self.0
     }
 }
 
-impl Into<String> for DataTypeName {
-    fn into(self) -> String {
-        self.0.to_string()
+impl From<DataTypeName> for String {
+    #[inline]
+    fn from(val: DataTypeName) -> Self {
+        val.0.to_string()
     }
 }
 
 impl std::fmt::Display for DataTypeName {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+impl PrepareStatement for DataTypeName {
+    fn prepare(
+        &self,
+        context: &mut crate::native::prepare::PrepareStatementContext,
+    ) -> crate::native::prepare::PrepareResult<()> {
+        context.write_str(&self.0);
+        Ok(())
     }
 }

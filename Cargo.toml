@@ -4,7 +4,7 @@ members = ["rapidquery-macros"]
 [package]
 name = "rapidquery"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "RapidQuery is the fastest, full-feature, and easy-to-use Python SQL query builder written in Rust."
 readme = "README.md"
 license = "GNU GPLv3"
@@ -31,16 +31,14 @@ strip = false
 
 [dependencies]
 rapidquery-macros = { path = "rapidquery-macros" }
-pyo3 = { version = "0.29", default-features = false, features = [
-    "macros",
-    "chrono",
-    "py-clone",
-] }
+pyo3 = { version = "0.29", default-features = false, features = [ "macros", "chrono", "py-clone" ] }
 parking_lot = { version = "0.12", default-features = false }
 arcstr = { version = "1.2" }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 ipnetwork = { version = "0.20", default-features = false }
 mac_address = { version = "1.1", default-features = false }
+once_cell = { version = "1.21.4", default-features = false }
+hashbrown = { version = "0.17.1", default-features = false, features = ["default-hasher", "inline-more", "allocator-api2"] }
 
 [features]
 default = ["extension-module"]

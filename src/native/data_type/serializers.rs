@@ -191,19 +191,19 @@ impl DataTypeSerializer {
             match self {
                 Self::Integer => serialize_integer(object.py(), object.as_ptr()),
                 Self::Float => serialize_float(object.py(), object.as_ptr()),
-                Self::Boolean => serialize_bool(object.py(), object.as_ptr(), &dialect),
-                Self::String => serialize_str(object.py(), object.as_ptr(), &dialect),
-                Self::Bytes => serialize_bytes(object.py(), object.as_ptr(), &dialect),
-                Self::Bit => serialize_bit(object.py(), object.as_ptr(), &dialect),
-                Self::JSON => serialize_json(object.py(), object.as_ptr(), &dialect),
-                Self::Uuid => serialize_uuid(object.py(), object.as_ptr(), &dialect),
-                Self::Date => serialize_date(object.py(), object.as_ptr(), &dialect),
-                Self::Time => serialize_time(object.py(), object.as_ptr(), &dialect),
-                Self::Datetime => serialize_datetime(object.py(), object.as_ptr(), &dialect),
-                Self::Inet => serialize_inet(object.py(), object.as_ptr(), &dialect),
-                Self::MacAddress => serialize_mac_address(object.py(), object.as_ptr(), &dialect),
+                Self::Boolean => serialize_bool(object.py(), object.as_ptr(), dialect),
+                Self::String => serialize_str(object.py(), object.as_ptr(), dialect),
+                Self::Bytes => serialize_bytes(object.py(), object.as_ptr(), dialect),
+                Self::Bit => serialize_bit(object.py(), object.as_ptr(), dialect),
+                Self::JSON => serialize_json(object.py(), object.as_ptr(), dialect),
+                Self::Uuid => serialize_uuid(object.py(), object.as_ptr(), dialect),
+                Self::Date => serialize_date(object.py(), object.as_ptr(), dialect),
+                Self::Time => serialize_time(object.py(), object.as_ptr(), dialect),
+                Self::Datetime => serialize_datetime(object.py(), object.as_ptr(), dialect),
+                Self::Inet => serialize_inet(object.py(), object.as_ptr(), dialect),
+                Self::MacAddress => serialize_mac_address(object.py(), object.as_ptr(), dialect),
                 Self::Array(element) => {
-                    serialize_array(object.py(), object.as_ptr(), &dialect, element)
+                    serialize_array(object.py(), object.as_ptr(), dialect, element)
                 }
                 Self::Unspecified => py_to_string(object.py(), object.as_ptr()),
                 Self::Custom(s) => {
@@ -243,6 +243,8 @@ unsafe fn serialize_integer(
 ///
 /// `Decimal`/`int` go through their exact text form (no precision loss);
 /// only a real `float` is formatted from the f64. Non-finite floats are rejected.
+///
+/// Assisted-by: Claude
 #[inline]
 unsafe fn serialize_float(
     py: pyo3::Python,
@@ -300,7 +302,7 @@ unsafe fn serialize_bool(
 ) -> pyo3::PyResult<String> {
     if pyo3::ffi::PyBool_Check(ptr) == 1 {
         let value = pyo3::ffi::Py_True() == ptr;
-        Ok(dialect.bool_format().format(value).to_string())
+        Ok(dialect.format_boolean_as_string(value))
     } else {
         new_pyerr!(
             Err(PyTypeError),
@@ -322,8 +324,8 @@ unsafe fn serialize_str(
 
     if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
         let raw = _serialize_string(py, ptr)?;
-        let raw = dialect.escape_string(&raw);
-        return Ok(dialect.quote_string(&raw));
+        let raw = dialect.escape_string_as_string(&raw);
+        return Ok(dialect.quote_string_as_string(&raw));
     }
 
     // Accept enum members whose `.value` is a string.
@@ -342,8 +344,8 @@ unsafe fn serialize_str(
 
         pyo3::ffi::Py_DECREF(value);
         if is_str {
-            let raw = dialect.escape_string(&raw?);
-            return Ok(dialect.quote_string(&raw));
+            let raw = dialect.escape_string_as_string(&raw?);
+            return Ok(dialect.quote_string_as_string(&raw));
         }
     }
 
@@ -365,8 +367,8 @@ unsafe fn serialize_uuid(
         || pyo3::ffi::PyUnicode_CheckExact(ptr) == 1
     {
         let text = py_to_string(py, ptr)?;
-        let text = dialect.escape_string(&text);
-        return Ok(dialect.quote_string(&text));
+        let text = dialect.escape_string_as_string(&text);
+        Ok(dialect.quote_string_as_string(&text))
     } else {
         new_pyerr!(
             Err(PyTypeError),
@@ -383,7 +385,7 @@ unsafe fn serialize_bytes(
     dialect: &crate::native::dialect::SqlDialect,
 ) -> pyo3::PyResult<String> {
     if pyo3::ffi::PyBytes_CheckExact(ptr) == 1 {
-        Ok(dialect.encode_bytes(_read_bytes(ptr)))
+        Ok(dialect.encode_bytes_as_string(_read_bytes(ptr)))
     } else {
         Err(new_pyerr!(
             PyTypeError,
@@ -411,7 +413,7 @@ unsafe fn serialize_bit(
                 raw
             );
         }
-        Ok(dialect.encode_bits(&raw))
+        Ok(dialect.encode_bits_as_string(&raw))
     } else {
         new_pyerr!(
             Err(PyTypeError),
@@ -433,8 +435,8 @@ unsafe fn serialize_json(
     let text = _serialize_string(py, dumped);
     pyo3::ffi::Py_DECREF(dumped);
 
-    let text = dialect.escape_string(&text?);
-    Ok(dialect.quote_string(&text))
+    let text = dialect.escape_string_as_string(&text?);
+    Ok(dialect.quote_string_as_string(&text))
 }
 
 /// `datetime.date` -> `'YYYY-MM-DD'`.
@@ -451,7 +453,7 @@ unsafe fn serialize_date(
         let date: chrono::NaiveDate = val.extract()?;
         let result = date.format("%Y-%m-%d").to_string();
 
-        Ok(dialect.quote_string(&result))
+        Ok(dialect.quote_string_as_string(&result))
     } else {
         Err(new_pyerr!(
             PyTypeError,
@@ -475,7 +477,7 @@ unsafe fn serialize_time(
         let date: chrono::NaiveTime = val.extract()?;
         let result = date.format("%H:%M:%S%.f").to_string();
 
-        Ok(dialect.quote_string(&result))
+        Ok(dialect.quote_string_as_string(&result))
     } else {
         Err(new_pyerr!(
             PyTypeError,
@@ -508,12 +510,12 @@ unsafe fn serialize_datetime(
             let datetime: chrono::NaiveDateTime = val.extract()?;
             let result = datetime.format("%Y-%m-%d %H:%M:%S%.f").to_string();
 
-            return Ok(dialect.quote_string(&result));
+            return Ok(dialect.quote_string_as_string(&result));
         } else {
             let datetime: chrono::DateTime<chrono::Utc> = val.extract()?;
             let result = datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").to_string();
 
-            return Ok(dialect.quote_string(&result));
+            return Ok(dialect.quote_string_as_string(&result));
         }
     }
 
@@ -527,7 +529,7 @@ unsafe fn serialize_datetime(
 
         if let chrono::offset::LocalResult::Single(datetime) = chrono::Utc.timestamp_opt(num, 0) {
             let result = datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").to_string();
-            return Ok(dialect.quote_string(&result));
+            return Ok(dialect.quote_string_as_string(&result));
         }
 
         return Err(new_pyerr!(
@@ -544,7 +546,7 @@ unsafe fn serialize_datetime(
             chrono::Utc.timestamp_opt(num.trunc() as i64, (num.fract() * 1_000_000_000.0) as u32)
         {
             let result = datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").to_string();
-            return Ok(dialect.quote_string(&result));
+            return Ok(dialect.quote_string_as_string(&result));
         }
 
         return Err(new_pyerr!(
@@ -575,7 +577,7 @@ unsafe fn serialize_inet(
         .map(|net| net.to_string())
         .map_err(|e| new_pyerr!(PyValueError, e.to_string()))?;
 
-    Ok(dialect.quote_string(&net))
+    Ok(dialect.quote_string_as_string(&net))
 }
 
 /// `str` -> quoted literal. Validated as a MAC address.
@@ -592,11 +594,13 @@ unsafe fn serialize_mac_address(
         .map(|mac| mac.to_string())
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
 
-    Ok(dialect.quote_string(&addr))
+    Ok(dialect.quote_string_as_string(&addr))
 }
 
 /// Serializes a Python `list`/`tuple` by serializing each element with `element`
 /// and wrapping in `ARRAY[...]`.
+///
+/// Assisted-by: Claude
 #[inline]
 unsafe fn serialize_array(
     py: pyo3::Python,
@@ -681,8 +685,8 @@ unsafe fn _read_bytes<'a>(ptr: *mut pyo3::ffi::PyObject) -> &'a [u8] {
 pub fn _import_json_module(
     py: pyo3::Python<'_>,
 ) -> pyo3::PyResult<&pyo3::Bound<'_, pyo3::types::PyModule>> {
-    static JSON_CLS: std::sync::OnceLock<pyo3::Py<pyo3::types::PyModule>> =
-        std::sync::OnceLock::new();
+    static JSON_CLS: once_cell::sync::OnceCell<pyo3::Py<pyo3::types::PyModule>> =
+        once_cell::sync::OnceCell::new();
 
     let json = JSON_CLS.get_or_try_init(|| py.import("json").map(|x| x.unbind()));
     json.map(|x| x.bind(py))

@@ -9,6 +9,8 @@
 //!
 //! Ref: <https://learn.microsoft.com/en-us/sql/t-sql/data-types/constants-transact-sql>
 
+use crate::internal::utils::{replace_many_ascii_to, str_replace_to};
+
 use super::{BoolFormat, IdentifierQuote, PlaceholderSyntax};
 
 pub(super) const NAME: &str = "MsSql";
@@ -19,35 +21,41 @@ pub(super) const IDENTIFIER_QUOTE: Option<IdentifierQuote> = Some(IdentifierQuot
 
 pub(super) const PLACEHOLDER_SYNTAX: PlaceholderSyntax = PlaceholderSyntax::AtSign;
 
-pub(super) fn escape_string(s: &str) -> String {
+pub(super) fn escape_string<T: std::fmt::Write>(writer: &mut T, string: &str) -> std::fmt::Result {
     // T-SQL: only single-quote needs doubling.
     // NUL character (U+0000) is not allowed in T-SQL string literals.
     // We remove it to stay safe.
-    super::escape_single_quote(s).replace('\0', "")
+    const REPLACEMENTS: [(u8, &str); 2] = [(b'\'', "''"), (b'\0', "")];
+    replace_many_ascii_to(string, &REPLACEMENTS, writer)
 }
 
-pub(super) fn quote_string(s: &str) -> String {
+pub(super) fn quote_string<T: std::fmt::Write>(writer: &mut T, string: &str) -> std::fmt::Result {
     // Prefix with N for Unicode safety (NVARCHAR)
-    let mut out = String::with_capacity(s.len() + 3);
-    out.push_str("N'");
-    out.push_str(s);
-    out.push('\'');
-    out
+    write!(writer, "N'{string}'")
 }
 
-pub(super) fn encode_bytes(bytes: &[u8]) -> String {
+pub(super) fn escape_identifier<T: std::fmt::Write>(
+    writer: &mut T,
+    ident: &str,
+) -> std::fmt::Result {
+    str_replace_to(ident, ']', "]]", writer)
+}
+
+pub(super) fn encode_bytes<T: std::fmt::Write>(writer: &mut T, bytes: &[u8]) -> std::fmt::Result {
     // T-SQL binary literal: 0xDEADBEEF
-    format!("0x{}", super::bytes_to_hex(bytes))
+    writer.write_str("0x")?;
+    super::bytes_to_hex(writer, bytes)
 }
 
-pub(super) fn encode_bits(bits: &str) -> String {
+pub(super) fn encode_bits<T: std::fmt::Write>(writer: &mut T, bits: &str) -> std::fmt::Result {
     debug_assert!(
         bits.chars().all(|c| c == '0' || c == '1'),
         "encode_bits: invalid input: {bits}"
     );
 
     // MSSQL BIT is a 1-bit integer; for multi-bit we cast to integer
-    format!(
+    write!(
+        writer,
         "CAST({} AS BIGINT)",
         i64::from_str_radix(bits, 2).unwrap_or(0)
     )

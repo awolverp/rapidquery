@@ -1,4 +1,4 @@
-#![feature(once_cell_try)]
+#![allow(unsafe_op_in_unsafe_fn)]
 
 #[macro_use]
 pub mod macros;
