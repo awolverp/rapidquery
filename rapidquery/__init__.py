@@ -5,4 +5,7 @@ Build complex SQL queries effortlessly and efficiently, with a library that
 prioritizes both performance and ease of use.
 """
 
-from ._native import data_type as data_type, dialect as dialect
+from ._native import Asterisk as Asterisk
+from ._native import Ident as Ident
+from ._native import data_type as data_type
+from ._native import dialect as dialect

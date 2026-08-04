@@ -4,4 +4,4 @@ pub mod data_type;
 pub mod dialect;
 
 mod ident;
-pub use ident::Ident;
+pub use ident::*;

@@ -10,6 +10,7 @@ use crate::{
 /// Error produced while building a prepared statement.
 #[derive(Debug)]
 pub enum PrepareStatementError {
+    FmtError,
     /// An error that originated in Python (e.g. from `.extract()` ).
     Python(pyo3::PyErr),
 }
@@ -17,6 +18,7 @@ pub enum PrepareStatementError {
 impl std::fmt::Display for PrepareStatementError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::FmtError => write!(f, "fmt error occurred"),
             Self::Python(err) => write!(f, "{err}"),
         }
     }
@@ -25,22 +27,21 @@ impl std::fmt::Display for PrepareStatementError {
 impl std::error::Error for PrepareStatementError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::FmtError => None,
             Self::Python(err) => Some(err),
         }
+    }
+}
+
+impl From<std::fmt::Error> for PrepareStatementError {
+    fn from(_: std::fmt::Error) -> Self {
+        Self::FmtError
     }
 }
 
 impl From<pyo3::PyErr> for PrepareStatementError {
     fn from(err: pyo3::PyErr) -> Self {
         Self::Python(err)
-    }
-}
-
-impl From<PrepareStatementError> for pyo3::PyErr {
-    fn from(err: PrepareStatementError) -> Self {
-        match err {
-            PrepareStatementError::Python(err) => err,
-        }
     }
 }
 
@@ -55,29 +56,21 @@ pub type PrepareStatementParams = HashMap<String, alias::PyObject>;
 /// / `writeln!` macros instead of the lower-level `write_str` /
 /// `write_char` methods when that's more convenient.
 // Assisted-by: Claude
-pub struct PrepareStatementContext<'c, 'py> {
+pub struct PrepareStatementContext<'py> {
     py: pyo3::Python<'py>,
     string: String,
-    dialect: &'c SqlDialect,
     params: PrepareStatementParams,
 }
 
-impl<'c, 'py> PrepareStatementContext<'c, 'py> {
+impl<'py> PrepareStatementContext<'py> {
     /// Creates a new [`PrepareStatementContext`].
     #[inline]
-    pub fn new(py: pyo3::Python<'py>, dialect: &'c SqlDialect) -> Self {
+    pub fn new(py: pyo3::Python<'py>) -> Self {
         Self {
             py,
             string: String::with_capacity(256),
-            dialect,
             params: HashMap::new(),
         }
-    }
-
-    /// Returns the specified dialect.
-    #[inline]
-    pub fn dialect(&self) -> &SqlDialect {
-        self.dialect
     }
 
     /// Returns the Python interpreter.
@@ -93,7 +86,7 @@ impl<'c, 'py> PrepareStatementContext<'c, 'py> {
     }
 }
 
-impl PrepareStatementContext<'_, '_> {
+impl PrepareStatementContext<'_> {
     /// Inserts a parameter into the context and returns a placeholder
     /// you can add to the SQL string.
     ///
@@ -105,9 +98,9 @@ impl PrepareStatementContext<'_, '_> {
     // Assisted-by: Claude
     #[inline]
     #[must_use = "the placeholder must be written into the SQL string, e.g. with `write_str`, or the parameter won't be referenced"]
-    pub fn add_parameter(&mut self, param: pyo3::Py<pyo3::PyAny>) -> String {
+    pub fn add_parameter(&mut self, dialect: &SqlDialect, param: pyo3::Py<pyo3::PyAny>) -> String {
         let name = format!("param_{}", self.params.len());
-        let placeholder = match self.dialect.placeholder_syntax() {
+        let placeholder = match dialect.placeholder_syntax() {
             PlaceholderSyntax::AtSign => format!("@{name}"),
             PlaceholderSyntax::Colon => format!(":{name}"),
             PlaceholderSyntax::DollarNamed => format!("${name}"),
@@ -134,8 +127,12 @@ impl PrepareStatementContext<'_, '_> {
     /// ```
     // Assisted-by: Claude
     #[inline]
-    pub fn write_parameter(&mut self, param: pyo3::Py<pyo3::PyAny>) -> &mut Self {
-        let placeholder = self.add_parameter(param);
+    pub fn write_parameter(
+        &mut self,
+        dialect: &SqlDialect,
+        param: pyo3::Py<pyo3::PyAny>,
+    ) -> &mut Self {
+        let placeholder = self.add_parameter(dialect, param);
         self.string.push_str(&placeholder);
         self
     }
@@ -164,7 +161,7 @@ impl PrepareStatementContext<'_, '_> {
 /// reads more naturally than chained `write_str` calls when building
 /// up a fragment with several interpolated pieces.
 // Assisted-by: Claude
-impl fmt::Write for PrepareStatementContext<'_, '_> {
+impl fmt::Write for PrepareStatementContext<'_> {
     #[inline]
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.string.push_str(s);
@@ -179,7 +176,11 @@ impl fmt::Write for PrepareStatementContext<'_, '_> {
 }
 
 pub trait PrepareStatement {
-    fn prepare(&self, context: &mut PrepareStatementContext) -> PrepareResult<()>;
+    fn prepare(
+        &self,
+        dialect: &SqlDialect,
+        context: &mut PrepareStatementContext,
+    ) -> PrepareResult<()>;
 }
 
 /// Rust-only entry point. Returns your own error type — no `PyErr`
@@ -191,20 +192,9 @@ pub fn prepare<T: PrepareStatement>(
     stmt: &T,
     dialect: &SqlDialect,
 ) -> PrepareResult<(String, PrepareStatementParams)> {
-    let mut context = PrepareStatementContext::new(py, dialect);
-    stmt.prepare(&mut context)?;
+    let mut context = PrepareStatementContext::new(py);
+    stmt.prepare(dialect, &mut context)?;
     Ok(context.into_parts())
-}
-
-/// Identical to [`prepare`], but returns
-/// `pyo3::PyResult` directly for use inside `#[pymethods]` / `#[pyfunction]`
-/// bodies, via the `From<PrepareStatementError> for PyErr` conversion.
-pub fn prepare_py<T: PrepareStatement>(
-    py: pyo3::Python,
-    stmt: &T,
-    dialect: &SqlDialect,
-) -> pyo3::PyResult<(String, PrepareStatementParams)> {
-    Ok(prepare(py, stmt, dialect)?)
 }
 
 /// Prepares each of `args` in turn, writing `separator` between
@@ -214,15 +204,16 @@ pub fn prepare_py<T: PrepareStatement>(
 /// predicates, etc.
 // Assisted-by: Claude
 pub fn prepare_separated<T: PrepareStatement>(
+    dialect: &SqlDialect,
     context: &mut PrepareStatementContext,
     args: &[T],
     separator: char,
 ) -> PrepareResult<()> {
     if let [single] = args {
-        return single.prepare(context);
+        return single.prepare(dialect, context);
     }
     for (ix, ident) in args.iter().enumerate() {
-        ident.prepare(context)?;
+        ident.prepare(dialect, context)?;
         if ix + 1 < args.len() {
             context.write_char(separator);
         }

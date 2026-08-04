@@ -201,52 +201,39 @@ impl SqlDialect {
         &self,
         writer: &mut T,
         ident: &str,
+        quote: bool,
     ) -> std::fmt::Result {
-        dispatch!(self, fn escape_identifier, writer, ident)
+        let format = dispatch!(self, const IDENTIFIER_QUOTE);
+
+        let (start_token, end_token) = if quote {
+            match format {
+                Some(IdentifierQuote::SingleQuote) => (Some('\''), Some('\'')),
+                Some(IdentifierQuote::DoubleQuote) => (Some('"'), Some('"')),
+                Some(IdentifierQuote::Backtick) => (Some('`'), Some('`')),
+                Some(IdentifierQuote::SquareBracket) => (Some('['), Some(']')),
+                None => (None, None),
+            }
+        } else {
+            (None, None)
+        };
+
+        if let Some(token) = start_token {
+            writer.write_char(token)?;
+        }
+        dispatch!(self, fn escape_identifier, writer, ident)?;
+        if let Some(token) = end_token {
+            writer.write_char(token)?;
+        }
+        Ok(())
     }
 
     /// Escapes special characters within an identifier, returning an owned `String`.
     ///
     /// Call this before [`SqlDialect::quote_identifier`] / [`SqlDialect::quote_identifier_as_string`].
     #[inline]
-    pub fn escape_identifier_as_string(&self, ident: &str) -> String {
+    pub fn escape_identifier_as_string(&self, ident: &str, quote: bool) -> String {
         let mut buf = String::new();
-        let _ = self.escape_identifier(&mut buf, ident);
-        buf
-    }
-
-    /// Wraps an already-escaped identifier in this dialect's identifier quoting.
-    #[inline]
-    pub fn quote_identifier<T: std::fmt::Write>(
-        &self,
-        writer: &mut T,
-        ident: &str,
-    ) -> std::fmt::Result {
-        let format = dispatch!(self, const IDENTIFIER_QUOTE);
-
-        match format {
-            Some(IdentifierQuote::SingleQuote) => {
-                write!(writer, "'{ident}'")
-            }
-            Some(IdentifierQuote::DoubleQuote) => {
-                write!(writer, "\"{ident}\"")
-            }
-            Some(IdentifierQuote::Backtick) => {
-                write!(writer, "`{ident}`")
-            }
-            Some(IdentifierQuote::SquareBracket) => {
-                write!(writer, "[{ident}]")
-            }
-            None => writer.write_str(ident),
-        }
-    }
-
-    /// Wraps an already-escaped identifier in this dialect's identifier quoting,
-    /// returning an owned `String`.
-    #[inline]
-    pub fn quote_identifier_as_string(&self, ident: &str) -> String {
-        let mut buf = String::new();
-        let _ = self.quote_identifier(&mut buf, ident);
+        let _ = self.escape_identifier(&mut buf, ident, quote);
         buf
     }
 

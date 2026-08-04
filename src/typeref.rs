@@ -16,6 +16,9 @@ pub(crate) static mut TERADATA_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std:
 // Date type serializer types
 pub(crate) static mut DATATYPE_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
+// Ident types
+pub(crate) static mut IDENT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+
 // Python standard libraries types
 pub(crate) static mut STD_DECIMAL_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut STD_UUID_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -71,6 +74,8 @@ fn _initialize_typeref(py: pyo3::Python) {
             crate::pybindings::dialect::PyTeradata => TERADATA_DIALECT_TYPE,
             // data type serializers
             crate::pybindings::data_type::PySerializer => DATATYPE_SERIALIZER_TYPE,
+            // Ident types
+            crate::pybindings::PyIdent => IDENT_TYPE,
         );
 
         STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");
@@ -91,4 +96,17 @@ pub fn initialize_typeref(py: pyo3::Python) {
     static INIT: std::sync::Once = std::sync::Once::new();
 
     INIT.call_once(|| _initialize_typeref(py));
+}
+
+#[inline]
+pub unsafe fn check_exact(
+    ptr: *mut pyo3::ffi::PyObject,
+    r#type: *mut pyo3::ffi::PyTypeObject,
+) -> bool {
+    pyo3::ffi::Py_TYPE(ptr) == r#type
+}
+
+#[inline]
+pub unsafe fn check(ptr: *mut pyo3::ffi::PyObject, r#type: *mut pyo3::ffi::PyTypeObject) -> bool {
+    pyo3::ffi::PyObject_TypeCheck(ptr, r#type) == 1
 }

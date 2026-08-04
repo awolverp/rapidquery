@@ -1,9 +1,23 @@
 from typing import Any, Callable, Type, final
+
 from typing_extensions import Self
 
 from rapidquery._native.dialect import SqlDialect
 
 class Serializer:
+    """
+    Converts a Python object into a dialect-specific SQL literal string.
+
+    Serializers are responsible for producing a correctly escaped and formatted
+    SQL value representation that can be embedded in queries. Each concrete
+    subclass handles a particular category of values (integers, strings, dates,
+    arrays, etc.). A custom serializer can be created via `CustomSerializer`
+    when the built-in ones are insufficient.
+
+    The primary entry point is the `serialize` method, which receives the target
+    SQL dialect and the Python object to convert.
+    """
+
     def serialize(self, dialect: Type[SqlDialect] | SqlDialect, object: Any) -> str: ...
 
 @final

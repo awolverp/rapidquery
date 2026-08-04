@@ -14,6 +14,9 @@ mod _native {
     #[pymodule_export]
     use super::pybindings::{data_type_mod, dialect_mod};
 
+    #[pymodule_export]
+    use super::pybindings::{PyAsterisk, PyIdent};
+
     #[pymodule_init]
     #[cold]
     fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {

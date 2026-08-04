@@ -204,6 +204,7 @@ impl std::fmt::Display for DataTypeName {
 impl PrepareStatement for DataTypeName {
     fn prepare(
         &self,
+        _dialect: &crate::native::dialect::SqlDialect,
         context: &mut crate::native::prepare::PrepareStatementContext,
     ) -> crate::native::prepare::PrepareResult<()> {
         context.write_str(&self.0);

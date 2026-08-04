@@ -266,7 +266,7 @@ unsafe fn serialize_float(
 
     // int / Decimal: their textual form is already a valid literal.
     if pyo3::ffi::PyLong_CheckExact(ptr) == 1
-        || pyo3::ffi::Py_TYPE(ptr) == crate::typeref::STD_DECIMAL_TYPE
+        || crate::typeref::check_exact(ptr, crate::typeref::STD_DECIMAL_TYPE)
     {
         let text = py_to_string(py, ptr)?;
         // Reject obvious garbage from str inputs cheaply: a literal must
@@ -363,7 +363,7 @@ unsafe fn serialize_uuid(
     ptr: *mut pyo3::ffi::PyObject,
     dialect: &crate::native::dialect::SqlDialect,
 ) -> pyo3::PyResult<String> {
-    if pyo3::ffi::Py_TYPE(ptr) == crate::typeref::STD_UUID_TYPE
+    if crate::typeref::check_exact(ptr, crate::typeref::STD_UUID_TYPE)
         || pyo3::ffi::PyUnicode_CheckExact(ptr) == 1
     {
         let text = py_to_string(py, ptr)?;
@@ -446,7 +446,7 @@ unsafe fn serialize_date(
     ptr: *mut pyo3::ffi::PyObject,
     dialect: &crate::native::dialect::SqlDialect,
 ) -> pyo3::PyResult<String> {
-    if pyo3::ffi::Py_TYPE(ptr) == crate::typeref::STD_DATE_TYPE {
+    if crate::typeref::check_exact(ptr, crate::typeref::STD_DATE_TYPE) {
         let val: pyo3::Bound<'_, pyo3::types::PyDate> =
             pyo3::Bound::from_borrowed_ptr(py, ptr).cast_into()?;
 
@@ -470,7 +470,7 @@ unsafe fn serialize_time(
     ptr: *mut pyo3::ffi::PyObject,
     dialect: &crate::native::dialect::SqlDialect,
 ) -> pyo3::PyResult<String> {
-    if pyo3::ffi::Py_TYPE(ptr) == crate::typeref::STD_TIME_TYPE {
+    if crate::typeref::check_exact(ptr, crate::typeref::STD_TIME_TYPE) {
         let val: pyo3::Bound<'_, pyo3::types::PyTime> =
             pyo3::Bound::from_borrowed_ptr(py, ptr).cast_into()?;
 
@@ -499,7 +499,7 @@ unsafe fn serialize_datetime(
     use chrono::TimeZone;
     use pyo3::types::PyTzInfoAccess;
 
-    if pyo3::ffi::Py_TYPE(ptr) == crate::typeref::STD_DATETIME_TYPE {
+    if crate::typeref::check_exact(ptr, crate::typeref::STD_DATETIME_TYPE) {
         // isoformat(sep=' ') -> the SQL-friendly space-separated form.
         let val: pyo3::Bound<'_, pyo3::types::PyDateTime> =
             pyo3::Bound::from_borrowed_ptr(py, ptr).cast_into()?;
