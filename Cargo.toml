@@ -1,10 +1,13 @@
+[workspace]
+members = ["rapidquery-macros"]
+
 [package]
 name = "rapidquery"
-version = "0.1.0"
-edition = "2021"
+version = "1.0.0-alpha1"
+edition = "2024"
 description = "RapidQuery is the fastest, full-feature, and easy-to-use Python SQL query builder written in Rust."
 readme = "README.md"
-license = "GNU GPLv3"
+license = "MIT"
 homepage = "https://github.com/awolverp/rapidquery"
 repository = "https://github.com/awolverp/rapidquery.git"
 authors = ["Ali Pooralijan <awolverp@gmail.com>"]
@@ -16,52 +19,26 @@ crate-type = ["cdylib", "rlib"]
 [profile.dev]
 lto = true
 panic = "unwind"
-strip = true
+strip = false
 
 [profile.release]
 codegen-units = 1
 debug = false
 incremental = false
 lto = true
-panic = "unwind"
-strip = true
+panic = "abort"
+strip = false
 
 [dependencies]
-pyo3 = { version = "0.28", default-features = false, features = ["macros", "extension-module", "chrono", "uuid", "rust_decimal", "generate-import-lib"] }
-pgvector = { version = "~0.4", default-features = false }
-ipnetwork = { version = "0.20", default-features = false }
-mac_address = { version = "1.1", default-features = false }
-uuid = { version = "1.18.1", default-features = false, features = ["v4"] }
-chrono = { version = "0.4.27", default-features = false, features = ["clock"] }
-serde_json = { version = "1", default-features = false, features = ["std"] }
-rust_decimal = { version = "1.38.0", default-features = false }
-indexmap = { version = "2.12.0", default-features = false, features = ["std"]}
-parking_lot = { version = "0.12.4", default-features = false }
-
-[dependencies.sea-query]
-version = "0.32.7"
-default-features = false
-features = [
-    "backend-mysql",
-    "backend-postgres",
-    "backend-sqlite",
-    "thread-safe",
-    "with-chrono",
-    "with-json",
-    "with-rust_decimal",
-    "with-uuid",
-    "with-ipnetwork",
-    "with-mac_address",
-    "postgres-array",
-    "postgres-interval",
-    "postgres-vector",
-    "hashable-value"
-]
+rapidquery-macros = { path = "rapidquery-macros" }
+pyo3 = { version = "0.29", default-features = false, features = [ "macros", "chrono", "py-clone" ] }
+parking_lot = { version = "0.12", default-features = false }
 
 [features]
-default = ["optimize"]
-optimize = []
+default = ["extension-module"]
+extension-module = ["pyo3/extension-module"]
 
 [lints.clippy]
 dbg_macro = "warn"
+print_stderr = "warn"
 print_stdout = "warn"
