@@ -4,7 +4,7 @@ mod submodule_ext;
 pub use strings::*;
 pub use submodule_ext::*;
 
-/// Fully-qualified type name of `obj` (`int`, `rapidquery._core.PostgreSql`, …).
+/// Fully-qualified type name of `obj` (`int`, `rapidquery._core.dialect.PostgreSQL`, …).
 ///
 /// Returns `"<unknown>"` if `Py_TYPE` is null or the name lookup fails.
 ///

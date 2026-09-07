@@ -4,18 +4,17 @@
 //! class hierarchy instead:
 //!
 //! * [`PySqlDialect`] — `rapidquery._core.dialect.SqlDialect`, the ABC
-//! * one frozen subclass per variant (`PostgreSql`, `MySql`, …)
+//! * one frozen subclass per variant (`PostgreSQL`, `DuckDB`, …)
 //!
 //! Extraction ([`FromPyObject`] for [`PySqlDialect`]) accepts **either** the
-//! class (`PostgreSql`) **or** an instance (`PostgreSql()`). Matching is by
+//! class (`PostgreSQL`) **or** an instance (`PostgreSQL()`). Matching is by
 //! interned [`PyTypeObject`] pointer (see [`crate::typeref`]), so only the
 //! 13 built-in classes convert — a Python subclass of `SqlDialect` does not.
 //!
-//! `#[pyclass]` sets `module = "rapidquery._core"` via the crate macro, so
-//! `PostgreSql.__module__` is `rapidquery._core` rather than
-//! `rapidquery._core.dialect`. The submodule is still importable as
-//! `rapidquery._core.dialect` because [`crate::internal::utils::PyModuleSubmoduleExt`]
-//! registers it in `sys.modules`.
+//! Instances compare and hash by native variant (`PostgreSQL() == PostgreSQL()`)
+//! and `repr` as `PostgreSQL()`.
+
+use std::hash::{Hash, Hasher};
 
 use crate::{internal::utils::get_type_name, native};
 
@@ -23,11 +22,18 @@ use crate::{internal::utils::get_type_name, native};
 // Rust. Python subclasses are not accepted by the extractor below.
 /// Abstract SQL dialect.
 ///
-/// Concrete dialects are frozen subclasses (`PostgreSql`, `MySql`, ...).
+/// Concrete dialects are frozen subclasses (`PostgreSQL`, `DuckDB`, ...).
 /// Pass either the class or an instance wherever a dialect is required.
 /// This base class cannot be instantiated.
-#[rapidquery_macros::pyclass("SqlDialect", subclass, skip_from_py_object)]
-#[derive(Debug, Clone)]
+///
+/// Instances of the same dialect compare equal and hash together.
+#[rapidquery_macros::pyclass(
+    "SqlDialect",
+    subclass,
+    skip_from_py_object,
+    module = "rapidquery._core.dialect"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PySqlDialect(pub native::dialect::SqlDialect);
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PySqlDialect {
@@ -54,8 +60,8 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PySqlDialect {
         unsafe {
             // SAFETY: `obj` is a borrowed `&Bound<PyAny>`, so `as_ptr()` is a
             // live `PyObject*`. `PyType_CheckExact` is true when the caller
-            // passed the class itself (`PostgreSql`); otherwise we take
-            // `Py_TYPE` of an instance (`PostgreSql()`). Both pointers are
+            // passed the class itself (`PostgreSQL`); otherwise we take
+            // `Py_TYPE` of an instance (`PostgreSQL()`). Both pointers are
             // interned `PyTypeObject*` values — we only compare addresses
             // against `typeref`, we do not dereference them here.
             // `get_type_name` requires a valid object pointer on the error
@@ -94,11 +100,31 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PySqlDialect {
 
 #[pyo3::pymethods]
 impl PySqlDialect {
-    /// Dialect identifier, identical to the Python class name (`"PostgreSql"`).
+    /// Dialect identifier, identical to the Python class name (`"PostgreSQL"`).
     #[getter]
     #[inline]
     fn name(&self) -> &'static str {
         self.0.name()
+    }
+
+    fn __repr__(&self) -> String {
+        let name = self.0.name();
+        let mut buf = String::with_capacity(name.len() + 2);
+        buf.push_str(name);
+        buf.push_str("()");
+        buf
+    }
+
+    // Bound<Self> so only instances match; the class object is a type.
+    // PostgreSQL() == PostgreSQL is false; PostgreSQL() == PostgreSQL() is true.
+    fn __eq__(&self, other: &pyo3::Bound<'_, Self>) -> bool {
+        self.0 == other.get().0
+    }
+
+    fn __hash__(&self) -> u64 {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.0.hash(&mut hasher);
+        hasher.finish()
     }
 }
 
@@ -112,12 +138,17 @@ macro_rules! impl_dialects {
     ($($native:ident => $name:ident => $pyname:literal,)+) => {
         $(
             #[doc = concat!($pyname, " SQL dialect.")]
-            #[rapidquery_macros::pyclass($pyname, extends=PySqlDialect)]
+            #[rapidquery_macros::pyclass(
+                $pyname,
+                extends = PySqlDialect,
+                module = "rapidquery._core.dialect"
+            )]
             pub struct $name;
 
             #[pyo3::pymethods]
             impl $name {
-                // Marker instance. Passing the class itself is equivalent.
+                // Marker instance. Passing the class itself is equivalent
+                // at extract time; instances compare equal by variant.
                 #[new]
                 #[inline]
                 fn __new__() -> pyo3::PyClassInitializer<Self> {
@@ -141,15 +172,15 @@ macro_rules! impl_dialects {
 impl_dialects! {
     BigQuery => PyBigQuery => "BigQuery",
     Databricks => PyDatabricks => "Databricks",
-    DuckDb => PyDuckDb => "DuckDb",
+    DuckDb => PyDuckDb => "DuckDB",
     Hive => PyHive => "Hive",
-    MsSql => PyMsSql => "MsSql",
+    MsSql => PyMsSql => "MSSQL",
     MySql => PyMySql => "MySql",
     Oracle => PyOracle => "Oracle",
-    PostgreSql => PyPostgreSql => "PostgreSql",
+    PostgreSql => PyPostgreSql => "PostgreSQL",
     Redshift => PyRedshift => "Redshift",
     Snowflake => PySnowflake => "Snowflake",
     Spark => PySpark => "Spark",
-    Sqlite => PySqlite => "Sqlite",
+    Sqlite => PySqlite => "SQLite",
     Teradata => PyTeradata => "Teradata",
 }

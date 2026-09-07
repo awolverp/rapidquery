@@ -1,12 +1,4 @@
 //! Interned `PyTypeObject*` cache.
-//!
-//! Hot-path extractors (`FromPyObject` for dialects, later Ident / serializers)
-//! compare `Py_TYPE(obj)` against these pointers instead of walking the MRO.
-//! Pointers are written once during module init ([`initialize_typeref`]) and
-//! treated as immutable afterwards.
-//!
-//! Dialect entries are the 13 concrete classes, not [`super::pybindings::dialect::PySqlDialect`]:
-//! the extractor matches exact types, not "any `SqlDialect` subclass".
 
 // Dialect types
 pub(crate) static mut BIGQUERY_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -40,9 +32,6 @@ unsafe fn get_type_object_for<T: pyo3::PyTypeInfo>(
 }
 
 /// Look up `module_name.member_name` and return its type object.
-///
-/// `PyMapping_GetItemString` returns a **new** reference. That ref is
-/// intentionally leaked so the `PyTypeObject` stays alive for the process.
 ///
 /// # Safety
 ///

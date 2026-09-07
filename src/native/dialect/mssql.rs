@@ -15,7 +15,7 @@ use crate::internal::utils::replace_to;
 
 use super::{BoolFormat, IdentifierQuote, PlaceholderSyntax};
 
-pub(super) const NAME: &str = "MsSql";
+pub(super) const NAME: &str = "MSSQL";
 
 pub(super) const BOOL_FORMAT: BoolFormat = BoolFormat::Int;
 

@@ -6,9 +6,9 @@
 //!
 //! Workaround: <https://github.com/PyO3/pyo3/issues/759#issuecomment-4041245073>
 //!
-//! The child's `__name__` stays whatever `#[pymodule(name = ...)]` set
-//! (`"dialect"`, not `"rapidquery._core.dialect"`). Import still succeeds
-//! because the `sys.modules` key is the dotted path.
+//! After registration, the child's `__name__` / `__package__` are set to
+//! the dotted path (`rapidquery._core.dialect`) so `repr` and pickling
+//! match the import path.
 
 use pyo3::types::{PyAnyMethods, PyModule, PyModuleMethods};
 
@@ -19,7 +19,13 @@ fn _inner_init(module: &pyo3::Bound<'_, PyModule>, path: &str) -> pyo3::PyResult
         let submod_name = submod_name.extract::<String>()?;
         let submod = module.getattr(&submod_name)?;
         let modpath = format!("{path}.{submod_name}");
+
         if let Ok(submod) = submod.cast::<PyModule>() {
+            submod.setattr("__name__", &modpath)?;
+            if let Some((package, _)) = modpath.rsplit_once('.') {
+                submod.setattr("__package__", package)?;
+            }
+
             _inner_init(submod, &modpath)?;
             sys_modules.set_item(&modpath, submod)?;
         }

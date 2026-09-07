@@ -5,9 +5,6 @@ pub mod native;
 pub mod pybindings;
 pub mod typeref;
 
-// `gil_used = false` for free-threaded CPython. Nested `#[pymodule]`
-// exports (`dialect`, later `data_type`) are registered in `sys.modules`
-// so `import rapidquery._core.dialect` works.
 /// RapidQuery native extension.
 #[pyo3::pymodule(gil_used = false)]
 mod _core {

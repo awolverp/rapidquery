@@ -16,7 +16,7 @@ use crate::internal::utils::replace_to;
 
 use super::{BoolFormat, IdentifierQuote, PlaceholderSyntax};
 
-pub(super) const NAME: &str = "Sqlite";
+pub(super) const NAME: &str = "SQLite";
 
 pub(super) const BOOL_FORMAT: BoolFormat = BoolFormat::Int;
 

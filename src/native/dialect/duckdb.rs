@@ -14,7 +14,7 @@ use crate::internal::utils::replace_to;
 
 use super::{BoolFormat, IdentifierQuote, PlaceholderSyntax};
 
-pub(super) const NAME: &str = "DuckDb";
+pub(super) const NAME: &str = "DuckDB";
 
 pub(super) const BOOL_FORMAT: BoolFormat = BoolFormat::Keyword;
 

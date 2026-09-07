@@ -769,6 +769,29 @@ fn sql_dialect_is_copy() {
 }
 
 #[test]
+fn name_is_the_python_class_name() {
+    let expected = [
+        (SqlDialect::BigQuery, "BigQuery"),
+        (SqlDialect::Databricks, "Databricks"),
+        (SqlDialect::DuckDb, "DuckDB"),
+        (SqlDialect::Hive, "Hive"),
+        (SqlDialect::MsSql, "MSSQL"),
+        (SqlDialect::MySql, "MySql"),
+        (SqlDialect::Oracle, "Oracle"),
+        (SqlDialect::PostgreSql, "PostgreSQL"),
+        (SqlDialect::Redshift, "Redshift"),
+        (SqlDialect::Snowflake, "Snowflake"),
+        (SqlDialect::Spark, "Spark"),
+        (SqlDialect::Sqlite, "SQLite"),
+        (SqlDialect::Teradata, "Teradata"),
+    ];
+    assert_eq!(expected.len(), ALL_DIALECTS.len());
+    for (dialect, name) in expected {
+        assert_eq!(dialect.name(), name);
+    }
+}
+
+#[test]
 fn quote_identifier_uses_expected_delimiters() {
     assert_eq!(SqlDialect::MySql.quote_identifier_as_string("id"), "`id`");
     assert_eq!(

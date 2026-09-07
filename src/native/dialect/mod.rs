@@ -262,8 +262,8 @@ macro_rules! dispatch {
 /// Each variant carries no data; dialect-specific behavior lives in the
 /// corresponding private module and is reached through the methods below.
 ///
-/// Variant names (and [`SqlDialect::name`]) are the Python class names
-/// (`DuckDb`, `PostgreSql`, `Sqlite`, …). Do not “correct” the spelling.
+/// [`SqlDialect::name`] is the Python class name (`DuckDB`, `PostgreSQL`,
+/// `SQLite`, …). Rust variant identifiers stay idiomatic (`DuckDb`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum SqlDialect {
@@ -296,7 +296,7 @@ pub enum SqlDialect {
 }
 
 impl SqlDialect {
-    /// Display name, identical to the variant identifier (e.g. `"PostgreSql"`).
+    /// Display name, identical to the Python class name (e.g. `"PostgreSQL"`, `"DuckDB"`).
     #[inline]
     pub fn name(&self) -> &'static str {
         dispatch!(self, const NAME)
