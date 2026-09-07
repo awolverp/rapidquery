@@ -1,10 +1,12 @@
-//! A dialect for [DuckDB](https://duckdb.org/).
+//! [DuckDB](https://duckdb.org/).
 //!
-//! • Strings: single-quoted; `''` for embedded single-quote.
-//! • Identifiers: double-quote quoted.
-//! • Bytes:  '\xNN…'::BLOB  or  X'DEADBEEF' hex literal.
-//! • Bits:   0b<bits>::INTEGER  or  BIT literal via BITSTRING.
-//! • Bool:   TRUE / FALSE keywords.
+//! • Strings: single-quoted; `''` for an embedded quote. Backslash is **not**
+//!   special in default mode. NUL is passed through (VARCHAR is UTF-8).
+//! • Identifiers: double-quote quoted; `"` doubled.
+//! • Bytes: `X'DEADBEEF'` hex literal.
+//! • Bits: `B'10110101'` bit-string literal.
+//! • Bool: `TRUE` / `FALSE`.
+//! • Placeholders: `$name` (native-ish; DuckDB also accepts `$1` / `?`).
 //!
 //! Ref: <https://duckdb.org/docs/sql/data_types/literal_types>
 
@@ -16,40 +18,30 @@ pub(super) const NAME: &str = "DuckDb";
 
 pub(super) const BOOL_FORMAT: BoolFormat = BoolFormat::Keyword;
 
-pub(super) const IDENTIFIER_QUOTE: Option<IdentifierQuote> = Some(IdentifierQuote::DoubleQuote);
+pub(super) const IDENTIFIER_QUOTE: IdentifierQuote = IdentifierQuote::DoubleQuote;
 
 pub(super) const PLACEHOLDER_SYNTAX: PlaceholderSyntax = PlaceholderSyntax::DollarNamed;
 
-pub(super) fn escape_string<T: std::fmt::Write>(writer: &mut T, string: &str) -> std::fmt::Result {
-    // DuckDB uses '' for quote escaping (ANSI-compatible).
-    // Backslash is NOT a special escape character in default mode.
+pub(super) fn escape_string<W: std::fmt::Write>(writer: &mut W, string: &str) -> std::fmt::Result {
     super::escape_single_quote(writer, string)
 }
 
-pub(super) fn quote_string<T: std::fmt::Write>(writer: &mut T, string: &str) -> std::fmt::Result {
+pub(super) fn quote_string<W: std::fmt::Write>(writer: &mut W, string: &str) -> std::fmt::Result {
     super::wrap_single_quote(writer, string)
 }
 
-pub(super) fn escape_identifier<T: std::fmt::Write>(
-    writer: &mut T,
+pub(super) fn escape_identifier<W: std::fmt::Write>(
+    writer: &mut W,
     ident: &str,
 ) -> std::fmt::Result {
     replace_to(ident, '"', "\"\"", writer)
 }
 
-pub(super) fn encode_bytes<T: std::fmt::Write>(writer: &mut T, bytes: &[u8]) -> std::fmt::Result {
-    // write!(writer, "X'{}'", super::bytes_to_hex(writer, bytes))
-    writer.write_str("X'")?;
-    super::bytes_to_hex(writer, bytes)?;
-    writer.write_char('\'')
+pub(super) fn encode_bytes<W: std::fmt::Write>(writer: &mut W, bytes: &[u8]) -> std::fmt::Result {
+    super::write_x_hex_literal(writer, bytes)
 }
 
-pub(super) fn encode_bits<T: std::fmt::Write>(writer: &mut T, bits: &str) -> std::fmt::Result {
-    debug_assert!(
-        bits.chars().all(|c| c == '0' || c == '1'),
-        "encode_bits: invalid input: {bits}"
-    );
-
-    // DuckDB supports bitstring literals with B prefix
-    write!(writer, "B'{}'", bits)
+pub(super) fn encode_bits<W: std::fmt::Write>(writer: &mut W, bits: &str) -> std::fmt::Result {
+    super::debug_assert_bits(bits);
+    write!(writer, "B'{bits}'")
 }

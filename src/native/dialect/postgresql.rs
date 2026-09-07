@@ -1,11 +1,14 @@
-//! A dialect for [PostgreSQL](https://www.postgresql.org/).
+//! [PostgreSQL](https://www.postgresql.org/).
 //!
-//! • Strings: single-quoted with `''` doubling.
-//!            For control chars we use E'…' escape strings with \xNN.
-//! • Identifiers: double-quote quoted.
-//! • Bytes:  '\xDEADBEEF'::bytea  (hex format, PostgreSQL 9.0+).
-//! • Bits:   B'10110101'  bit string literal.
-//! • Bool:   TRUE / FALSE keywords.
+//! • Strings: always `E'…'` escape-string syntax so `\n` / `\xNN` are
+//!   interpreted. Standard `'…'` with `''` doubling would not honor those
+//!   sequences (and `standard_conforming_strings` is on by default).
+//! • Identifiers: double-quote quoted; `"` doubled.
+//! • Bytes: `'\xDEADBEEF'::bytea` (hex format, 9.0+).
+//! • Bits: `B'10110101'` bit-string literal.
+//! • Bool: `TRUE` / `FALSE`.
+//! • Placeholders: `:name` (not native; Postgres uses `$1`. Common clients
+//!   rewrite named params).
 //!
 //! Ref: <https://www.postgresql.org/docs/current/sql-syntax-lexical.html>
 //!      <https://www.postgresql.org/docs/current/datatype-binary.html>
@@ -19,14 +22,11 @@ pub(super) const NAME: &str = "PostgreSql";
 
 pub(super) const BOOL_FORMAT: BoolFormat = BoolFormat::Keyword;
 
-pub(super) const IDENTIFIER_QUOTE: Option<IdentifierQuote> = Some(IdentifierQuote::DoubleQuote);
+pub(super) const IDENTIFIER_QUOTE: IdentifierQuote = IdentifierQuote::DoubleQuote;
 
-/// This is not natively supported, and should be rendered on client-side, and many clients do.
 pub(super) const PLACEHOLDER_SYNTAX: PlaceholderSyntax = PlaceholderSyntax::Colon;
 
-pub(super) fn escape_string<T: std::fmt::Write>(writer: &mut T, string: &str) -> std::fmt::Result {
-    // Use PostgreSQL escape-string syntax (E'…') when control chars present.
-    // We always emit E'…' for safety; non-special chars pass through.
+pub(super) fn escape_string<W: std::fmt::Write>(writer: &mut W, string: &str) -> std::fmt::Result {
     for ch in string.chars() {
         match ch {
             '\\' => writer.write_str("\\\\")?,
@@ -36,7 +36,7 @@ pub(super) fn escape_string<T: std::fmt::Write>(writer: &mut T, string: &str) ->
             '\t' => writer.write_str("\\t")?,
             '\0' => writer.write_str("\\x00")?,
             c if (c as u32) < 32 || c as u32 == 127 => {
-                writer.write_str(&format!("\\x{:02X}", c as u32))?;
+                super::write_byte_hex_escape(writer, c as u8)?;
             }
             c => writer.write_char(c)?,
         }
@@ -44,30 +44,26 @@ pub(super) fn escape_string<T: std::fmt::Write>(writer: &mut T, string: &str) ->
     Ok(())
 }
 
-pub(super) fn quote_string<T: std::fmt::Write>(writer: &mut T, string: &str) -> std::fmt::Result {
-    // Use E'…' escape string syntax so our \-sequences are interpreted.
-    write!(writer, "E'{string}'")
+pub(super) fn quote_string<W: std::fmt::Write>(writer: &mut W, string: &str) -> std::fmt::Result {
+    writer.write_str("E'")?;
+    writer.write_str(string)?;
+    writer.write_char('\'')
 }
 
-pub(super) fn escape_identifier<T: std::fmt::Write>(
-    writer: &mut T,
+pub(super) fn escape_identifier<W: std::fmt::Write>(
+    writer: &mut W,
     ident: &str,
 ) -> std::fmt::Result {
     replace_to(ident, '"', "\"\"", writer)
 }
 
-pub(super) fn encode_bytes<T: std::fmt::Write>(writer: &mut T, bytes: &[u8]) -> std::fmt::Result {
-    // PostgreSQL hex-format bytea literal
+pub(super) fn encode_bytes<W: std::fmt::Write>(writer: &mut W, bytes: &[u8]) -> std::fmt::Result {
     writer.write_str("'\\x")?;
     super::bytes_to_hex(writer, bytes)?;
     writer.write_str("'::bytea")
 }
 
-pub(super) fn encode_bits<T: std::fmt::Write>(writer: &mut T, bits: &str) -> std::fmt::Result {
-    debug_assert!(
-        bits.chars().all(|c| c == '0' || c == '1'),
-        "encode_bits: invalid input: {bits}"
-    );
-
-    write!(writer, "B'{}'", bits)
+pub(super) fn encode_bits<W: std::fmt::Write>(writer: &mut W, bits: &str) -> std::fmt::Result {
+    super::debug_assert_bits(bits);
+    write!(writer, "B'{bits}'")
 }

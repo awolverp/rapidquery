@@ -2,10 +2,7 @@ use std::fmt;
 
 use hashbrown::HashMap;
 
-use crate::{
-    internal::alias,
-    native::dialect::{PlaceholderSyntax, SqlDialect},
-};
+use crate::{internal::alias, native::dialect::SqlDialect};
 
 /// Error produced while building a prepared statement.
 #[derive(Debug)]
@@ -48,16 +45,6 @@ impl From<pyo3::PyErr> for PrepareError {
 
 pub type PrepareResult<T> = Result<T, PrepareError>;
 pub type PrepareParams = HashMap<String, alias::PyObject>;
-
-/// Sigil written before a named placeholder (`@param_0`, `:param_0`, `$param_0`).
-#[inline]
-fn placeholder_sigil(syntax: PlaceholderSyntax) -> char {
-    match syntax {
-        PlaceholderSyntax::AtSign => '@',
-        PlaceholderSyntax::Colon => ':',
-        PlaceholderSyntax::DollarNamed => '$',
-    }
-}
 
 /// Accumulates rendered SQL and the bound-parameter map.
 ///
@@ -120,7 +107,7 @@ impl PrepareContext<'_> {
     pub fn add_param(&mut self, dialect: &SqlDialect, param: pyo3::Py<pyo3::PyAny>) -> String {
         let name = self.alloc_param_name();
         let mut placeholder = String::with_capacity(1 + name.len());
-        placeholder.push(placeholder_sigil(dialect.placeholder_syntax()));
+        placeholder.push(dialect.placeholder_syntax().sigil());
         placeholder.push_str(&name);
         self.params.insert(name, param);
         placeholder
@@ -140,8 +127,7 @@ impl PrepareContext<'_> {
     #[inline]
     pub fn push_param(&mut self, dialect: &SqlDialect, param: pyo3::Py<pyo3::PyAny>) -> &mut Self {
         let name = self.alloc_param_name();
-        self.sql
-            .push(placeholder_sigil(dialect.placeholder_syntax()));
+        self.sql.push(dialect.placeholder_syntax().sigil());
         self.sql.push_str(&name);
         self.params.insert(name, param);
         self
