@@ -40,7 +40,7 @@ pub fn pyclass(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     quote! {
-        #[pyo3::pyclass(module="rapidquery._native", name=#name, immutable_type, frozen #extra_tokens)]
+        #[pyo3::pyclass(module="rapidquery._core", name=#name, immutable_type, frozen #extra_tokens)]
         #item
     }
     .into()

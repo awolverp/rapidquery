@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
-module-name = "rapidquery._native"
+module-name = "rapidquery._core"
 
 [project]
 name = "rapidquery"
