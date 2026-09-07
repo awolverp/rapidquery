@@ -378,6 +378,28 @@ impl SqlDialect {
         to_string(|buf| self.quote_string(buf, string))
     }
 
+    /// Escape `raw` and wrap it as a complete string literal.
+    ///
+    /// Equivalent to `quote_string(escape_string(raw))` with no intermediate
+    /// `String`: writes the dialect prefix (`'` / `E'` / `N'`), then the
+    /// escaped body, then `'`.
+    #[inline]
+    pub fn write_string_literal<W: Write>(&self, writer: &mut W, raw: &str) -> fmt::Result {
+        match self {
+            Self::PostgreSql => writer.write_str("E'")?,
+            Self::MsSql => writer.write_str("N'")?,
+            _ => writer.write_char('\'')?,
+        }
+        self.escape_string(writer, raw)?;
+        writer.write_char('\'')
+    }
+
+    /// [`write_string_literal`](Self::write_string_literal) into an owned `String`.
+    #[inline]
+    pub fn write_string_literal_as_string(&self, raw: &str) -> String {
+        to_string(|buf| self.write_string_literal(buf, raw))
+    }
+
     /// Write `bytes` as a native blob/bytea/varbyte literal.
     #[inline]
     pub fn encode_bytes<W: Write>(&self, writer: &mut W, bytes: &[u8]) -> fmt::Result {

@@ -2,7 +2,10 @@
 //!
 //! Native types stay PyO3-free. This module is the only place that defines
 //! `#[pyclass]` types and the `rapidquery._core.*` submodules they live in.
-//! Keep that split as Ident / DataType / statement builders land.
+//! Serializers live here because they inspect Python values.
 
+pub mod data_type;
 pub mod dialect;
+
+pub use data_type::data_type_mod;
 pub use dialect::dialect_mod;

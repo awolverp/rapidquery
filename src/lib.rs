@@ -9,6 +9,9 @@ pub mod typeref;
 #[pyo3::pymodule(gil_used = false)]
 mod _core {
     #[pymodule_export]
+    use super::pybindings::data_type_mod;
+
+    #[pymodule_export]
     use super::pybindings::dialect_mod;
 
     #[pymodule_init]

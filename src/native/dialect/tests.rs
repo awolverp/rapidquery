@@ -746,6 +746,29 @@ fn quote_string_wraps_with_expected_prefix_per_dialect() {
 }
 
 #[test]
+fn write_string_literal_matches_quote_of_escape() {
+    let samples = ["abc", "O'Brien", "a\\b", "a\0b", ""];
+    for dialect in [
+        SqlDialect::PostgreSql,
+        SqlDialect::MsSql,
+        SqlDialect::Sqlite,
+    ] {
+        for sample in samples {
+            let mut escaped = String::new();
+            dialect.escape_string(&mut escaped, sample).unwrap();
+            let via_parts = dialect.quote_string_as_string(&escaped);
+            let via_helper = dialect.write_string_literal_as_string(sample);
+            assert_eq!(
+                via_helper,
+                via_parts,
+                "{}: write_string_literal({sample:?}) != quote(escape(.))",
+                dialect.name()
+            );
+        }
+    }
+}
+
+#[test]
 fn quote_string_always_ends_with_a_single_quote() {
     for dialect in ALL_DIALECTS {
         let quoted = dialect.quote_string_as_string("abc");

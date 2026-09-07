@@ -15,7 +15,29 @@ pub(crate) static mut SPARK_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::pt
 pub(crate) static mut SQLITE_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut TERADATA_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
-// Python standard-library types (serializers; unused by dialect extractors)
+// Data-type / serializer types
+pub(crate) static mut DATATYPE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut INTEGER_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut FLOAT_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut BOOLEAN_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut STRING_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut UUID_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut BYTES_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut BIT_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut JSON_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut DATE_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut TIME_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut DATETIME_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut INET_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut MACADDRESS_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject =
+    std::ptr::null_mut();
+pub(crate) static mut UNSPECIFIED_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject =
+    std::ptr::null_mut();
+pub(crate) static mut ARRAY_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut CUSTOM_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+
+// Python standard-library types (serializers)
 pub(crate) static mut STD_DECIMAL_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut STD_UUID_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut STD_DATETIME_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -81,6 +103,25 @@ fn _initialize_typeref(py: pyo3::Python) {
             crate::pybindings::dialect::PySpark => SPARK_DIALECT_TYPE,
             crate::pybindings::dialect::PySqlite => SQLITE_DIALECT_TYPE,
             crate::pybindings::dialect::PyTeradata => TERADATA_DIALECT_TYPE,
+            // data types / serializers
+            crate::pybindings::data_type::PyDataType => DATATYPE_TYPE,
+            crate::pybindings::data_type::PySerializer => SERIALIZER_TYPE,
+            crate::pybindings::data_type::PyIntegerSerializer => INTEGER_SERIALIZER_TYPE,
+            crate::pybindings::data_type::PyFloatSerializer => FLOAT_SERIALIZER_TYPE,
+            crate::pybindings::data_type::PyBooleanSerializer => BOOLEAN_SERIALIZER_TYPE,
+            crate::pybindings::data_type::PyStringSerializer => STRING_SERIALIZER_TYPE,
+            crate::pybindings::data_type::PyUuidSerializer => UUID_SERIALIZER_TYPE,
+            crate::pybindings::data_type::PyBytesSerializer => BYTES_SERIALIZER_TYPE,
+            crate::pybindings::data_type::PyBitSerializer => BIT_SERIALIZER_TYPE,
+            crate::pybindings::data_type::PyJSONSerializer => JSON_SERIALIZER_TYPE,
+            crate::pybindings::data_type::PyDateSerializer => DATE_SERIALIZER_TYPE,
+            crate::pybindings::data_type::PyTimeSerializer => TIME_SERIALIZER_TYPE,
+            crate::pybindings::data_type::PyDatetimeSerializer => DATETIME_SERIALIZER_TYPE,
+            crate::pybindings::data_type::PyInetSerializer => INET_SERIALIZER_TYPE,
+            crate::pybindings::data_type::PyMacAddressSerializer => MACADDRESS_SERIALIZER_TYPE,
+            crate::pybindings::data_type::PyUnspecifiedSerializer => UNSPECIFIED_SERIALIZER_TYPE,
+            crate::pybindings::data_type::PyArraySerializer => ARRAY_SERIALIZER_TYPE,
+            crate::pybindings::data_type::PyCustomSerializer => CUSTOM_SERIALIZER_TYPE,
         );
 
         STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");
