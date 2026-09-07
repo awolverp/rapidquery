@@ -1,7 +1,12 @@
 # RapidQuery
-__*RapidQuery: High-Performance SQL Query Builder for Python*__
+
+**_RapidQuery: High-Performance SQL Query Builder for Python_**
 
 RapidQuery is a powerful SQL query builder library designed for Python, combining the simplicity of Python with the raw speed of **Rust**. Build complex SQL queries effortlessly and efficiently, with a library that prioritizes both performance and ease of use.
+
+> [!WARNING]\
+> This is the old documentation for v0.1.0.
+> This branch is for v1.0.0 and is still in development.
 
 - [**Installation**](#install)
 - [**Why RapidQuery?**](#why-rapidquery)
@@ -15,17 +20,21 @@ RapidQuery is a powerful SQL query builder library designed for Python, combinin
 ## Install
 
 You can use **PIP**:
+
 ```bash
 pip3 install rapidquery
 ```
 
 Or you can use **UV** (recommended):
+
 ```bash
 uv add rapidquery
 ```
 
 ## Why RapidQuery?
+
 **Features**:
+
 - **🧶 Thread safe**: It's completely thread-safe and uses locks in internal to prevent concurrency problems.
 - **⚡ Blazing High Performance**: Leveraging the power of Rust under the hood, RapidQuery ensures your query building process is as fast as possible.
 - 🛡️ **SQL Injection Protection**: Built-in security measures to prevent SQL injection attacks by default.
@@ -36,37 +45,40 @@ uv add rapidquery
 > In a landscape filled with SQL libraries, we noticed a critical gap: **performance was often an afterthought**. That's why we built RapidQuery with speed as our primary and enduring focus.
 
 ## Backends
+
 RapidQuery supports `PostgreSQL`, `MySQL`, and `SQLite`. These are referred to as `backend`s. When building SQL statements, you must specify your target backend.
 
 ## Usage
 
 1. Core Concepts
-    1. [**Value**](#value)
-    2. [**Expr**](#expr)
-    3. [**Statement Builders**](#statement-builders)
+   1. [**Value**](#value)
+   2. [**Expr**](#expr)
+   3. [**Statement Builders**](#statement-builders)
 2. Query Statements
-    1. [**Query Select**](#query-select)
-    2. [**Query Insert**](#query-insert)
-    3. [**Query Update**](#query-update)
-    4. [**Query Delete**](#query-delete)
-    5. [**Query With**](#query-with)
+   1. [**Query Select**](#query-select)
+   2. [**Query Insert**](#query-insert)
+   3. [**Query Update**](#query-update)
+   4. [**Query Delete**](#query-delete)
+   5. [**Query With**](#query-with)
 3. More About Queries
-    1. [**Custom Function**](#custom-functions)
+   1. [**Custom Function**](#custom-functions)
 4. Schema Statements
-    1. [**Table Create**](#table-create)
-    2. [**Table Alter**](#table-alter)
-    3. [**Table Drop**](#table-drop)
-    4. [**Table Rename**](#table-rename)
-    5. [**Table Truncate**](#table-truncate)
-    8. [**Index Create**](#index-create)
-    9. [**Index Drop**](#index-drop)
+   1. [**Table Create**](#table-create)
+   2. [**Table Alter**](#table-alter)
+   3. [**Table Drop**](#table-drop)
+   4. [**Table Rename**](#table-rename)
+   5. [**Table Truncate**](#table-truncate)
+   6. [**Index Create**](#index-create)
+   7. [**Index Drop**](#index-drop)
 5. Advanced Usage
-    1. [**More About Column References**](#more-about-column-references)
-    2. [**More About TableName**](#more-about-tablename)
-    3. [**More About Expr**](#more-about-expr)
+   1. [**More About Column References**](#more-about-column-references)
+   2. [**More About TableName**](#more-about-tablename)
+   3. [**More About Expr**](#more-about-expr)
 
 ### Core Concepts
+
 #### Value
+
 Bridges Python types, Rust types, and SQL types for seamless data conversion.
 
 This class handles validation, adaptation, and conversion between different
@@ -79,6 +91,7 @@ type systems used in the application stack.
 > **Important**: `Value` is lazy. This means it keeps your value and never converts it to Rust and then SQL until needed.
 
 #### Expr
+
 Represents a SQL expression that can be built into SQL code.
 
 This class provides a fluent interface for constructing complex SQL expressions
@@ -90,9 +103,10 @@ when building the final SQL statement.
 
 > [!NOTE]\
 > `Expr` is immutable, so by calling each method you will give a new instance
-of it which includes new change(s).
+> of it which includes new change(s).
 
 **Basic**
+
 ```python
 import rapidquery as rp
 
@@ -106,6 +120,7 @@ rp.Expr(rq.ColumnRef("name", table="users"))  # -> "users"."name" (column refere
 ```
 
 **Comparisons**
+
 ```python
 rq.Expr.col("status") == "active"  # -> "status" == 'active'
 rq.Expr.col("age") > 16           # -> "age" > 16
@@ -126,7 +141,9 @@ rq.any(
 ```
 
 **Best Practices**
+
 - Always use `Expr.col()` for column references: This ensures proper quoting for your target database
+
 ```python
 # Column reference (properly quoted identifier)
 rq.Expr.col("user_name")  # → "user_name"
@@ -136,15 +153,17 @@ rq.Expr("user_name")      # → 'user_name'
 ```
 
 - Use `rapidquery.all()` and `rapidquery.any()` for logical combinations: More readable than chaining `&` and `|` operators
+
 ```python
 # Good
 all(condition1, condition2, condition3)
-   
+
 # Less readable
 condition1 & condition2 & condition3
 ```
 
 - Be careful with `Expr.custom()`: It bypasses all safety checks
+
 ```python
 # Dangerous - vulnerable to SQL injection
 user_input = "'; DROP TABLE users; --"
@@ -155,12 +174,14 @@ Expr.col("name") == user_input
 ```
 
 #### Statement Builders
+
 Statements are divided into 2 categories: `QueryStatement`, and `SchemaStatement`.
 
 Some statements like `Select`, `Update`, `Delete`, `Insert`, ... are `QueryStatement`.
 Other statements like `Table`, `AlterTable`, `Index`, ... are `SchemaStatement`.
 
 `QueryStatement` class interface is:
+
 ```python
 class QueryStatement:
     """Subclass of query statements."""
@@ -179,6 +200,7 @@ class QueryStatement:
 ```
 
 `SchemaStatement` class interface is:
+
 ```python
 class SchemaStatement:
     """Subclass of schema statements."""
@@ -189,6 +211,7 @@ class SchemaStatement:
 ```
 
 ### Query Select
+
 Use `rapidquery.SelectStatement` type to generate `SELECT` statements.
 
 ```python
@@ -214,11 +237,12 @@ print(stmt.to_sql("mysql"))
 
 print(stmt.to_sql("sqlite"))
 # SELECT "character" AS "character", "fonts"."name" AS "name" FROM "characters"
-# LEFT JOIN "fonts" ON "characters"."font_id" = "fonts"."id" 
+# LEFT JOIN "fonts" ON "characters"."font_id" = "fonts"."id"
 # WHERE "size_w" IN (3, 4) AND "characters" LIKE 'A%'
 ```
 
 ### Query Insert
+
 Use `rapidquery.InsertStatement` type to generate `INSERT` statements.
 
 ```python
@@ -233,7 +257,7 @@ stmt = (
 print(stmt.to_sql("postgres"))
 # INSERT INTO "glyph" ("aspect", "image") VALUES (3.14, 'A4')
 # ON CONFLICT ("id") DO UPDATE SET "image" = "excluded"."image"
-# 
+#
 print(stmt.to_sql("mysql"))
 # INSERT INTO `glyph` (`aspect`, `image`) VALUES (3.14, 'A4')
 # ON DUPLICATE KEY UPDATE `image` = VALUES(`image`)
@@ -244,6 +268,7 @@ print(stmt.to_sql("sqlite"))
 ```
 
 ### Query Update
+
 Use `rapidquery.UpdateStatement` type to generate `UPDATE` statements.
 
 ```python
@@ -266,6 +291,7 @@ print(stmt.to_sql("sqlite"))
 ```
 
 ### Query Delete
+
 Use `rapidquery.DeleteStatement` type to generate `DELETE` statements.
 
 ```python
@@ -289,6 +315,7 @@ print(stmt.to_sql("sqlite"))
 ```
 
 ### Query With
+
 We have two types here: `rapidquery.WithClause` and `rapidquery.WithQuery`.
 
 ```txt
@@ -300,7 +327,6 @@ WITH [... CTEs ...] QUERY
          |
      WithClause
 ```
-
 
 As you can see, `rapidquery.WithClause` includes common table expressions (CTEs),
 and `rapidquery.WithQuery` includes `rapidquery.WithClause` and the final query.
@@ -340,7 +366,7 @@ query: WithQuery = clause.query(
     )
 )
 query.to_sql("postgres")
-# WITH 
+# WITH
 #   "users_count" AS (
 #       UPDATE "users" SET "amount" = "amount" + 10 WHERE "id" > 50 RETURNING 1
 #   ) ,
@@ -353,6 +379,7 @@ query.to_sql("postgres")
 ```
 
 ### Custom Functions
+
 For working with functions in RapidQuery, you have to use `Func` class.
 A lot of functions such as `SUM`, `AVG`, `MD5`, ... is ready to use. For example:
 
@@ -372,6 +399,7 @@ stmt.to_sql("postgres")
 ```
 
 ### Table Create
+
 `rapidquery.Table` represents a complete database table definition. Use it to generate `CREATE TABLE` statements.
 
 ```python
@@ -404,6 +432,7 @@ print(characters.to_sql("postgresql"))
 ```
 
 ### Table Alter
+
 Use `rapidquery.AlterTable` type to generate `ALTER TABLE` statements.
 
 ```python
@@ -429,6 +458,7 @@ print(stmt.to_sql("mysql"))
 ```
 
 ### Table Drop
+
 Use `rapidquery.DropTable` type to generate `DROP TABLE` statements.
 
 ```python
@@ -440,6 +470,7 @@ print(stmt.to_sql("mysql"))
 ```
 
 ### Table Rename
+
 Use `rapidquery.RenameTable` type to generate `RENAME TABLE` statements.
 
 ```python
@@ -455,6 +486,7 @@ print(stmt.to_sql("mysql"))
 ```
 
 ### Table Truncate
+
 Use `rapidquery.TruncateTable` type to generate `TRUNCATE TABLE` statements.
 
 ```python
@@ -478,6 +510,7 @@ print(idx.to_sql("postgres"))
 ```
 
 ### Index Drop
+
 Use `rapidquery.DropIndex` type to generate `DROP INDEX` statements.
 
 ```python
@@ -490,6 +523,7 @@ print(idx.to_sql("postgres"))
 ```
 
 ### More About Column Reference
+
 Let's learn some tricks about column references.
 
 In RapidQuery, we have something called `ColumnRef`, which represents a reference to a database column with optional table and schema qualification.
@@ -502,6 +536,7 @@ In generating statements, we have a lot of situations that you need to work with
 For the parameters which accept column references, you have 4 ways:
 
 1. Use `ColumnRef`:
+
 ```python
 col_ref = rq.ColumnRef("id", "characters")
 # OR
@@ -512,12 +547,14 @@ stmt = rq.SelectStatement().columns(col_ref)
 ```
 
 2. Use `str`: The easiest way
+
 ```python
 stmt = rq.SelectStatement().columns("characters.id")
 # SELECT "characters"."id" AS "id"
 ```
 
 3. Use `__column_ref__` property: developer-friendly and expandable way.
+
 ```python
 class IdColumnProperty:
     @property
@@ -536,6 +573,7 @@ stmt = rq.SelectStatement().columns(IdColumnClassVar)
 ```
 
 4. Use `Column`: It's possible because `Column` has `__column_ref__` property.
+
 ```python
 id = Column("id", rq.Integer())
 
@@ -543,8 +581,8 @@ stmt = rq.SelectStatement().columns(id)
 # SELECT "id" AS "id"
 ```
 
-
 ### More About TableName
+
 Let's learn some tricks about table name.
 
 In RapidQuery, we have something called `TableName`, which represents a table name reference with optional schema, database, and alias.
@@ -557,6 +595,7 @@ In generating statements, we have situations that you need to specify table name
 For the parameters which accept table name, you have 4 ways:
 
 1. Use `TableName`:
+
 ```python
 tbl = rq.TableName("users", schema="archive")
 # OR
@@ -567,12 +606,14 @@ stmt = rq.DeleteStatement(tbl)
 ```
 
 2. Use `str`: The easiest way
+
 ```python
 stmt = rq.DeleteStatement("archive.users")
 # DELETE FROM "archive"."users"
 ```
 
 3. Use `__table_name__` property: developer-friendly and expandable way.
+
 ```python
 class UsersProperty:
     @property
@@ -593,6 +634,7 @@ stmt = rq.DeleteStatement(UsersClassVar)
 ```
 
 4. Use `Table`: It's possible because `Table` has `__table_name__` property.
+
 ```python
 users = Table(
     "archive.users",
@@ -604,6 +646,7 @@ stmt = rq.DeleteStatement(users)
 ```
 
 ### More About Expr
+
 You learned [here](#expr) about `Expr` type.
 
 **❗ The Trick** \
@@ -628,8 +671,10 @@ stmt = rq.SelectStatement(TextClause("WOW!"))
 2. Second, same as `ColumnRef`, `Expr` also supports `__column_ref__` property.
 
 ## Performance
+
 ### Benchmarks
-Benchmarks run on *Linux 6.18.12-1-MANJARO x86_64* with CPython 3.14. Your results may vary.
+
+Benchmarks run on _Linux 6.18.12-1-MANJARO x86_64_ with CPython 3.14. Your results may vary.
 
 Iterations per test: 100,000 \
 Python version: 3.14.3
@@ -673,8 +718,10 @@ SQLAlchemy              7924.52     17.95x slower
 ```
 
 ## Known Issues
+
 ### Unmanaged Rust panic output in building SQL
-The library may encounter errors during SQL query construction, which are correctly raised as *RuntimeError* exceptions. For instance, this occurs when using a function that isn't supported by your target database. **While this error-raising behavior is intentional and logical, the issue is that unmanaged Rust panic information is also printed to stderr**. Currently, there is no way to suppress or manage this panic output. We are working to resolve this problem as much as possible in future updates.
+
+The library may encounter errors during SQL query construction, which are correctly raised as _RuntimeError_ exceptions. For instance, this occurs when using a function that isn't supported by your target database. **While this error-raising behavior is intentional and logical, the issue is that unmanaged Rust panic information is also printed to stderr**. Currently, there is no way to suppress or manage this panic output. We are working to resolve this problem as much as possible in future updates.
 
 ```python
 >>> import rapidquery as rq
@@ -691,9 +738,11 @@ RuntimeError: build failed
 ```
 
 ### Missing `__init__` Calls
+
 If a RapidQuery object is instantiated without calling its `__init__` method (e.g., via certain serialization tricks or `__new__` alone), the internal Rust pointer will be null. Accessing methods on such objects will cause an unmanaged Rust panic. Always use the provided constructors.
 
 ### Join conditions are not optional
+
 Currently, `JOIN` operations require an explicit ON or USING condition.
 
 ## Supported Platforms
@@ -702,41 +751,42 @@ Pre-built wheels are available for the following platforms and Python interprete
 
 ### Linux (manylinux)
 
-| Architecture | Python Versions |
-|---|---|
-| x86_64 | 3.10 – 3.14, 3.14t, PyPy 3.11, GraalPy 3.11/3.12 |
-| i686 | 3.10 – 3.14, 3.14t, PyPy 3.11 |
-| aarch64 | 3.10 – 3.14, 3.14t, PyPy 3.11, GraalPy 3.11/3.12 |
-| armv7 | 3.10 – 3.14, 3.14t |
-| s390x | 3.10 – 3.14, 3.14t |
-| ppc64le | 3.10 – 3.14, 3.14t |
-| riscv64 | 3.10 – 3.14, 3.14t |
+| Architecture | Python Versions                                  |
+| ------------ | ------------------------------------------------ |
+| x86_64       | 3.10 – 3.14, 3.14t, PyPy 3.11, GraalPy 3.11/3.12 |
+| i686         | 3.10 – 3.14, 3.14t, PyPy 3.11                    |
+| aarch64      | 3.10 – 3.14, 3.14t, PyPy 3.11, GraalPy 3.11/3.12 |
+| armv7        | 3.10 – 3.14, 3.14t                               |
+| s390x        | 3.10 – 3.14, 3.14t                               |
+| ppc64le      | 3.10 – 3.14, 3.14t                               |
+| riscv64      | 3.10 – 3.14, 3.14t                               |
 
 ### Linux (musllinux 1.1)
 
-| Architecture | Python Versions |
-|---|---|
-| x86_64 | 3.10 – 3.14, 3.14t, PyPy 3.11 |
-| aarch64 | 3.10 – 3.14, 3.14t, PyPy 3.11 |
-| armv7 | 3.10 – 3.14, 3.14t, PyPy 3.11 |
+| Architecture | Python Versions               |
+| ------------ | ----------------------------- |
+| x86_64       | 3.10 – 3.14, 3.14t, PyPy 3.11 |
+| aarch64      | 3.10 – 3.14, 3.14t, PyPy 3.11 |
+| armv7        | 3.10 – 3.14, 3.14t, PyPy 3.11 |
 
 ### Windows
 
-| Architecture | Python Versions |
-|---|---|
-| x64 | 3.10 – 3.14, 3.14t |
-| x86 | 3.10 – 3.14, 3.14t |
+| Architecture | Python Versions    |
+| ------------ | ------------------ |
+| x64          | 3.10 – 3.14, 3.14t |
+| x86          | 3.10 – 3.14, 3.14t |
 
 ### macOS
 
-| Architecture | Python Versions |
-|---|---|
-| x86_64 | 3.10 – 3.14, 3.13t, 3.14t, PyPy 3.11 |
+| Architecture            | Python Versions                      |
+| ----------------------- | ------------------------------------ |
+| x86_64                  | 3.10 – 3.14, 3.13t, 3.14t, PyPy 3.11 |
 | aarch64 (Apple Silicon) | 3.10 – 3.14, 3.13t, 3.14t, PyPy 3.11 |
 
 A source distribution (sdist) is also published for platforms not listed above, which requires a Rust nightly toolchain to build from source.
 
 ## TODO
+
 - [x] Write tests
 - [x] Update & automate workflows
 - [x] Write CTE
@@ -745,4 +795,5 @@ A source distribution (sdist) is also published for platforms not listed above, 
 - [ ] Complete backend-only functions
 
 ## License
+
 This repository is licensed under the [GNU GPLv3 License](LICENSE)

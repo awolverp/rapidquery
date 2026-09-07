@@ -33,6 +33,7 @@ strip = false
 rapidquery-macros = { path = "rapidquery-macros" }
 pyo3 = { version = "0.29", default-features = false, features = [ "macros", "chrono", "py-clone" ] }
 parking_lot = { version = "0.12", default-features = false }
+hashbrown = { version = "0.17.1", default-features = false, features = ["allocator-api2", "default-hasher", "inline-more"] }
 
 [features]
 default = ["extension-module"]
