@@ -4,9 +4,14 @@ mod submodule_ext;
 pub use strings::*;
 pub use submodule_ext::*;
 
-/// Returns the type name of a [`pyo3::ffi::PyObject`].
+/// Fully-qualified type name of `obj` (`int`, `rapidquery._core.PostgreSql`, …).
 ///
-/// Returns `"<unknown>"` on failure.
+/// Returns `"<unknown>"` if `Py_TYPE` is null or the name lookup fails.
+///
+/// # Safety
+///
+/// `obj` must be a valid, non-null `PyObject*` (a borrowed `Bound<PyAny>`
+/// pointer is fine). The GIL must be held (`py`).
 #[inline]
 pub unsafe fn get_type_name<'a>(py: pyo3::Python<'a>, obj: *mut pyo3::ffi::PyObject) -> String {
     use pyo3::types::{PyStringMethods, PyTypeMethods};
