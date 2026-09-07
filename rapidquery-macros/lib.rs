@@ -116,13 +116,13 @@ impl Parse for PyErrInput {
 /// // => PyTypeError::new_err(format!("hello {}", "world"))
 /// ```
 #[proc_macro]
-pub fn pyerr(attr: TokenStream) -> TokenStream {
+pub fn pyerr(item: TokenStream) -> TokenStream {
     let PyErrInput {
         return_err_enum,
         name,
         msg_or_fmt,
         format_args,
-    } = syn::parse_macro_input!(attr as PyErrInput);
+    } = syn::parse_macro_input!(item as PyErrInput);
 
     let constructed = match (msg_or_fmt, format_args.is_empty()) {
         (Some(a), false) => {
