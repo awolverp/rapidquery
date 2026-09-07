@@ -57,4 +57,5 @@ Issues = "https://github.com/awolverp/rapidquery/issues"
 [dependency-groups]
 dev = [
     "maturin == 1.15.0",
+    "pytest>=8.3.5",
 ]
