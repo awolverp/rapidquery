@@ -1,28 +1,9 @@
 //! SQL identifiers.
-//!
-//! An [`Ident`] is a dotted name (`schema.table.column`) made of
-//! [`IdentPart`]s. Each part is one of:
-//!
-//! * [`IdentPart::Quote`] — wrapped in the dialect's identifier delimiters
-//!   (and escaped). This is the default for a Python `str`.
-//! * [`IdentPart::Unquote`] — emitted as a raw identifier body. **Not** a
-//!   raw-SQL hole: the body must be a simple ASCII name
-//!   (`[A-Za-z_][A-Za-z0-9_]*`). `COUNT(*)` and similar fragments belong on
-//!   a later expression type.
-//! * [`IdentPart::Asterisk`] — the SQL wildcard `*`. Must be the last part
-//!   (`t.*`, never `*.id`).
-//!
-//! # Python vs Rust
-//!
-//! The Python constructor takes one argument per part (`Ident("schema",
-//! "table")`). A Python `str` is always [`IdentPart::Quote`], including
-//! `"*"` (a column named star). The wildcard is the `Asterisk` object.
-//!
-//! [`Ident::from_str`] is a **Rust** dotted-name parser: `"t.*"` ends in
-//! [`IdentPart::Asterisk`], and a `*` that is not last is demoted to
-//! [`IdentPart::Quote`]. Python does not call this parser.
 
-use smallvec::SmallVec;
+use std::fmt;
+
+use arcstr::ArcStr;
+use smallvec::{SmallVec, smallvec};
 
 use crate::native::{
     dialect::SqlDialect,
@@ -33,9 +14,9 @@ use crate::native::{
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IdentPart {
     /// Identifier that should be quoted and escaped for the dialect.
-    Quote(arcstr::ArcStr),
+    Quote(ArcStr),
     /// Identifier emitted without delimiters. Must be a simple ASCII name.
-    Unquote(arcstr::ArcStr),
+    Unquote(ArcStr),
     /// SQL wildcard `*`.
     Asterisk,
 }
@@ -49,7 +30,7 @@ impl IdentPart {
         if s.is_empty() {
             return Err(ParseIdentError::EmptyChunk);
         }
-        Ok(Self::Quote(s.into()))
+        Ok(Self::Quote(ArcStr::from(s)))
     }
 
     /// Unquoted part whose body is `s`.
@@ -63,7 +44,7 @@ impl IdentPart {
         if !is_safe_unquoted(s) {
             return Err(ParseIdentError::InvalidUnquoted);
         }
-        Ok(Self::Unquote(s.into()))
+        Ok(Self::Unquote(ArcStr::from(s)))
     }
 }
 
@@ -79,7 +60,7 @@ impl<S: AsRef<str>> From<S> for IdentPart {
         if s == "*" {
             IdentPart::Asterisk
         } else {
-            IdentPart::Quote(s.into())
+            IdentPart::Quote(ArcStr::from(s))
         }
     }
 }
@@ -128,8 +109,8 @@ pub enum ParseIdentError {
     InvalidUnquoted,
 }
 
-impl std::fmt::Display for ParseIdentError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for ParseIdentError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Empty => "identifier is empty",
             Self::EmptyChunk => "identifier has an empty part",
@@ -182,8 +163,17 @@ impl Ident {
         self.0
     }
 
-    /// Build from parts, validating emptiness, length, unquoted charset, and
-    /// asterisk position.
+    /// One already-validated part. Prefer this over [`from_parts`] for a
+    /// single `str` / `Unquote` / `Asterisk`.
+    #[inline]
+    pub fn from_one(part: IdentPart) -> Self {
+        Self(smallvec![part])
+    }
+
+    /// Build from parts. Composition only: empty ident, empty chunk,
+    /// [`MAX_PARTS`](Self::MAX_PARTS), asterisk-not-last.
+    ///
+    /// Unquoted charset is enforced by [`IdentPart::unquoted`], not here.
     pub fn from_parts(iter: impl IntoIterator<Item = IdentPart>) -> Result<Self, ParseIdentError> {
         let mut parts = SmallVec::<[IdentPart; 4]>::new();
 
@@ -195,18 +185,10 @@ impl Ident {
                 return Err(ParseIdentError::TooManyParts);
             }
             match &part {
-                IdentPart::Quote(name) if name.is_empty() => {
+                IdentPart::Quote(name) | IdentPart::Unquote(name) if name.is_empty() => {
                     return Err(ParseIdentError::EmptyChunk);
                 }
-                IdentPart::Unquote(name) => {
-                    if name.is_empty() {
-                        return Err(ParseIdentError::EmptyChunk);
-                    }
-                    if !is_safe_unquoted(name) {
-                        return Err(ParseIdentError::InvalidUnquoted);
-                    }
-                }
-                IdentPart::Quote(_) | IdentPart::Asterisk => {}
+                IdentPart::Quote(_) | IdentPart::Unquote(_) | IdentPart::Asterisk => {}
             }
             parts.push(part);
         }
@@ -241,12 +223,12 @@ impl std::str::FromStr for Ident {
             if let Some(last) = parts.last_mut()
                 && matches!(last, IdentPart::Asterisk)
             {
-                *last = IdentPart::Quote(arcstr::literal!("*"));
+                *last = IdentPart::Quote(ArcStr::from("*"));
             }
             parts.push(chunk.into());
         }
 
-        Self::from_parts(parts)
+        Ok(Self(parts))
     }
 }
 
@@ -258,5 +240,213 @@ impl PrepareStatement for Ident {
         context: &mut crate::native::prepare_statement::PrepareContext<'_>,
     ) -> PrepareResult<()> {
         prepare_separated(dialect, context, &self.0, ".")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use super::*;
+
+    fn ident_from(parts: impl IntoIterator<Item = IdentPart>) -> Ident {
+        Ident::from_parts(parts).unwrap()
+    }
+
+    fn quote(s: &str) -> IdentPart {
+        IdentPart::quoted(s).unwrap()
+    }
+
+    #[test]
+    fn from_str_splits_on_dots() {
+        let ident = Ident::from_str("public.users.id").unwrap();
+        assert_eq!(
+            ident.parts(),
+            &[quote("public"), quote("users"), quote("id"),]
+        );
+    }
+
+    #[test]
+    fn from_str_bare_star_is_asterisk() {
+        let ident = Ident::from_str("*").unwrap();
+        assert_eq!(ident.parts(), &[IdentPart::Asterisk]);
+    }
+
+    #[test]
+    fn from_str_table_star_keeps_asterisk_last() {
+        let ident = Ident::from_str("t.*").unwrap();
+        assert_eq!(ident.parts(), &[quote("t"), IdentPart::Asterisk]);
+    }
+
+    #[test]
+    fn from_str_mid_star_is_demoted_to_quoted() {
+        let ident = Ident::from_str("*.id").unwrap();
+        assert_eq!(ident.parts(), &[quote("*"), quote("id")]);
+    }
+
+    #[test]
+    fn from_str_rejects_empty_and_empty_chunks() {
+        assert_eq!(Ident::from_str("").unwrap_err(), ParseIdentError::Empty);
+        assert_eq!(
+            Ident::from_str("a.").unwrap_err(),
+            ParseIdentError::EmptyChunk
+        );
+        assert_eq!(
+            Ident::from_str(".a").unwrap_err(),
+            ParseIdentError::EmptyChunk
+        );
+        assert_eq!(
+            Ident::from_str("a..b").unwrap_err(),
+            ParseIdentError::EmptyChunk
+        );
+    }
+
+    #[test]
+    fn from_str_rejects_too_many_parts() {
+        let ten = (0..Ident::MAX_PARTS)
+            .map(|i| format!("p{i}"))
+            .collect::<Vec<_>>()
+            .join(".");
+        assert!(Ident::from_str(&ten).is_ok());
+
+        let eleven = format!("{ten}.extra");
+        assert_eq!(
+            Ident::from_str(&eleven).unwrap_err(),
+            ParseIdentError::TooManyParts
+        );
+    }
+
+    #[test]
+    fn from_parts_rejects_empty() {
+        assert_eq!(Ident::from_parts([]).unwrap_err(), ParseIdentError::Empty);
+    }
+
+    #[test]
+    fn from_parts_rejects_empty_quoted_part() {
+        assert_eq!(
+            Ident::from_parts([IdentPart::Quote(ArcStr::from(""))]).unwrap_err(),
+            ParseIdentError::EmptyChunk
+        );
+    }
+
+    #[test]
+    fn from_parts_rejects_asterisk_not_last() {
+        assert_eq!(
+            Ident::from_parts([IdentPart::Asterisk, quote("id")]).unwrap_err(),
+            ParseIdentError::AsteriskNotLast
+        );
+    }
+
+    #[test]
+    fn unquoted_rejects_invalid() {
+        for bad in ["", "*", "a;b", "a.b", "1id", "a-b", "a b", "café"] {
+            let err = IdentPart::unquoted(bad).unwrap_err();
+            assert!(
+                err == ParseIdentError::InvalidUnquoted || err == ParseIdentError::EmptyChunk,
+                "{bad:?} -> {err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn unquoted_accepts_simple_ascii_names() {
+        for ok in ["Users", "id", "_x", "a1", "created_at"] {
+            let part = IdentPart::unquoted(ok).unwrap();
+            match part {
+                IdentPart::Unquote(n) => assert_eq!(n.as_str(), ok),
+                _ => panic!("expected Unquote"),
+            }
+        }
+    }
+
+    #[test]
+    fn quoted_star_is_not_asterisk() {
+        let part = quote("*");
+        assert_ne!(part, IdentPart::Asterisk);
+        match part {
+            IdentPart::Quote(n) => assert_eq!(n.as_str(), "*"),
+            _ => panic!("expected Quote"),
+        }
+    }
+
+    #[test]
+    fn quote_unquote_asterisk_are_not_equal() {
+        let q = quote("id");
+        let u = IdentPart::unquoted("id").unwrap();
+        assert_ne!(q, u);
+        assert_ne!(q, IdentPart::Asterisk);
+        assert_ne!(u, IdentPart::Asterisk);
+        assert_ne!(ident_from([q.clone()]), ident_from([u.clone()]));
+    }
+
+    #[test]
+    fn from_one_is_single_part() {
+        let ident = Ident::from_one(quote("id"));
+        assert_eq!(ident.len(), 1);
+        assert_eq!(ident.parts(), &[quote("id")]);
+    }
+
+    #[test]
+    fn parse_ident_error_display_is_not_todo() {
+        let msg = ParseIdentError::Empty.to_string();
+        assert!(!msg.is_empty());
+        assert!(!msg.contains("todo"));
+    }
+
+    #[test]
+    fn prepare_uses_dialect_delimiters() {
+        fn render(ident: &Ident, dialect: SqlDialect) -> String {
+            let mut buf = String::new();
+            for (i, part) in ident.parts().iter().enumerate() {
+                if i > 0 {
+                    buf.push('.');
+                }
+                match part {
+                    IdentPart::Quote(n) => {
+                        dialect.quote_identifier(&mut buf, n.as_str()).unwrap();
+                    }
+                    IdentPart::Unquote(n) => buf.push_str(n.as_str()),
+                    IdentPart::Asterisk => buf.push('*'),
+                }
+            }
+            buf
+        }
+
+        let ident = ident_from([quote("id")]);
+        assert_eq!(render(&ident, SqlDialect::PostgreSql), "\"id\"");
+        assert_eq!(render(&ident, SqlDialect::MySql), "`id`");
+        assert_eq!(render(&ident, SqlDialect::MsSql), "[id]");
+        assert_eq!(render(&ident, SqlDialect::Teradata), "'id'");
+
+        let ident = ident_from([quote("a\"b")]);
+        assert_eq!(render(&ident, SqlDialect::PostgreSql), "\"a\"\"b\"");
+
+        let ident = ident_from([quote("a`b")]);
+        assert_eq!(render(&ident, SqlDialect::MySql), "`a``b`");
+
+        let ident = ident_from([quote("a]b")]);
+        assert_eq!(render(&ident, SqlDialect::MsSql), "[a]]b]");
+
+        let ident = ident_from([quote("a'b")]);
+        assert_eq!(render(&ident, SqlDialect::Teradata), "'a''b'");
+
+        let ident = ident_from([quote("a; DROP TABLE t--")]);
+        assert_eq!(
+            render(&ident, SqlDialect::PostgreSql),
+            "\"a; DROP TABLE t--\""
+        );
+
+        let ident = ident_from([
+            quote("public"),
+            IdentPart::unquoted("Users").unwrap(),
+            quote("id"),
+        ]);
+        assert_eq!(
+            render(&ident, SqlDialect::PostgreSql),
+            "\"public\".Users.\"id\""
+        );
+
+        let ident = ident_from([quote("t"), IdentPart::Asterisk]);
+        assert_eq!(render(&ident, SqlDialect::MySql), "`t`.*");
     }
 }

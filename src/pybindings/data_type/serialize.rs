@@ -11,7 +11,7 @@ use pyo3::types::{PyAnyMethods, PyTzInfoAccess};
 
 use super::serializer::SerializerInner;
 use crate::internal::alias;
-use crate::internal::utils::get_type_name;
+use crate::internal::utils::{get_type_name, py_str};
 use crate::native::dialect::SqlDialect;
 
 impl SerializerInner {
@@ -47,28 +47,6 @@ impl SerializerInner {
                 Self::Custom(s) => write_custom(py, ptr, dialect, s, object, out),
             }
         }
-    }
-}
-
-/// Borrow the cached UTF-8 buffer of a Python `str`.
-///
-/// # Safety
-/// `ptr` is a live unicode object. The slice is valid until that object is
-/// mutated or the GIL is released.
-#[inline]
-unsafe fn py_str<'a>(
-    py: pyo3::Python<'_>,
-    ptr: *mut pyo3::ffi::PyObject,
-) -> pyo3::PyResult<&'a str> {
-    let mut size: pyo3::ffi::Py_ssize_t = 0;
-    let data = pyo3::ffi::PyUnicode_AsUTF8AndSize(ptr, &mut size);
-    if data.is_null() || size < 0 {
-        Err(pyo3::PyErr::fetch(py))
-    } else {
-        Ok(std::str::from_utf8_unchecked(std::slice::from_raw_parts(
-            data as *const u8,
-            size as usize,
-        )))
     }
 }
 

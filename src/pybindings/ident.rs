@@ -13,10 +13,14 @@
 //! `Asterisk`. Dotted names are `Ident("schema", "table")`; the native
 //! [`FromStr`](std::str::FromStr) parser is not used on the Python constructor.
 
-use pyo3::types::{PyAnyMethods, PySliceMethods};
+use pyo3::types::{PyAnyMethods, PySliceMethods, PyTupleMethods};
+use smallvec::SmallVec;
 
 use crate::{
-    internal::{alias, utils::IndexOrSlice},
+    internal::{
+        alias,
+        utils::{IndexOrSlice, py_str},
+    },
     native::{self, prepare_statement::prepare},
 };
 
@@ -34,7 +38,9 @@ fn ident_part_to_pyobject<'py>(
 ) -> pyo3::PyResult<alias::BoundObject<'py>> {
     match ident_part {
         native::IdentPart::Quote(s) => Ok(pyo3::types::PyString::new(py, s.as_str()).into_any()),
-        native::IdentPart::Unquote(s) => Ok(pyo3::Bound::new(py, PyUnquote(s.clone()))?.into_any()),
+        native::IdentPart::Unquote(s) => {
+            Ok(pyo3::Bound::new(py, PyUnquote(arcstr::ArcStr::from(s.as_str())))?.into_any())
+        }
         native::IdentPart::Asterisk => Ok(pyo3::Bound::new(py, PyAsterisk)?.into_any()),
     }
 }
@@ -56,6 +62,49 @@ unsafe fn is_asterisk(obj: *mut pyo3::ffi::PyObject) -> bool {
     type_ptr == crate::typeref::ASTERISK_TYPE
 }
 
+enum Extracted {
+    Ident(native::Ident),
+    Part(native::IdentPart),
+}
+
+/// Hot-path extract: `str` first, then Ident / Unquote / Asterisk.
+#[inline]
+fn extract_arg(
+    obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::PyAny>,
+) -> pyo3::PyResult<Extracted> {
+    let ptr = obj.as_ptr();
+    unsafe {
+        // SAFETY: `ptr` is a live borrowed `PyObject`. Type pointers are
+        // interned in `initialize_typeref` before any extractor runs.
+        if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
+            let s = py_str(obj.py(), ptr)?;
+            let part = native::IdentPart::quoted(s).map_err(parse_err)?;
+            return Ok(Extracted::Part(part));
+        }
+
+        if crate::typeref::check_exact(ptr, crate::typeref::IDENT_TYPE) {
+            let ident = obj.cast_unchecked::<PyIdent>();
+            return Ok(Extracted::Ident(ident.get().0.clone()));
+        }
+
+        if crate::typeref::check_exact(ptr, crate::typeref::UNQUOTE_TYPE) {
+            let unquote = obj.cast_unchecked::<PyUnquote>();
+            let part = native::IdentPart::unquoted(unquote.get().0.as_str()).map_err(parse_err)?;
+            return Ok(Extracted::Part(part));
+        }
+
+        if is_asterisk(ptr) {
+            return Ok(Extracted::Part(native::IdentPart::Asterisk));
+        }
+    }
+
+    rapidquery_macros::pyerr!(
+        Err(PyTypeError),
+        "expected str, Ident, Unquote or Asterisk, got {}",
+        unsafe { crate::internal::utils::get_type_name(obj.py(), obj.as_ptr()) }
+    )
+}
+
 /// Extracts a native [`Ident`](crate::native::Ident) from a Python object.
 ///
 /// Accepts `Ident`, `str` (one quoted part, including `"*"`), `Unquote`,
@@ -65,42 +114,14 @@ pub struct IdentExtractor(pub native::Ident);
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for IdentExtractor {
     type Error = pyo3::PyErr;
 
+    #[inline]
     fn extract(
         obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>,
     ) -> Result<Self, Self::Error> {
-        unsafe {
-            // SAFETY: type pointers are interned in `initialize_typeref` before
-            // any extractor runs; `obj` is a valid borrowed `PyObject`.
-            if crate::typeref::check(obj.as_ptr(), crate::typeref::IDENT_TYPE) {
-                let ident = obj.cast_unchecked::<PyIdent>();
-                return Ok(Self(ident.get().0.clone()));
-            }
-
-            if crate::typeref::check_exact(obj.as_ptr(), crate::typeref::UNQUOTE_TYPE) {
-                let unquote = obj.cast_unchecked::<PyUnquote>();
-                let part = native::IdentPart::Unquote(unquote.get().0.clone());
-                let ident = native::Ident::from_parts([part]).map_err(parse_err)?;
-                return Ok(Self(ident));
-            }
-
-            if is_asterisk(obj.as_ptr()) {
-                let ident =
-                    native::Ident::from_parts([native::IdentPart::Asterisk]).map_err(parse_err)?;
-                return Ok(Self(ident));
-            }
+        match extract_arg(obj)? {
+            Extracted::Ident(ident) => Ok(Self(ident)),
+            Extracted::Part(part) => Ok(Self(native::Ident::from_one(part))),
         }
-
-        if let Ok(string) = obj.extract::<&str>() {
-            let part = native::IdentPart::quoted(string).map_err(parse_err)?;
-            let ident = native::Ident::from_parts([part]).map_err(parse_err)?;
-            return Ok(Self(ident));
-        }
-
-        rapidquery_macros::pyerr!(
-            Err(PyTypeError),
-            "expected str, Ident, Unquote or Asterisk, got {}",
-            unsafe { crate::internal::utils::get_type_name(obj.py(), obj.as_ptr()) }
-        )
     }
 }
 
@@ -129,6 +150,7 @@ pub struct PyIdent(pub native::Ident);
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyIdent {
     type Error = pyo3::PyErr;
 
+    #[inline]
     fn extract(
         obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>,
     ) -> Result<Self, Self::Error> {
@@ -140,11 +162,24 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyIdent {
 impl PyIdent {
     #[new]
     #[pyo3(signature = (*parts))]
-    fn __new__(parts: Vec<IdentExtractor>) -> pyo3::PyResult<Self> {
-        let iter = parts
-            .into_iter()
-            .flat_map(|IdentExtractor(ident)| ident.into_parts());
-        native::Ident::from_parts(iter).map(Self).map_err(parse_err)
+    fn __new__(parts: &pyo3::Bound<'_, pyo3::types::PyTuple>) -> pyo3::PyResult<Self> {
+        match parts.len() {
+            0 => Err(parse_err(native::ParseIdentError::Empty)),
+            1 => match extract_arg(parts.get_item(0)?.as_borrowed())? {
+                Extracted::Ident(ident) => Ok(Self(ident)),
+                Extracted::Part(part) => Ok(Self(native::Ident::from_one(part))),
+            },
+            _ => {
+                let mut acc = SmallVec::<[native::IdentPart; 4]>::new();
+                for item in parts.iter() {
+                    match extract_arg(item.as_borrowed())? {
+                        Extracted::Ident(ident) => acc.extend(ident.into_parts()),
+                        Extracted::Part(part) => acc.push(part),
+                    }
+                }
+                native::Ident::from_parts(acc).map(Self).map_err(parse_err)
+            }
+        }
     }
 
     fn __len__(&self) -> usize {
@@ -290,11 +325,8 @@ impl PyUnquote {
     #[new]
     #[pyo3(signature = (name, /))]
     fn __new__(name: &str) -> pyo3::PyResult<Self> {
-        let part = native::IdentPart::unquoted(name).map_err(parse_err)?;
-        let native::IdentPart::Unquote(s) = part else {
-            unreachable!("IdentPart::unquoted returns Unquote");
-        };
-        Ok(Self(s))
+        native::IdentPart::unquoted(name).map_err(parse_err)?;
+        Ok(Self(arcstr::ArcStr::from(name)))
     }
 
     /// Returns the unquoted identifier body.

@@ -4,6 +4,32 @@ mod submodule_ext;
 pub use strings::*;
 pub use submodule_ext::*;
 
+/// Borrow the cached UTF-8 buffer of a Python `str`.
+///
+/// # Safety
+///
+/// `ptr` must be a live unicode object (`PyUnicode_Check` / exact). The
+/// returned slice is valid until that object is mutated or the GIL is
+/// released. The GIL must be held (`py`).
+#[inline]
+pub unsafe fn py_str<'a>(
+    py: pyo3::Python<'_>,
+    ptr: *mut pyo3::ffi::PyObject,
+) -> pyo3::PyResult<&'a str> {
+    let mut size: pyo3::ffi::Py_ssize_t = 0;
+    let data = pyo3::ffi::PyUnicode_AsUTF8AndSize(ptr, &mut size);
+    if data.is_null() || size < 0 {
+        Err(pyo3::PyErr::fetch(py))
+    } else {
+        // SAFETY: `PyUnicode_AsUTF8AndSize` returns UTF-8; `size` is the byte
+        // length. The pointer is non-null on the success path.
+        Ok(std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+            data as *const u8,
+            size as usize,
+        )))
+    }
+}
+
 /// Fully-qualified type name of `obj` (`int`, `rapidquery._core.dialect.PostgreSQL`, …).
 ///
 /// Returns `"<unknown>"` if `Py_TYPE` is null or the name lookup fails.
