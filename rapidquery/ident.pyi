@@ -10,7 +10,7 @@ class Unquote:
 
     The body is emitted without dialect delimiters. It must be a simple
     ASCII name (`[A-Za-z_][A-Za-z0-9_]*`). This is **not** a raw-SQL
-    fragment (`COUNT(*)` belongs on a later expression type).
+    fragment.
     """
 
     def __new__(cls, name: str, /) -> Self:
