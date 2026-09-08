@@ -3,7 +3,6 @@ from typing import Any, Self, final
 
 from rapidquery.dialect import SqlDialect
 
-
 class Serializer:
     """
     Converts a Python object into a dialect-specific SQL literal string.
@@ -40,7 +39,6 @@ class Serializer:
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
 
-
 @final
 class IntegerSerializer(Serializer):
     """
@@ -54,7 +52,6 @@ class IntegerSerializer(Serializer):
     """
 
     def __new__(cls) -> Self: ...
-
 
 @final
 class FloatSerializer(Serializer):
@@ -71,7 +68,6 @@ class FloatSerializer(Serializer):
 
     def __new__(cls) -> Self: ...
 
-
 @final
 class BooleanSerializer(Serializer):
     """
@@ -85,7 +81,6 @@ class BooleanSerializer(Serializer):
     """
 
     def __new__(cls) -> Self: ...
-
 
 @final
 class StringSerializer(Serializer):
@@ -101,7 +96,6 @@ class StringSerializer(Serializer):
 
     def __new__(cls) -> Self: ...
 
-
 @final
 class UuidSerializer(Serializer):
     """
@@ -114,7 +108,6 @@ class UuidSerializer(Serializer):
     """
 
     def __new__(cls) -> Self: ...
-
 
 @final
 class BytesSerializer(Serializer):
@@ -129,7 +122,6 @@ class BytesSerializer(Serializer):
 
     def __new__(cls) -> Self: ...
 
-
 @final
 class BitSerializer(Serializer):
     """
@@ -139,12 +131,10 @@ class BitSerializer(Serializer):
 
     Raises:
         TypeError: If the value is not a `str`.
-        ValueError: If the string is empty or contains characters other than
-                `'0'` and `'1'`.
+        ValueError: If the string is empty or contains characters other than `'0'` and `'1'`.
     """
 
     def __new__(cls) -> Self: ...
-
 
 @final
 class JSONSerializer(Serializer):
@@ -161,7 +151,6 @@ class JSONSerializer(Serializer):
 
     def __new__(cls) -> Self: ...
 
-
 @final
 class DateSerializer(Serializer):
     """
@@ -175,7 +164,6 @@ class DateSerializer(Serializer):
 
     def __new__(cls) -> Self: ...
 
-
 @final
 class TimeSerializer(Serializer):
     """
@@ -188,7 +176,6 @@ class TimeSerializer(Serializer):
     """
 
     def __new__(cls) -> Self: ...
-
 
 @final
 class DatetimeSerializer(Serializer):
@@ -206,7 +193,6 @@ class DatetimeSerializer(Serializer):
 
     def __new__(cls) -> Self: ...
 
-
 @final
 class InetSerializer(Serializer):
     """
@@ -222,7 +208,6 @@ class InetSerializer(Serializer):
 
     def __new__(cls) -> Self: ...
 
-
 @final
 class MacAddressSerializer(Serializer):
     """
@@ -236,7 +221,6 @@ class MacAddressSerializer(Serializer):
 
     def __new__(cls) -> Self: ...
 
-
 @final
 class UnspecifiedSerializer(Serializer):
     """
@@ -247,7 +231,6 @@ class UnspecifiedSerializer(Serializer):
     """
 
     def __new__(cls) -> Self: ...
-
 
 @final
 class ArraySerializer(Serializer):
@@ -277,7 +260,6 @@ class ArraySerializer(Serializer):
             The `Serializer` passed to the constructor.
         """
 
-
 @final
 class CustomSerializer(Serializer):
     """
@@ -306,7 +288,6 @@ class CustomSerializer(Serializer):
         Returns:
             The function given as `function` to `__new__`.
         """
-
 
 @final
 class DataType:

@@ -1,9 +1,5 @@
-"""SQL data types and value serializers.
-
-from rapidquery.data_type import DataType, IntegerSerializer
-from rapidquery.dialect import PostgreSQL
-
-DataType("integer").serialize(PostgreSQL, 42)
+"""
+SQL data types and value serializers.
 """
 
 from ._core.data_type import (

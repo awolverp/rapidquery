@@ -1,19 +1,13 @@
-"""SQL dialect markers.
-
-Pass either the class or an instance wherever a dialect is required:
-
-    from rapidquery.dialect import DuckDB, PostgreSQL
-
-    query.prepare(PostgreSQL)
-    query.prepare(DuckDB())
+"""
+SQL dialect markers.
 """
 
 from ._core.dialect import (
+    MSSQL,
     BigQuery,
     Databricks,
     DuckDB,
     Hive,
-    MSSQL,
     MySql,
     Oracle,
     PostgreSQL,
