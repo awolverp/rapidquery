@@ -39,6 +39,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 ipnetwork = { version = "0.20", default-features = false }
 mac_address = { version = "1.1", default-features = false }
 once_cell = { version = "1.21.4", default-features = false }
+smallvec = { version = "1.16.0", default-features = false }
 
 [features]
 default = ["extension-module"]

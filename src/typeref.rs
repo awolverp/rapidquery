@@ -37,6 +37,11 @@ pub(crate) static mut UNSPECIFIED_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject 
 pub(crate) static mut ARRAY_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut CUSTOM_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
+// Ident types
+pub(crate) static mut IDENT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut UNQUOTE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut ASTERISK_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+
 // Python standard-library types (serializers)
 pub(crate) static mut STD_DECIMAL_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut STD_UUID_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -122,6 +127,10 @@ fn _initialize_typeref(py: pyo3::Python) {
             crate::pybindings::data_type::PyUnspecifiedSerializer => UNSPECIFIED_SERIALIZER_TYPE,
             crate::pybindings::data_type::PyArraySerializer => ARRAY_SERIALIZER_TYPE,
             crate::pybindings::data_type::PyCustomSerializer => CUSTOM_SERIALIZER_TYPE,
+            // ident
+            crate::pybindings::PyIdent => IDENT_TYPE,
+            crate::pybindings::PyUnquote => UNQUOTE_TYPE,
+            crate::pybindings::PyAsterisk => ASTERISK_TYPE,
         );
 
         STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");
@@ -148,6 +157,12 @@ pub fn initialize_typeref(py: pyo3::Python) {
 }
 
 /// `type(obj) is T` — no subclass match.
+///
+/// # Safety
+///
+/// `ptr` must be a valid, non-null `PyObject*`. `r#type` must be a valid
+/// `PyTypeObject*` (interned pointers from [`initialize_typeref`] are fine).
+/// The GIL must be held.
 #[inline]
 pub unsafe fn check_exact(
     ptr: *mut pyo3::ffi::PyObject,
@@ -157,6 +172,12 @@ pub unsafe fn check_exact(
 }
 
 /// `isinstance(obj, T)`.
+///
+/// # Safety
+///
+/// `ptr` must be a valid, non-null `PyObject*`. `r#type` must be a valid
+/// `PyTypeObject*` (interned pointers from [`initialize_typeref`] are fine).
+/// The GIL must be held.
 #[inline]
 pub unsafe fn check(ptr: *mut pyo3::ffi::PyObject, r#type: *mut pyo3::ffi::PyTypeObject) -> bool {
     pyo3::ffi::PyObject_TypeCheck(ptr, r#type) == 1

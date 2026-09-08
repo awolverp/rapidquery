@@ -14,6 +14,9 @@ mod _core {
     #[pymodule_export]
     use super::pybindings::dialect_mod;
 
+    #[pymodule_export]
+    use super::pybindings::{PyAsterisk, PyIdent, PyUnquote};
+
     #[pymodule_init]
     #[cold]
     fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {

@@ -7,5 +7,8 @@
 pub mod data_type;
 pub mod dialect;
 
+mod ident;
+
 pub use data_type::data_type_mod;
 pub use dialect::dialect_mod;
+pub use ident::{IdentExtractor, PyAsterisk, PyIdent, PyUnquote};
