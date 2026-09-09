@@ -2,8 +2,6 @@
 //!
 //! A dialect encodes how one database engine quotes identifiers, escapes
 //! string/byte/bit literals, formats booleans, and spells named placeholders.
-//! It is **not** a parser and **not** a statement builder — those sit on top
-//! of [`SqlDialect`] via [`crate::native::prepare_statement`].
 //!
 //! Dialects are selected at runtime through the [`SqlDialect`] enum. Each
 //! variant is a marker; behavior lives in the matching private module.

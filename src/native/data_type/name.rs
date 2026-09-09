@@ -1,11 +1,11 @@
-use crate::native::prepare_statement::PrepareStatement;
+use crate::native::sql::{PrepareResult, SqlWriter, WriteSql};
 
 /// Category used to infer a built-in serializer from a type name.
 ///
 /// Distinct SQL spellings collapse onto one serializer (every integer width
-/// is [`InferredSerializer::Integer`]). [`Json`] and [`Jsonb`] stay distinct
-/// as groups so a later layer can treat storage differently; both currently
-/// infer [`InferredSerializer::Json`].
+/// is [`crate::native::Serializer::Integer`]). [`Json`] and [`Jsonb`] stay
+/// distinct as groups so a later layer can treat storage differently; both
+/// currently infer [`crate::native::Serializer::Json`].
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum DataTypeGroup {
     String,
@@ -260,13 +260,13 @@ impl std::fmt::Display for DataTypeName {
     }
 }
 
-impl PrepareStatement for DataTypeName {
-    fn prepare(
+impl WriteSql for DataTypeName {
+    fn write_sql<W: SqlWriter>(
         &self,
         _dialect: &crate::native::dialect::SqlDialect,
-        context: &mut crate::native::prepare_statement::PrepareContext,
-    ) -> crate::native::prepare_statement::PrepareResult<()> {
-        context.push_str(self.as_str());
+        out: &mut W,
+    ) -> PrepareResult<()> {
+        out.push_str(self.as_str());
         Ok(())
     }
 }

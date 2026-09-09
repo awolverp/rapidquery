@@ -1,8 +1,8 @@
 //! PyO3 wrappers around [`crate::native`].
 //!
-//! Native types stay PyO3-free. This module is the only place that defines
-//! `#[pyclass]` types and the `rapidquery._core.*` submodules they live in.
-//! Serializers live here because they inspect Python values.
+//! This module is the only place that defines `#[pyclass]` types and the
+//! `rapidquery._core.*` submodules they live in. Native may hold and inspect
+//! Python objects (`Serializer`, `PrepareContext`); pyclasses wrap those types.
 
 pub mod data_type;
 pub mod dialect;

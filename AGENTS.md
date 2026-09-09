@@ -8,9 +8,9 @@ Goals from the PR (keep these):
 - No SeaQuery panics; production-safe SQL building.
 - 13 dialects (BigQuery, Databricks, DuckDB, Hive, MSSQL, MySQL, Oracle, PostgreSQL, Redshift, Snowflake, Spark, SQLite, Teradata).
 - Full SQL data-type coverage via interned `DataTypeName` + `DataTypeSerializer`.
-- Native Rust vs Python bindings split (`src/native/` vs `src/pybindings/`).
-- Parameterized `PrepareStatement` rendering (writer-based, no extra String allocs on the hot path).
-- Ident / Asterisk / IdentList with dialect quoting.
+- Native Rust vs Python bindings split (`src/native/` vs `src/pybindings/`). Native may use PyO3 where it holds or inspects Python objects (`Serializer`, `PrepareContext`).
+- Dual SQL rendering via `WriteSql` + `SqlWriter`: raw (`SqlBuf`, literals) and parameterized (`PrepareContext`, placeholders).
+- Ident / Asterisk with dialect quoting.
 - Leave the door open for a SQL parser and an ORM later.
 - Prefer backward compatibility with v0, but it is **not** guaranteed.
 
@@ -20,27 +20,27 @@ Keep these `refactor/v1` divergences from the PR (do not revert them):
 - Module name `rapidquery._core` (PR used `_native`).
 - Proc-macros `pyclass` / `pyerr` (PR used `pyclass_shortcut` + `new_pyerr!`).
 - MIT license, Python `>=3.10`, crate version `1.0.0-alpha1`.
-- `PrepareContext` / `PrepareError` naming in `prepare_statement.rs`.
+- `PrepareContext` / `PrepareError` naming in `sql.rs` (PR used `PrepareStatementContext` / `PrepareStatementError`).
 
 ## Stack
 
 - Python `>=3.10` (local: 3.13). Rust edition **2024**. PyO3 **0.29**. Maturin **1.15.0**. uv for the venv.
 - Workspace crate `rapidquery-macros` (proc-macros: `pyclass`, `pyerr`).
-- Target stack from PR #2 also used: `arcstr`, `once_cell`, `derive_more`, `chrono`, `ipnetwork`, `mac_address`. Re-add them when DataType/serializers/Ident land — not before.
-- Dialects (13) and `PrepareStatement` exist on this branch. Still missing vs the PR: `DataType` + serializers, `Ident`/`Asterisk`/`IdentList`, `src/pybindings/`, `src/typeref.rs`, Python stubs, pytest suite. Query/schema AST was never in the PR either.
+- Target stack from PR #2 also used: `arcstr`, `once_cell`, `chrono`, `ipnetwork`, `mac_address`. (`derive_more` is not on this branch.)
+- Dialects (13), `DataType` + `Serializer`, `Ident`/`Unquote`/`Asterisk`, `SqlWriter`/`WriteSql` exist on this branch. Still missing vs the PR’s next layers: `Value`, query/schema AST (never in the PR either).
 - `#[pyo3::pymodule(gil_used = false)]` — keep free-threaded Python in mind.
 - Frozen/immutable PyO3 types: `rapidquery_macros::pyclass` already sets `module="rapidquery._core"`, `immutable_type`, `frozen`.
 
 ## Layout
 
 ```
-src/native/           Rust engine (dialects, prepare, later data_type + ident)
-src/pybindings/       Python wrappers (missing on this branch; required by the PR)
+src/native/           Rust engine (dialects, DataTypeName, Ident, Serializer, SqlWriter/WriteSql)
+src/pybindings/       Python wrappers (pyclasses only)
 src/internal/         aliases, string utils, submodule helper
-src/typeref.rs        cached PyTypeObject pointers (missing; required)
-rapidquery/           Python package (stub here; PR re-exports Ident, Asterisk, data_type, dialect)
+src/typeref.rs        cached PyTypeObject pointers
+rapidquery/           Python package (re-exports Ident, Unquote, Asterisk, data_type, dialect)
 rapidquery-macros/    Proc-macros
-tests/                Python tests (empty here; PR has dialect/data_type/serializer tests)
+tests/                Python tests
 backup/, backup-py/   gitignored v0 snapshots — read-only
 target/, .venv/       Generated — do not commit or edit
 ```
@@ -66,7 +66,7 @@ After meaningful Rust or Python changes: run `cargo test --workspace --lib --bin
 
 ## How to edit
 
-- Small, reviewable diffs. Match existing patterns on **this** branch first; for missing layers, match `origin/migrate` (native types stay PyO3-free; `pybindings` wraps them; serializers subclass a base `Serializer`; dialects subclass `SqlDialect` and are `@final`).
+- Small, reviewable diffs. Match existing patterns on **this** branch first; for missing layers, match `origin/migrate` (native owns dialects, `DataTypeName`, `Ident`, `Serializer`+`write_sql`, `SqlWriter`/`WriteSql`; pybindings are pyclasses wrapping those; serializers subclass a base `Serializer`; dialects subclass `SqlDialect` and are `@final`). Native may use PyO3 where it holds or inspects Python objects.
 - Do not introduce SeaQuery, a sqlparser-rs crate dependency, SQLAlchemy, another Python package layout, or a new build backend.
 - Do not touch `Cargo.lock` / `uv.lock` unless the change requires a dependency update. Do not touch generated artifacts (`target/`, `*.so`, wheels), secrets, or `.env`.
 - `backup/` and `backup-py/` are gitignored snapshots of v0. Do not edit them; do not copy them wholesale into `src/`.

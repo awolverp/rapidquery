@@ -7,7 +7,7 @@ use smallvec::{SmallVec, smallvec};
 
 use crate::native::{
     dialect::SqlDialect,
-    prepare_statement::{PrepareResult, PrepareStatement, prepare_separated},
+    sql::{PrepareResult, SqlWriter, WriteSql, write_separated},
 };
 
 /// One segment of a dotted identifier.
@@ -65,22 +65,18 @@ impl<S: AsRef<str>> From<S> for IdentPart {
     }
 }
 
-impl PrepareStatement for IdentPart {
+impl WriteSql for IdentPart {
     #[inline]
-    fn prepare(
-        &self,
-        dialect: &SqlDialect,
-        context: &mut crate::native::prepare_statement::PrepareContext<'_>,
-    ) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &SqlDialect, out: &mut W) -> PrepareResult<()> {
         match self {
             Self::Quote(name) => {
-                dialect.quote_identifier(context, name.as_str())?;
+                dialect.quote_identifier(out, name.as_str())?;
             }
             Self::Unquote(name) => {
-                context.push_str(name.as_str());
+                out.push_str(name.as_str());
             }
             Self::Asterisk => {
-                context.push_char('*');
+                out.push_char('*');
             }
         }
         Ok(())
@@ -232,14 +228,10 @@ impl std::str::FromStr for Ident {
     }
 }
 
-impl PrepareStatement for Ident {
+impl WriteSql for Ident {
     #[inline]
-    fn prepare(
-        &self,
-        dialect: &SqlDialect,
-        context: &mut crate::native::prepare_statement::PrepareContext<'_>,
-    ) -> PrepareResult<()> {
-        prepare_separated(dialect, context, &self.0, ".")
+    fn write_sql<W: SqlWriter>(&self, dialect: &SqlDialect, out: &mut W) -> PrepareResult<()> {
+        write_separated(dialect, out, &self.0, ".")
     }
 }
 

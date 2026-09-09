@@ -19,7 +19,7 @@ use smallvec::SmallVec;
 use crate::internal::alias;
 use crate::internal::utils;
 use crate::native;
-use crate::native::prepare_statement::prepare;
+use crate::native::sql::write_sql;
 
 #[inline]
 fn parse_err(err: native::ParseIdentError) -> pyo3::PyErr {
@@ -275,10 +275,8 @@ impl PyIdent {
         py: pyo3::Python<'_>,
         dialect: super::dialect::PySqlDialect,
     ) -> pyo3::PyResult<String> {
-        let (sql, _) = prepare(py, &self.0, &dialect.0)
-            .map_err(|e| rapidquery_macros::pyerr!(PyRuntimeError, "{}", e))?;
-
-        Ok(sql)
+        write_sql(py, &self.0, &dialect.0)
+            .map_err(|e| rapidquery_macros::pyerr!(PyRuntimeError, "{}", e))
     }
 
     fn __repr__(&self) -> String {

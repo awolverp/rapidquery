@@ -1,20 +1,19 @@
 //! Python wrappers for SQL data types and value serializers.
 //!
-//! Native [`DataTypeName`](crate::native::data_type::DataTypeName) is
-//! PyO3-free. This module owns the serializer tree and the `DataType`
-//! pyclass — both inspect Python values.
+//! Native [`DataTypeName`](crate::native::data_type::DataTypeName) is a
+//! spelling plus group. Native [`Serializer`](crate::native::Serializer)
+//! writes Python objects as SQL literals. This module owns the pyclasses.
 //!
 //! Python sees:
 //!
 //! * [`PySerializer`] — `rapidquery._core.data_type.Serializer`, the ABC
 //! * frozen subclasses per behaviour (`IntegerSerializer`, `JSONSerializer`, …)
-//! * [`PyArraySerializer`] / [`PyCustomSerializer`] (no native counterpart)
+//! * [`PyArraySerializer`] / [`PyCustomSerializer`]
 //! * [`PyDataType`] — a name plus a serializer
 //!
 //! `serialize(dialect, obj)` accepts a dialect **class or instance**. Serializer
 //! extract is instance-only (Array/Custom carry state).
 
-mod serialize;
 mod serializer;
 
 use crate::internal::alias;

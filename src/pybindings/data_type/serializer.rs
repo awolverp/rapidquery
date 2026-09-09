@@ -1,8 +1,8 @@
 //! Python `Serializer` class hierarchy.
 //!
-//! Native inference is [`DataTypeGroup`](crate::native::data_type::DataTypeGroup).
-//! Python sees frozen subclasses plus `ArraySerializer` / `CustomSerializer`,
-//! which have no native counterpart.
+//! Wraps native [`Serializer`](crate::native::Serializer). Python sees frozen
+//! subclasses (`IntegerSerializer`, …) plus `ArraySerializer` /
+//! `CustomSerializer`.
 //!
 //! Unit instances compare and hash by variant (`IntegerSerializer() ==
 //! IntegerSerializer()`) and `repr` as `IntegerSerializer()`. Array compares
@@ -10,107 +10,28 @@
 
 use std::hash::{Hash, Hasher};
 
-use crate::{internal::alias, native::data_type::DataTypeGroup};
+use crate::internal::alias;
+use crate::native::data_type::DataTypeGroup;
+use crate::native::serializer::Serializer;
 
-// Value-serialization tree. Lives only in pybindings (`Custom` holds a
-// Python callable; `Array` may wrap that). Not a pyclass — must not leak
-// into Python `__doc__`.
-#[derive(Debug, Clone)]
-pub(super) enum SerializerInner {
-    Integer,
-    Float,
-    Boolean,
-    String,
-    Uuid,
-    Bytes,
-    Bit,
-    Json,
-    Date,
-    Time,
-    Datetime,
-    Inet,
-    MacAddress,
-    Unspecified,
-    Array(Box<SerializerInner>),
-    Custom(alias::PyObject),
-}
-
-impl PartialEq for SerializerInner {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Integer, Self::Integer)
-            | (Self::Float, Self::Float)
-            | (Self::Boolean, Self::Boolean)
-            | (Self::String, Self::String)
-            | (Self::Uuid, Self::Uuid)
-            | (Self::Bytes, Self::Bytes)
-            | (Self::Bit, Self::Bit)
-            | (Self::Json, Self::Json)
-            | (Self::Date, Self::Date)
-            | (Self::Time, Self::Time)
-            | (Self::Datetime, Self::Datetime)
-            | (Self::Inet, Self::Inet)
-            | (Self::MacAddress, Self::MacAddress)
-            | (Self::Unspecified, Self::Unspecified) => true,
-            (Self::Array(a), Self::Array(b)) => a == b,
-            (Self::Custom(a), Self::Custom(b)) => std::ptr::eq(a.as_ptr(), b.as_ptr()),
-            _ => false,
-        }
-    }
-}
-
-impl Eq for SerializerInner {}
-
-impl Hash for SerializerInner {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        std::mem::discriminant(self).hash(state);
-        match self {
-            Self::Array(element) => element.hash(state),
-            Self::Custom(function) => (function.as_ptr() as usize).hash(state),
-            _ => {}
-        }
-    }
-}
-
-impl SerializerInner {
-    fn from_group(kind: DataTypeGroup) -> Self {
-        match kind {
-            DataTypeGroup::Integer => Self::Integer,
-            DataTypeGroup::Float => Self::Float,
-            DataTypeGroup::Boolean => Self::Boolean,
-            DataTypeGroup::String => Self::String,
-            DataTypeGroup::Uuid => Self::Uuid,
-            DataTypeGroup::Bytes => Self::Bytes,
-            DataTypeGroup::Bit => Self::Bit,
-            DataTypeGroup::Json | DataTypeGroup::Jsonb => Self::Json,
-            DataTypeGroup::Date => Self::Date,
-            DataTypeGroup::Time => Self::Time,
-            DataTypeGroup::Datetime => Self::Datetime,
-            DataTypeGroup::Inet => Self::Inet,
-            DataTypeGroup::MacAddress => Self::MacAddress,
-            DataTypeGroup::Custom => Self::Unspecified,
-        }
-    }
-
-    fn class_name(&self) -> &'static str {
-        match self {
-            Self::Integer => "IntegerSerializer",
-            Self::Float => "FloatSerializer",
-            Self::Boolean => "BooleanSerializer",
-            Self::String => "StringSerializer",
-            Self::Uuid => "UuidSerializer",
-            Self::Bytes => "BytesSerializer",
-            Self::Bit => "BitSerializer",
-            Self::Json => "JSONSerializer",
-            Self::Date => "DateSerializer",
-            Self::Time => "TimeSerializer",
-            Self::Datetime => "DatetimeSerializer",
-            Self::Inet => "InetSerializer",
-            Self::MacAddress => "MacAddressSerializer",
-            Self::Unspecified => "UnspecifiedSerializer",
-            Self::Array(_) => "ArraySerializer",
-            Self::Custom(_) => "CustomSerializer",
-        }
+fn class_name(serializer: &Serializer) -> &'static str {
+    match serializer {
+        Serializer::Integer => "IntegerSerializer",
+        Serializer::Float => "FloatSerializer",
+        Serializer::Boolean => "BooleanSerializer",
+        Serializer::String => "StringSerializer",
+        Serializer::Uuid => "UuidSerializer",
+        Serializer::Bytes => "BytesSerializer",
+        Serializer::Bit => "BitSerializer",
+        Serializer::Json => "JSONSerializer",
+        Serializer::Date => "DateSerializer",
+        Serializer::Time => "TimeSerializer",
+        Serializer::Datetime => "DatetimeSerializer",
+        Serializer::Inet => "InetSerializer",
+        Serializer::MacAddress => "MacAddressSerializer",
+        Serializer::Unspecified => "UnspecifiedSerializer",
+        Serializer::Array(_) => "ArraySerializer",
+        Serializer::Custom(_) => "CustomSerializer",
     }
 }
 
@@ -135,11 +56,11 @@ impl SerializerInner {
     module = "rapidquery._core.data_type"
 )]
 #[derive(Debug, Clone)]
-pub struct PySerializer(pub(super) SerializerInner);
+pub struct PySerializer(pub(super) Serializer);
 
 impl PySerializer {
     pub(super) fn inferred(kind: DataTypeGroup) -> Self {
-        Self(SerializerInner::from_group(kind))
+        Self(Serializer::from_group(kind))
     }
 
     pub(crate) fn serialize_value(
@@ -158,22 +79,22 @@ impl PySerializer {
         py: pyo3::Python<'py>,
     ) -> pyo3::PyResult<alias::BoundObject<'py>> {
         match &self.0 {
-            SerializerInner::Integer => wrap::<PyIntegerSerializer>(py, self),
-            SerializerInner::Float => wrap::<PyFloatSerializer>(py, self),
-            SerializerInner::Boolean => wrap::<PyBooleanSerializer>(py, self),
-            SerializerInner::String => wrap::<PyStringSerializer>(py, self),
-            SerializerInner::Uuid => wrap::<PyUuidSerializer>(py, self),
-            SerializerInner::Bytes => wrap::<PyBytesSerializer>(py, self),
-            SerializerInner::Bit => wrap::<PyBitSerializer>(py, self),
-            SerializerInner::Json => wrap::<PyJSONSerializer>(py, self),
-            SerializerInner::Date => wrap::<PyDateSerializer>(py, self),
-            SerializerInner::Time => wrap::<PyTimeSerializer>(py, self),
-            SerializerInner::Datetime => wrap::<PyDatetimeSerializer>(py, self),
-            SerializerInner::Inet => wrap::<PyInetSerializer>(py, self),
-            SerializerInner::MacAddress => wrap::<PyMacAddressSerializer>(py, self),
-            SerializerInner::Unspecified => wrap::<PyUnspecifiedSerializer>(py, self),
-            SerializerInner::Array(_) => wrap::<PyArraySerializer>(py, self),
-            SerializerInner::Custom(_) => wrap::<PyCustomSerializer>(py, self),
+            Serializer::Integer => wrap::<PyIntegerSerializer>(py, self),
+            Serializer::Float => wrap::<PyFloatSerializer>(py, self),
+            Serializer::Boolean => wrap::<PyBooleanSerializer>(py, self),
+            Serializer::String => wrap::<PyStringSerializer>(py, self),
+            Serializer::Uuid => wrap::<PyUuidSerializer>(py, self),
+            Serializer::Bytes => wrap::<PyBytesSerializer>(py, self),
+            Serializer::Bit => wrap::<PyBitSerializer>(py, self),
+            Serializer::Json => wrap::<PyJSONSerializer>(py, self),
+            Serializer::Date => wrap::<PyDateSerializer>(py, self),
+            Serializer::Time => wrap::<PyTimeSerializer>(py, self),
+            Serializer::Datetime => wrap::<PyDatetimeSerializer>(py, self),
+            Serializer::Inet => wrap::<PyInetSerializer>(py, self),
+            Serializer::MacAddress => wrap::<PyMacAddressSerializer>(py, self),
+            Serializer::Unspecified => wrap::<PyUnspecifiedSerializer>(py, self),
+            Serializer::Array(_) => wrap::<PyArraySerializer>(py, self),
+            Serializer::Custom(_) => wrap::<PyCustomSerializer>(py, self),
         }
     }
 }
@@ -217,11 +138,11 @@ impl PySerializer {
 
     fn __repr__(&self) -> String {
         match &self.0 {
-            SerializerInner::Array(element) => {
-                format!("ArraySerializer({}())", element.class_name())
+            Serializer::Array(element) => {
+                format!("ArraySerializer({}())", class_name(element))
             }
             other => {
-                let name = other.class_name();
+                let name = class_name(other);
                 let mut buf = String::with_capacity(name.len() + 2);
                 buf.push_str(name);
                 buf.push_str("()");
@@ -259,7 +180,7 @@ macro_rules! impl_unit_serializers {
                 #[new]
                 #[inline]
                 fn __new__() -> pyo3::PyClassInitializer<Self> {
-                    pyo3::PyClassInitializer::from(PySerializer(SerializerInner::$variant))
+                    pyo3::PyClassInitializer::from(PySerializer(Serializer::$variant))
                         .add_subclass(Self)
                 }
             }
@@ -376,7 +297,7 @@ impl PyArraySerializer {
     #[new]
     #[inline]
     fn __new__(element: PySerializer) -> pyo3::PyClassInitializer<Self> {
-        let inner = SerializerInner::Array(Box::new(element.0));
+        let inner = Serializer::Array(Box::new(element.0));
         pyo3::PyClassInitializer::from(PySerializer(inner)).add_subclass(Self)
     }
 
@@ -388,7 +309,7 @@ impl PyArraySerializer {
     fn get_element(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
         let base = slf.as_super();
         match &base.0 {
-            SerializerInner::Array(element) => {
+            Serializer::Array(element) => {
                 PySerializer((**element).clone()).into_subclasses(slf.py())
             }
             _ => unreachable!("ArraySerializer base is always Array"),
@@ -427,7 +348,7 @@ impl PyCustomSerializer {
                 );
             }
         }
-        let inner = SerializerInner::Custom(function);
+        let inner = Serializer::Custom(function);
         Ok(pyo3::PyClassInitializer::from(PySerializer(inner)).add_subclass(Self))
     }
 
@@ -438,7 +359,7 @@ impl PyCustomSerializer {
     #[getter]
     fn get_function(slf: pyo3::PyRef<'_, Self>) -> alias::PyObject {
         match &slf.as_super().0 {
-            SerializerInner::Custom(function) => function.clone(),
+            Serializer::Custom(function) => function.clone(),
             _ => unreachable!("CustomSerializer base is always Custom"),
         }
     }

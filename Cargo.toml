@@ -28,6 +28,7 @@ incremental = false
 lto = true
 panic = "abort"
 strip = false
+opt-level = 3
 
 [dependencies]
 rapidquery-macros = { path = "rapidquery-macros" }
