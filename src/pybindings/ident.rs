@@ -16,13 +16,10 @@
 use pyo3::types::{PyAnyMethods, PySliceMethods, PyTupleMethods};
 use smallvec::SmallVec;
 
-use crate::{
-    internal::{
-        alias,
-        utils::{IndexOrSlice, py_str},
-    },
-    native::{self, prepare_statement::prepare},
-};
+use crate::internal::alias;
+use crate::internal::utils;
+use crate::native;
+use crate::native::prepare_statement::prepare;
 
 #[inline]
 fn parse_err(err: native::ParseIdentError) -> pyo3::PyErr {
@@ -77,7 +74,7 @@ fn extract_arg(
         // SAFETY: `ptr` is a live borrowed `PyObject`. Type pointers are
         // interned in `initialize_typeref` before any extractor runs.
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
-            let s = py_str(obj.py(), ptr)?;
+            let s = utils::py_str(obj.py(), ptr)?;
             let part = native::IdentPart::quoted(s).map_err(parse_err)?;
             return Ok(Extracted::Part(part));
         }
@@ -202,13 +199,13 @@ impl PyIdent {
     fn __getitem__<'py>(
         &self,
         py: pyo3::Python<'py>,
-        index: IndexOrSlice,
+        index: utils::IndexOrSlice,
     ) -> pyo3::PyResult<alias::BoundObject<'py>> {
         let parts = self.0.parts();
         let len = parts.len() as isize;
 
         match index {
-            IndexOrSlice::Index(i) => {
+            utils::IndexOrSlice::Index(i) => {
                 let idx = if i < 0 { i + len } else { i };
                 if idx < 0 || idx >= len {
                     return rapidquery_macros::pyerr!(
@@ -218,7 +215,7 @@ impl PyIdent {
                 }
                 ident_part_to_pyobject(py, &parts[idx as usize])
             }
-            IndexOrSlice::Slice(slice) => {
+            utils::IndexOrSlice::Slice(slice) => {
                 let indices = slice.bind(py).indices(len)?;
                 let mut selected = Vec::with_capacity(indices.slicelength);
 
