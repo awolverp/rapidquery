@@ -19,10 +19,10 @@ mod _core {
     use super::dialect::dialect_mod;
 
     #[pymodule_export]
-    use super::ident::{PyAsterisk, PyIdent, PyUnquote};
+    use super::ident::{Ident, PyAsterisk, PyUnquote};
 
     #[pymodule_export]
-    use super::value::PyValue;
+    use super::value::Value;
 
     #[pymodule_init]
     #[cold]

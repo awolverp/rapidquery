@@ -37,8 +37,8 @@ Keep these `refactor/v1` divergences from the PR (do not revert them):
 ```
 src/dialect/          SqlDialect enum + engines + tests; py.rs class tree
 src/data_type/        DataType, interned names, Serializer enum; py.rs class tree
-src/ident.rs          Ident, IdentPart, tests + PyIdent/Unquote/Asterisk
-src/value.rs          Value + PyValue
+src/ident.rs          Ident, IdentPart, tests + Unquote/Asterisk pyclasses
+src/value.rs          Value (#[pyclass] on the same type)
 src/sql.rs            BufferedSql, ParameterizedSql, WriteSql
 src/internal/         aliases, JSON dumps helper, string utils, submodule helper
 src/typeref.rs        cached PyTypeObject pointers

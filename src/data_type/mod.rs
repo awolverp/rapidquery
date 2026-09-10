@@ -28,13 +28,32 @@ pub(crate) use py::serializer_repr;
 use crate::internal::alias;
 use crate::sql::{PrepareResult, SqlWriter, WriteSql};
 
-/// SQL type spelling plus the serializer used for Python values.
+/// Represents a SQL data type.
+///
+/// A data type is a SQL name plus the serializer used to turn Python objects
+/// into SQL literals. The name can be any string; it is not limited to a set
+/// of predefined values. The serializer is fully customizable.
+///
+/// Known names are interned and canonicalized (`"int"` becomes `"INT"`).
+/// Unknown names and parameterized spellings (`VARCHAR(255)`) are kept as
+/// given. Interning applies to the **name string**, not to `DataType`
+/// instances: `DataType("int")` is not a singleton.
+///
+/// If `serializer` is omitted at construction, one is inferred from the
+/// name; unrecognized names get `UnspecifiedSerializer`.
 ///
 /// [`WriteSql`] emits the type name (CAST, column definitions). Literal
 /// serialization of a Python object is [`Serializer::write_sql`], not this
 /// type.
 ///
 /// Clone of a [`Serializer::Custom`] value requires the GIL.
+#[rapidquery_macros::pyclass(
+    "DataType",
+    eq,
+    hash,
+    from_py_object,
+    module = "rapidquery._core.data_type"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DataType {
     pub name: DataTypeName,
@@ -89,8 +108,8 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for SerializerExtractor {
             }
 
             if crate::typeref::check_exact(ptr, crate::typeref::DATATYPE_TYPE) {
-                let data_type = obj.cast_unchecked::<PyDataType>();
-                return Ok(Self(data_type.get().0.serializer.clone()));
+                let data_type = obj.cast_unchecked::<DataType>();
+                return Ok(Self(data_type.get().serializer.clone()));
             }
         }
 
@@ -102,31 +121,8 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for SerializerExtractor {
     }
 }
 
-/// Represents a SQL data type.
-///
-/// A data type is a SQL name plus the serializer used to turn Python objects
-/// into SQL literals. The name can be any string; it is not limited to a set
-/// of predefined values. The serializer is fully customizable.
-///
-/// Known names are interned and canonicalized (`"int"` becomes `"INT"`).
-/// Unknown names and parameterized spellings (`VARCHAR(255)`) are kept as
-/// given. Interning applies to the **name string**, not to `DataType`
-/// instances: `DataType("int")` is not a singleton.
-///
-/// If `serializer` is omitted at construction, one is inferred from the
-/// name; unrecognized names get `UnspecifiedSerializer`.
-#[rapidquery_macros::pyclass(
-    "DataType",
-    eq,
-    hash,
-    from_py_object,
-    module = "rapidquery._core.data_type"
-)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct PyDataType(pub DataType);
-
 #[pyo3::pymethods]
-impl PyDataType {
+impl DataType {
     /// Creates a new SQL data type.
     ///
     /// Args:
@@ -143,11 +139,10 @@ impl PyDataType {
     #[new]
     #[pyo3(signature = (name, serializer = None, /))]
     fn __new__(name: String, serializer: Option<PySerializer>) -> Self {
-        let inner = match serializer {
+        match serializer {
             Some(PySerializer(s)) => DataType::new(DataTypeName::from(name), s),
             None => DataType::from_name(name),
-        };
-        Self(inner)
+        }
     }
 
     /// Returns the type name.
@@ -157,7 +152,7 @@ impl PyDataType {
     ///     casing or spacing from the string passed to the constructor.
     #[getter]
     fn get_name(&self) -> &str {
-        self.0.name.as_str()
+        self.name.as_str()
     }
 
     /// Returns the serializer used to render Python values as SQL literals.
@@ -166,7 +161,7 @@ impl PyDataType {
     ///     The `Serializer` associated with this data type.
     #[getter]
     fn get_serializer(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        PySerializer(slf.0.serializer.clone()).into_subclasses(slf.py())
+        PySerializer(slf.serializer.clone()).into_subclasses(slf.py())
     }
 
     /// Renders `object` as a SQL literal for `dialect`.
@@ -185,15 +180,15 @@ impl PyDataType {
         object: alias::BoundObject<'_>,
     ) -> pyo3::PyResult<String> {
         let mut buf = String::new();
-        self.0.serializer.write_sql(&dialect.0, &object, &mut buf)?;
+        self.serializer.write_sql(&dialect.0, &object, &mut buf)?;
         Ok(buf)
     }
 
     fn __repr__(&self) -> String {
         format!(
             "DataType({:?}, {})",
-            self.0.name.as_str(),
-            serializer_repr(&self.0.serializer)
+            self.name.as_str(),
+            serializer_repr(&self.serializer)
         )
     }
 }
@@ -202,8 +197,8 @@ impl PyDataType {
 pub mod data_type_mod {
     #[pymodule_export]
     use super::{
-        PyArraySerializer, PyBitSerializer, PyBooleanSerializer, PyBytesSerializer,
-        PyCustomSerializer, PyDataType, PyDateSerializer, PyDatetimeSerializer, PyFloatSerializer,
+        DataType, PyArraySerializer, PyBitSerializer, PyBooleanSerializer, PyBytesSerializer,
+        PyCustomSerializer, PyDateSerializer, PyDatetimeSerializer, PyFloatSerializer,
         PyInetSerializer, PyIntegerSerializer, PyJSONSerializer, PyMacAddressSerializer,
         PySerializer, PyStringSerializer, PyTimeSerializer, PyUnspecifiedSerializer,
         PyUuidSerializer,

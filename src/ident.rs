@@ -81,10 +81,28 @@ impl WriteSql for IdentPart {
     }
 }
 
-/// Dotted identifier (`schema.table.column`).
+/// Represents a SQL identifier (`schema.table.column`).
+///
+/// An identifier is a sequence of parts. Each constructor argument is one
+/// part: a quoted name (`str`), an `Unquote` name, an `Asterisk` wildcard,
+/// or a nested `Ident` whose parts are flattened.
 ///
 /// Never empty. At most [`Ident::MAX_PARTS`] parts. An [`IdentPart::Asterisk`]
 /// may appear only as the last part.
+///
+/// Args:
+///     parts: One argument per part. A `str` is always quoted, including
+///             `"*"` (a column named star). Pass `Asterisk` for the SQL
+///             wildcard. Dotted names are `Ident("schema", "table")`, not
+///             `Ident("schema.table")`.
+///
+/// Raises:
+///     TypeError: If an argument is not `str`, `Unquote`, `Asterisk`, or
+///             `Ident`.
+///     ValueError: If there are no parts, a part is empty, `Asterisk` is
+///             not last, an `Unquote` body is not a simple ASCII name, or
+///             there are more than 10 parts.
+#[rapidquery_macros::pyclass("Ident", skip_from_py_object, eq, hash)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Ident(SmallVec<[IdentPart; 4]>);
 
@@ -309,8 +327,8 @@ fn extract_arg(
         }
 
         if crate::typeref::check_exact(ptr, crate::typeref::IDENT_TYPE) {
-            let ident = obj.cast_unchecked::<PyIdent>();
-            return Ok(Extracted::Ident(ident.get().0.clone()));
+            let ident = obj.cast_unchecked::<Ident>();
+            return Ok(Extracted::Ident(ident.get().clone()));
         }
 
         if crate::typeref::check_exact(ptr, crate::typeref::UNQUOTE_TYPE) {
@@ -351,49 +369,27 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for IdentExtractor {
     }
 }
 
-/// Represents a SQL identifier (`schema.table.column`).
-///
-/// An identifier is a sequence of parts. Each constructor argument is one
-/// part: a quoted name (`str`), an `Unquote` name, an `Asterisk` wildcard,
-/// or a nested `Ident` whose parts are flattened.
-///
-/// Args:
-///     parts: One argument per part. A `str` is always quoted, including
-///             `"*"` (a column named star). Pass `Asterisk` for the SQL
-///             wildcard. Dotted names are `Ident("schema", "table")`, not
-///             `Ident("schema.table")`.
-///
-/// Raises:
-///     TypeError: If an argument is not `str`, `Unquote`, `Asterisk`, or
-///             `Ident`.
-///     ValueError: If there are no parts, a part is empty, `Asterisk` is
-///             not last, an `Unquote` body is not a simple ASCII name, or
-///             there are more than 10 parts.
-#[rapidquery_macros::pyclass("Ident", skip_from_py_object, eq, hash)]
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PyIdent(pub Ident);
-
-impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyIdent {
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for Ident {
     type Error = pyo3::PyErr;
 
     #[inline]
     fn extract(
         obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>,
     ) -> Result<Self, Self::Error> {
-        IdentExtractor::extract(obj).map(|IdentExtractor(inner)| Self(inner))
+        IdentExtractor::extract(obj).map(|IdentExtractor(inner)| inner)
     }
 }
 
 #[pyo3::pymethods]
-impl PyIdent {
+impl Ident {
     #[new]
     #[pyo3(signature = (*parts))]
     fn __new__(parts: alias::ArgsType) -> pyo3::PyResult<Self> {
         match parts.len() {
             0 => Err(parse_err(ParseIdentError::Empty)),
             1 => match extract_arg(parts.get_item(0)?.as_borrowed())? {
-                Extracted::Ident(ident) => Ok(Self(ident)),
-                Extracted::Part(part) => Ok(Self(Ident::from_one(part))),
+                Extracted::Ident(ident) => Ok(ident),
+                Extracted::Part(part) => Ok(Ident::from_one(part)),
             },
             _ => {
                 let mut acc = SmallVec::<[IdentPart; 4]>::new();
@@ -403,7 +399,7 @@ impl PyIdent {
                         Extracted::Part(part) => acc.push(part),
                     }
                 }
-                Ident::from_parts(acc).map(Self).map_err(parse_err)
+                Ident::from_parts(acc).map_err(parse_err)
             }
         }
     }
@@ -430,7 +426,7 @@ impl PyIdent {
         py: pyo3::Python<'py>,
         index: utils::IndexOrSlice,
     ) -> pyo3::PyResult<alias::BoundObject<'py>> {
-        let parts = self.0.parts();
+        let parts = self.parts();
         let len = parts.len() as isize;
 
         match index {
@@ -462,7 +458,7 @@ impl PyIdent {
                 }
 
                 let inner = Ident::from_parts(selected).map_err(parse_err)?;
-                Ok(pyo3::Bound::new(py, PyIdent(inner))?.into_any())
+                Ok(pyo3::Bound::new(py, inner)?.into_any())
             }
         }
     }
@@ -472,7 +468,6 @@ impl PyIdent {
         py: pyo3::Python<'py>,
     ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyIterator>> {
         let items = self
-            .0
             .parts()
             .iter()
             .map(|part| ident_part_to_pyobject(py, part))
@@ -483,8 +478,7 @@ impl PyIdent {
 
     /// Returns the parts as a list (`str`, `Unquote`, or `Asterisk`).
     fn to_list(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<Vec<alias::PyObject>> {
-        self.0
-            .parts()
+        self.parts()
             .iter()
             .map(|part| ident_part_to_pyobject(py, part).map(|bound| bound.unbind()))
             .collect()
@@ -504,7 +498,7 @@ impl PyIdent {
         py: pyo3::Python<'_>,
         dialect: crate::dialect::py::PySqlDialect,
     ) -> pyo3::PyResult<String> {
-        write_sql(py, &self.0, &dialect.0)
+        write_sql(py, self, &dialect.0)
             .map_err(|e| rapidquery_macros::pyerr!(PyRuntimeError, "{}", e))
     }
 
@@ -512,7 +506,7 @@ impl PyIdent {
         use std::fmt::Write;
 
         let mut result = String::from("Ident(");
-        let parts = self.0.parts();
+        let parts = self.parts();
         for (index, item) in parts.iter().enumerate() {
             match item {
                 IdentPart::Quote(x) => write!(result, "{x:?}").unwrap(),

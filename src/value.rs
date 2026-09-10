@@ -16,6 +16,16 @@ use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_sql};
 /// Python `None` becomes `NULL`.
 ///
 /// Clone requires the GIL (`Py<T>::clone`).
+///
+/// `Value` does not convert the object until SQL is built. Parameterized
+/// statements bind the object as a placeholder. Raw SQL runs the serializer
+/// (`None` becomes `NULL`).
+///
+/// If `serializer` is omitted, one is inferred from the object's type.
+/// Passing an existing `Value` keeps its object (and its serializer, unless
+/// a new one is given). A `DataType` as `serializer` contributes only its
+/// serializer; the data type is not stored.
+#[rapidquery_macros::pyclass("Value", skip_from_py_object)]
 #[derive(Debug, Clone)]
 pub struct Value {
     pub object: alias::PyObject,
@@ -45,25 +55,7 @@ impl WriteSql for Value {
     }
 }
 
-/// Python wrapper around [`Value`].
-///
-/// `FromPyObject` unwraps an existing `Value` or infers a serializer from
-/// any other object. The constructor also accepts a `Serializer` or a
-/// `DataType` (using only its serializer).
-///
-/// `Value` does not convert the object until SQL is built. Parameterized
-/// statements bind the object as a placeholder. Raw SQL runs the serializer
-/// (`None` becomes `NULL`).
-///
-/// If `serializer` is omitted, one is inferred from the object's type.
-/// Passing an existing `Value` keeps its object (and its serializer, unless
-/// a new one is given). A `DataType` as `serializer` contributes only its
-/// serializer; the data type is not stored.
-#[rapidquery_macros::pyclass("Value", skip_from_py_object)]
-#[derive(Debug, Clone)]
-pub struct PyValue(pub Value);
-
-impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyValue {
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for Value {
     type Error = pyo3::PyErr;
 
     #[inline]
@@ -77,12 +69,12 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyValue {
             }
         }
 
-        Ok(Self(Value::infer_bound(obj.as_any().clone())))
+        Ok(Value::infer_bound(obj.as_any().clone()))
     }
 }
 
 #[pyo3::pymethods]
-impl PyValue {
+impl Value {
     /// Creates a SQL value.
     ///
     /// Args:
@@ -104,18 +96,18 @@ impl PyValue {
         // handle Value(Value(...), new_serializer)
         if unsafe { crate::typeref::check_exact(object.as_ptr(), crate::typeref::VALUE_TYPE) } {
             let value = unsafe { object.cast_unchecked::<Self>() };
-            let inner = value.get().0.clone();
+            let inner = value.get().clone();
 
             let slf = match serializer {
-                Some(SerializerExtractor(s)) => Self(Value::new(inner.object, s)),
-                None => Self(inner),
+                Some(SerializerExtractor(s)) => Value::new(inner.object, s),
+                None => inner,
             };
             return pyo3::PyClassInitializer::from(slf);
         }
 
         let slf = match serializer {
-            Some(SerializerExtractor(s)) => Self(Value::new(object.unbind(), s)),
-            None => Self(Value::infer_bound(object)),
+            Some(SerializerExtractor(s)) => Value::new(object.unbind(), s),
+            None => Value::infer_bound(object),
         };
         pyo3::PyClassInitializer::from(slf)
     }
@@ -127,7 +119,7 @@ impl PyValue {
     ///     `Value`).
     #[getter]
     fn get_object(slf: pyo3::PyRef<'_, Self>) -> alias::PyObject {
-        slf.0.object.clone_ref(slf.py())
+        slf.object.clone_ref(slf.py())
     }
 
     /// Returns the serializer used for raw SQL literals.
@@ -137,7 +129,7 @@ impl PyValue {
     ///     is bound as a parameter.
     #[getter]
     fn get_serializer(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        PySerializer(slf.0.serializer.clone()).into_subclasses(slf.py())
+        PySerializer(slf.serializer.clone()).into_subclasses(slf.py())
     }
 
     /// Renders this value as a SQL literal for `dialect`.
@@ -160,30 +152,30 @@ impl PyValue {
         py: pyo3::Python<'_>,
         dialect: crate::dialect::py::PySqlDialect,
     ) -> pyo3::PyResult<String> {
-        write_sql(py, &self.0, &dialect.0).map_err(Into::into)
+        write_sql(py, self, &dialect.0).map_err(Into::into)
     }
 
     fn __eq__(&self, py: pyo3::Python<'_>, other: &pyo3::Bound<'_, Self>) -> pyo3::PyResult<bool> {
-        if self.0.serializer != other.get().0.serializer {
+        if self.serializer != other.get().serializer {
             return Ok(false);
         }
 
-        self.0.object.bind(py).eq(other.get().0.object.bind(py))
+        self.object.bind(py).eq(other.get().object.bind(py))
     }
 
     fn __hash__(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<u64> {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        self.0.object.bind(py).hash()?.hash(&mut hasher);
-        self.0.serializer.hash(&mut hasher);
+        self.object.bind(py).hash()?.hash(&mut hasher);
+        self.serializer.hash(&mut hasher);
         Ok(hasher.finish())
     }
 
     fn __repr__(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        let obj_repr = self.0.object.bind(py).repr()?;
+        let obj_repr = self.object.bind(py).repr()?;
         Ok(format!(
             "Value({}, {})",
             obj_repr.to_cow()?,
-            serializer_repr(&self.0.serializer)
+            serializer_repr(&self.serializer)
         ))
     }
 }
