@@ -296,11 +296,13 @@ unsafe fn write_json(
     dialect: &SqlDialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
-    let text =
-        crate::internal::modules::json_dumps(unsafe { pyo3::Bound::from_borrowed_ptr(py, ptr) })?;
-
-    write_quoted(dialect, out, &text);
-    Ok(())
+    crate::internal::modules::json_dumps(
+        unsafe { pyo3::Bound::from_borrowed_ptr(py, ptr) },
+        |text| {
+            write_quoted(dialect, out, text);
+            Ok(())
+        },
+    )
 }
 
 /// # Safety

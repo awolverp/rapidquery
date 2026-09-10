@@ -65,7 +65,7 @@ pub trait SqlWriter: std::fmt::Write {
     /// Raw (`SqlBuf`): `None` → `NULL`, else `serializer.write_sql` into the
     /// SQL buffer. Prepared: bind `object` as a placeholder; `serializer` is
     /// unused.
-    fn push_value<'py>(
+    fn push_value(
         &mut self,
         dialect: &SqlDialect,
         serializer: &Serializer,

@@ -164,9 +164,14 @@ impl PySerializer {
 }
 
 macro_rules! impl_unit_serializers {
-    ($($variant:ident => $name:ident => $pyname:literal, $doc:literal,)+) => {
+    (
         $(
-            #[doc = $doc]
+            $(#[$outer:meta])*
+            $variant:ident => $name:ident => $pyname:literal,
+        )+
+    ) => {
+        $(
+            $(#[$outer])*
             #[rapidquery_macros::pyclass(
                 $pyname,
                 extends = PySerializer,
@@ -189,89 +194,115 @@ macro_rules! impl_unit_serializers {
 }
 
 impl_unit_serializers! {
+    /// Serializes Python integers as bare SQL integer literals.
+    /// Accepts Python `int` of any width (including values beyond 64-bit).
+    /// Rejects `bool`; `True` and `False` are not treated as integers.
+    ///
+    /// Raises:
+    ///    TypeError: If the value is not an `int`.
     Integer => PyIntegerSerializer => "IntegerSerializer",
-        "Serializes Python integers as bare SQL integer literals.\n\n\
-         Accepts Python `int` of any width (including values beyond 64-bit).\n\
-         Rejects `bool`; `True` and `False` are not treated as integers.\n\n\
-         Raises:\n    \
-             TypeError: If the value is not an `int`.",
+
+    /// Serializes numeric values as bare SQL numeric literals.
+    /// Accepts `float`, `int`, and `decimal.Decimal`. Finite floats are formatted
+    /// so that `1.0` stays distinct from `1`. `str` is not accepted.
+    ///
+    /// Raises:
+    ///     TypeError: If the value is not a `float`, `int`, or `decimal.Decimal`.
+    ///     ValueError: If the value is a non-finite float (`nan`, `inf`, `-inf`).
     Float => PyFloatSerializer => "FloatSerializer",
-        "Serializes numeric values as bare SQL numeric literals.\n\n\
-         Accepts `float`, `int`, and `decimal.Decimal`. Finite floats are formatted\n\
-         so that `1.0` stays distinct from `1`. `str` is not accepted.\n\n\
-         Raises:\n    \
-             TypeError: If the value is not a `float`, `int`, or `decimal.Decimal`.\n    \
-             ValueError: If the value is a non-finite float (`nan`, `inf`, `-inf`).",
+
+    /// Serializes Python booleans as dialect boolean literals.
+    /// Accepts Python `bool` only. The dialect chooses the spelling
+    /// (`TRUE`/`FALSE` or `1`/`0`).
+    ///
+    /// Raises:
+    ///     TypeError: If the value is not a `bool`.
     Boolean => PyBooleanSerializer => "BooleanSerializer",
-        "Serializes Python booleans as dialect boolean literals.\n\n\
-         Accepts Python `bool` only. The dialect chooses the spelling\n\
-         (`TRUE`/`FALSE` or `1`/`0`).\n\n\
-         Raises:\n    \
-             TypeError: If the value is not a `bool`.",
+
+    /// Serializes text as a quoted, escaped SQL string literal.
+    /// Accepts `str`, or an `enum.Enum` member whose `.value` is a `str`. The
+    /// dialect supplies quoting and escaping.
+    ///
+    /// Raises:
+    ///     TypeError: If the value is not a `str` or a string-valued enum member.
     String => PyStringSerializer => "StringSerializer",
-        "Serializes text as a quoted, escaped SQL string literal.\n\n\
-         Accepts `str`, or an `enum.Enum` member whose `.value` is a `str`. The\n\
-         dialect supplies quoting and escaping.\n\n\
-         Raises:\n    \
-             TypeError: If the value is not a `str` or a string-valued enum member.",
+
+    /// Serializes UUIDs as quoted SQL string literals.
+    /// Accepts `uuid.UUID` or `str`.
+    /// Raises:
+    ///     TypeError: If the value is not a `uuid.UUID` or `str`.
     Uuid => PyUuidSerializer => "UuidSerializer",
-        "Serializes UUIDs as quoted SQL string literals.\n\n\
-         Accepts `uuid.UUID` or `str`.\n\n\
-         Raises:\n    \
-             TypeError: If the value is not a `uuid.UUID` or `str`.",
+
+    /// Serializes binary data as a dialect blob/bytea literal.
+    /// Accepts exact `bytes` (not `bytearray` or `memoryview`).
+    ///
+    /// Raises:
+    ///     TypeError: If the value is not `bytes`.
     Bytes => PyBytesSerializer => "BytesSerializer",
-        "Serializes binary data as a dialect blob/bytea literal.\n\n\
-         Accepts exact `bytes` (not `bytearray` or `memoryview`).\n\n\
-         Raises:\n    \
-             TypeError: If the value is not `bytes`.",
+
+    /// Serializes bit strings as dialect bit-string literals.
+    /// Accepts a `str` consisting only of `'0'` and `'1'` characters.
+    ///
+    /// Raises:
+    ///     TypeError: If the value is not a `str`.
+    ///     ValueError: If the string is empty or contains characters other than `'0'` and `'1'`.
     Bit => PyBitSerializer => "BitSerializer",
-        "Serializes bit strings as dialect bit-string literals.\n\n\
-         Accepts a `str` consisting only of `'0'` and `'1'` characters.\n\n\
-         Raises:\n    \
-             TypeError: If the value is not a `str`.\n    \
-             ValueError: If the string is empty or contains characters other than\n            \
-                 `'0'` and `'1'`.",
+
+    /// Serializes a JSON-encodable object as a quoted SQL string literal.
+    /// Accepts any object that the JSON encoder can dump. Uses `orjson` when it
+    /// is installed, otherwise the stdlib `json` module. The JSON text is then
+    /// wrapped with the dialect's string quoting. With `orjson`, datetime,
+    /// UUID, dataclass, and non-str dict keys are encoded natively; stdlib
+    /// `json` rejects those.
+    ///
+    /// Raises:
+    ///     TypeError: If the value cannot be JSON-encoded.
     Json => PyJSONSerializer => "JSONSerializer",
-        "Serializes a JSON-encodable object as a quoted SQL string literal.\n\n\
-         Accepts any object that the JSON encoder can dump. Uses `orjson` when it\n\
-         is installed, otherwise the stdlib `json` module. The JSON text is then\n\
-         wrapped with the dialect's string quoting.\n\n\
-         Raises:\n    \
-             TypeError: If the value cannot be JSON-encoded.",
+
+    /// Serializes dates as quoted `YYYY-MM-DD` literals.
+    /// Accepts exact `datetime.date` (not `datetime.datetime`).
+    ///
+    /// Raises:
+    ///     TypeError: If the value is not a `datetime.date`.
     Date => PyDateSerializer => "DateSerializer",
-        "Serializes dates as quoted `YYYY-MM-DD` literals.\n\n\
-         Accepts exact `datetime.date` (not `datetime.datetime`).\n\n\
-         Raises:\n    \
-             TypeError: If the value is not a `datetime.date`.",
+
+    /// Serializes times as quoted `HH:MM:SS[.ffffff]` literals.
+    /// Accepts `datetime.time`.
+    ///
+    /// Raises:
+    ///     TypeError: If the value is not a `datetime.time`.
     Time => PyTimeSerializer => "TimeSerializer",
-        "Serializes times as quoted `HH:MM:SS[.ffffff]` literals.\n\n\
-         Accepts `datetime.time`.\n\n\
-         Raises:\n    \
-             TypeError: If the value is not a `datetime.time`.",
+
+    /// Serializes timestamps as quoted SQL timestamp literals.
+    /// Accepts naive or aware `datetime.datetime`, or `int`/`float` UTC epoch
+    /// seconds. Naive values keep wall time. Aware values keep their original
+    /// offset (they are not converted to UTC).
+    ///
+    /// Raises:
+    ///     TypeError: If the value is not a `datetime.datetime`, `int`, or `float`.
+    ///     OverflowError: If an epoch value is out of range for a timestamp.
     Datetime => PyDatetimeSerializer => "DatetimeSerializer",
-        "Serializes timestamps as quoted SQL timestamp literals.\n\n\
-         Accepts naive or aware `datetime.datetime`, or `int`/`float` UTC epoch\n\
-         seconds. Naive values keep wall time. Aware values keep their original\n\
-         offset (they are not converted to UTC).\n\n\
-         Raises:\n    \
-             TypeError: If the value is not a `datetime.datetime`, `int`, or `float`.\n    \
-             OverflowError: If an epoch value is out of range for a timestamp.",
+
+    /// Serializes IP addresses and networks as quoted SQL literals.
+    /// Accepts `str` or `ipaddress` objects (`IPv4Address`, `IPv6Address`,
+    /// `IPv4Network`, `IPv6Network`, and related types whose `str()` is a valid
+    /// address or CIDR).
+    ///
+    /// Raises:
+    ///     ValueError: If the value is not a valid IPv4/IPv6 address or network.
     Inet => PyInetSerializer => "InetSerializer",
-        "Serializes IP addresses and networks as quoted SQL literals.\n\n\
-         Accepts `str` or `ipaddress` objects (`IPv4Address`, `IPv6Address`,\n\
-         `IPv4Network`, `IPv6Network`, and related types whose `str()` is a valid\n\
-         address or CIDR).\n\n\
-         Raises:\n    \
-             ValueError: If the value is not a valid IPv4/IPv6 address or network.",
+
+    /// Serializes MAC addresses as quoted SQL literals.
+    /// Accepts a `str` using `:` or `-` as the separator.
+    ///
+    /// Raises:
+    ///     ValueError: If the value is not a valid MAC address.
     MacAddress => PyMacAddressSerializer => "MacAddressSerializer",
-        "Serializes MAC addresses as quoted SQL literals.\n\n\
-         Accepts a `str` using `:` or `-` as the separator.\n\n\
-         Raises:\n    \
-             ValueError: If the value is not a valid MAC address.",
+
+    /// Inserts `str(obj)` into SQL with no quoting or type check.
+    /// Used when no serializer could be inferred from the type name. The result
+    /// is not a safe SQL value; prefer an explicit serializer.
     Unspecified => PyUnspecifiedSerializer => "UnspecifiedSerializer",
-        "Inserts `str(obj)` into SQL with no quoting or type check.\n\n\
-         Used when no serializer could be inferred from the type name. The result\n\
-         is not a safe SQL value; prefer an explicit serializer.",
 }
 
 /// Serializes sequences as `ARRAY[elem, ...]` literals.

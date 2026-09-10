@@ -54,8 +54,13 @@ Homepage = "https://github.com/awolverp/rapidquery"
 Repository = "https://github.com/awolverp/rapidquery"
 Issues = "https://github.com/awolverp/rapidquery/issues"
 
+[project.optional-dependencies]
+orjson = [
+    "orjson>=3.0.0",
+]
+
 [dependency-groups]
 dev = [
     "maturin == 1.15.0",
-    "pytest>=8.3.5",
+    "pytest>=8.0.0",
 ]

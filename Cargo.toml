@@ -46,6 +46,10 @@ smallvec = { version = "1.16.0", default-features = false }
 default = ["extension-module"]
 extension-module = ["pyo3/extension-module"]
 
+# Testing features
+only-stdlib-json = []
+only-orjson = []
+
 [lints.clippy]
 dbg_macro = "warn"
 print_stderr = "warn"

@@ -143,7 +143,9 @@ class JSONSerializer(Serializer):
 
     Accepts any object that the JSON encoder can dump. Uses `orjson` when it
     is installed, otherwise the stdlib `json` module. The JSON text is then
-    wrapped with the dialect's string quoting.
+    wrapped with the dialect's string quoting. With `orjson`, datetime, UUID,
+    dataclass, and non-str dict keys are encoded natively; stdlib `json`
+    rejects those.
 
     Raises:
         TypeError: If the value cannot be JSON-encoded.

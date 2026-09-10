@@ -323,6 +323,31 @@ class TestJSONSerializer:
         with pytest.raises(TypeError):
             JSONSerializer().serialize(dialect_cls, NotEncodable())
 
+    def test_compact_separators(self, dialect_cls: type[SqlDialect]):
+        result = JSONSerializer().serialize(dialect_cls, {"a": 1})
+        assert ": " not in result
+        result = JSONSerializer().serialize(dialect_cls, [1, 2])
+        assert ", " not in result
+
+    def test_nan(self, dialect_cls: type[SqlDialect]):
+        # orjson emits JSON `null` for NaN; stdlib `json` with allow_nan=False
+        # raises ValueError.
+        try:
+            import orjson  # noqa: F401
+        except ImportError:
+            with pytest.raises(ValueError):
+                JSONSerializer().serialize(dialect_cls, float("nan"))
+        else:
+            result = JSONSerializer().serialize(dialect_cls, float("nan"))
+            assert "null" in result
+
+    def test_orjson_encodes_datetime(self, dialect_cls: type[SqlDialect]):
+        pytest.importorskip("orjson")
+        result = JSONSerializer().serialize(
+            dialect_cls, {"t": datetime.datetime(2024, 1, 2, 3, 4, 5)}
+        )
+        assert "2024-01-02" in result
+
 
 # ---------------------------------------------------------------------------
 # DateSerializer
