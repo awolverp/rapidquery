@@ -26,6 +26,7 @@ pub(super) const IDENTIFIER_QUOTE: IdentifierQuote = IdentifierQuote::DoubleQuot
 
 pub(super) const PLACEHOLDER_SYNTAX: PlaceholderSyntax = PlaceholderSyntax::Colon;
 
+#[cfg_attr(feature = "nightly", optimize(speed))]
 pub(super) fn escape_string<W: std::fmt::Write>(writer: &mut W, string: &str) -> std::fmt::Result {
     for ch in string.chars() {
         match ch {

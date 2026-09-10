@@ -168,7 +168,7 @@ pub fn initialize_typeref(py: pyo3::Python) {
 /// `ptr` must be a valid, non-null `PyObject*`. `r#type` must be a valid
 /// `PyTypeObject*` (interned pointers from [`initialize_typeref`] are fine).
 /// The GIL must be held.
-#[inline]
+#[inline(always)]
 pub unsafe fn check_exact(
     ptr: *mut pyo3::ffi::PyObject,
     r#type: *mut pyo3::ffi::PyTypeObject,
@@ -183,7 +183,7 @@ pub unsafe fn check_exact(
 /// `ptr` must be a valid, non-null `PyObject*`. `r#type` must be a valid
 /// `PyTypeObject*` (interned pointers from [`initialize_typeref`] are fine).
 /// The GIL must be held.
-#[inline]
+#[inline(always)]
 pub unsafe fn check(ptr: *mut pyo3::ffi::PyObject, r#type: *mut pyo3::ffi::PyTypeObject) -> bool {
     pyo3::ffi::PyObject_TypeCheck(ptr, r#type) == 1
 }

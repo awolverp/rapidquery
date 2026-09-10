@@ -75,6 +75,7 @@ fn init_import(py: pyo3::Python<'_>) -> pyo3::PyResult<JsonDumper> {
 /// `result` is a new reference still owned by the caller. The GIL is held.
 /// The `&str` is only valid until `result` is `DECREF`'d.
 #[inline]
+#[cfg_attr(feature = "nightly", optimize(speed))]
 unsafe fn visit_json_text(
     py: pyo3::Python<'_>,
     result: *mut pyo3::ffi::PyObject,
@@ -106,6 +107,7 @@ unsafe fn visit_json_text(
 /// # Safety
 /// `obj` must be a valid borrowed Python object. The GIL must be held.
 #[inline]
+#[cfg_attr(feature = "nightly", optimize(speed))]
 pub unsafe fn dumps(
     obj: pyo3::Bound<'_, pyo3::PyAny>,
     f: impl FnOnce(&str) -> pyo3::PyResult<()>,

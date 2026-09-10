@@ -304,6 +304,7 @@ pub fn prepare<'py, T: WriteSql>(
 /// (not before the first or after the last).
 ///
 /// Use `","` / `", "` for lists and `" AND "` / `" OR "` for predicates.
+#[cfg_attr(feature = "nightly", optimize(speed))]
 pub fn write_separated<'a, T, W>(
     dialect: &SqlDialect,
     out: &mut W,

@@ -1,4 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)]
+#![cfg_attr(feature = "nightly", feature(optimize_attribute))]
 
 pub mod internal;
 pub mod native;

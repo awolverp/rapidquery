@@ -170,6 +170,7 @@ impl Ident {
     /// [`MAX_PARTS`](Self::MAX_PARTS), asterisk-not-last.
     ///
     /// Unquoted charset is enforced by [`IdentPart::unquoted`], not here.
+    #[cfg_attr(feature = "nightly", optimize(speed))]
     pub fn from_parts(iter: impl IntoIterator<Item = IdentPart>) -> Result<Self, ParseIdentError> {
         let mut parts = SmallVec::<[IdentPart; 4]>::new();
 
@@ -200,6 +201,7 @@ impl Ident {
 impl std::str::FromStr for Ident {
     type Err = ParseIdentError;
 
+    #[cfg_attr(feature = "nightly", optimize(speed))]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.is_empty() {
             return Err(ParseIdentError::Empty);

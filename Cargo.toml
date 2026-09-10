@@ -6,7 +6,6 @@ name = "rapidquery"
 version = "1.0.0-alpha1"
 edition = "2024"
 description = "RapidQuery is the fastest, full-feature, and easy-to-use Python SQL query builder written in Rust."
-readme = "README.md"
 license = "MIT"
 homepage = "https://github.com/awolverp/rapidquery"
 repository = "https://github.com/awolverp/rapidquery.git"
@@ -45,6 +44,7 @@ smallvec = { version = "1.16.0", default-features = false }
 [features]
 default = ["extension-module"]
 extension-module = ["pyo3/extension-module"]
+nightly = ["hashbrown/nightly"]
 
 # Testing features
 only-stdlib-json = []
