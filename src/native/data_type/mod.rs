@@ -7,8 +7,11 @@
 //! [`DataTypeGroup::Float`] because they share a serializer with IEEE floats.
 
 mod name;
+mod serialize;
+mod serializer;
 
 #[cfg(test)]
 mod tests;
 
 pub use name::{DataTypeGroup, DataTypeName};
+pub use serializer::*;

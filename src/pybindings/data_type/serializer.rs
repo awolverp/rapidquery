@@ -11,8 +11,7 @@
 use std::hash::{Hash, Hasher};
 
 use crate::internal::alias;
-use crate::native::data_type::DataTypeGroup;
-use crate::native::serializer::Serializer;
+use crate::native::data_type::{DataTypeGroup, Serializer};
 
 fn class_name(serializer: &Serializer) -> &'static str {
     match serializer {

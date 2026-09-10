@@ -12,7 +12,8 @@ use pyo3::types::{PyAnyMethods, PyTzInfoAccess};
 use crate::internal::alias;
 use crate::internal::utils::{get_type_name, py_str};
 use crate::native::dialect::SqlDialect;
-use crate::native::serializer::Serializer;
+
+use super::serializer::Serializer;
 
 impl Serializer {
     pub fn write_sql(

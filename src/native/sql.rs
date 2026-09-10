@@ -9,8 +9,8 @@ use hashbrown::HashMap;
 use pyo3::types::PyAnyMethods;
 
 use crate::internal::alias;
+use crate::native::data_type::Serializer;
 use crate::native::dialect::SqlDialect;
-use crate::native::serializer::Serializer;
 
 /// Error produced while building SQL.
 #[derive(Debug)]
