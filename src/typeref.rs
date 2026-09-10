@@ -42,6 +42,9 @@ pub(crate) static mut IDENT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_
 pub(crate) static mut UNQUOTE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut ASTERISK_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
+// Value type
+pub(crate) static mut VALUE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+
 // Python standard-library types (serializers)
 pub(crate) static mut STD_DECIMAL_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut STD_UUID_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -131,6 +134,8 @@ fn _initialize_typeref(py: pyo3::Python) {
             crate::pybindings::PyIdent => IDENT_TYPE,
             crate::pybindings::PyUnquote => UNQUOTE_TYPE,
             crate::pybindings::PyAsterisk => ASTERISK_TYPE,
+            // value
+            crate::pybindings::PyValue => VALUE_TYPE,
         );
 
         STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");

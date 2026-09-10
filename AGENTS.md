@@ -27,18 +27,18 @@ Keep these `refactor/v1` divergences from the PR (do not revert them):
 - Python `>=3.10` (local: 3.13). Rust edition **2024**. PyO3 **0.29**. Maturin **1.15.0**. uv for the venv.
 - Workspace crate `rapidquery-macros` (proc-macros: `pyclass`, `pyerr`).
 - Target stack from PR #2 also used: `arcstr`, `once_cell`, `chrono`, `ipnetwork`, `mac_address`. (`derive_more` is not on this branch.)
-- Dialects (13), `DataType` + `Serializer`, `Ident`/`Unquote`/`Asterisk`, `SqlWriter`/`WriteSql` exist on this branch. Still missing vs the PR’s next layers: `Value`, query/schema AST (never in the PR either).
+- Dialects (13), `DataType` + `Serializer`, `Ident`/`Unquote`/`Asterisk`, `Value`, `SqlWriter`/`WriteSql` exist on this branch. Still missing vs the PR’s next layers: query/schema AST (never in the PR either).
 - `#[pyo3::pymodule(gil_used = false)]` — keep free-threaded Python in mind.
 - Frozen/immutable PyO3 types: `rapidquery_macros::pyclass` already sets `module="rapidquery._core"`, `immutable_type`, `frozen`.
 
 ## Layout
 
 ```
-src/native/           Rust engine (dialects, DataTypeName, Ident, Serializer, SqlWriter/WriteSql)
+src/native/           Rust engine (dialects, DataType, Ident, Serializer, Value, SqlWriter/WriteSql)
 src/pybindings/       Python wrappers (pyclasses only)
 src/internal/         aliases, string utils, submodule helper
 src/typeref.rs        cached PyTypeObject pointers
-rapidquery/           Python package (re-exports Ident, Unquote, Asterisk, data_type, dialect)
+rapidquery/           Python package (re-exports Ident, Unquote, Asterisk, Value, data_type, dialect)
 rapidquery-macros/    Proc-macros
 tests/                Python tests
 backup/, backup-py/   gitignored v0 snapshots — read-only

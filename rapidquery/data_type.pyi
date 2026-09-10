@@ -302,8 +302,11 @@ class DataType:
 
     Known names are interned and canonicalized (`"int"` becomes `"INT"`).
     Unknown names and parameterized spellings (`VARCHAR(255)`) are kept as
-    given. If `serializer` is omitted at construction, one is inferred from
-    the name; unrecognized names get `UnspecifiedSerializer`.
+    given. Interning applies to the **name string**, not to `DataType`
+    instances: `DataType("int")` is not a singleton.
+
+    If `serializer` is omitted at construction, one is inferred from the
+    name; unrecognized names get `UnspecifiedSerializer`.
     """
 
     def __new__(cls, name: str, serializer: Serializer | None = None, /) -> Self:
@@ -311,31 +314,16 @@ class DataType:
         Creates a new SQL data type.
 
         Args:
-            name: The name of a data type. *It is not limited to a set of predefined values.*
-
-                    **Important memory optimization note**: At import time, the library pre-allocates
-                    and interns (reserves in memory) several simple and commonly used data types
-                    (e.g. `INTEGER`, `VARCHAR`, `TIMESTAMP`, `BOOLEAN`, etc.). If you instantiate
-                    a `DataType` using one of these common names, the library will automatically
-                    return a reference to the pre-allocated instance instead of creating a new one.
-                    This reduces memory consumption and improves performance when working with
-                    standard SQL types.
-
-                    As a result of this interning mechanism, when you access the `.name` property
-                    on a pre-allocated instance, the returned string **may be slightly different**
-                    from the exact string you passed in (for example in casing, spacing, or canonical
-                    form chosen by the library). This is expected behavior and does not affect
-                    correctness.
-
-            serializer: The `serializer` is used whenever a Python object needs to be converted
-                        into a valid SQL value during query construction. This is commonly required
-                        when setting default values, inserting data, or generating other SQL statements.
-                        You can use one of the built-in serializers (we provide ready-to-use
-                        serializers for most common data types), or you can create and register your
-                        own custom serializer. This parameter is optional. However, it is strongly
-                        recommended to always specify it explicitly. If you do not provide a serializer,
-                        the `DataType` will attempt to automatically detect and assign one based on the
-                        `name`. If no suitable serializer is found, it will fall back to `UnspecifiedSerializer`.
+            name: The SQL type spelling. Not limited to a predefined set.
+                    Known names are interned and canonicalized (`"int"`
+                    becomes `"INT"`). Unknown names and parameterized
+                    spellings (`VARCHAR(255)`) are kept as given.
+            serializer: Used when a Python object is rendered as a SQL
+                    literal (defaults, inserts, raw SQL). Built-in
+                    serializers cover common types; `CustomSerializer`
+                    covers the rest. If omitted, a serializer is inferred
+                    from `name`; unrecognized names get
+                    `UnspecifiedSerializer`.
         """
 
     @property
@@ -344,12 +332,8 @@ class DataType:
         Returns the type name.
 
         Returns:
-            The canonical type name.
-
-        Note:
-            For interned common data types (see `__new__`), the returned value
-            may be a canonicalized version of the original input string (for
-            example in casing or spacing).
+            The canonical type name. For interned names this may differ in
+            casing or spacing from the string passed to the constructor.
         """
 
     @property
@@ -375,4 +359,6 @@ class DataType:
             A SQL fragment produced by this type's serializer.
         """
 
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...

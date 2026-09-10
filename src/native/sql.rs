@@ -51,6 +51,17 @@ impl From<pyo3::PyErr> for PrepareError {
     }
 }
 
+impl From<PrepareError> for pyo3::PyErr {
+    fn from(err: PrepareError) -> Self {
+        match err {
+            PrepareError::Python(err) => err,
+            PrepareError::Write => {
+                rapidquery_macros::pyerr!(PyRuntimeError, "failed to write SQL")
+            }
+        }
+    }
+}
+
 pub type PrepareResult<T> = Result<T, PrepareError>;
 pub type PrepareParams = HashMap<String, alias::PyObject>;
 

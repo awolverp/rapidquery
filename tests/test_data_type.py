@@ -205,3 +205,19 @@ class TestDataTypeSerializeDelegation:
     def test_serialize_accepts_dialect_class_or_instance(self):
         dt = DataType("integer")
         assert dt.serialize(PostgreSQL, 1) == dt.serialize(PostgreSQL(), 1)
+
+
+class TestDataTypeEquality:
+    def test_interned_spellings_of_the_same_name_are_equal(self):
+        assert DataType("int") == DataType("INT")
+        assert hash(DataType("int")) == hash(DataType("INT"))
+
+    def test_distinct_interned_names_are_not_equal(self):
+        assert DataType("int") != DataType("integer")
+
+    def test_explicit_serializer_participates_in_equality(self):
+        assert DataType("int", StringSerializer()) != DataType("int")
+
+    def test_not_equal_to_unrelated_types(self):
+        assert DataType("int") != "INT"
+        assert DataType("int") != IntegerSerializer()

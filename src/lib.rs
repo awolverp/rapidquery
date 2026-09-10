@@ -15,7 +15,7 @@ mod _core {
     use super::pybindings::dialect_mod;
 
     #[pymodule_export]
-    use super::pybindings::{PyAsterisk, PyIdent, PyUnquote};
+    use super::pybindings::{PyAsterisk, PyIdent, PyUnquote, PyValue};
 
     #[pymodule_init]
     #[cold]

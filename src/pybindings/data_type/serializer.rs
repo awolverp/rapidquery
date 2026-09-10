@@ -1,6 +1,6 @@
 //! Python `Serializer` class hierarchy.
 //!
-//! Wraps native [`Serializer`](crate::native::Serializer). Python sees frozen
+//! Wraps native [`Serializer`](crate::native::data_type::Serializer). Python sees frozen
 //! subclasses (`IntegerSerializer`, …) plus `ArraySerializer` /
 //! `CustomSerializer`.
 //!
@@ -55,14 +55,18 @@ fn class_name(serializer: &Serializer) -> &'static str {
     module = "rapidquery._core.data_type"
 )]
 #[derive(Debug, Clone)]
-pub struct PySerializer(pub(super) Serializer);
+pub struct PySerializer(pub Serializer);
 
 impl PySerializer {
-    pub(super) fn inferred(kind: DataTypeGroup) -> Self {
+    pub fn infer_bound(bound: &alias::BoundObject) -> Self {
+        Self(Serializer::infer_bound(bound))
+    }
+
+    pub fn from_group(kind: DataTypeGroup) -> Self {
         Self(Serializer::from_group(kind))
     }
 
-    pub(crate) fn serialize_value(
+    pub fn serialize_value(
         &self,
         dialect: crate::pybindings::dialect::PySqlDialect,
         object: alias::BoundObject<'_>,
@@ -73,7 +77,7 @@ impl PySerializer {
     }
 
     // Wrap `self` as the matching Python subclass (`IntegerSerializer()`, …).
-    pub(super) fn into_subclasses<'py>(
+    pub fn into_subclasses<'py>(
         self,
         py: pyo3::Python<'py>,
     ) -> pyo3::PyResult<alias::BoundObject<'py>> {
@@ -94,6 +98,21 @@ impl PySerializer {
             Serializer::Unspecified => wrap::<PyUnspecifiedSerializer>(py, self),
             Serializer::Array(_) => wrap::<PyArraySerializer>(py, self),
             Serializer::Custom(_) => wrap::<PyCustomSerializer>(py, self),
+        }
+    }
+}
+
+pub(crate) fn serializer_repr(serializer: &Serializer) -> String {
+    match serializer {
+        Serializer::Array(element) => {
+            format!("ArraySerializer({}())", class_name(element))
+        }
+        other => {
+            let name = class_name(other);
+            let mut buf = String::with_capacity(name.len() + 2);
+            buf.push_str(name);
+            buf.push_str("()");
+            buf
         }
     }
 }
@@ -136,18 +155,7 @@ impl PySerializer {
     }
 
     fn __repr__(&self) -> String {
-        match &self.0 {
-            Serializer::Array(element) => {
-                format!("ArraySerializer({}())", class_name(element))
-            }
-            other => {
-                let name = class_name(other);
-                let mut buf = String::with_capacity(name.len() + 2);
-                buf.push_str(name);
-                buf.push_str("()");
-                buf
-            }
-        }
+        serializer_repr(&self.0)
     }
 
     // Bound<Self> so only instances match.

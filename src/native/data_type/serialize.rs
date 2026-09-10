@@ -463,6 +463,7 @@ unsafe fn write_mac_address(
     let addr = mac_address::MacAddress::from_str(&text)
         .map(|mac| mac.to_string())
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+
     write_quoted(dialect, out, &addr);
     Ok(())
 }

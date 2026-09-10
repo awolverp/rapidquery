@@ -1,15 +1,16 @@
 //! Python wrappers for SQL data types and value serializers.
 //!
 //! Native [`DataTypeName`](crate::native::data_type::DataTypeName) is a
-//! spelling plus group. Native [`Serializer`](crate::native::Serializer)
-//! writes Python objects as SQL literals. This module owns the pyclasses.
+//! spelling plus group. Native [`Serializer`](crate::native::data_type::Serializer)
+//! writes Python objects as SQL literals. Native [`DataType`](crate::native::DataType)
+//! is the name plus serializer; this module owns the pyclasses.
 //!
 //! Python sees:
 //!
 //! * [`PySerializer`] — `rapidquery._core.data_type.Serializer`, the ABC
 //! * frozen subclasses per behaviour (`IntegerSerializer`, `JSONSerializer`, …)
 //! * [`PyArraySerializer`] / [`PyCustomSerializer`]
-//! * [`PyDataType`] — a name plus a serializer
+//! * [`PyDataType`] — `rapidquery._core.data_type.DataType`
 //!
 //! `serialize(dialect, obj)` accepts a dialect **class or instance**. Serializer
 //! extract is instance-only (Array/Custom carry state).
@@ -17,14 +18,48 @@
 mod serializer;
 
 use crate::internal::alias;
-use crate::native::data_type::DataTypeName;
+use crate::native;
 
+pub(crate) use serializer::serializer_repr;
 pub use serializer::{
     PyArraySerializer, PyBitSerializer, PyBooleanSerializer, PyBytesSerializer, PyCustomSerializer,
     PyDateSerializer, PyDatetimeSerializer, PyFloatSerializer, PyInetSerializer,
     PyIntegerSerializer, PyJSONSerializer, PyMacAddressSerializer, PySerializer,
     PyStringSerializer, PyTimeSerializer, PyUnspecifiedSerializer, PyUuidSerializer,
 };
+
+/// `Serializer` instance, or a `DataType` (its serializer only).
+pub struct SerializerExtractor(pub crate::native::data_type::Serializer);
+
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for SerializerExtractor {
+    type Error = pyo3::PyErr;
+
+    fn extract(
+        obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>,
+    ) -> Result<Self, Self::Error> {
+        let ptr = obj.as_ptr();
+
+        unsafe {
+            // SAFETY: `ptr` is a live borrowed `PyObject`. Type pointers are
+            // interned in `initialize_typeref` before any extractor runs.
+            if crate::typeref::check(ptr, crate::typeref::SERIALIZER_TYPE) {
+                let serializer = obj.cast_unchecked::<PySerializer>();
+                return Ok(Self(serializer.get().0.clone()));
+            }
+
+            if crate::typeref::check_exact(ptr, crate::typeref::DATATYPE_TYPE) {
+                let data_type = obj.cast_unchecked::<PyDataType>();
+                return Ok(Self(data_type.get().0.serializer.clone()));
+            }
+        }
+
+        rapidquery_macros::pyerr!(
+            Err(PyTypeError),
+            "expected Serializer or DataType, got {}",
+            unsafe { crate::internal::utils::get_type_name(obj.py(), obj.as_ptr()) }
+        )
+    }
+}
 
 /// Represents a SQL data type.
 ///
@@ -34,68 +69,56 @@ pub use serializer::{
 ///
 /// Known names are interned and canonicalized (`"int"` becomes `"INT"`).
 /// Unknown names and parameterized spellings (`VARCHAR(255)`) are kept as
-/// given. If `serializer` is omitted at construction, one is inferred from
-/// the name; unrecognized names get `UnspecifiedSerializer`.
-#[rapidquery_macros::pyclass("DataType", module = "rapidquery._core.data_type")]
-#[derive(Debug)]
-pub struct PyDataType {
-    name: DataTypeName,
-    serializer: PySerializer,
-}
+/// given. Interning applies to the **name string**, not to `DataType`
+/// instances: `DataType("int")` is not a singleton.
+///
+/// If `serializer` is omitted at construction, one is inferred from the
+/// name; unrecognized names get `UnspecifiedSerializer`.
+#[rapidquery_macros::pyclass(
+    "DataType",
+    eq,
+    hash,
+    from_py_object,
+    module = "rapidquery._core.data_type"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PyDataType(pub native::DataType);
 
 #[pyo3::pymethods]
 impl PyDataType {
     /// Creates a new SQL data type.
     ///
     /// Args:
-    ///     name: The name of a data type. *It is not limited to a set of predefined values.*
-    ///
-    ///             **Important memory optimization note**: At import time, the library pre-allocates
-    ///             and interns (reserves in memory) several simple and commonly used data types
-    ///             (e.g. `INTEGER`, `VARCHAR`, `TIMESTAMP`, `BOOLEAN`, etc.). If you instantiate
-    ///             a `DataType` using one of these common names, the library will automatically
-    ///             return a reference to the pre-allocated instance instead of creating a new one.
-    ///             This reduces memory consumption and improves performance when working with
-    ///             standard SQL types.
-    ///
-    ///             As a result of this interning mechanism, when you access the `.name` property
-    ///             on a pre-allocated instance, the returned string **may be slightly different**
-    ///             from the exact string you passed in (for example in casing, spacing, or canonical
-    ///             form chosen by the library). This is expected behavior and does not affect
-    ///             correctness.
-    ///
-    ///     serializer: The `serializer` is used whenever a Python object needs to be converted
-    ///                 into a valid SQL value during query construction. This is commonly required
-    ///                 when setting default values, inserting data, or generating other SQL statements.
-    ///                 You can use one of the built-in serializers (we provide ready-to-use
-    ///                 serializers for most common data types), or you can create and register your
-    ///                 own custom serializer. This parameter is optional. However, it is strongly
-    ///                 recommended to always specify it explicitly. If you do not provide a serializer,
-    ///                 the `DataType` will attempt to automatically detect and assign one based on the
-    ///                 `name`. If no suitable serializer is found, it will fall back to `UnspecifiedSerializer`.
+    ///     name: The SQL type spelling. Not limited to a predefined set.
+    ///             Known names are interned and canonicalized (`"int"`
+    ///             becomes `"INT"`). Unknown names and parameterized
+    ///             spellings (`VARCHAR(255)`) are kept as given.
+    ///     serializer: Used when a Python object is rendered as a SQL
+    ///             literal (defaults, inserts, raw SQL). Built-in
+    ///             serializers cover common types; `CustomSerializer`
+    ///             covers the rest. If omitted, a serializer is inferred
+    ///             from `name`; unrecognized names get
+    ///             `UnspecifiedSerializer`.
     #[new]
     #[pyo3(signature = (name, serializer = None, /))]
-    fn __new__(name: String, serializer: Option<PySerializer>) -> pyo3::PyClassInitializer<Self> {
-        let name = DataTypeName::from(name);
-        let serializer = match serializer {
-            Some(s) => s,
-            None => PySerializer::inferred(name.group()),
+    fn __new__(name: String, serializer: Option<PySerializer>) -> Self {
+        let inner = match serializer {
+            Some(PySerializer(s)) => {
+                native::DataType::new(native::data_type::DataTypeName::from(name), s)
+            }
+            None => native::DataType::from_name(name),
         };
-        pyo3::PyClassInitializer::from(Self { name, serializer })
+        Self(inner)
     }
 
     /// Returns the type name.
     ///
     /// Returns:
-    ///     The canonical type name.
-    ///
-    /// Note:
-    ///     For interned common data types (see `__new__`), the returned value
-    ///     may be a canonicalized version of the original input string (for
-    ///     example in casing or spacing).
+    ///     The canonical type name. For interned names this may differ in
+    ///     casing or spacing from the string passed to the constructor.
     #[getter]
     fn get_name(&self) -> &str {
-        self.name.as_str()
+        self.0.name.as_str()
     }
 
     /// Returns the serializer used to render Python values as SQL literals.
@@ -104,7 +127,7 @@ impl PyDataType {
     ///     The `Serializer` associated with this data type.
     #[getter]
     fn get_serializer(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        slf.serializer.clone().into_subclasses(slf.py())
+        PySerializer(slf.0.serializer.clone()).into_subclasses(slf.py())
     }
 
     /// Renders `object` as a SQL literal for `dialect`.
@@ -122,11 +145,17 @@ impl PyDataType {
         dialect: super::dialect::PySqlDialect,
         object: alias::BoundObject<'_>,
     ) -> pyo3::PyResult<String> {
-        self.serializer.serialize_value(dialect, object)
+        let mut buf = String::new();
+        self.0.serializer.write_sql(&dialect.0, &object, &mut buf)?;
+        Ok(buf)
     }
 
     fn __repr__(&self) -> String {
-        format!("DataType({:?})", self.name.as_str())
+        format!(
+            "DataType({:?}, {})",
+            self.0.name.as_str(),
+            serializer_repr(&self.0.serializer)
+        )
     }
 }
 

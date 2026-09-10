@@ -10,6 +10,7 @@
 use std::hash::{Hash, Hasher};
 
 use crate::internal::alias;
+use crate::internal::modules::json_dumps;
 use crate::native::data_type::DataTypeGroup;
 
 /// How a Python object is written as a SQL literal.
@@ -93,5 +94,77 @@ impl Serializer {
             DataTypeGroup::MacAddress => Self::MacAddress,
             DataTypeGroup::Custom => Self::Unspecified,
         }
+    }
+
+    pub fn infer_bound(bound: &alias::BoundObject) -> Self {
+        unsafe {
+            let object_ptr = bound.as_ptr();
+            let object_type_ptr = pyo3::ffi::Py_TYPE(object_ptr);
+
+            // None / bool -> Boolean
+            //
+            // Why `None`?
+            // Actually we don't use [`Serializer`] on `None` values.
+            // So it's not important what [`Serializer`] is.
+            // `None` values are handled by [`native::sql::SqlWriter`]
+            if pyo3::ffi::Py_IsNone(object_ptr) == 1 || pyo3::ffi::PyBool_Check(object_ptr) == 1 {
+                return Self::Boolean;
+            }
+
+            // float / decimal -> Float
+            if pyo3::ffi::PyFloat_CheckExact(object_ptr) == 1
+                || object_type_ptr == crate::typeref::STD_DECIMAL_TYPE
+            {
+                return Self::Float;
+            }
+
+            // int -> Integer
+            if pyo3::ffi::PyLong_CheckExact(object_ptr) == 1 {
+                return Self::Integer;
+            }
+
+            // str/Enum -> String
+            if pyo3::ffi::PyUnicode_CheckExact(object_ptr) == 1
+                || object_type_ptr == crate::typeref::STD_ENUM_TYPE
+            {
+                return Self::String;
+            }
+
+            // bytes -> Bytes
+            if pyo3::ffi::PyBytes_CheckExact(object_ptr) == 1 {
+                return Self::Bytes;
+            }
+
+            // date -> Date
+            if object_type_ptr == crate::typeref::STD_DATE_TYPE {
+                return Self::Date;
+            }
+
+            // time -> Time
+            if object_type_ptr == crate::typeref::STD_TIME_TYPE {
+                return Self::Time;
+            }
+
+            // datetime -> Datetime
+            if object_type_ptr == crate::typeref::STD_DATETIME_TYPE {
+                return Self::Datetime;
+            }
+
+            // UUID -> Uuid
+            if object_type_ptr == crate::typeref::STD_UUID_TYPE {
+                return Self::Uuid;
+            }
+
+            // list/dict -> Json
+            if (pyo3::ffi::PyList_CheckExact(object_ptr) == 1
+                || pyo3::ffi::PyDict_CheckExact(object_ptr) == 1)
+                && json_dumps(bound.clone(), |_| Ok(())).is_ok()
+            {
+                return Self::Json;
+            }
+        }
+
+        // * -> Unspecified
+        Self::Unspecified
     }
 }

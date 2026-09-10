@@ -159,7 +159,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyIdent {
 impl PyIdent {
     #[new]
     #[pyo3(signature = (*parts))]
-    fn __new__(parts: &pyo3::Bound<'_, pyo3::types::PyTuple>) -> pyo3::PyResult<Self> {
+    fn __new__(parts: alias::ArgsType) -> pyo3::PyResult<Self> {
         match parts.len() {
             0 => Err(parse_err(native::ParseIdentError::Empty)),
             1 => match extract_arg(parts.get_item(0)?.as_borrowed())? {
