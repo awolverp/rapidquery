@@ -1,6 +1,6 @@
-//! Python wrappers around [`crate::native::dialect`].
+//! Python class hierarchy around [`super::SqlDialect`].
 //!
-//! The native engine selects a dialect with a `Copy` enum. Python sees a
+//! The engine selects a dialect with a `Copy` enum. Python sees a
 //! class hierarchy instead:
 //!
 //! * [`PySqlDialect`] — `rapidquery._core.dialect.SqlDialect`, the ABC
@@ -16,7 +16,9 @@
 
 use std::hash::{Hash, Hasher};
 
-use crate::{internal::utils::get_type_name, native};
+use crate::internal::utils::get_type_name;
+
+use super::SqlDialect;
 
 // `subclass` is so the 13 built-in dialects can `extends` this type from
 // Rust. Python subclasses are not accepted by the extractor below.
@@ -34,7 +36,7 @@ use crate::{internal::utils::get_type_name, native};
     module = "rapidquery._core.dialect"
 )]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct PySqlDialect(pub native::dialect::SqlDialect);
+pub struct PySqlDialect(pub SqlDialect);
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PySqlDialect {
     type Error = pyo3::PyErr;
@@ -51,7 +53,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PySqlDialect {
             ) => {
                 $(
                     if $ptr == crate::typeref::$name {
-                        return Ok(PySqlDialect(native::dialect::SqlDialect::$native));
+                        return Ok(PySqlDialect(SqlDialect::$native));
                     }
                 )+
             };
@@ -152,7 +154,7 @@ macro_rules! impl_dialects {
                 #[new]
                 #[inline]
                 fn __new__() -> pyo3::PyClassInitializer<Self> {
-                    pyo3::PyClassInitializer::from(PySqlDialect(native::dialect::SqlDialect::$native))
+                    pyo3::PyClassInitializer::from(PySqlDialect(SqlDialect::$native))
                         .add_subclass(Self)
                 }
             }

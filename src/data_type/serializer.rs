@@ -11,7 +11,7 @@ use std::hash::{Hash, Hasher};
 
 use crate::internal::alias;
 use crate::internal::modules::json_dumps;
-use crate::native::data_type::DataTypeGroup;
+use super::name::DataTypeGroup;
 
 /// How a Python object is written as a SQL literal.
 #[derive(Debug, Clone)]
@@ -106,7 +106,7 @@ impl Serializer {
             // Why `None`?
             // Actually we don't use [`Serializer`] on `None` values.
             // So it's not important what [`Serializer`] is.
-            // `None` values are handled by [`native::sql::SqlWriter`]
+            // `None` values are handled by [`crate::sql::SqlWriter`]
             if pyo3::ffi::Py_IsNone(object_ptr) == 1 || pyo3::ffi::PyBool_Check(object_ptr) == 1 {
                 return Self::Boolean;
             }

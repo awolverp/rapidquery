@@ -1,35 +1,76 @@
-//! Python wrappers for SQL data types and value serializers.
+//! SQL data types: interned names, serializers, and the composed [`DataType`].
 //!
-//! Native [`DataTypeName`](crate::native::data_type::DataTypeName) is a
-//! spelling plus group. Native [`Serializer`](crate::native::data_type::Serializer)
-//! writes Python objects as SQL literals. Native [`DataType`](crate::native::DataType)
-//! is the name plus serializer; this module owns the pyclasses.
-//!
-//! Python sees:
-//!
-//! * [`PySerializer`] — `rapidquery._core.data_type.Serializer`, the ABC
-//! * frozen subclasses per behaviour (`IntegerSerializer`, `JSONSerializer`, …)
-//! * [`PyArraySerializer`] / [`PyCustomSerializer`]
-//! * [`PyDataType`] — `rapidquery._core.data_type.DataType`
-//!
-//! `serialize(dialect, obj)` accepts a dialect **class or instance**. Serializer
-//! extract is instance-only (Array/Custom carry state).
+//! A [`DataTypeName`] is a canonical spelling plus a [`DataTypeGroup`]. The
+//! group is the inference key for which [`Serializer`] [`DataType::from_name`]
+//! constructs when none is passed. Groups are serializer-oriented: `NUMERIC`
+//! and `DECIMAL` sit in [`DataTypeGroup::Float`] because they share a
+//! serializer with IEEE floats.
 
+mod name;
+mod py;
+mod serialize;
 mod serializer;
 
-use crate::internal::alias;
-use crate::native;
+#[cfg(test)]
+mod tests;
 
-pub(crate) use serializer::serializer_repr;
-pub use serializer::{
+pub use name::{DataTypeGroup, DataTypeName};
+pub use py::{
     PyArraySerializer, PyBitSerializer, PyBooleanSerializer, PyBytesSerializer, PyCustomSerializer,
     PyDateSerializer, PyDatetimeSerializer, PyFloatSerializer, PyInetSerializer,
     PyIntegerSerializer, PyJSONSerializer, PyMacAddressSerializer, PySerializer,
     PyStringSerializer, PyTimeSerializer, PyUnspecifiedSerializer, PyUuidSerializer,
 };
+pub use serializer::*;
+
+pub(crate) use py::serializer_repr;
+
+use crate::internal::alias;
+use crate::sql::{PrepareResult, SqlWriter, WriteSql};
+
+/// SQL type spelling plus the serializer used for Python values.
+///
+/// [`WriteSql`] emits the type name (CAST, column definitions). Literal
+/// serialization of a Python object is [`Serializer::write_sql`], not this
+/// type.
+///
+/// Clone of a [`Serializer::Custom`] value requires the GIL.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DataType {
+    pub name: DataTypeName,
+    pub serializer: Serializer,
+}
+
+impl DataType {
+    #[inline]
+    pub fn new(name: DataTypeName, serializer: Serializer) -> Self {
+        Self { name, serializer }
+    }
+
+    /// Infer the serializer from [`DataTypeName::group`].
+    ///
+    /// Unrecognized and parameterized names use [`Serializer::Unspecified`].
+    #[inline]
+    pub fn from_name(name: impl Into<DataTypeName>) -> Self {
+        let name = name.into();
+        let serializer = Serializer::from_group(name.group());
+        Self { name, serializer }
+    }
+}
+
+impl WriteSql for DataType {
+    #[inline]
+    fn write_sql<W: SqlWriter>(
+        &self,
+        dialect: &crate::dialect::SqlDialect,
+        out: &mut W,
+    ) -> PrepareResult<()> {
+        self.name.write_sql(dialect, out)
+    }
+}
 
 /// `Serializer` instance, or a `DataType` (its serializer only).
-pub struct SerializerExtractor(pub crate::native::data_type::Serializer);
+pub struct SerializerExtractor(pub Serializer);
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for SerializerExtractor {
     type Error = pyo3::PyErr;
@@ -82,7 +123,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for SerializerExtractor {
     module = "rapidquery._core.data_type"
 )]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct PyDataType(pub native::DataType);
+pub struct PyDataType(pub DataType);
 
 #[pyo3::pymethods]
 impl PyDataType {
@@ -103,10 +144,8 @@ impl PyDataType {
     #[pyo3(signature = (name, serializer = None, /))]
     fn __new__(name: String, serializer: Option<PySerializer>) -> Self {
         let inner = match serializer {
-            Some(PySerializer(s)) => {
-                native::DataType::new(native::data_type::DataTypeName::from(name), s)
-            }
-            None => native::DataType::from_name(name),
+            Some(PySerializer(s)) => DataType::new(DataTypeName::from(name), s),
+            None => DataType::from_name(name),
         };
         Self(inner)
     }
@@ -142,7 +181,7 @@ impl PyDataType {
     ///     A SQL fragment produced by this type's serializer.
     fn serialize(
         &self,
-        dialect: super::dialect::PySqlDialect,
+        dialect: crate::dialect::py::PySqlDialect,
         object: alias::BoundObject<'_>,
     ) -> pyo3::PyResult<String> {
         let mut buf = String::new();

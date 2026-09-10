@@ -1,22 +1,28 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(feature = "nightly", feature(optimize_attribute))]
 
+pub mod data_type;
+pub mod dialect;
+pub mod ident;
 pub mod internal;
-pub mod native;
-pub mod pybindings;
+pub mod sql;
 pub mod typeref;
+pub mod value;
 
 /// RapidQuery native extension.
 #[pyo3::pymodule(gil_used = false)]
 mod _core {
     #[pymodule_export]
-    use super::pybindings::data_type_mod;
+    use super::data_type::data_type_mod;
 
     #[pymodule_export]
-    use super::pybindings::dialect_mod;
+    use super::dialect::dialect_mod;
 
     #[pymodule_export]
-    use super::pybindings::{PyAsterisk, PyIdent, PyUnquote, PyValue};
+    use super::ident::{PyAsterisk, PyIdent, PyUnquote};
+
+    #[pymodule_export]
+    use super::value::PyValue;
 
     #[pymodule_init]
     #[cold]

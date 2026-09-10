@@ -37,9 +37,12 @@ mod snowflake;
 mod spark;
 mod sqlite;
 mod teradata;
+pub mod py;
 
 #[cfg(test)]
 mod tests;
+
+pub use py::dialect_mod;
 
 /// How a boolean literal is spelled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -1,25 +1,55 @@
-//! Python wrapper around [`crate::native::Value`].
-//!
-//! Native [`Value`](crate::native::Value) holds a Python object and a
-//! [`Serializer`](crate::native::data_type::Serializer). This module owns
-//! the pyclass:
-//!
-//! * [`PyValue`] — `rapidquery._core.Value`
-//!
-//! `FromPyObject` unwraps an existing `Value` or infers a serializer from
-//! any other object. The constructor also accepts a `Serializer` or a
-//! `DataType` (using only its serializer).
+//! A Python object plus the [`Serializer`] used to emit it as SQL.
 
 use std::hash::{Hash, Hasher};
 
 use pyo3::types::{PyAnyMethods, PyStringMethods};
 
+use crate::data_type::{PySerializer, Serializer, SerializerExtractor, serializer_repr};
+use crate::dialect::SqlDialect;
 use crate::internal::alias;
-use crate::native;
-use crate::native::sql::write_sql;
-use crate::pybindings::data_type::{PySerializer, SerializerExtractor, serializer_repr};
+use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_sql};
 
-/// A Python object plus the serializer used to emit it as SQL.
+/// A Python object plus the [`Serializer`] used to emit it as SQL.
+///
+/// Parameterized SQL binds [`Self::object`] as a placeholder and ignores the
+/// serializer. Raw SQL (`BufferedSql`) calls [`Serializer::write_sql`];
+/// Python `None` becomes `NULL`.
+///
+/// Clone requires the GIL (`Py<T>::clone`).
+#[derive(Debug, Clone)]
+pub struct Value {
+    pub object: alias::PyObject,
+    pub serializer: Serializer,
+}
+
+impl Value {
+    #[inline]
+    pub fn new(object: alias::PyObject, serializer: Serializer) -> Self {
+        Self { object, serializer }
+    }
+
+    #[inline]
+    pub fn infer_bound(bound: alias::BoundObject) -> Self {
+        let serializer = Serializer::infer_bound(&bound);
+        Self::new(bound.unbind(), serializer)
+    }
+}
+
+impl WriteSql for Value {
+    fn write_sql<W: SqlWriter>(
+        &self,
+        dialect: &SqlDialect,
+        out: &mut W,
+    ) -> PrepareResult<()> {
+        out.push_value(dialect, &self.serializer, &self.object)
+    }
+}
+
+/// Python wrapper around [`Value`].
+///
+/// `FromPyObject` unwraps an existing `Value` or infers a serializer from
+/// any other object. The constructor also accepts a `Serializer` or a
+/// `DataType` (using only its serializer).
 ///
 /// `Value` does not convert the object until SQL is built. Parameterized
 /// statements bind the object as a placeholder. Raw SQL runs the serializer
@@ -31,7 +61,7 @@ use crate::pybindings::data_type::{PySerializer, SerializerExtractor, serializer
 /// serializer; the data type is not stored.
 #[rapidquery_macros::pyclass("Value", skip_from_py_object)]
 #[derive(Debug, Clone)]
-pub struct PyValue(native::Value);
+pub struct PyValue(pub Value);
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyValue {
     type Error = pyo3::PyErr;
@@ -47,7 +77,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyValue {
             }
         }
 
-        Ok(Self(native::Value::infer_bound(obj.as_any().clone())))
+        Ok(Self(Value::infer_bound(obj.as_any().clone())))
     }
 }
 
@@ -74,18 +104,18 @@ impl PyValue {
         // handle Value(Value(...), new_serializer)
         if unsafe { crate::typeref::check_exact(object.as_ptr(), crate::typeref::VALUE_TYPE) } {
             let value = unsafe { object.cast_unchecked::<Self>() };
-            let native_value = value.get().0.clone();
+            let inner = value.get().0.clone();
 
             let slf = match serializer {
-                Some(SerializerExtractor(s)) => Self(native::Value::new(native_value.object, s)),
-                None => Self(native_value),
+                Some(SerializerExtractor(s)) => Self(Value::new(inner.object, s)),
+                None => Self(inner),
             };
             return pyo3::PyClassInitializer::from(slf);
         }
 
         let slf = match serializer {
-            Some(SerializerExtractor(s)) => Self(native::Value::new(object.unbind(), s)),
-            None => Self(native::Value::infer_bound(object)),
+            Some(SerializerExtractor(s)) => Self(Value::new(object.unbind(), s)),
+            None => Self(Value::infer_bound(object)),
         };
         pyo3::PyClassInitializer::from(slf)
     }
@@ -128,7 +158,7 @@ impl PyValue {
     fn to_sql(
         &self,
         py: pyo3::Python<'_>,
-        dialect: super::dialect::PySqlDialect,
+        dialect: crate::dialect::py::PySqlDialect,
     ) -> pyo3::PyResult<String> {
         write_sql(py, &self.0, &dialect.0).map_err(Into::into)
     }

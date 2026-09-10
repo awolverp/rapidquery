@@ -1,6 +1,6 @@
 //! Python `Serializer` class hierarchy.
 //!
-//! Wraps native [`Serializer`](crate::native::data_type::Serializer). Python sees frozen
+//! Wraps [`Serializer`](super::Serializer). Python sees frozen
 //! subclasses (`IntegerSerializer`, …) plus `ArraySerializer` /
 //! `CustomSerializer`.
 //!
@@ -11,7 +11,7 @@
 use std::hash::{Hash, Hasher};
 
 use crate::internal::alias;
-use crate::native::data_type::{DataTypeGroup, Serializer};
+use super::{DataTypeGroup, Serializer};
 
 fn class_name(serializer: &Serializer) -> &'static str {
     match serializer {
@@ -68,7 +68,7 @@ impl PySerializer {
 
     pub fn serialize_value(
         &self,
-        dialect: crate::pybindings::dialect::PySqlDialect,
+        dialect: crate::dialect::py::PySqlDialect,
         object: alias::BoundObject<'_>,
     ) -> pyo3::PyResult<String> {
         let mut buf = String::new();
@@ -148,7 +148,7 @@ impl PySerializer {
     ///             (for example a non-finite float).
     fn serialize(
         &self,
-        dialect: crate::pybindings::dialect::PySqlDialect,
+        dialect: crate::dialect::py::PySqlDialect,
         object: alias::BoundObject<'_>,
     ) -> pyo3::PyResult<String> {
         self.serialize_value(dialect, object)

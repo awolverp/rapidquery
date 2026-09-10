@@ -8,8 +8,8 @@ Goals from the PR (keep these):
 - No SeaQuery panics; production-safe SQL building.
 - 13 dialects (BigQuery, Databricks, DuckDB, Hive, MSSQL, MySQL, Oracle, PostgreSQL, Redshift, Snowflake, Spark, SQLite, Teradata).
 - Full SQL data-type coverage via interned `DataTypeName` + `DataTypeSerializer`.
-- Native Rust vs Python bindings split (`src/native/` vs `src/pybindings/`). Native may use PyO3 where it holds or inspects Python objects (`Serializer`, `PrepareContext`).
-- Dual SQL rendering via `WriteSql` + `SqlWriter`: raw (`SqlBuf`, literals) and parameterized (`PrepareContext`, placeholders).
+- One module per concept under `src/`. Representation shims (`dialect/py.rs`, `data_type/py.rs`) only where the engine is a `Copy`/unit enum and Python is a frozen class tree. Do not resurrect a crate-wide `native/` vs `pybindings/` split.
+- Dual SQL rendering via `WriteSql` + `SqlWriter`: raw (`BufferedSql`, literals) and parameterized (`ParameterizedSql`, placeholders).
 - Ident / Asterisk with dialect quoting.
 - Leave the door open for a SQL parser and an ORM later.
 - Prefer backward compatibility with v0, but it is **not** guaranteed.
@@ -20,30 +20,36 @@ Keep these `refactor/v1` divergences from the PR (do not revert them):
 - Module name `rapidquery._core` (PR used `_native`).
 - Proc-macros `pyclass` / `pyerr` (PR used `pyclass_shortcut` + `new_pyerr!`).
 - MIT license, Python `>=3.10`, crate version `1.0.0-alpha1`.
-- `PrepareContext` / `PrepareError` naming in `sql.rs` (PR used `PrepareStatementContext` / `PrepareStatementError`).
+- Writer types `BufferedSql` / `ParameterizedSql` and error `PrepareError` (PR used `PrepareStatementContext` / `PrepareStatementError`). Module comments in `sql.rs` still say `SqlBuf` / `PrepareContext`; those names are not types.
 
 ## Stack
 
-- Python `>=3.10` (local: 3.13). Rust edition **2024**. PyO3 **0.29**. Maturin **1.15.0**. uv for the venv.
+- Python `>=3.10` (local: 3.13). Rust edition **2024**. PyO3 **0.29**. Maturin **1.15.0**. uv for the venv. Local and CI rustc is **nightly**.
 - Workspace crate `rapidquery-macros` (proc-macros: `pyclass`, `pyerr`).
-- Target stack from PR #2 also used: `arcstr`, `once_cell`, `chrono`, `ipnetwork`, `mac_address`. (`derive_more` is not on this branch.)
+- Current deps: `arcstr`, `once_cell`, `chrono`, `ipnetwork`, `mac_address`, `parking_lot`, `hashbrown`, `smallvec`. (`derive_more` is not on this branch.)
 - Dialects (13), `DataType` + `Serializer`, `Ident`/`Unquote`/`Asterisk`, `Value`, `SqlWriter`/`WriteSql` exist on this branch. Still missing vs the PR’s next layers: query/schema AST (never in the PR either).
 - `#[pyo3::pymodule(gil_used = false)]` — keep free-threaded Python in mind.
 - Frozen/immutable PyO3 types: `rapidquery_macros::pyclass` already sets `module="rapidquery._core"`, `immutable_type`, `frozen`.
+- Optional extra: `orjson`. Test-only crate features: `only-stdlib-json`, `only-orjson` (mutually exclusive). `nightly` enables hashbrown nightly + `optimize` attrs.
 
 ## Layout
 
 ```
-src/native/           Rust engine (dialects, DataType, Ident, Serializer, Value, SqlWriter/WriteSql)
-src/pybindings/       Python wrappers (pyclasses only)
-src/internal/         aliases, string utils, submodule helper
+src/dialect/          SqlDialect enum + engines + tests; py.rs class tree
+src/data_type/        DataType, interned names, Serializer enum; py.rs class tree
+src/ident.rs          Ident, IdentPart, tests + PyIdent/Unquote/Asterisk
+src/value.rs          Value + PyValue
+src/sql.rs            BufferedSql, ParameterizedSql, WriteSql
+src/internal/         aliases, JSON dumps helper, string utils, submodule helper
 src/typeref.rs        cached PyTypeObject pointers
-rapidquery/           Python package (re-exports Ident, Unquote, Asterisk, Value, data_type, dialect)
+rapidquery/           Python package: _ident.py, _value.py, data_type.py, dialect.py
 rapidquery-macros/    Proc-macros
-tests/                Python tests
+tests/                Python tests (ident, value, dialect, data_type, serializers)
 backup/, backup-py/   gitignored v0 snapshots — read-only
 target/, .venv/       Generated — do not commit or edit
 ```
+
+Rust unit tests live next to the types (`data_type/tests.rs`, `dialect/tests.rs`, `ident.rs`, `internal/utils/strings.rs`).
 
 Reference the PR without checking it out as the working tree: `git show origin/migrate:<path>`. Do not copy files wholesale if this branch already renamed or cleaned them.
 
@@ -53,24 +59,26 @@ Reference the PR without checking it out as the working tree: `git show origin/m
 uv sync --dev
 maturin develop          # or: uv run maturin develop
 cargo test --workspace --lib --bins --tests
-cargo clippy --workspace --all-targets -- -D warnings   # project lints are warn-level
-cargo fmt                # rustfmt.toml uses nightly-only options; CI uses nightly
-uv run pytest -vv        # CI command; pytest is not in pyproject yet
+cargo clippy --workspace --all-targets -- -D warnings   # project lints are warn-level; CI does not run clippy
+cargo fmt                # no rustfmt.toml on this branch; CI does not run rustfmt
+uv run pytest -vv        # CI command; pytest is in [dependency-groups] dev
 ```
 
 There is no Python linter/typechecker configured. Do not add ruff/mypy/a new test runner unless asked.
 
-After meaningful Rust or Python changes: run `cargo test --workspace --lib --bins --tests`. Run pytest only after Python tests exist.
+After meaningful Rust changes: run `cargo test --workspace --lib --bins --tests`. After Python-facing changes: also `uv run pytest -vv`.
 
-`cargo test --workspace` (including doctests) currently fails: `pyerr` docs in `rapidquery-macros/lib.rs` are not valid rustdoc tests.
+`cargo test --workspace` (including doctests) currently fails: rustdoc builds `rapidquery-macros` without syn’s `full` feature. `pyerr` examples are marked `rust,no-test`.
+
+CI (`.github/workflows/test.yml`) runs `uv sync --all-extras --dev` then `uv run pytest -vv` on Python 3.10 / 3.14 / 3.14t / pypy3.11 and ubuntu/macos/windows. It still sets `HYPOTHESIS_PROFILE` though hypothesis is not a dependency.
 
 ## How to edit
 
-- Small, reviewable diffs. Match existing patterns on **this** branch first; for missing layers, match `origin/migrate` (native owns dialects, `DataTypeName`, `Ident`, `Serializer`+`write_sql`, `SqlWriter`/`WriteSql`; pybindings are pyclasses wrapping those; serializers subclass a base `Serializer`; dialects subclass `SqlDialect` and are `@final`). Native may use PyO3 where it holds or inspects Python objects.
+- Small, reviewable diffs. Match existing patterns on **this** branch first; for missing layers, match `origin/migrate` conceptually (not its `native/` / `_native` folder names). One module per concept. `dialect/py.rs` and `data_type/py.rs` are the only enum-vs-class shims; serializers subclass a base `Serializer`; dialects subclass `SqlDialect` and are `@final`. Do not add `PyFoo(Foo)` for future AST nodes — put `#[pyclass]` on the node or keep a private rust type in the same file. Parser/ORM later: keep leaves cheap (`Ident`, `DataTypeName`, `SqlDialect`).
 - Do not introduce SeaQuery, a sqlparser-rs crate dependency, SQLAlchemy, another Python package layout, or a new build backend.
 - Do not touch `Cargo.lock` / `uv.lock` unless the change requires a dependency update. Do not touch generated artifacts (`target/`, `*.so`, wheels), secrets, or `.env`.
-- `backup/` and `backup-py/` are gitignored snapshots of v0. Do not edit them; do not copy them wholesale into `src/`.
-- SQL injection safety is a product requirement. Prefer parameterized `PrepareContext::push_param` over interpolating values. Dialect `escape_*` / `quote_*` must not let payloads close literals.
+- `backup/` and `backup-py/` are gitignored snapshots of v0. Do not edit them; do not copy them wholesale into `src/`. `a.py` is local scratch (gitignored).
+- SQL injection safety is a product requirement. Prefer parameterized `ParameterizedSql::push_param` over interpolating values. Dialect `escape_*` / `quote_*` must not let payloads close literals.
 - Unsafe is allowed where the crate already uses it (`from_utf8_unchecked` after ASCII-boundary splits, PyO3 FFI). Keep the safety invariant next to the block.
 - Clippy: no `dbg!`, `println!`, or `eprintln!` in library code (warn). Release profile uses `panic = "abort"`.
 
