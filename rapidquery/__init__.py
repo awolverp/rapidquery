@@ -2,10 +2,10 @@
 
 from . import data_type as data_type
 from . import dialect as dialect
-from .ident import Asterisk as Asterisk
-from .ident import Ident as Ident
-from .ident import Unquote as Unquote
-from .value import Value as Value
+from ._ident import Asterisk as Asterisk
+from ._ident import Ident as Ident
+from ._ident import Unquote as Unquote
+from ._value import Value as Value
 
 __all__ = [
     "Asterisk",
