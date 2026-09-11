@@ -25,7 +25,7 @@ use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_sql};
 /// Passing an existing `Value` keeps its object (and its serializer, unless
 /// a new one is given). A `DataType` as `serializer` contributes only its
 /// serializer; the data type is not stored.
-#[rapidquery_macros::pyclass("Value", skip_from_py_object)]
+#[rapidquery_macros::pyclass("Value", skip_from_py_object, generic)]
 #[derive(Debug, Clone)]
 pub struct PyValue {
     pub object: alias::PyObject,
