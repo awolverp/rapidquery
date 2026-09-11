@@ -1,10 +1,12 @@
-from typing import Any, Self, final
+import typing
 
 from rapidquery.data_type import DataType, Serializer
 from rapidquery.dialect import SqlDialect
 
-@final
-class Value:
+_T = typing.TypeVar("_T")
+
+@typing.final
+class Value(typing.Generic[_T]):
     """
     A Python object plus the serializer used to emit it as SQL.
 
@@ -18,12 +20,19 @@ class Value:
     serializer; the data type is not stored.
     """
 
+    @typing.overload
     def __new__(
         cls,
-        object: Any,
-        serializer: Serializer | DataType | None = None,
+        object: _T,
         /,
-    ) -> Self:
+    ) -> typing.Self: ...
+    @typing.overload
+    def __new__(
+        cls,
+        object: _T,
+        serializer: Serializer[_T] | DataType[_T] | None = None,
+        /,
+    ) -> typing.Self:
         """
         Creates a SQL value.
 
@@ -40,7 +49,7 @@ class Value:
         """
 
     @property
-    def object(self) -> Any:
+    def object(self) -> _T:
         """
         Returns the wrapped Python object.
 
@@ -50,7 +59,7 @@ class Value:
         """
 
     @property
-    def serializer(self) -> Serializer:
+    def serializer(self) -> Serializer[_T]:
         """
         Returns the serializer used for raw SQL literals.
 

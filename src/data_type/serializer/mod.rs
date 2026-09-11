@@ -43,7 +43,7 @@ where
 pub fn serializer_repr(serializer: &SerializerEnum) -> String {
     match serializer {
         SerializerEnum::Array(element) => {
-            format!("ArraySerializer({}())", class_name(element))
+            format!("ArraySerializer({})", serializer_repr(element))
         }
         other => {
             let name = class_name(other);
@@ -70,7 +70,8 @@ pub fn serializer_repr(serializer: &SerializerEnum) -> String {
     "Serializer",
     subclass,
     from_py_object,
-    module = "rapidquery._core.data_type"
+    module = "rapidquery._core.data_type",
+    generic
 )]
 #[derive(Debug, Clone)]
 pub struct PySerializer(pub SerializerEnum);

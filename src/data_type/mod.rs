@@ -41,7 +41,8 @@ use crate::internal::alias;
     from_py_object,
     module = "rapidquery._core.data_type",
     eq,
-    hash
+    hash,
+    generic
 )]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PyDataType {

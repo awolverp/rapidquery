@@ -1,9 +1,15 @@
+import datetime
+import decimal
+import enum
+import typing
+import uuid
 from collections.abc import Callable
-from typing import Any, Self, final
 
 from rapidquery.dialect import SqlDialect
 
-class Serializer:
+_T = typing.TypeVar("_T")
+
+class Serializer(typing.Generic[_T]):
     """
     Converts a Python object into a dialect-specific SQL literal string.
 
@@ -18,7 +24,7 @@ class Serializer:
     identity.
     """
 
-    def serialize(self, dialect: type[SqlDialect] | SqlDialect, object: Any) -> str:
+    def serialize(self, dialect: type[SqlDialect] | SqlDialect, object: _T) -> str:
         """
         Renders `object` as a SQL literal for `dialect`.
 
@@ -39,8 +45,8 @@ class Serializer:
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
 
-@final
-class IntegerSerializer(Serializer):
+@typing.final
+class IntegerSerializer(Serializer[int]):
     """
     Serializes Python integers as bare SQL integer literals.
 
@@ -51,10 +57,10 @@ class IntegerSerializer(Serializer):
         TypeError: If the value is not an `int`.
     """
 
-    def __new__(cls) -> Self: ...
+    def __new__(cls) -> typing.Self: ...
 
-@final
-class FloatSerializer(Serializer):
+@typing.final
+class FloatSerializer(Serializer[int | float | decimal.Decimal]):
     """
     Serializes numeric values as bare SQL numeric literals.
 
@@ -66,10 +72,10 @@ class FloatSerializer(Serializer):
         ValueError: If the value is a non-finite float (`nan`, `inf`, `-inf`).
     """
 
-    def __new__(cls) -> Self: ...
+    def __new__(cls) -> typing.Self: ...
 
-@final
-class BooleanSerializer(Serializer):
+@typing.final
+class BooleanSerializer(Serializer[bool]):
     """
     Serializes Python booleans as dialect boolean literals.
 
@@ -80,10 +86,10 @@ class BooleanSerializer(Serializer):
         TypeError: If the value is not a `bool`.
     """
 
-    def __new__(cls) -> Self: ...
+    def __new__(cls) -> typing.Self: ...
 
-@final
-class StringSerializer(Serializer):
+@typing.final
+class StringSerializer(Serializer[str | enum.Enum]):
     """
     Serializes text as a quoted, escaped SQL string literal.
 
@@ -94,10 +100,10 @@ class StringSerializer(Serializer):
         TypeError: If the value is not a `str` or a string-valued enum member.
     """
 
-    def __new__(cls) -> Self: ...
+    def __new__(cls) -> typing.Self: ...
 
-@final
-class UuidSerializer(Serializer):
+@typing.final
+class UuidSerializer(Serializer[uuid.UUID | str]):
     """
     Serializes UUIDs as quoted SQL string literals.
 
@@ -107,10 +113,10 @@ class UuidSerializer(Serializer):
         TypeError: If the value is not a `uuid.UUID` or `str`.
     """
 
-    def __new__(cls) -> Self: ...
+    def __new__(cls) -> typing.Self: ...
 
-@final
-class BytesSerializer(Serializer):
+@typing.final
+class BytesSerializer(Serializer[bytes]):
     """
     Serializes binary data as a dialect blob/bytea literal.
 
@@ -120,10 +126,10 @@ class BytesSerializer(Serializer):
         TypeError: If the value is not `bytes`.
     """
 
-    def __new__(cls) -> Self: ...
+    def __new__(cls) -> typing.Self: ...
 
-@final
-class BitSerializer(Serializer):
+@typing.final
+class BitSerializer(Serializer[str]):
     """
     Serializes bit strings as dialect bit-string literals.
 
@@ -134,10 +140,10 @@ class BitSerializer(Serializer):
         ValueError: If the string is empty or contains characters other than `'0'` and `'1'`.
     """
 
-    def __new__(cls) -> Self: ...
+    def __new__(cls) -> typing.Self: ...
 
-@final
-class JSONSerializer(Serializer):
+@typing.final
+class JSONSerializer(Serializer[typing.Any]):
     """
     Serializes a JSON-encodable object as a quoted SQL string literal.
 
@@ -151,10 +157,10 @@ class JSONSerializer(Serializer):
         TypeError: If the value cannot be JSON-encoded.
     """
 
-    def __new__(cls) -> Self: ...
+    def __new__(cls) -> typing.Self: ...
 
-@final
-class DateSerializer(Serializer):
+@typing.final
+class DateSerializer(Serializer[datetime.date]):
     """
     Serializes dates as quoted `YYYY-MM-DD` literals.
 
@@ -164,10 +170,10 @@ class DateSerializer(Serializer):
         TypeError: If the value is not a `datetime.date`.
     """
 
-    def __new__(cls) -> Self: ...
+    def __new__(cls) -> typing.Self: ...
 
-@final
-class TimeSerializer(Serializer):
+@typing.final
+class TimeSerializer(Serializer[datetime.time]):
     """
     Serializes times as quoted `HH:MM:SS[.ffffff]` literals.
 
@@ -177,10 +183,10 @@ class TimeSerializer(Serializer):
         TypeError: If the value is not a `datetime.time`.
     """
 
-    def __new__(cls) -> Self: ...
+    def __new__(cls) -> typing.Self: ...
 
-@final
-class DatetimeSerializer(Serializer):
+@typing.final
+class DatetimeSerializer(Serializer[datetime.datetime]):
     """
     Serializes timestamps as quoted SQL timestamp literals.
 
@@ -193,10 +199,10 @@ class DatetimeSerializer(Serializer):
         OverflowError: If an epoch value is out of range for a timestamp.
     """
 
-    def __new__(cls) -> Self: ...
+    def __new__(cls) -> typing.Self: ...
 
-@final
-class InetSerializer(Serializer):
+@typing.final
+class InetSerializer(Serializer[typing.Any]):
     """
     Serializes IP addresses and networks as quoted SQL literals.
 
@@ -208,10 +214,10 @@ class InetSerializer(Serializer):
         ValueError: If the value is not a valid IPv4/IPv6 address or network.
     """
 
-    def __new__(cls) -> Self: ...
+    def __new__(cls) -> typing.Self: ...
 
-@final
-class MacAddressSerializer(Serializer):
+@typing.final
+class MacAddressSerializer(Serializer[str]):
     """
     Serializes MAC addresses as quoted SQL literals.
 
@@ -221,10 +227,10 @@ class MacAddressSerializer(Serializer):
         ValueError: If the value is not a valid MAC address.
     """
 
-    def __new__(cls) -> Self: ...
+    def __new__(cls) -> typing.Self: ...
 
-@final
-class UnspecifiedSerializer(Serializer):
+@typing.final
+class UnspecifiedSerializer(Serializer[typing.Any]):
     """
     Inserts `str(obj)` into SQL with no quoting or type check.
 
@@ -232,10 +238,10 @@ class UnspecifiedSerializer(Serializer):
     is not a safe SQL value; prefer an explicit serializer.
     """
 
-    def __new__(cls) -> Self: ...
+    def __new__(cls) -> typing.Self: ...
 
-@final
-class ArraySerializer(Serializer):
+@typing.final
+class ArraySerializer(Serializer[list[_T] | tuple[_T]]):
     """
     Serializes sequences as `ARRAY[elem, ...]` literals.
 
@@ -244,7 +250,7 @@ class ArraySerializer(Serializer):
     `ArraySerializer`.
     """
 
-    def __new__(cls, element: Serializer) -> Self:
+    def __new__(cls, element: Serializer[_T]) -> typing.Self:
         """
         Creates an array serializer.
 
@@ -254,7 +260,7 @@ class ArraySerializer(Serializer):
         """
 
     @property
-    def element(self) -> Serializer:
+    def element(self) -> Serializer[_T]:
         """
         Returns the serializer used for each array element.
 
@@ -262,8 +268,8 @@ class ArraySerializer(Serializer):
             The `Serializer` passed to the constructor.
         """
 
-@final
-class CustomSerializer(Serializer):
+@typing.final
+class CustomSerializer(Serializer[_T]):
     """
     Serializes values by calling a user-supplied Python function.
 
@@ -272,7 +278,7 @@ class CustomSerializer(Serializer):
     caller's responsibility to produce a safe fragment.
     """
 
-    def __new__(cls, function: Callable[[str, Any], str]) -> Self:
+    def __new__(cls, function: Callable[[str, _T], str]) -> typing.Self:
         """
         Creates a serializer backed by a Python callable.
 
@@ -283,7 +289,7 @@ class CustomSerializer(Serializer):
         """
 
     @property
-    def function(self) -> Callable[[str, Any], str]:
+    def function(self) -> Callable[[str, _T], str]:
         """
         Returns the callable passed to the constructor.
 
@@ -291,8 +297,8 @@ class CustomSerializer(Serializer):
             The function given as `function` to `__new__`.
         """
 
-@final
-class DataType:
+@typing.final
+class DataType(typing.Generic[_T]):
     """
     Represents a SQL data type.
 
@@ -309,7 +315,9 @@ class DataType:
     name; unrecognized names get `UnspecifiedSerializer`.
     """
 
-    def __new__(cls, name: str, serializer: Serializer | None = None, /) -> Self:
+    def __new__(
+        cls, name: str, serializer: Serializer[_T] | None = None, /
+    ) -> typing.Self:
         """
         Creates a new SQL data type.
 
@@ -337,7 +345,7 @@ class DataType:
         """
 
     @property
-    def serializer(self) -> Serializer:
+    def serializer(self) -> Serializer[_T]:
         """
         Returns the serializer used to render Python values as SQL literals.
 
@@ -345,7 +353,7 @@ class DataType:
             The `Serializer` associated with this data type.
         """
 
-    def serialize(self, dialect: type[SqlDialect] | SqlDialect, object: Any) -> str:
+    def serialize(self, dialect: type[SqlDialect] | SqlDialect, object: _T) -> str:
         """
         Renders `object` as a SQL literal for `dialect`.
 
