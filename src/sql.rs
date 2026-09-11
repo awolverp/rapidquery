@@ -8,9 +8,9 @@
 use hashbrown::HashMap;
 use pyo3::types::PyAnyMethods;
 
-use crate::internal::alias;
-use crate::data_type::Serializer;
+use crate::data_type::SerializerEnum;
 use crate::dialect::SqlDialect;
+use crate::internal::alias;
 
 /// Error produced while building SQL.
 #[derive(Debug)]
@@ -79,7 +79,7 @@ pub trait SqlWriter: std::fmt::Write {
     fn push_value(
         &mut self,
         dialect: &SqlDialect,
-        serializer: &Serializer,
+        serializer: &SerializerEnum,
         object: &alias::PyObject,
     ) -> PrepareResult<()>;
 }
@@ -139,7 +139,7 @@ impl<'py> SqlWriter for BufferedSql<'py> {
     fn push_value(
         &mut self,
         dialect: &SqlDialect,
-        serializer: &Serializer,
+        serializer: &SerializerEnum,
         object: &alias::PyObject,
     ) -> PrepareResult<()> {
         let bound = object.bind(self.py);
@@ -251,7 +251,7 @@ impl SqlWriter for ParameterizedSql<'_> {
     fn push_value(
         &mut self,
         dialect: &SqlDialect,
-        _serializer: &Serializer,
+        _serializer: &SerializerEnum,
         object: &alias::PyObject,
     ) -> PrepareResult<()> {
         self.push_param(dialect, object.clone_ref(self.py));

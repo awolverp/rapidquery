@@ -88,30 +88,6 @@ fn from_string_reuses_unknown_allocation_path() {
     assert_eq!(dt.group(), DataTypeGroup::Custom);
 }
 
-// #[test]
-// fn inferred_serializer_matches_group() {
-//     let cases = [
-//         (DataTypeGroup::String, InferredSerializer::String),
-//         (DataTypeGroup::Uuid, InferredSerializer::Uuid),
-//         (DataTypeGroup::Bytes, InferredSerializer::Bytes),
-//         (DataTypeGroup::Bit, InferredSerializer::Bit),
-//         (DataTypeGroup::Integer, InferredSerializer::Integer),
-//         (DataTypeGroup::Float, InferredSerializer::Float),
-//         (DataTypeGroup::Boolean, InferredSerializer::Boolean),
-//         (DataTypeGroup::Date, InferredSerializer::Date),
-//         (DataTypeGroup::Time, InferredSerializer::Time),
-//         (DataTypeGroup::Datetime, InferredSerializer::Datetime),
-//         (DataTypeGroup::Json, InferredSerializer::Json),
-//         (DataTypeGroup::Jsonb, InferredSerializer::Json),
-//         (DataTypeGroup::Inet, InferredSerializer::Inet),
-//         (DataTypeGroup::MacAddress, InferredSerializer::MacAddress),
-//         (DataTypeGroup::Custom, InferredSerializer::Unspecified),
-//     ];
-//     for (group, expected) in cases {
-//         assert_eq!(group.inferred_serializer(), expected);
-//     }
-// }
-
 #[test]
 fn non_ascii_name_is_custom() {
     let dt = DataTypeName::from("тип");

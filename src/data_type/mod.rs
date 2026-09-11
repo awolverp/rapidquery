@@ -1,32 +1,21 @@
-//! SQL data types: interned names, serializers, and the composed [`DataType`].
-//!
-//! A [`DataTypeName`] is a canonical spelling plus a [`DataTypeGroup`]. The
-//! group is the inference key for which [`Serializer`] [`DataType::from_name`]
-//! constructs when none is passed. Groups are serializer-oriented: `NUMERIC`
-//! and `DECIMAL` sit in [`DataTypeGroup::Float`] because they share a
-//! serializer with IEEE floats.
+// //! SQL data types: interned names, serializers, and the composed [`DataType`].
+// //!
+// //! A [`DataTypeName`] is a canonical spelling plus a [`DataTypeGroup`]. The
+// //! group is the inference key for which [`Serializer`] [`DataType::from_name`]
+// //! constructs when none is passed. Groups are serializer-oriented: `NUMERIC`
+// //! and `DECIMAL` sit in [`DataTypeGroup::Float`] because they share a
+// //! serializer with IEEE floats.
 
 mod name;
-mod py;
-mod serialize;
 mod serializer;
 
 #[cfg(test)]
 mod tests;
 
 pub use name::{DataTypeGroup, DataTypeName};
-pub use py::{
-    PyArraySerializer, PyBitSerializer, PyBooleanSerializer, PyBytesSerializer, PyCustomSerializer,
-    PyDateSerializer, PyDatetimeSerializer, PyFloatSerializer, PyInetSerializer,
-    PyIntegerSerializer, PyJSONSerializer, PyMacAddressSerializer, PySerializer,
-    PyStringSerializer, PyTimeSerializer, PyUnspecifiedSerializer, PyUuidSerializer,
-};
 pub use serializer::*;
 
-pub(crate) use py::serializer_repr;
-
 use crate::internal::alias;
-use crate::sql::{PrepareResult, SqlWriter, WriteSql};
 
 /// Represents a SQL data type.
 ///
@@ -49,20 +38,20 @@ use crate::sql::{PrepareResult, SqlWriter, WriteSql};
 /// Clone of a [`Serializer::Custom`] value requires the GIL.
 #[rapidquery_macros::pyclass(
     "DataType",
-    eq,
-    hash,
     from_py_object,
-    module = "rapidquery._core.data_type"
+    module = "rapidquery._core.data_type",
+    eq,
+    hash
 )]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct DataType {
+pub struct PyDataType {
     pub name: DataTypeName,
-    pub serializer: Serializer,
+    pub serializer: SerializerEnum,
 }
 
-impl DataType {
+impl PyDataType {
     #[inline]
-    pub fn new(name: DataTypeName, serializer: Serializer) -> Self {
+    pub fn new(name: DataTypeName, serializer: SerializerEnum) -> Self {
         Self { name, serializer }
     }
 
@@ -72,57 +61,24 @@ impl DataType {
     #[inline]
     pub fn from_name(name: impl Into<DataTypeName>) -> Self {
         let name = name.into();
-        let serializer = Serializer::from_group(name.group());
+        let serializer = SerializerEnum::from_group(name.group());
         Self { name, serializer }
     }
 }
 
-impl WriteSql for DataType {
+impl crate::sql::WriteSql for PyDataType {
     #[inline]
-    fn write_sql<W: SqlWriter>(
+    fn write_sql<W: crate::sql::SqlWriter>(
         &self,
         dialect: &crate::dialect::SqlDialect,
         out: &mut W,
-    ) -> PrepareResult<()> {
+    ) -> crate::sql::PrepareResult<()> {
         self.name.write_sql(dialect, out)
     }
 }
 
-/// `Serializer` instance, or a `DataType` (its serializer only).
-pub struct SerializerExtractor(pub Serializer);
-
-impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for SerializerExtractor {
-    type Error = pyo3::PyErr;
-
-    fn extract(
-        obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>,
-    ) -> Result<Self, Self::Error> {
-        let ptr = obj.as_ptr();
-
-        unsafe {
-            // SAFETY: `ptr` is a live borrowed `PyObject`. Type pointers are
-            // interned in `initialize_typeref` before any extractor runs.
-            if crate::typeref::check(ptr, crate::typeref::SERIALIZER_TYPE) {
-                let serializer = obj.cast_unchecked::<PySerializer>();
-                return Ok(Self(serializer.get().0.clone()));
-            }
-
-            if crate::typeref::check_exact(ptr, crate::typeref::DATATYPE_TYPE) {
-                let data_type = obj.cast_unchecked::<DataType>();
-                return Ok(Self(data_type.get().serializer.clone()));
-            }
-        }
-
-        rapidquery_macros::pyerr!(
-            Err(PyTypeError),
-            "expected Serializer or DataType, got {}",
-            unsafe { crate::internal::utils::get_type_name(obj.py(), obj.as_ptr()) }
-        )
-    }
-}
-
 #[pyo3::pymethods]
-impl DataType {
+impl PyDataType {
     /// Creates a new SQL data type.
     ///
     /// Args:
@@ -140,8 +96,8 @@ impl DataType {
     #[pyo3(signature = (name, serializer = None, /))]
     fn __new__(name: String, serializer: Option<PySerializer>) -> Self {
         match serializer {
-            Some(PySerializer(s)) => DataType::new(DataTypeName::from(name), s),
-            None => DataType::from_name(name),
+            Some(PySerializer(s)) => PyDataType::new(DataTypeName::from(name), s),
+            None => PyDataType::from_name(name),
         }
     }
 
@@ -197,8 +153,8 @@ impl DataType {
 pub mod data_type_mod {
     #[pymodule_export]
     use super::{
-        DataType, PyArraySerializer, PyBitSerializer, PyBooleanSerializer, PyBytesSerializer,
-        PyCustomSerializer, PyDateSerializer, PyDatetimeSerializer, PyFloatSerializer,
+        PyArraySerializer, PyBitSerializer, PyBooleanSerializer, PyBytesSerializer,
+        PyCustomSerializer, PyDataType, PyDateSerializer, PyDatetimeSerializer, PyFloatSerializer,
         PyInetSerializer, PyIntegerSerializer, PyJSONSerializer, PyMacAddressSerializer,
         PySerializer, PyStringSerializer, PyTimeSerializer, PyUnspecifiedSerializer,
         PyUuidSerializer,

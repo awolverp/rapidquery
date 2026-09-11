@@ -11,11 +11,10 @@ use std::hash::{Hash, Hasher};
 
 use crate::internal::alias;
 use crate::internal::modules::json_dumps;
-use super::name::DataTypeGroup;
 
 /// How a Python object is written as a SQL literal.
 #[derive(Debug, Clone)]
-pub enum Serializer {
+pub enum SerializerEnum {
     Integer,
     Float,
     Boolean,
@@ -30,11 +29,11 @@ pub enum Serializer {
     Inet,
     MacAddress,
     Unspecified,
-    Array(Box<Serializer>),
+    Array(Box<SerializerEnum>),
     Custom(alias::PyObject),
 }
 
-impl PartialEq for Serializer {
+impl PartialEq for SerializerEnum {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Integer, Self::Integer)
@@ -58,9 +57,9 @@ impl PartialEq for Serializer {
     }
 }
 
-impl Eq for Serializer {}
+impl Eq for SerializerEnum {}
 
-impl Hash for Serializer {
+impl Hash for SerializerEnum {
     fn hash<H: Hasher>(&self, state: &mut H) {
         std::mem::discriminant(self).hash(state);
         match self {
@@ -71,28 +70,30 @@ impl Hash for Serializer {
     }
 }
 
-impl Serializer {
+impl SerializerEnum {
     /// Built-in serializer for a [`DataTypeGroup`].
     ///
     /// [`DataTypeGroup::Custom`] maps to [`Self::Unspecified`]. Json and Jsonb
     /// share [`Self::Json`].
     #[inline]
-    pub fn from_group(kind: DataTypeGroup) -> Self {
+    pub fn from_group(kind: crate::data_type::DataTypeGroup) -> Self {
         match kind {
-            DataTypeGroup::Integer => Self::Integer,
-            DataTypeGroup::Float => Self::Float,
-            DataTypeGroup::Boolean => Self::Boolean,
-            DataTypeGroup::String => Self::String,
-            DataTypeGroup::Uuid => Self::Uuid,
-            DataTypeGroup::Bytes => Self::Bytes,
-            DataTypeGroup::Bit => Self::Bit,
-            DataTypeGroup::Json | DataTypeGroup::Jsonb => Self::Json,
-            DataTypeGroup::Date => Self::Date,
-            DataTypeGroup::Time => Self::Time,
-            DataTypeGroup::Datetime => Self::Datetime,
-            DataTypeGroup::Inet => Self::Inet,
-            DataTypeGroup::MacAddress => Self::MacAddress,
-            DataTypeGroup::Custom => Self::Unspecified,
+            crate::data_type::DataTypeGroup::Integer => Self::Integer,
+            crate::data_type::DataTypeGroup::Float => Self::Float,
+            crate::data_type::DataTypeGroup::Boolean => Self::Boolean,
+            crate::data_type::DataTypeGroup::String => Self::String,
+            crate::data_type::DataTypeGroup::Uuid => Self::Uuid,
+            crate::data_type::DataTypeGroup::Bytes => Self::Bytes,
+            crate::data_type::DataTypeGroup::Bit => Self::Bit,
+            crate::data_type::DataTypeGroup::Json | crate::data_type::DataTypeGroup::Jsonb => {
+                Self::Json
+            }
+            crate::data_type::DataTypeGroup::Date => Self::Date,
+            crate::data_type::DataTypeGroup::Time => Self::Time,
+            crate::data_type::DataTypeGroup::Datetime => Self::Datetime,
+            crate::data_type::DataTypeGroup::Inet => Self::Inet,
+            crate::data_type::DataTypeGroup::MacAddress => Self::MacAddress,
+            crate::data_type::DataTypeGroup::Custom => Self::Unspecified,
         }
     }
 

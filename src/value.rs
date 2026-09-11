@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 
 use pyo3::types::{PyAnyMethods, PyStringMethods};
 
-use crate::data_type::{PySerializer, Serializer, SerializerExtractor, serializer_repr};
+use crate::data_type::{PySerializer, SerializerEnum, SerializerExtractor, serializer_repr};
 use crate::dialect::SqlDialect;
 use crate::internal::alias;
 use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_sql};
@@ -27,35 +27,31 @@ use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_sql};
 /// serializer; the data type is not stored.
 #[rapidquery_macros::pyclass("Value", skip_from_py_object)]
 #[derive(Debug, Clone)]
-pub struct Value {
+pub struct PyValue {
     pub object: alias::PyObject,
-    pub serializer: Serializer,
+    pub serializer: SerializerEnum,
 }
 
-impl Value {
+impl PyValue {
     #[inline]
-    pub fn new(object: alias::PyObject, serializer: Serializer) -> Self {
+    pub fn new(object: alias::PyObject, serializer: SerializerEnum) -> Self {
         Self { object, serializer }
     }
 
     #[inline]
     pub fn infer_bound(bound: alias::BoundObject) -> Self {
-        let serializer = Serializer::infer_bound(&bound);
+        let serializer = SerializerEnum::infer_bound(&bound);
         Self::new(bound.unbind(), serializer)
     }
 }
 
-impl WriteSql for Value {
-    fn write_sql<W: SqlWriter>(
-        &self,
-        dialect: &SqlDialect,
-        out: &mut W,
-    ) -> PrepareResult<()> {
+impl WriteSql for PyValue {
+    fn write_sql<W: SqlWriter>(&self, dialect: &SqlDialect, out: &mut W) -> PrepareResult<()> {
         out.push_value(dialect, &self.serializer, &self.object)
     }
 }
 
-impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for Value {
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyValue {
     type Error = pyo3::PyErr;
 
     #[inline]
@@ -69,12 +65,12 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for Value {
             }
         }
 
-        Ok(Value::infer_bound(obj.as_any().clone()))
+        Ok(PyValue::infer_bound(obj.as_any().clone()))
     }
 }
 
 #[pyo3::pymethods]
-impl Value {
+impl PyValue {
     /// Creates a SQL value.
     ///
     /// Args:
@@ -99,15 +95,15 @@ impl Value {
             let inner = value.get().clone();
 
             let slf = match serializer {
-                Some(SerializerExtractor(s)) => Value::new(inner.object, s),
+                Some(SerializerExtractor(s)) => PyValue::new(inner.object, s),
                 None => inner,
             };
             return pyo3::PyClassInitializer::from(slf);
         }
 
         let slf = match serializer {
-            Some(SerializerExtractor(s)) => Value::new(object.unbind(), s),
-            None => Value::infer_bound(object),
+            Some(SerializerExtractor(s)) => PyValue::new(object.unbind(), s),
+            None => PyValue::infer_bound(object),
         };
         pyo3::PyClassInitializer::from(slf)
     }

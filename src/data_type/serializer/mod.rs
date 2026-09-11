@@ -1,42 +1,60 @@
-//! Python `Serializer` class hierarchy.
-//!
-//! Wraps [`Serializer`](super::Serializer). Python sees frozen
-//! subclasses (`IntegerSerializer`, …) plus `ArraySerializer` /
-//! `CustomSerializer`.
-//!
-//! Unit instances compare and hash by variant (`IntegerSerializer() ==
-//! IntegerSerializer()`) and `repr` as `IntegerSerializer()`. Array compares
-//! by element tree; Custom by function identity.
+mod serialize;
+mod serializer_enum;
 
-use std::hash::{Hash, Hasher};
+pub use serializer_enum::SerializerEnum;
 
 use crate::internal::alias;
-use super::{DataTypeGroup, Serializer};
 
-fn class_name(serializer: &Serializer) -> &'static str {
+fn class_name(serializer: &SerializerEnum) -> &'static str {
     match serializer {
-        Serializer::Integer => "IntegerSerializer",
-        Serializer::Float => "FloatSerializer",
-        Serializer::Boolean => "BooleanSerializer",
-        Serializer::String => "StringSerializer",
-        Serializer::Uuid => "UuidSerializer",
-        Serializer::Bytes => "BytesSerializer",
-        Serializer::Bit => "BitSerializer",
-        Serializer::Json => "JSONSerializer",
-        Serializer::Date => "DateSerializer",
-        Serializer::Time => "TimeSerializer",
-        Serializer::Datetime => "DatetimeSerializer",
-        Serializer::Inet => "InetSerializer",
-        Serializer::MacAddress => "MacAddressSerializer",
-        Serializer::Unspecified => "UnspecifiedSerializer",
-        Serializer::Array(_) => "ArraySerializer",
-        Serializer::Custom(_) => "CustomSerializer",
+        SerializerEnum::Integer => "IntegerSerializer",
+        SerializerEnum::Float => "FloatSerializer",
+        SerializerEnum::Boolean => "BooleanSerializer",
+        SerializerEnum::String => "StringSerializer",
+        SerializerEnum::Uuid => "UuidSerializer",
+        SerializerEnum::Bytes => "BytesSerializer",
+        SerializerEnum::Bit => "BitSerializer",
+        SerializerEnum::Json => "JSONSerializer",
+        SerializerEnum::Date => "DateSerializer",
+        SerializerEnum::Time => "TimeSerializer",
+        SerializerEnum::Datetime => "DatetimeSerializer",
+        SerializerEnum::Inet => "InetSerializer",
+        SerializerEnum::MacAddress => "MacAddressSerializer",
+        SerializerEnum::Unspecified => "UnspecifiedSerializer",
+        SerializerEnum::Array(_) => "ArraySerializer",
+        SerializerEnum::Custom(_) => "CustomSerializer",
     }
 }
 
-// `subclass` so the built-in serializers can `extends` this type from Rust.
-// `from_py_object` so `ArraySerializer(IntegerSerializer())` extracts the
-// base. Python subclasses of `Serializer` are not used as built-ins.
+fn wrap<'py, T>(
+    py: pyo3::Python<'py>,
+    base: PySerializer,
+) -> pyo3::PyResult<alias::BoundObject<'py>>
+where
+    T: pyo3::PyClass<BaseType = PySerializer> + Default,
+{
+    pyo3::Bound::new(
+        py,
+        pyo3::PyClassInitializer::from(base).add_subclass(T::default()),
+    )
+    .map(|x| x.into_any())
+}
+
+pub fn serializer_repr(serializer: &SerializerEnum) -> String {
+    match serializer {
+        SerializerEnum::Array(element) => {
+            format!("ArraySerializer({}())", class_name(element))
+        }
+        other => {
+            let name = class_name(other);
+            let mut buf = String::with_capacity(name.len() + 2);
+            buf.push_str(name);
+            buf.push_str("()");
+            buf
+        }
+    }
+}
+
 /// Converts a Python object into a dialect-specific SQL literal string.
 ///
 /// Serializers produce a correctly escaped and formatted SQL value that can
@@ -55,80 +73,33 @@ fn class_name(serializer: &Serializer) -> &'static str {
     module = "rapidquery._core.data_type"
 )]
 #[derive(Debug, Clone)]
-pub struct PySerializer(pub Serializer);
+pub struct PySerializer(pub SerializerEnum);
 
 impl PySerializer {
-    pub fn infer_bound(bound: &alias::BoundObject) -> Self {
-        Self(Serializer::infer_bound(bound))
-    }
-
-    pub fn from_group(kind: DataTypeGroup) -> Self {
-        Self(Serializer::from_group(kind))
-    }
-
-    pub fn serialize_value(
-        &self,
-        dialect: crate::dialect::py::PySqlDialect,
-        object: alias::BoundObject<'_>,
-    ) -> pyo3::PyResult<String> {
-        let mut buf = String::new();
-        self.0.write_sql(&dialect.0, &object, &mut buf)?;
-        Ok(buf)
-    }
-
-    // Wrap `self` as the matching Python subclass (`IntegerSerializer()`, …).
+    /// Wrap `self` as the matching Python subclass (`IntegerSerializer()`, …).
     pub fn into_subclasses<'py>(
         self,
         py: pyo3::Python<'py>,
     ) -> pyo3::PyResult<alias::BoundObject<'py>> {
         match &self.0 {
-            Serializer::Integer => wrap::<PyIntegerSerializer>(py, self),
-            Serializer::Float => wrap::<PyFloatSerializer>(py, self),
-            Serializer::Boolean => wrap::<PyBooleanSerializer>(py, self),
-            Serializer::String => wrap::<PyStringSerializer>(py, self),
-            Serializer::Uuid => wrap::<PyUuidSerializer>(py, self),
-            Serializer::Bytes => wrap::<PyBytesSerializer>(py, self),
-            Serializer::Bit => wrap::<PyBitSerializer>(py, self),
-            Serializer::Json => wrap::<PyJSONSerializer>(py, self),
-            Serializer::Date => wrap::<PyDateSerializer>(py, self),
-            Serializer::Time => wrap::<PyTimeSerializer>(py, self),
-            Serializer::Datetime => wrap::<PyDatetimeSerializer>(py, self),
-            Serializer::Inet => wrap::<PyInetSerializer>(py, self),
-            Serializer::MacAddress => wrap::<PyMacAddressSerializer>(py, self),
-            Serializer::Unspecified => wrap::<PyUnspecifiedSerializer>(py, self),
-            Serializer::Array(_) => wrap::<PyArraySerializer>(py, self),
-            Serializer::Custom(_) => wrap::<PyCustomSerializer>(py, self),
+            SerializerEnum::Integer => wrap::<PyIntegerSerializer>(py, self),
+            SerializerEnum::Float => wrap::<PyFloatSerializer>(py, self),
+            SerializerEnum::Boolean => wrap::<PyBooleanSerializer>(py, self),
+            SerializerEnum::String => wrap::<PyStringSerializer>(py, self),
+            SerializerEnum::Uuid => wrap::<PyUuidSerializer>(py, self),
+            SerializerEnum::Bytes => wrap::<PyBytesSerializer>(py, self),
+            SerializerEnum::Bit => wrap::<PyBitSerializer>(py, self),
+            SerializerEnum::Json => wrap::<PyJSONSerializer>(py, self),
+            SerializerEnum::Date => wrap::<PyDateSerializer>(py, self),
+            SerializerEnum::Time => wrap::<PyTimeSerializer>(py, self),
+            SerializerEnum::Datetime => wrap::<PyDatetimeSerializer>(py, self),
+            SerializerEnum::Inet => wrap::<PyInetSerializer>(py, self),
+            SerializerEnum::MacAddress => wrap::<PyMacAddressSerializer>(py, self),
+            SerializerEnum::Unspecified => wrap::<PyUnspecifiedSerializer>(py, self),
+            SerializerEnum::Array(_) => wrap::<PyArraySerializer>(py, self),
+            SerializerEnum::Custom(_) => wrap::<PyCustomSerializer>(py, self),
         }
     }
-}
-
-pub(crate) fn serializer_repr(serializer: &Serializer) -> String {
-    match serializer {
-        Serializer::Array(element) => {
-            format!("ArraySerializer({}())", class_name(element))
-        }
-        other => {
-            let name = class_name(other);
-            let mut buf = String::with_capacity(name.len() + 2);
-            buf.push_str(name);
-            buf.push_str("()");
-            buf
-        }
-    }
-}
-
-fn wrap<'py, T>(
-    py: pyo3::Python<'py>,
-    base: PySerializer,
-) -> pyo3::PyResult<alias::BoundObject<'py>>
-where
-    T: pyo3::PyClass<BaseType = PySerializer> + Default,
-{
-    pyo3::Bound::new(
-        py,
-        pyo3::PyClassInitializer::from(base).add_subclass(T::default()),
-    )
-    .map(|x| x.into_any())
 }
 
 #[pyo3::pymethods]
@@ -151,7 +122,9 @@ impl PySerializer {
         dialect: crate::dialect::py::PySqlDialect,
         object: alias::BoundObject<'_>,
     ) -> pyo3::PyResult<String> {
-        self.serialize_value(dialect, object)
+        let mut buf = String::new();
+        self.0.write_sql(&dialect.0, &object, &mut buf)?;
+        Ok(buf)
     }
 
     fn __repr__(&self) -> String {
@@ -164,6 +137,8 @@ impl PySerializer {
     }
 
     fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         self.0.hash(&mut hasher);
         hasher.finish()
@@ -192,7 +167,7 @@ macro_rules! impl_unit_serializers {
                 #[new]
                 #[inline]
                 fn __new__() -> pyo3::PyClassInitializer<Self> {
-                    pyo3::PyClassInitializer::from(PySerializer(Serializer::$variant))
+                    pyo3::PyClassInitializer::from(PySerializer(SerializerEnum::$variant))
                         .add_subclass(Self)
                 }
             }
@@ -335,7 +310,7 @@ impl PyArraySerializer {
     #[new]
     #[inline]
     fn __new__(element: PySerializer) -> pyo3::PyClassInitializer<Self> {
-        let inner = Serializer::Array(Box::new(element.0));
+        let inner = SerializerEnum::Array(Box::new(element.0));
         pyo3::PyClassInitializer::from(PySerializer(inner)).add_subclass(Self)
     }
 
@@ -347,7 +322,7 @@ impl PyArraySerializer {
     fn get_element(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
         let base = slf.as_super();
         match &base.0 {
-            Serializer::Array(element) => {
+            SerializerEnum::Array(element) => {
                 PySerializer((**element).clone()).into_subclasses(slf.py())
             }
             _ => unreachable!("ArraySerializer base is always Array"),
@@ -386,7 +361,7 @@ impl PyCustomSerializer {
                 );
             }
         }
-        let inner = Serializer::Custom(function);
+        let inner = SerializerEnum::Custom(function);
         Ok(pyo3::PyClassInitializer::from(PySerializer(inner)).add_subclass(Self))
     }
 
@@ -397,8 +372,43 @@ impl PyCustomSerializer {
     #[getter]
     fn get_function(slf: pyo3::PyRef<'_, Self>) -> alias::PyObject {
         match &slf.as_super().0 {
-            Serializer::Custom(function) => function.clone(),
+            SerializerEnum::Custom(function) => function.clone(),
             _ => unreachable!("CustomSerializer base is always Custom"),
         }
+    }
+}
+
+/// `Serializer` instance, or a `DataType` (its serializer only).
+///
+/// Use [`PySerializer`] itself as an argument if you wanna accept ONLY `PySerializer` types.
+pub struct SerializerExtractor(pub SerializerEnum);
+
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for SerializerExtractor {
+    type Error = pyo3::PyErr;
+
+    fn extract(
+        obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>,
+    ) -> Result<Self, Self::Error> {
+        let ptr = obj.as_ptr();
+
+        unsafe {
+            // SAFETY: `ptr` is a live borrowed `PyObject`. Type pointers are
+            // interned in `initialize_typeref` before any extractor runs.
+            if crate::typeref::check(ptr, crate::typeref::SERIALIZER_TYPE) {
+                let serializer = obj.cast_unchecked::<PySerializer>();
+                return Ok(Self(serializer.get().0.clone()));
+            }
+
+            if crate::typeref::check_exact(ptr, crate::typeref::DATATYPE_TYPE) {
+                let data_type = obj.cast_unchecked::<crate::data_type::PyDataType>();
+                return Ok(Self(data_type.get().serializer.clone()));
+            }
+        }
+
+        rapidquery_macros::pyerr!(
+            Err(PyTypeError),
+            "expected Serializer or DataType, got {}",
+            unsafe { crate::internal::utils::get_type_name(obj.py(), obj.as_ptr()) }
+        )
     }
 }

@@ -9,13 +9,11 @@ use std::str::FromStr;
 
 use pyo3::types::{PyAnyMethods, PyTzInfoAccess};
 
+use crate::dialect::SqlDialect;
 use crate::internal::alias;
 use crate::internal::utils::{get_type_name, py_str};
-use crate::dialect::SqlDialect;
 
-use super::serializer::Serializer;
-
-impl Serializer {
+impl super::serializer_enum::SerializerEnum {
     pub fn write_sql(
         &self,
         dialect: &SqlDialect,
@@ -475,7 +473,7 @@ unsafe fn write_array(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     dialect: &SqlDialect,
-    element: &Serializer,
+    element: &super::serializer_enum::SerializerEnum,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     let (len, getter): (

@@ -104,7 +104,7 @@ impl WriteSql for IdentPart {
 ///             there are more than 10 parts.
 #[rapidquery_macros::pyclass("Ident", skip_from_py_object, eq, hash)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Ident(SmallVec<[IdentPart; 4]>);
+pub struct PyIdent(SmallVec<[IdentPart; 4]>);
 
 /// Why building an [`Ident`] failed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -147,7 +147,7 @@ fn is_safe_unquoted(s: &str) -> bool {
     bytes.all(|c| c.is_ascii_alphanumeric() || c == b'_')
 }
 
-impl Ident {
+impl PyIdent {
     /// Maximum number of dotted parts.
     pub const MAX_PARTS: usize = 10;
 
@@ -214,7 +214,7 @@ impl Ident {
     }
 }
 
-impl std::str::FromStr for Ident {
+impl std::str::FromStr for PyIdent {
     type Err = ParseIdentError;
 
     #[cfg_attr(feature = "nightly", optimize(speed))]
@@ -246,13 +246,12 @@ impl std::str::FromStr for Ident {
     }
 }
 
-impl WriteSql for Ident {
+impl WriteSql for PyIdent {
     #[inline]
     fn write_sql<W: SqlWriter>(&self, dialect: &SqlDialect, out: &mut W) -> PrepareResult<()> {
         write_separated(dialect, out, &self.0, ".")
     }
 }
-
 
 // ---------------------------------------------------------------------------
 // Python surface (`Ident`, `Unquote`, `Asterisk`)
@@ -307,7 +306,7 @@ unsafe fn is_asterisk(obj: *mut pyo3::ffi::PyObject) -> bool {
 }
 
 enum Extracted {
-    Ident(Ident),
+    Ident(PyIdent),
     Part(IdentPart),
 }
 
@@ -327,7 +326,7 @@ fn extract_arg(
         }
 
         if crate::typeref::check_exact(ptr, crate::typeref::IDENT_TYPE) {
-            let ident = obj.cast_unchecked::<Ident>();
+            let ident = obj.cast_unchecked::<PyIdent>();
             return Ok(Extracted::Ident(ident.get().clone()));
         }
 
@@ -353,7 +352,7 @@ fn extract_arg(
 ///
 /// Accepts `Ident`, `str` (one quoted part, including `"*"`), `Unquote`,
 /// `Asterisk`, and `type[Asterisk]`. Sequences are rejected.
-pub struct IdentExtractor(pub Ident);
+pub struct IdentExtractor(pub PyIdent);
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for IdentExtractor {
     type Error = pyo3::PyErr;
@@ -364,12 +363,12 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for IdentExtractor {
     ) -> Result<Self, Self::Error> {
         match extract_arg(obj)? {
             Extracted::Ident(ident) => Ok(Self(ident)),
-            Extracted::Part(part) => Ok(Self(Ident::from_one(part))),
+            Extracted::Part(part) => Ok(Self(PyIdent::from_one(part))),
         }
     }
 }
 
-impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for Ident {
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyIdent {
     type Error = pyo3::PyErr;
 
     #[inline]
@@ -381,7 +380,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for Ident {
 }
 
 #[pyo3::pymethods]
-impl Ident {
+impl PyIdent {
     #[new]
     #[pyo3(signature = (*parts))]
     fn __new__(parts: alias::ArgsType) -> pyo3::PyResult<Self> {
@@ -389,7 +388,7 @@ impl Ident {
             0 => Err(parse_err(ParseIdentError::Empty)),
             1 => match extract_arg(parts.get_item(0)?.as_borrowed())? {
                 Extracted::Ident(ident) => Ok(ident),
-                Extracted::Part(part) => Ok(Ident::from_one(part)),
+                Extracted::Part(part) => Ok(PyIdent::from_one(part)),
             },
             _ => {
                 let mut acc = SmallVec::<[IdentPart; 4]>::new();
@@ -399,7 +398,7 @@ impl Ident {
                         Extracted::Part(part) => acc.push(part),
                     }
                 }
-                Ident::from_parts(acc).map_err(parse_err)
+                PyIdent::from_parts(acc).map_err(parse_err)
             }
         }
     }
@@ -457,7 +456,7 @@ impl Ident {
                     }
                 }
 
-                let inner = Ident::from_parts(selected).map_err(parse_err)?;
+                let inner = PyIdent::from_parts(selected).map_err(parse_err)?;
                 Ok(pyo3::Bound::new(py, inner)?.into_any())
             }
         }
@@ -588,8 +587,8 @@ mod tests {
 
     use super::*;
 
-    fn ident_from(parts: impl IntoIterator<Item = IdentPart>) -> Ident {
-        Ident::from_parts(parts).unwrap()
+    fn ident_from(parts: impl IntoIterator<Item = IdentPart>) -> PyIdent {
+        PyIdent::from_parts(parts).unwrap()
     }
 
     fn quote(s: &str) -> IdentPart {
@@ -598,7 +597,7 @@ mod tests {
 
     #[test]
     fn from_str_splits_on_dots() {
-        let ident = Ident::from_str("public.users.id").unwrap();
+        let ident = PyIdent::from_str("public.users.id").unwrap();
         assert_eq!(
             ident.parts(),
             &[quote("public"), quote("users"), quote("id"),]
@@ -607,63 +606,63 @@ mod tests {
 
     #[test]
     fn from_str_bare_star_is_asterisk() {
-        let ident = Ident::from_str("*").unwrap();
+        let ident = PyIdent::from_str("*").unwrap();
         assert_eq!(ident.parts(), &[IdentPart::Asterisk]);
     }
 
     #[test]
     fn from_str_table_star_keeps_asterisk_last() {
-        let ident = Ident::from_str("t.*").unwrap();
+        let ident = PyIdent::from_str("t.*").unwrap();
         assert_eq!(ident.parts(), &[quote("t"), IdentPart::Asterisk]);
     }
 
     #[test]
     fn from_str_mid_star_is_demoted_to_quoted() {
-        let ident = Ident::from_str("*.id").unwrap();
+        let ident = PyIdent::from_str("*.id").unwrap();
         assert_eq!(ident.parts(), &[quote("*"), quote("id")]);
     }
 
     #[test]
     fn from_str_rejects_empty_and_empty_chunks() {
-        assert_eq!(Ident::from_str("").unwrap_err(), ParseIdentError::Empty);
+        assert_eq!(PyIdent::from_str("").unwrap_err(), ParseIdentError::Empty);
         assert_eq!(
-            Ident::from_str("a.").unwrap_err(),
+            PyIdent::from_str("a.").unwrap_err(),
             ParseIdentError::EmptyChunk
         );
         assert_eq!(
-            Ident::from_str(".a").unwrap_err(),
+            PyIdent::from_str(".a").unwrap_err(),
             ParseIdentError::EmptyChunk
         );
         assert_eq!(
-            Ident::from_str("a..b").unwrap_err(),
+            PyIdent::from_str("a..b").unwrap_err(),
             ParseIdentError::EmptyChunk
         );
     }
 
     #[test]
     fn from_str_rejects_too_many_parts() {
-        let ten = (0..Ident::MAX_PARTS)
+        let ten = (0..PyIdent::MAX_PARTS)
             .map(|i| format!("p{i}"))
             .collect::<Vec<_>>()
             .join(".");
-        assert!(Ident::from_str(&ten).is_ok());
+        assert!(PyIdent::from_str(&ten).is_ok());
 
         let eleven = format!("{ten}.extra");
         assert_eq!(
-            Ident::from_str(&eleven).unwrap_err(),
+            PyIdent::from_str(&eleven).unwrap_err(),
             ParseIdentError::TooManyParts
         );
     }
 
     #[test]
     fn from_parts_rejects_empty() {
-        assert_eq!(Ident::from_parts([]).unwrap_err(), ParseIdentError::Empty);
+        assert_eq!(PyIdent::from_parts([]).unwrap_err(), ParseIdentError::Empty);
     }
 
     #[test]
     fn from_parts_rejects_empty_quoted_part() {
         assert_eq!(
-            Ident::from_parts([IdentPart::Quote(ArcStr::from(""))]).unwrap_err(),
+            PyIdent::from_parts([IdentPart::Quote(ArcStr::from(""))]).unwrap_err(),
             ParseIdentError::EmptyChunk
         );
     }
@@ -671,7 +670,7 @@ mod tests {
     #[test]
     fn from_parts_rejects_asterisk_not_last() {
         assert_eq!(
-            Ident::from_parts([IdentPart::Asterisk, quote("id")]).unwrap_err(),
+            PyIdent::from_parts([IdentPart::Asterisk, quote("id")]).unwrap_err(),
             ParseIdentError::AsteriskNotLast
         );
     }
@@ -720,7 +719,7 @@ mod tests {
 
     #[test]
     fn from_one_is_single_part() {
-        let ident = Ident::from_one(quote("id"));
+        let ident = PyIdent::from_one(quote("id"));
         assert_eq!(ident.len(), 1);
         assert_eq!(ident.parts(), &[quote("id")]);
     }
@@ -734,7 +733,7 @@ mod tests {
 
     #[test]
     fn prepare_uses_dialect_delimiters() {
-        fn render(ident: &Ident, dialect: SqlDialect) -> String {
+        fn render(ident: &PyIdent, dialect: SqlDialect) -> String {
             let mut buf = String::new();
             for (i, part) in ident.parts().iter().enumerate() {
                 if i > 0 {

@@ -112,7 +112,7 @@ fn _initialize_typeref(py: pyo3::Python) {
             crate::dialect::py::PySqlite => SQLITE_DIALECT_TYPE,
             crate::dialect::py::PyTeradata => TERADATA_DIALECT_TYPE,
             // data types / serializers
-            crate::data_type::DataType => DATATYPE_TYPE,
+            crate::data_type::PyDataType => DATATYPE_TYPE,
             crate::data_type::PySerializer => SERIALIZER_TYPE,
             crate::data_type::PyIntegerSerializer => INTEGER_SERIALIZER_TYPE,
             crate::data_type::PyFloatSerializer => FLOAT_SERIALIZER_TYPE,
@@ -131,11 +131,11 @@ fn _initialize_typeref(py: pyo3::Python) {
             crate::data_type::PyArraySerializer => ARRAY_SERIALIZER_TYPE,
             crate::data_type::PyCustomSerializer => CUSTOM_SERIALIZER_TYPE,
             // ident
-            crate::ident::Ident => IDENT_TYPE,
+            crate::ident::PyIdent => IDENT_TYPE,
             crate::ident::PyUnquote => UNQUOTE_TYPE,
             crate::ident::PyAsterisk => ASTERISK_TYPE,
             // value
-            crate::value::Value => VALUE_TYPE,
+            crate::value::PyValue => VALUE_TYPE,
         );
 
         STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");
