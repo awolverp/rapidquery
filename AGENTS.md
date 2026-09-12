@@ -37,19 +37,18 @@ Keep these `refactor/v1` divergences from the PR (do not revert them):
 ```
 src/dialect/          SqlDialect enum + engines + tests; py.rs class tree
 src/data_type/        DataType, interned names, Serializer enum; py.rs class tree
-src/ident.rs          Ident, IdentPart, tests + Unquote/Asterisk pyclasses
-src/value.rs          Value (#[pyclass] on the same type)
+src/expr/             ExprEnum + PyExpr ABC; ident.rs / value.rs / func / nodes
 src/sql.rs            BufferedSql, ParameterizedSql, WriteSql
 src/internal/         aliases, JSON dumps helper, string utils, submodule helper
 src/typeref.rs        cached PyTypeObject pointers
-rapidquery/           Python package: _ident.py, _value.py, data_type.py, dialect.py
+rapidquery/           Python package: expr.py, data_type.py, dialect.py
 rapidquery-macros/    Proc-macros
 tests/                Python tests (ident, value, dialect, data_type, serializers)
 backup/, backup-py/   gitignored v0 snapshots — read-only
 target/, .venv/       Generated — do not commit or edit
 ```
 
-Rust unit tests live next to the types (`data_type/tests.rs`, `dialect/tests.rs`, `ident.rs`, `internal/utils/strings.rs`).
+Rust unit tests live next to the types (`data_type/tests.rs`, `dialect/tests.rs`, `expr/ident.rs`, `expr/tests.rs`, `internal/utils/strings.rs`).
 
 Reference the PR without checking it out as the working tree: `git show origin/migrate:<path>`. Do not copy files wholesale if this branch already renamed or cleaned them.
 

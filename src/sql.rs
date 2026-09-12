@@ -19,6 +19,8 @@ pub enum PrepareError {
     Write,
     /// An error that originated in Python (e.g. from `.extract()`).
     Python(pyo3::PyErr),
+    /// A `Custom` template had a different number of `{}` slots than args.
+    CustomPlaceholders { expected: usize, got: usize },
 }
 
 impl std::fmt::Display for PrepareError {
@@ -26,6 +28,10 @@ impl std::fmt::Display for PrepareError {
         match self {
             Self::Write => f.write_str("failed to write SQL"),
             Self::Python(err) => write!(f, "{err}"),
+            Self::CustomPlaceholders { expected, got } => write!(
+                f,
+                "custom expression has {expected} placeholders but {got} arguments"
+            ),
         }
     }
 }
@@ -33,7 +39,7 @@ impl std::fmt::Display for PrepareError {
 impl std::error::Error for PrepareError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Write => None,
+            Self::Write | Self::CustomPlaceholders { .. } => None,
             Self::Python(err) => Some(err),
         }
     }
@@ -57,6 +63,14 @@ impl From<PrepareError> for pyo3::PyErr {
             PrepareError::Python(err) => err,
             PrepareError::Write => {
                 rapidquery_macros::pyerr!(PyRuntimeError, "failed to write SQL")
+            }
+            PrepareError::CustomPlaceholders { expected, got } => {
+                rapidquery_macros::pyerr!(
+                    PyValueError,
+                    "custom expression has {} placeholders but {} arguments",
+                    expected,
+                    got
+                )
             }
         }
     }

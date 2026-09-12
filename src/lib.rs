@@ -3,11 +3,10 @@
 
 pub mod data_type;
 pub mod dialect;
-pub mod ident;
+pub mod expr;
 pub mod internal;
 pub mod sql;
 pub mod typeref;
-pub mod value;
 
 /// RapidQuery native extension.
 #[pyo3::pymodule(gil_used = false)]
@@ -19,10 +18,7 @@ mod _core {
     use super::dialect::dialect_mod;
 
     #[pymodule_export]
-    use super::ident::{PyIdent, PyAsterisk, PyUnquote};
-
-    #[pymodule_export]
-    use super::value::PyValue;
+    use super::expr::expr_mod;
 
     #[pymodule_init]
     #[cold]

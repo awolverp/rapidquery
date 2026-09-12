@@ -41,6 +41,11 @@ mac_address = { version = "1.1", default-features = false }
 once_cell = { version = "1.21.4", default-features = false }
 smallvec = { version = "1.16.0", default-features = false }
 
+# ONLY for inspiring the source
+sqlparser = { version = "0.62.0", default-features = false }
+# ONLY for inspiring the source
+sea-query = { version = "1.0.2", default-features = false }
+
 [features]
 default = ["extension-module"]
 extension-module = ["pyo3/extension-module"]
