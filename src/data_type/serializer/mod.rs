@@ -26,6 +26,7 @@ fn class_name(serializer: &SerializerEnum) -> &'static str {
     }
 }
 
+#[inline]
 fn wrap<'py, T>(
     py: pyo3::Python<'py>,
     base: PySerializer,

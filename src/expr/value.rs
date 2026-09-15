@@ -1,58 +1,9 @@
-//! A Python object plus the [`Serializer`] used to emit it as SQL.
+use crate::{
+    data_type::{PySerializer, SerializerExtractor},
+    internal::alias,
+};
 
-use pyo3::types::{PyAnyMethods, PyStringMethods};
-
-use crate::data_type::{PySerializer, SerializerEnum, SerializerExtractor, serializer_repr};
-use crate::dialect::SqlDialect;
-use crate::internal::alias;
-use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_sql};
-
-/// A Python object plus the [`Serializer`] used to emit it as SQL.
-///
-/// Parameterized SQL binds [`Self::object`] as a placeholder and ignores the
-/// serializer. Raw SQL (`BufferedSql`) calls [`Serializer::write_sql`];
-/// Python `None` becomes `NULL`.
-///
-/// Clone requires the GIL (`Py<T>::clone`).
-#[derive(Debug, Clone)]
-pub struct Value {
-    pub object: alias::PyObject,
-    pub serializer: SerializerEnum,
-}
-
-impl Value {
-    #[inline]
-    pub fn new(object: alias::PyObject, serializer: SerializerEnum) -> Self {
-        Self { object, serializer }
-    }
-
-    #[inline]
-    pub fn infer_bound(bound: alias::BoundObject) -> Self {
-        let serializer = SerializerEnum::infer_bound(&bound);
-        Self::new(bound.unbind(), serializer)
-    }
-
-    pub(crate) fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        let obj_repr = self.object.bind(py).repr()?;
-        Ok(format!(
-            "Value({}, {})",
-            obj_repr.to_cow()?,
-            serializer_repr(&self.serializer)
-        ))
-    }
-}
-
-impl WriteSql for Value {
-    fn write_sql<W: SqlWriter>(&self, dialect: &SqlDialect, out: &mut W) -> PrepareResult<()> {
-        out.push_value(dialect, &self.serializer, &self.object)
-    }
-}
-
-impl PartialEq for Value {
-    fn eq(&self, other: &Self) -> bool {
-        self.serializer == other.serializer && self.object.as_ptr() == other.object.as_ptr()
-    }
-}
+use super::enum_::Value;
 
 /// A Python object plus the [`Serializer`] used to emit it as SQL.
 ///
@@ -67,24 +18,26 @@ impl PartialEq for Value {
 #[rapidquery_macros::pyclass(
     "Value",
     skip_from_py_object,
-    extends = super::PyExpr,
+    extends = super::base::PyExpr,
     module = "rapidquery._core.expr",
     generic
 )]
 #[derive(Debug, Default)]
 pub struct PyValue;
 
-#[inline]
-fn value_inner<'a>(slf: &'a pyo3::PyRef<'a, PyValue>) -> &'a Value {
-    match &slf.as_super().0 {
-        super::ExprEnum::Value(value) => value,
-        _ => unreachable!("Value instance always holds ExprEnum::Value"),
-    }
-}
+impl PyValue {
+    #[inline(always)]
+    fn inner<'a>(slf: &'a pyo3::PyRef<'a, PyValue>) -> &'a Value {
+        debug_assert!(
+            matches!(&slf.as_super().0, super::enum_::ExprEnum::Value(..)),
+            "PyValue instance always holds ExprEnum::Value"
+        );
 
-#[inline]
-fn wrap_value(value: Value) -> pyo3::PyClassInitializer<PyValue> {
-    pyo3::PyClassInitializer::from(super::PyExpr(super::ExprEnum::Value(value))).add_subclass(PyValue)
+        match &slf.as_super().0 {
+            super::enum_::ExprEnum::Value(v) => v,
+            _ => unsafe { std::hint::unreachable_unchecked() },
+        }
+    }
 }
 
 #[pyo3::pymethods]
@@ -109,33 +62,43 @@ impl PyValue {
     ) -> pyo3::PyClassInitializer<Self> {
         // handle Value(Value(...), new_serializer)
         if unsafe { crate::typeref::check_exact(object.as_ptr(), crate::typeref::VALUE_TYPE) } {
-            let expr = unsafe { object.cast_unchecked::<super::PyExpr>() };
-            let super::ExprEnum::Value(inner) = expr.get().0.clone() else {
-                unreachable!("Value instance always holds ExprEnum::Value");
+            let expr = unsafe { object.cast_unchecked::<super::base::PyExpr>() };
+            let expr_inner = expr.get().0.clone();
+
+            debug_assert!(
+                matches!(expr_inner, super::enum_::ExprEnum::Value(..)),
+                "PyValue instance always holds ExprEnum::Value"
+            );
+
+            let inner = match expr_inner {
+                super::enum_::ExprEnum::Value(v) => v,
+                _ => unsafe { std::hint::unreachable_unchecked() },
             };
 
             let value = match serializer {
                 Some(SerializerExtractor(s)) => Value::new(inner.object, s),
                 None => inner,
             };
-            return wrap_value(value);
+
+            let new_expr = super::base::PyExpr(super::enum_::ExprEnum::Value(value));
+            return pyo3::PyClassInitializer::from(new_expr).add_subclass(PyValue);
         }
 
         let value = match serializer {
             Some(SerializerExtractor(s)) => Value::new(object.unbind(), s),
             None => Value::infer_bound(object),
         };
-        wrap_value(value)
+
+        let expr = super::base::PyExpr(super::enum_::ExprEnum::Value(value));
+        return pyo3::PyClassInitializer::from(expr).add_subclass(PyValue);
     }
 
     /// Returns the wrapped Python object.
     ///
     /// Returns:
-    ///     The object passed to the constructor (or taken from an existing
-    ///     `Value`).
-    #[getter]
+    ///     The object passed to the constructor (or taken from an existing `Value`).
     fn get_object(slf: pyo3::PyRef<'_, Self>) -> alias::PyObject {
-        value_inner(&slf).object.clone_ref(slf.py())
+        Self::inner(&slf).object.clone_ref(slf.py())
     }
 
     /// Returns the serializer used for raw SQL literals.
@@ -143,31 +106,7 @@ impl PyValue {
     /// Returns:
     ///     The `Serializer` stored on this value. Not used when the value
     ///     is bound as a parameter.
-    #[getter]
     fn get_serializer(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        PySerializer(value_inner(&slf).serializer.clone()).into_subclasses(slf.py())
-    }
-
-    /// Renders this value as a SQL literal for `dialect`.
-    ///
-    /// Raw path: `None` becomes `NULL`; otherwise the serializer writes a
-    /// literal. This is not the parameterized form.
-    ///
-    /// Args:
-    ///     dialect: A dialect class (`PostgreSQL`) or instance
-    ///             (`PostgreSQL()`).
-    ///
-    /// Returns:
-    ///     A SQL fragment suitable for embedding in a statement.
-    ///
-    /// Raises:
-    ///     TypeError: If `object` is not an accepted type for the serializer.
-    ///     ValueError: If `object` is the right type but cannot be represented.
-    fn to_sql(
-        slf: pyo3::PyRef<'_, Self>,
-        py: pyo3::Python<'_>,
-        dialect: crate::dialect::py::PySqlDialect,
-    ) -> pyo3::PyResult<String> {
-        write_sql(py, value_inner(&slf), &dialect.0).map_err(Into::into)
+        PySerializer(Self::inner(&slf).serializer.clone()).into_subclasses(slf.py())
     }
 }

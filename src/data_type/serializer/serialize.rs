@@ -11,7 +11,7 @@ use pyo3::types::{PyAnyMethods, PyTzInfoAccess};
 
 use crate::dialect::SqlDialect;
 use crate::internal::alias;
-use crate::internal::utils::{get_type_name, py_str};
+use crate::internal::utils::{borrow_py_str_buffer, get_type_name};
 
 impl super::serializer_enum::SerializerEnum {
     pub fn write_sql(
@@ -60,7 +60,7 @@ unsafe fn py_to_string(
     if s.is_null() {
         return Err(pyo3::PyErr::fetch(py));
     }
-    let out = py_str(py, s).map(str::to_owned);
+    let out = borrow_py_str_buffer(py, s).map(str::to_owned);
     pyo3::ffi::Py_DECREF(s);
     out
 }
@@ -177,7 +177,7 @@ unsafe fn write_str(
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
-        write_quoted(dialect, out, py_str(py, ptr)?);
+        write_quoted(dialect, out, borrow_py_str_buffer(py, ptr)?);
         return Ok(());
     }
 
@@ -189,7 +189,7 @@ unsafe fn write_str(
         }
         let is_str = pyo3::ffi::PyUnicode_CheckExact(value) == 1;
         let result = if is_str {
-            write_quoted(dialect, out, py_str(py, value)?);
+            write_quoted(dialect, out, borrow_py_str_buffer(py, value)?);
             Ok(())
         } else {
             rapidquery_macros::pyerr!(
@@ -223,7 +223,7 @@ unsafe fn write_uuid(
         write_quoted(dialect, out, &text);
         Ok(())
     } else if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
-        write_quoted(dialect, out, py_str(py, ptr)?);
+        write_quoted(dialect, out, borrow_py_str_buffer(py, ptr)?);
         Ok(())
     } else {
         rapidquery_macros::pyerr!(
@@ -265,7 +265,7 @@ unsafe fn write_bit(
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
-        let raw = py_str(py, ptr)?;
+        let raw = borrow_py_str_buffer(py, ptr)?;
         if raw.is_empty() || !raw.bytes().all(|b| b == b'0' || b == b'1') {
             return rapidquery_macros::pyerr!(
                 Err(PyValueError),
@@ -531,6 +531,6 @@ unsafe fn write_custom(
             get_type_name(py, output.as_ptr())
         );
     }
-    out.push_str(py_str(py, output.as_ptr())?);
+    out.push_str(borrow_py_str_buffer(py, output.as_ptr())?);
     Ok(())
 }

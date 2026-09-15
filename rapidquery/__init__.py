@@ -5,7 +5,7 @@ from . import dialect as dialect
 from . import expr as expr
 from .expr import Asterisk as Asterisk
 from .expr import Expr as Expr
-from .expr import Func as Func
+from .expr import Function as Function
 from .expr import Ident as Ident
 from .expr import Unquote as Unquote
 from .expr import Value as Value
@@ -13,7 +13,7 @@ from .expr import Value as Value
 __all__ = [
     "Asterisk",
     "Expr",
-    "Func",
+    "Function",
     "Ident",
     "Unquote",
     "Value",

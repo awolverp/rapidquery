@@ -20,18 +20,18 @@ from ._core.dialect import (
 )
 
 __all__ = [
+    "MSSQL",
     "BigQuery",
     "Databricks",
     "DuckDB",
     "Hive",
-    "MSSQL",
     "MySql",
     "Oracle",
     "PostgreSQL",
     "Redshift",
+    "SQLite",
     "Snowflake",
     "Spark",
     "SqlDialect",
-    "SQLite",
     "Teradata",
 ]

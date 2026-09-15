@@ -6,7 +6,7 @@
 use once_cell::sync::OnceCell;
 use pyo3::types::{PyAnyMethods, PyModule, PyTuple};
 
-use crate::internal::utils::py_str;
+use crate::internal::utils::borrow_py_str_buffer;
 
 #[cfg(all(feature = "only-stdlib-json", feature = "only-orjson"))]
 compile_error!(
@@ -92,7 +92,7 @@ unsafe fn visit_json_text(
     }
 
     if pyo3::ffi::PyUnicode_CheckExact(result) == 1 {
-        return f(py_str(py, result)?);
+        return f(borrow_py_str_buffer(py, result)?);
     }
 
     rapidquery_macros::pyerr!(

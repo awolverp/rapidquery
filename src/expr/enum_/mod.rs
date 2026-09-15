@@ -1,0 +1,638 @@
+mod func;
+mod ident;
+mod operator;
+mod value;
+
+pub use func::*;
+pub use ident::*;
+pub use operator::*;
+pub use value::*;
+
+use crate::dialect::SqlDialect;
+use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
+use std::fmt::Write;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Unary {
+    pub op: UnaryOp,
+    pub expr: Box<ExprEnum>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Binary {
+    pub left: Box<ExprEnum>,
+    pub op: BinaryOp,
+    pub right: Box<ExprEnum>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Is {
+    pub expr: Box<ExprEnum>,
+    pub negated: bool,
+    pub kind: IsKind,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct IsDistinctFrom {
+    pub left: Box<ExprEnum>,
+    pub right: Box<ExprEnum>,
+    pub negated: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct InList {
+    pub expr: Box<ExprEnum>,
+    pub list: Vec<ExprEnum>,
+    pub negated: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Between {
+    pub expr: Box<ExprEnum>,
+    pub negated: bool,
+    pub low: Box<ExprEnum>,
+    pub high: Box<ExprEnum>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Like {
+    pub kind: LikeKind,
+    pub negated: bool,
+    pub expr: Box<ExprEnum>,
+    pub pattern: Box<ExprEnum>,
+    pub escape: Option<char>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Cast {
+    pub expr: Box<ExprEnum>,
+    pub data_type: crate::data_type::DataTypeName,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Case {
+    pub operand: Option<Box<ExprEnum>>,
+    pub when: Vec<(ExprEnum, ExprEnum)>,
+    pub else_result: Option<Box<ExprEnum>>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Custom {
+    pub sql: arcstr::ArcStr,
+    pub args: Vec<ExprEnum>,
+}
+
+/// SQL expression tree.
+///
+/// TODO: `Exists`, `InSubquery`, `Subquery`, and `Quantified` (`ANY` /
+/// `ALL` / `SOME`) once `Query` exists.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ExprEnum {
+    /// Represents a SQL identifier
+    Ident(Ident),
+    /// A Python object plus the Serializer used to emit it as SQL.
+    Value(Value),
+    /// Represents a SQL tuple
+    Tuple(Vec<ExprEnum>),
+    /// Unary operation
+    Unary(Unary),
+    /// Binary operation
+    Binary(Binary),
+    /// Function
+    Function(Function),
+    /// IS [NOT] <kind>
+    Is(Is),
+    /// <left> IS [NOT] DISTINCT FROM <right>
+    IsDistinctFrom(IsDistinctFrom),
+    /// <expr> [NOT] IN <list>
+    InList(InList),
+    /// <expr> [NOT] BETWEEN <low> AND <high>
+    Between(Between),
+    Like(Like),
+    Cast(Cast),
+    Case(Case),
+    Custom(Custom),
+}
+
+fn join_reprs(py: pyo3::Python<'_>, buf: &mut String, items: &[ExprEnum]) -> pyo3::PyResult<()> {
+    for (i, item) in items.iter().enumerate() {
+        if i > 0 {
+            buf.push_str(", ");
+        }
+        buf.push_str(&item.python_repr(py)?);
+    }
+    Ok(())
+}
+
+impl From<Ident> for ExprEnum {
+    #[inline]
+    fn from(value: Ident) -> Self {
+        Self::Ident(value)
+    }
+}
+
+impl From<Value> for ExprEnum {
+    #[inline]
+    fn from(value: Value) -> Self {
+        Self::Value(value)
+    }
+}
+
+impl From<Unary> for ExprEnum {
+    #[inline]
+    fn from(value: Unary) -> Self {
+        Self::Unary(value)
+    }
+}
+
+impl From<Binary> for ExprEnum {
+    #[inline]
+    fn from(value: Binary) -> Self {
+        Self::Binary(value)
+    }
+}
+
+impl From<Function> for ExprEnum {
+    #[inline]
+    fn from(value: Function) -> Self {
+        Self::Function(value)
+    }
+}
+
+impl From<Is> for ExprEnum {
+    #[inline]
+    fn from(value: Is) -> Self {
+        Self::Is(value)
+    }
+}
+
+impl From<IsDistinctFrom> for ExprEnum {
+    #[inline]
+    fn from(value: IsDistinctFrom) -> Self {
+        Self::IsDistinctFrom(value)
+    }
+}
+
+impl From<InList> for ExprEnum {
+    #[inline]
+    fn from(value: InList) -> Self {
+        Self::InList(value)
+    }
+}
+
+impl From<Between> for ExprEnum {
+    #[inline]
+    fn from(value: Between) -> Self {
+        Self::Between(value)
+    }
+}
+
+impl From<Like> for ExprEnum {
+    #[inline]
+    fn from(value: Like) -> Self {
+        Self::Like(value)
+    }
+}
+
+impl From<Cast> for ExprEnum {
+    #[inline]
+    fn from(value: Cast) -> Self {
+        Self::Cast(value)
+    }
+}
+
+impl From<Case> for ExprEnum {
+    #[inline]
+    fn from(value: Case) -> Self {
+        Self::Case(value)
+    }
+}
+
+impl From<Custom> for ExprEnum {
+    #[inline]
+    fn from(value: Custom) -> Self {
+        Self::Custom(value)
+    }
+}
+
+impl ExprEnum {
+    /// Lower is tighter binding.
+    #[inline]
+    fn precedence(&self) -> u8 {
+        match self {
+            Self::Ident(_)
+            | Self::Value(_)
+            | Self::Tuple(_)
+            | Self::Function(_)
+            | Self::Cast(_)
+            | Self::Case(_)
+            | Self::Custom(_) => 0,
+            Self::Unary(_) => 1,
+            Self::Binary(Binary { op, .. }) => match op {
+                BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => 2,
+                BinaryOp::Add | BinaryOp::Sub => 3,
+                BinaryOp::BitAnd
+                | BinaryOp::BitOr
+                | BinaryOp::BitXor
+                | BinaryOp::LShift
+                | BinaryOp::RShift
+                | BinaryOp::StringConcat => 4,
+                BinaryOp::Eq
+                | BinaryOp::NotEq
+                | BinaryOp::Lt
+                | BinaryOp::LtEq
+                | BinaryOp::Gt
+                | BinaryOp::GtEq
+                | BinaryOp::Custom(_) => 5,
+                BinaryOp::And => 6,
+                BinaryOp::Xor => 7,
+                BinaryOp::Or => 8,
+            },
+            Self::Is(_)
+            | Self::IsDistinctFrom(_)
+            | Self::InList(_)
+            | Self::Between(_)
+            | Self::Like(_) => 5,
+        }
+    }
+
+    #[inline]
+    fn write_operand<W: SqlWriter>(
+        &self,
+        dialect: &SqlDialect,
+        out: &mut W,
+        parent_prec: u8,
+        paren_if_equal: bool,
+    ) -> PrepareResult<()> {
+        let child_prec = self.precedence();
+        let paren = child_prec > parent_prec || (paren_if_equal && child_prec == parent_prec);
+        if paren {
+            out.push_char('(');
+        }
+        self.write_sql(dialect, out)?;
+        if paren {
+            out.push_char(')');
+        }
+        Ok(())
+    }
+
+    #[inline]
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
+        match self {
+            Self::Ident(ident) => Ok(ident.python_repr()),
+            Self::Value(value) => value.python_repr(py),
+            Self::Tuple(items) => {
+                let mut buf = String::from("TupleExpr(");
+                join_reprs(py, &mut buf, items)?;
+                buf.push(')');
+                Ok(buf)
+            }
+            Self::Unary(Unary { op, expr }) => Ok(format!(
+                "UnaryExpr({:?}, {})",
+                op.as_sql(),
+                expr.python_repr(py)?
+            )),
+            Self::Binary(Binary { left, op, right }) => Ok(format!(
+                "BinaryExpr({}, {:?}, {})",
+                left.python_repr(py)?,
+                op.as_sql(),
+                right.python_repr(py)?
+            )),
+            Self::Function(func) => func.python_repr(py),
+            Self::Is(Is {
+                expr,
+                negated,
+                kind,
+            }) => {
+                let mut buf = format!("IsExpr({}, {:?}", expr.python_repr(py)?, kind.as_sql());
+                if *negated {
+                    buf.push_str(", negated=True");
+                }
+                buf.push(')');
+                Ok(buf)
+            }
+            Self::IsDistinctFrom(IsDistinctFrom {
+                left,
+                right,
+                negated,
+            }) => {
+                let mut buf = format!(
+                    "IsDistinctFromExpr({}, {}",
+                    left.python_repr(py)?,
+                    right.python_repr(py)?
+                );
+                if *negated {
+                    buf.push_str(", negated=True");
+                }
+                buf.push(')');
+                Ok(buf)
+            }
+            Self::InList(InList {
+                expr,
+                list,
+                negated,
+            }) => {
+                let mut buf = format!("InListExpr({}, (", expr.python_repr(py)?);
+                join_reprs(py, &mut buf, list)?;
+                buf.push(')');
+                if *negated {
+                    buf.push_str(", negated=True");
+                }
+                buf.push(')');
+                Ok(buf)
+            }
+            Self::Between(Between {
+                expr,
+                negated,
+                low,
+                high,
+            }) => {
+                let mut buf = format!(
+                    "BetweenExpr({}, {}, {}",
+                    expr.python_repr(py)?,
+                    low.python_repr(py)?,
+                    high.python_repr(py)?
+                );
+                if *negated {
+                    buf.push_str(", negated=True");
+                }
+                buf.push(')');
+                Ok(buf)
+            }
+            Self::Like(Like {
+                kind,
+                negated,
+                expr,
+                pattern,
+                escape,
+            }) => {
+                let mut buf = format!(
+                    "LikeExpr({}, {}",
+                    expr.python_repr(py)?,
+                    pattern.python_repr(py)?
+                );
+                if *kind != LikeKind::Like {
+                    write!(buf, ", kind={:?}", kind.as_sql()).unwrap();
+                }
+                if *negated {
+                    buf.push_str(", negated=True");
+                }
+                if let Some(c) = escape {
+                    write!(buf, ", escape={c:?}").unwrap();
+                }
+                buf.push(')');
+                Ok(buf)
+            }
+            Self::Cast(Cast { expr, data_type }) => Ok(format!(
+                "CastExpr({}, {:?})",
+                expr.python_repr(py)?,
+                data_type.as_str(),
+            )),
+            Self::Case(Case {
+                operand,
+                when: when_then,
+                else_result,
+            }) => {
+                let mut buf = String::from("CaseExpr([");
+                for (i, (when, then)) in when_then.iter().enumerate() {
+                    if i > 0 {
+                        buf.push_str(", ");
+                    }
+                    write!(
+                        buf,
+                        "({}, {})",
+                        when.python_repr(py)?,
+                        then.python_repr(py)?
+                    )
+                    .unwrap();
+                }
+                buf.push(']');
+                if let Some(operand) = operand {
+                    write!(buf, ", operand={}", operand.python_repr(py)?).unwrap();
+                }
+                if let Some(else_result) = else_result {
+                    write!(buf, ", else_={}", else_result.python_repr(py)?).unwrap();
+                }
+                buf.push(')');
+                Ok(buf)
+            }
+            Self::Custom(Custom { sql, args }) => {
+                let mut buf = format!("CustomExpr({sql:?}");
+                for arg in args {
+                    buf.push_str(", ");
+                    buf.push_str(&arg.python_repr(py)?);
+                }
+                buf.push(')');
+                Ok(buf)
+            }
+        }
+    }
+}
+
+impl WriteSql for ExprEnum {
+    #[cfg_attr(feature = "nightly", optimize(speed))]
+    fn write_sql<W: SqlWriter>(&self, dialect: &SqlDialect, out: &mut W) -> PrepareResult<()> {
+        match self {
+            Self::Ident(ident) => ident.write_sql(dialect, out),
+            Self::Value(value) => value.write_sql(dialect, out),
+            Self::Tuple(items) => {
+                out.push_char('(');
+                write_separated(dialect, out, items, ", ")?;
+                out.push_char(')');
+                Ok(())
+            }
+            Self::Unary(Unary { op, expr }) => {
+                match op {
+                    UnaryOp::Not => {
+                        out.push_str("NOT ");
+                    }
+                    UnaryOp::Plus | UnaryOp::Minus | UnaryOp::BitNot => {
+                        out.push_str(op.as_sql());
+                    }
+                }
+                expr.write_operand(dialect, out, self.precedence(), true)
+            }
+            Self::Binary(Binary { left, op, right }) => {
+                let prec = self.precedence();
+                left.write_operand(dialect, out, prec, false)?;
+                out.push_char(' ');
+                out.push_str(op.as_sql());
+                out.push_char(' ');
+                right.write_operand(dialect, out, prec, true)
+            }
+            Self::Function(func) => func.write_sql(dialect, out),
+            Self::Is(Is {
+                expr,
+                negated,
+                kind,
+            }) => {
+                expr.write_operand(dialect, out, self.precedence(), false)?;
+                if *negated {
+                    out.push_str(" IS NOT ");
+                } else {
+                    out.push_str(" IS ");
+                }
+                out.push_str(kind.as_sql());
+                Ok(())
+            }
+            Self::IsDistinctFrom(IsDistinctFrom {
+                left,
+                right,
+                negated,
+            }) => {
+                let prec = self.precedence();
+                left.write_operand(dialect, out, prec, false)?;
+                if *negated {
+                    out.push_str(" IS NOT DISTINCT FROM ");
+                } else {
+                    out.push_str(" IS DISTINCT FROM ");
+                }
+                right.write_operand(dialect, out, prec, true)
+            }
+            Self::InList(InList {
+                expr,
+                list,
+                negated,
+            }) => {
+                expr.write_operand(dialect, out, self.precedence(), false)?;
+                if *negated {
+                    out.push_str(" NOT IN (");
+                } else {
+                    out.push_str(" IN (");
+                }
+                write_separated(dialect, out, list, ", ")?;
+                out.push_char(')');
+                Ok(())
+            }
+            Self::Between(Between {
+                expr,
+                negated,
+                low,
+                high,
+            }) => {
+                let prec = self.precedence();
+                expr.write_operand(dialect, out, prec, false)?;
+                if *negated {
+                    out.push_str(" NOT BETWEEN ");
+                } else {
+                    out.push_str(" BETWEEN ");
+                }
+                low.write_operand(dialect, out, prec, true)?;
+                out.push_str(" AND ");
+                high.write_operand(dialect, out, prec, true)
+            }
+            Self::Like(Like {
+                kind,
+                negated,
+                expr,
+                pattern,
+                escape,
+            }) => {
+                let prec = self.precedence();
+                expr.write_operand(dialect, out, prec, false)?;
+                out.push_char(' ');
+                if *negated {
+                    out.push_str("NOT ");
+                }
+                out.push_str(kind.as_sql());
+                out.push_char(' ');
+                pattern.write_operand(dialect, out, prec, true)?;
+                if let Some(c) = escape {
+                    out.push_str(" ESCAPE ");
+                    let raw = c.encode_utf8(&mut [0; 4]).to_string();
+                    dialect
+                        .write_string_literal(out, &raw)
+                        .map_err(|_| crate::sql::PrepareError::Write)?;
+                }
+                Ok(())
+            }
+            Self::Cast(Cast { expr, data_type }) => {
+                out.push_str("CAST(");
+                expr.write_sql(dialect, out)?;
+                out.push_str(" AS ");
+                data_type.write_sql(dialect, out)?;
+                out.push_char(')');
+                Ok(())
+            }
+            Self::Case(Case {
+                operand,
+                when: when_then,
+                else_result,
+            }) => {
+                out.push_str("CASE");
+                if let Some(operand) = operand {
+                    out.push_char(' ');
+                    operand.write_sql(dialect, out)?;
+                }
+                for (when, then) in when_then {
+                    out.push_str(" WHEN ");
+                    when.write_sql(dialect, out)?;
+                    out.push_str(" THEN ");
+                    then.write_sql(dialect, out)?;
+                }
+                if let Some(else_result) = else_result {
+                    out.push_str(" ELSE ");
+                    else_result.write_sql(dialect, out)?;
+                }
+                out.push_str(" END");
+                Ok(())
+            }
+            Self::Custom(Custom { sql, args }) => write_custom(sql, args, dialect, out),
+        }
+    }
+}
+
+#[cfg_attr(feature = "nightly", optimize(speed))]
+fn write_custom<W: SqlWriter>(
+    sql: &str,
+    args: &[ExprEnum],
+    dialect: &SqlDialect,
+    out: &mut W,
+) -> PrepareResult<()> {
+    let bytes = sql.as_bytes();
+    let mut i = 0;
+    let mut start = 0;
+    let mut used = 0usize;
+
+    while i < bytes.len() {
+        if bytes[i] == b'{' {
+            if i + 1 < bytes.len() && bytes[i + 1] == b'{' {
+                out.push_str(&sql[start..i]);
+                out.push_char('{');
+                i += 2;
+                start = i;
+                continue;
+            }
+            if i + 1 < bytes.len() && bytes[i + 1] == b'}' {
+                out.push_str(&sql[start..i]);
+                if used >= args.len() {
+                    return Err(crate::sql::PrepareError::CustomPlaceholders {
+                        expected: used + 1,
+                        got: args.len(),
+                    });
+                }
+                args[used].write_sql(dialect, out)?;
+                used += 1;
+                i += 2;
+                start = i;
+                continue;
+            }
+        } else if bytes[i] == b'}' && i + 1 < bytes.len() && bytes[i + 1] == b'}' {
+            out.push_str(&sql[start..i]);
+            out.push_char('}');
+            i += 2;
+            start = i;
+            continue;
+        }
+        i += 1;
+    }
+    out.push_str(&sql[start..]);
+
+    if used != args.len() {
+        return Err(crate::sql::PrepareError::CustomPlaceholders {
+            expected: used,
+            got: args.len(),
+        });
+    }
+    Ok(())
+}

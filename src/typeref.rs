@@ -47,18 +47,6 @@ pub(crate) static mut VALUE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_
 
 // Expr types
 pub(crate) static mut EXPR_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut FUNC_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut TUPLE_EXPR_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut UNARY_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut BINARY_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut IS_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut IS_DISTINCT_FROM_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut IN_LIST_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut BETWEEN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut LIKE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut CAST_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut CASE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut CUSTOM_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
 // Python standard-library types (serializers)
 pub(crate) static mut STD_DECIMAL_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -145,24 +133,11 @@ fn _initialize_typeref(py: pyo3::Python) {
             crate::data_type::PyUnspecifiedSerializer => UNSPECIFIED_SERIALIZER_TYPE,
             crate::data_type::PyArraySerializer => ARRAY_SERIALIZER_TYPE,
             crate::data_type::PyCustomSerializer => CUSTOM_SERIALIZER_TYPE,
-            // expr (base before subclasses that extend it)
-            crate::expr::PyExpr => EXPR_TYPE,
-            crate::expr::PyFunc => FUNC_TYPE,
-            crate::expr::PyTupleExpr => TUPLE_EXPR_TYPE,
-            crate::expr::PyUnary => UNARY_TYPE,
-            crate::expr::PyBinary => BINARY_TYPE,
-            crate::expr::PyIs => IS_TYPE,
-            crate::expr::PyIsDistinctFrom => IS_DISTINCT_FROM_TYPE,
-            crate::expr::PyInList => IN_LIST_TYPE,
-            crate::expr::PyBetween => BETWEEN_TYPE,
-            crate::expr::PyLike => LIKE_TYPE,
-            crate::expr::PyCast => CAST_TYPE,
-            crate::expr::PyCase => CASE_TYPE,
-            crate::expr::PyCustom => CUSTOM_TYPE,
-            crate::expr::PyIdent => IDENT_TYPE,
-            crate::expr::PyUnquote => UNQUOTE_TYPE,
-            crate::expr::PyAsterisk => ASTERISK_TYPE,
-            crate::expr::PyValue => VALUE_TYPE,
+            crate::expr::base::PyExpr => EXPR_TYPE,
+            crate::expr::ident::PyIdent => IDENT_TYPE,
+            crate::expr::ident::PyUnquote => UNQUOTE_TYPE,
+            crate::expr::ident::PyAsterisk => ASTERISK_TYPE,
+            crate::expr::value::PyValue => VALUE_TYPE,
         );
 
         STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");

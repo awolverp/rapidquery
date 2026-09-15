@@ -1,77 +1,82 @@
 use pyo3::types::{PyAnyMethods, PyTupleMethods};
 
-use crate::data_type::PyDataType;
-use crate::internal::alias;
-
-use super::enum_::{BinaryOp, ExprEnum, IsKind, LikeKind, UnaryOp};
-use super::{ExprExtractor, LiteralExprExtractor, PyExpr, subclass};
-
-#[inline]
-fn child<'py>(
-    py: pyo3::Python<'py>,
-    expr: &ExprEnum,
-) -> pyo3::PyResult<alias::BoundObject<'py>> {
-    PyExpr(expr.clone()).into_subclasses(py)
-}
+use super::base::PyExpr;
+use super::enum_::ExprEnum;
+use super::extractors::{ConditionExtractor, ExprExtractor, LiteralExprExtractor};
+use crate::data_type::DataTypeName;
+use crate::internal::{alias, utils};
 
 macro_rules! empty_node {
-    ($(#[$meta:meta])* $name:ident => $pyname:literal) => {
-        $(#[$meta])*
-        #[rapidquery_macros::pyclass(
-            $pyname,
-            skip_from_py_object,
-            extends = PyExpr,
-            module = "rapidquery._core.expr"
-        )]
-        #[derive(Debug, Default)]
-        pub struct $name;
+    (
+        $(
+            $(#[$meta:meta])*
+            $name:ident($variant:ident($inner:ty)) => $pyname:literal,
+        )+
+    ) => {
+        $(
+            $(#[$meta])*
+            #[rapidquery_macros::pyclass(
+                $pyname,
+                skip_from_py_object,
+                extends = PyExpr,
+                module = "rapidquery._core.expr"
+            )]
+            #[derive(Debug, Default)]
+            pub struct $name;
+
+            impl $name {
+                #[inline]
+                fn inner<'a>(slf: &'a pyo3::PyRef<'a, $name>) -> &'a $inner {
+                    debug_assert!(
+                        matches!(&slf.as_super().0, ExprEnum::$variant(..)),
+                        concat!(stringify!($name), " instance always holds ExprEnum::", stringify!($variant))
+
+                    );
+
+                    match &slf.as_super().0 {
+                        ExprEnum::$variant(v) => v,
+                        _ => unsafe { std::hint::unreachable_unchecked() },
+                    }
+                }
+            }
+        )+
     };
 }
 
 empty_node! {
     /// Parenthesized row / tuple expression `(a, b, …)`.
-    PyTupleExpr => "TupleExpr"
-}
-empty_node! {
+    PyTupleExpr(Tuple([ExprEnum])) => "TupleExpr",
+
     /// Unary expression (`NOT x`, `-x`, `+x`, `~x`).
-    PyUnary => "Unary"
-}
-empty_node! {
+    PyUnaryExpr(Unary(super::enum_::Unary)) => "UnaryExpr",
+
     /// Binary expression (`a + b`, `a AND b`, custom operators).
-    PyBinary => "Binary"
-}
-empty_node! {
+    PyBinaryExpr(Binary(super::enum_::Binary)) => "BinaryExpr",
+
     /// `expr IS [NOT] {NULL|TRUE|FALSE|UNKNOWN}`.
-    PyIs => "Is"
-}
-empty_node! {
+    PyIsExpr(Is(super::enum_::Is)) => "IsExpr",
+
     /// `a IS [NOT] DISTINCT FROM b`.
-    PyIsDistinctFrom => "IsDistinctFrom"
-}
-empty_node! {
-    /// `expr [NOT] IN (… )`.
-    PyInList => "InList"
-}
-empty_node! {
-    /// `expr [NOT] BETWEEN low AND high`.
-    PyBetween => "Between"
-}
-empty_node! {
+    PyIsDistinctFromExpr(IsDistinctFrom(super::enum_::IsDistinctFrom)) => "IsDistinctFromExpr",
+
+    // /// `expr [NOT] IN (… )`.
+    PyInListExpr(InList(super::enum_::InList)) => "InListExpr",
+
+    // /// `expr [NOT] BETWEEN low AND high`.
+    PyBetweenExpr(Between(super::enum_::Between)) => "BetweenExpr",
+
     /// `expr [NOT] LIKE / ILIKE / SIMILAR TO / RLIKE pattern`.
-    PyLike => "Like"
-}
-empty_node! {
+    PyLikeExpr(Like(super::enum_::Like)) => "LikeExpr",
+
     /// `CAST(expr AS type)`.
-    PyCast => "Cast"
-}
-empty_node! {
+    PyCastExpr(Cast(super::enum_::Cast)) => "CastExpr",
+
     /// `CASE [operand] WHEN … THEN … [ELSE …] END`.
-    PyCase => "Case"
-}
-empty_node! {
+    PyCaseExpr(Case(super::enum_::Case)) => "CaseExpr",
+
     /// Escape-hatch SQL template. `{}` slots are filled by argument
     /// expressions. `{{` / `}}` emit literal braces.
-    PyCustom => "Custom"
+    PyCustomExpr(Custom(super::enum_::Custom)) => "CustomExpr",
 }
 
 #[pyo3::pymethods]
@@ -79,197 +84,175 @@ impl PyTupleExpr {
     #[new]
     #[pyo3(signature = (*items))]
     fn __new__(items: alias::ArgsType<'_>) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+        use pyo3::types::PyTupleMethods;
+
         let mut exprs = Vec::with_capacity(items.len());
         for item in items.iter() {
             exprs.push(item.extract::<ExprExtractor>()?.0);
         }
-        Ok(subclass::<Self>(ExprEnum::Tuple(exprs)))
+
+        Ok(pyo3::PyClassInitializer::from(PyExpr(ExprEnum::Tuple(exprs))).add_subclass(Self))
     }
 
-    #[getter]
-    fn get_items(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+    fn get_items(
+        slf: pyo3::PyRef<'_, Self>,
+    ) -> pyo3::PyResult<pyo3::Bound<'_, pyo3::types::PyTuple>> {
         let py = slf.py();
-        let ExprEnum::Tuple(items) = &slf.as_super().0 else {
-            unreachable!("TupleExpr instance always holds ExprEnum::Tuple");
-        };
+        let items = Self::inner(&slf);
         let mut out = Vec::with_capacity(items.len());
+
         for item in items {
-            out.push(child(py, item)?);
+            out.push(super::base::into_subclasses(py, item.clone())?);
         }
-        Ok(pyo3::types::PyTuple::new(py, out)?.into_any())
+        pyo3::types::PyTuple::new(py, out)
     }
 }
 
 #[pyo3::pymethods]
-impl PyUnary {
+impl PyUnaryExpr {
     #[new]
-    #[pyo3(signature = (op, expr, /))]
+    #[pyo3(signature = (operator, expr, /))]
     fn __new__(
-        op: &str,
+        operator: &str,
         expr: ExprExtractor,
     ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
-        let Some(op) = UnaryOp::parse(op) else {
+        let Some(op) = super::enum_::UnaryOp::parse(operator) else {
             return rapidquery_macros::pyerr!(
                 Err(PyValueError),
-                "unknown unary operator {op:?}"
+                "unknown unary operator {:?}",
+                operator
             );
         };
-        Ok(subclass::<Self>(ExprEnum::Unary {
+
+        let inner = super::enum_::Unary {
             op,
             expr: Box::new(expr.0),
-        }))
-    }
-
-    #[getter]
-    fn get_op(slf: pyo3::PyRef<'_, Self>) -> &'static str {
-        let ExprEnum::Unary { op, .. } = &slf.as_super().0 else {
-            unreachable!("Unary instance always holds ExprEnum::Unary");
         };
-        op.as_sql()
+        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
     }
 
-    #[getter]
+    fn get_operator(slf: pyo3::PyRef<'_, Self>) -> &'static str {
+        let inner = Self::inner(&slf);
+        inner.op.as_sql()
+    }
+
     fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        let ExprEnum::Unary { expr, .. } = &slf.as_super().0 else {
-            unreachable!("Unary instance always holds ExprEnum::Unary");
-        };
-        child(slf.py(), expr)
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.expr).clone())
     }
 }
 
 #[pyo3::pymethods]
-impl PyBinary {
+impl PyBinaryExpr {
     #[new]
-    #[pyo3(signature = (left, op, right, /))]
+    #[pyo3(signature = (left, operator, right, /))]
     fn __new__(
         left: ExprExtractor,
-        op: &str,
+        operator: &str,
         right: ExprExtractor,
     ) -> pyo3::PyClassInitializer<Self> {
-        subclass::<Self>(ExprEnum::Binary {
+        let inner = super::enum_::Binary {
             left: Box::new(left.0),
-            op: BinaryOp::parse(op),
+            op: super::enum_::BinaryOp::parse(operator),
             right: Box::new(right.0),
-        })
+        };
+        pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self)
     }
 
-    #[getter]
     fn get_left(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        let ExprEnum::Binary { left, .. } = &slf.as_super().0 else {
-            unreachable!("Binary instance always holds ExprEnum::Binary");
-        };
-        child(slf.py(), left)
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.left).clone())
     }
 
-    #[getter]
-    fn get_op(slf: pyo3::PyRef<'_, Self>) -> String {
-        let ExprEnum::Binary { op, .. } = &slf.as_super().0 else {
-            unreachable!("Binary instance always holds ExprEnum::Binary");
-        };
-        op.as_sql().to_owned()
+    fn get_operator(slf: pyo3::PyRef<'_, Self>) -> String {
+        let inner = Self::inner(&slf);
+        inner.op.as_sql().to_owned()
     }
 
-    #[getter]
     fn get_right(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        let ExprEnum::Binary { right, .. } = &slf.as_super().0 else {
-            unreachable!("Binary instance always holds ExprEnum::Binary");
-        };
-        child(slf.py(), right)
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.right).clone())
     }
 }
 
 #[pyo3::pymethods]
-impl PyIs {
+impl PyIsExpr {
     #[new]
-    #[pyo3(signature = (expr, kind, *, negated = false))]
+    #[pyo3(signature = (expr, kind, /, *, negated = false))]
     fn __new__(
         expr: ExprExtractor,
         kind: &str,
         negated: bool,
     ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
-        let Some(kind) = IsKind::parse(kind) else {
+        let Some(kind) = super::enum_::IsKind::parse(kind) else {
             return rapidquery_macros::pyerr!(
                 Err(PyValueError),
-                "unknown IS kind {kind:?}; expected NULL, TRUE, FALSE, or UNKNOWN"
+                "unknown IS kind {:?}; expected NULL, TRUE, FALSE, or UNKNOWN",
+                kind
             );
         };
-        Ok(subclass::<Self>(ExprEnum::Is {
+
+        let inner = super::enum_::Is {
             expr: Box::new(expr.0),
             negated,
             kind,
-        }))
+        };
+        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
     }
 
-    #[getter]
     fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        let ExprEnum::Is { expr, .. } = &slf.as_super().0 else {
-            unreachable!("Is instance always holds ExprEnum::Is");
-        };
-        child(slf.py(), expr)
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.expr).clone())
     }
 
-    #[getter]
     fn get_kind(slf: pyo3::PyRef<'_, Self>) -> &'static str {
-        let ExprEnum::Is { kind, .. } = &slf.as_super().0 else {
-            unreachable!("Is instance always holds ExprEnum::Is");
-        };
-        kind.as_sql()
+        let inner = Self::inner(&slf);
+        inner.kind.as_sql()
     }
 
-    #[getter]
     fn get_negated(slf: pyo3::PyRef<'_, Self>) -> bool {
-        let ExprEnum::Is { negated, .. } = &slf.as_super().0 else {
-            unreachable!("Is instance always holds ExprEnum::Is");
-        };
-        *negated
+        let inner = Self::inner(&slf);
+        inner.negated
     }
 }
 
 #[pyo3::pymethods]
-impl PyIsDistinctFrom {
+impl PyIsDistinctFromExpr {
     #[new]
-    #[pyo3(signature = (left, right, *, negated = false))]
+    #[pyo3(signature = (left, right, /, *, negated = false))]
     fn __new__(
         left: ExprExtractor,
         right: ExprExtractor,
         negated: bool,
     ) -> pyo3::PyClassInitializer<Self> {
-        subclass::<Self>(ExprEnum::IsDistinctFrom {
+        let inner = super::enum_::IsDistinctFrom {
             left: Box::new(left.0),
             right: Box::new(right.0),
             negated,
-        })
+        };
+        pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self)
     }
 
-    #[getter]
     fn get_left(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        let ExprEnum::IsDistinctFrom { left, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        child(slf.py(), left)
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.left).clone())
     }
 
-    #[getter]
     fn get_right(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        let ExprEnum::IsDistinctFrom { right, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        child(slf.py(), right)
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.right).clone())
     }
 
-    #[getter]
     fn get_negated(slf: pyo3::PyRef<'_, Self>) -> bool {
-        let ExprEnum::IsDistinctFrom { negated, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        *negated
+        let inner = Self::inner(&slf);
+        inner.negated
     }
 }
 
 #[pyo3::pymethods]
-impl PyInList {
+impl PyInListExpr {
     #[new]
-    #[pyo3(signature = (expr, list, *, negated = false))]
+    #[pyo3(signature = (expr, list, /, *, negated = false))]
     fn __new__(
         expr: ExprExtractor,
         list: alias::BoundObject<'_>,
@@ -279,98 +262,93 @@ impl PyInList {
         for item in list.try_iter()? {
             items.push(item?.extract::<ExprExtractor>()?.0);
         }
-        Ok(subclass::<Self>(ExprEnum::InList {
+
+        let inner = super::enum_::InList {
             expr: Box::new(expr.0),
             list: items,
             negated,
-        }))
+        };
+        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
     }
 
-    #[getter]
     fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        let ExprEnum::InList { expr, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        child(slf.py(), expr)
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.expr).clone())
     }
 
-    #[getter]
-    fn get_list(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+    fn get_list(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<pyo3::Bound<'_, pyo3::PyAny>> {
         let py = slf.py();
-        let ExprEnum::InList { list, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        let mut out = Vec::with_capacity(list.len());
-        for item in list {
-            out.push(child(py, item)?);
+        let inner = Self::inner(&slf);
+
+        // instead of creating a Vec and then creating a PyTuple, which is `T(n) = 2n`
+        // we can use unsafe tuple to create PyTuple directly, which is `T(n) = n`
+        let tuple = unsafe { pyo3::ffi::PyTuple_New(inner.list.len() as isize) };
+
+        for (ix, arg) in inner.list.iter().enumerate() {
+            match PyExpr(arg.clone()).into_subclasses(py) {
+                Ok(bound) => unsafe {
+                    pyo3::ffi::PyTuple_SetItem(tuple, ix as isize, bound.into_ptr());
+                },
+                Err(err) => unsafe {
+                    pyo3::ffi::Py_DECREF(tuple);
+                    return Err(err);
+                },
+            }
         }
-        Ok(pyo3::types::PyTuple::new(py, out)?.into_any())
+
+        Ok(unsafe { pyo3::Bound::from_owned_ptr(py, tuple) })
     }
 
-    #[getter]
     fn get_negated(slf: pyo3::PyRef<'_, Self>) -> bool {
-        let ExprEnum::InList { negated, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        *negated
+        let inner = Self::inner(&slf);
+        inner.negated
     }
 }
 
 #[pyo3::pymethods]
-impl PyBetween {
+impl PyBetweenExpr {
     #[new]
-    #[pyo3(signature = (expr, low, high, *, negated = false))]
+    #[pyo3(signature = (expr, low, high, /, *, negated = false))]
     fn __new__(
         expr: ExprExtractor,
         low: ExprExtractor,
         high: ExprExtractor,
         negated: bool,
     ) -> pyo3::PyClassInitializer<Self> {
-        subclass::<Self>(ExprEnum::Between {
+        let inner = super::enum_::Between {
             expr: Box::new(expr.0),
             negated,
             low: Box::new(low.0),
             high: Box::new(high.0),
-        })
+        };
+        pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self)
     }
 
-    #[getter]
     fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        let ExprEnum::Between { expr, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        child(slf.py(), expr)
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.expr).clone())
     }
 
-    #[getter]
     fn get_low(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        let ExprEnum::Between { low, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        child(slf.py(), low)
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.low).clone())
     }
 
-    #[getter]
     fn get_high(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        let ExprEnum::Between { high, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        child(slf.py(), high)
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.high).clone())
     }
 
-    #[getter]
     fn get_negated(slf: pyo3::PyRef<'_, Self>) -> bool {
-        let ExprEnum::Between { negated, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        *negated
+        let inner = Self::inner(&slf);
+        inner.negated
     }
 }
 
 #[pyo3::pymethods]
-impl PyLike {
+impl PyLikeExpr {
     #[new]
-    #[pyo3(signature = (expr, pattern, *, kind = "LIKE", negated = false, escape = None))]
+    #[pyo3(signature = (expr, pattern, /, *, kind = "LIKE", negated = false, escape = None))]
     fn __new__(
         expr: ExprExtractor,
         pattern: LiteralExprExtractor,
@@ -378,169 +356,151 @@ impl PyLike {
         negated: bool,
         escape: Option<char>,
     ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
-        let Some(kind) = LikeKind::parse(kind) else {
+        let Some(kind) = super::enum_::LikeKind::parse(kind) else {
             return rapidquery_macros::pyerr!(
                 Err(PyValueError),
                 "unknown LIKE kind {kind:?}; expected LIKE, ILIKE, SIMILAR TO, or RLIKE"
             );
         };
-        Ok(subclass::<Self>(ExprEnum::Like {
+        let inner = super::enum_::Like {
             kind,
             negated,
             expr: Box::new(expr.0),
             pattern: Box::new(pattern.0),
             escape,
-        }))
-    }
-
-    #[getter]
-    fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        let ExprEnum::Like { expr, .. } = &slf.as_super().0 else {
-            unreachable!();
         };
-        child(slf.py(), expr)
+        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
     }
 
-    #[getter]
+    fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.expr).clone())
+    }
+
     fn get_pattern(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        let ExprEnum::Like { pattern, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        child(slf.py(), pattern)
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.pattern).clone())
     }
 
-    #[getter]
     fn get_kind(slf: pyo3::PyRef<'_, Self>) -> &'static str {
-        let ExprEnum::Like { kind, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        kind.as_sql()
+        let inner = Self::inner(&slf);
+        inner.kind.as_sql()
     }
 
-    #[getter]
     fn get_negated(slf: pyo3::PyRef<'_, Self>) -> bool {
-        let ExprEnum::Like { negated, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        *negated
+        let inner = Self::inner(&slf);
+        inner.negated
     }
 
-    #[getter]
     fn get_escape(slf: pyo3::PyRef<'_, Self>) -> Option<char> {
-        let ExprEnum::Like { escape, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        *escape
+        let inner = Self::inner(&slf);
+        inner.escape
     }
 }
 
 #[pyo3::pymethods]
-impl PyCast {
+impl PyCastExpr {
     #[new]
-    #[pyo3(signature = (expr, data_type, /))]
-    fn __new__(expr: ExprExtractor, data_type: PyDataType) -> pyo3::PyClassInitializer<Self> {
-        subclass::<Self>(ExprEnum::Cast {
+    #[pyo3(signature = (expr, to, /))]
+    fn __new__(expr: ExprExtractor, to: String) -> pyo3::PyClassInitializer<Self> {
+        let data_type_name = DataTypeName::from(to);
+        let inner = super::enum_::Cast {
             expr: Box::new(expr.0),
-            data_type,
-        })
+            data_type: data_type_name,
+        };
+        pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self)
     }
 
-    #[getter]
     fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
-        let ExprEnum::Cast { expr, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        child(slf.py(), expr)
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.expr).clone())
     }
 
-    #[getter]
-    fn get_data_type(slf: pyo3::PyRef<'_, Self>) -> PyDataType {
-        let ExprEnum::Cast { data_type, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        data_type.clone()
+    fn get_data_type(slf: pyo3::PyRef<'_, Self>) -> String {
+        let inner = Self::inner(&slf);
+        inner.data_type.to_string()
     }
 }
-
 #[pyo3::pymethods]
-impl PyCase {
+impl PyCaseExpr {
     #[new]
-    #[pyo3(signature = (when_then, *, operand = None, else_ = None))]
-    fn __new__(
-        when_then: alias::BoundObject<'_>,
-        operand: Option<ExprExtractor>,
-        else_: Option<ExprExtractor>,
-    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
-        let mut pairs = Vec::new();
-        for item in when_then.try_iter()? {
-            let item = item?;
-            let pair = item.cast::<pyo3::types::PyTuple>().map_err(|_| {
-                rapidquery_macros::pyerr!(
-                    PyTypeError,
-                    "Case when_then items must be (when, then) pairs"
-                )
-            })?;
-            if pair.len() != 2 {
-                return rapidquery_macros::pyerr!(
-                    Err(PyValueError),
-                    "Case when_then items must be (when, then) pairs"
-                );
-            }
-            let when = pair.get_item(0)?.extract::<ExprExtractor>()?.0;
-            let then = pair.get_item(1)?.extract::<ExprExtractor>()?.0;
-            pairs.push((when, then));
-        }
-        Ok(subclass::<Self>(ExprEnum::Case {
+    #[pyo3(signature = (operand = None, /))]
+    fn __new__(operand: Option<ExprExtractor>) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+        let inner = super::enum_::Case {
             operand: operand.map(|ExprExtractor(e)| Box::new(e)),
-            when_then: pairs,
-            else_result: else_.map(|ExprExtractor(e)| Box::new(e)),
-        }))
+            when: vec![],
+            else_result: None,
+        };
+        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
     }
 
-    #[getter]
-    fn get_operand(
+    fn when(
         slf: pyo3::PyRef<'_, Self>,
-    ) -> pyo3::PyResult<Option<alias::BoundObject<'_>>> {
-        let ExprEnum::Case { operand, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        match operand {
-            Some(expr) => Ok(Some(child(slf.py(), expr)?)),
-            None => Ok(None),
+        when: ConditionExtractor,
+        then: ExprExtractor,
+    ) -> pyo3::PyResult<alias::PyObject> {
+        let mut inner = Self::inner(&slf).clone();
+        inner.when.push((when.0, then.0));
+
+        pyo3::Py::new(
+            slf.py(),
+            pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self),
+        )
+        .map(pyo3::Py::into_any)
+    }
+
+    fn else_(slf: pyo3::PyRef<'_, Self>, result: ExprExtractor) -> pyo3::PyResult<alias::PyObject> {
+        let mut inner = Self::inner(&slf).clone();
+        inner.else_result = Some(Box::new(result.0));
+
+        pyo3::Py::new(
+            slf.py(),
+            pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self),
+        )
+        .map(pyo3::Py::into_any)
+    }
+
+    fn get_operand(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+        let inner = Self::inner(&slf);
+
+        match inner.operand.as_ref() {
+            Some(expr) => {
+                let bound = super::base::into_subclasses(slf.py(), (**expr).clone())?;
+                Ok(bound)
+            }
+            None => Ok(slf.py().None().into_any().into_bound(slf.py())),
         }
     }
 
-    #[getter]
-    fn get_when_then(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+    fn get_when_list(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
         let py = slf.py();
-        let ExprEnum::Case { when_then, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        let mut out = Vec::with_capacity(when_then.len());
-        for (when, then) in when_then {
+        let inner = Self::inner(&slf);
+
+        let mut out = Vec::with_capacity(inner.when.len());
+        for (when, then) in inner.when.iter() {
             let pair = pyo3::types::PyTuple::new(
                 py,
-                [child(py, when)?, child(py, then)?],
+                [
+                    super::base::into_subclasses(py, when.clone())?,
+                    super::base::into_subclasses(py, then.clone())?,
+                ],
             )?;
             out.push(pair);
         }
         Ok(pyo3::types::PyTuple::new(py, out)?.into_any())
     }
 
-    #[getter]
-    fn get_else_(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<Option<alias::BoundObject<'_>>> {
-        let ExprEnum::Case { else_result, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        match else_result {
-            Some(expr) => Ok(Some(child(slf.py(), expr)?)),
-            None => Ok(None),
+    fn get_else(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+        let inner = Self::inner(&slf);
+        match inner.else_result.as_ref() {
+            Some(expr) => super::base::into_subclasses(slf.py(), (**expr).clone()),
+            None => Ok(utils::new_pynone(slf.py())),
         }
     }
 }
 
 #[pyo3::pymethods]
-impl PyCustom {
+impl PyCustomExpr {
     #[new]
     #[pyo3(signature = (sql, *args))]
     fn __new__(
@@ -548,33 +508,43 @@ impl PyCustom {
         args: alias::ArgsType<'_>,
     ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
         let mut extracted = Vec::with_capacity(args.len());
+
         for item in args.iter() {
             extracted.push(item.extract::<ExprExtractor>()?.0);
         }
-        Ok(subclass::<Self>(ExprEnum::Custom {
-            sql,
+
+        let inner = super::enum_::Custom {
+            sql: sql.into(),
             args: extracted,
-        }))
-    }
-
-    #[getter]
-    fn get_sql(slf: pyo3::PyRef<'_, Self>) -> String {
-        let ExprEnum::Custom { sql, .. } = &slf.as_super().0 else {
-            unreachable!();
         };
-        sql.clone()
+        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
     }
 
-    #[getter]
+    fn get_sql(slf: pyo3::PyRef<'_, Self>) -> String {
+        let inner = Self::inner(&slf);
+        inner.sql.to_string()
+    }
+
     fn get_args(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
         let py = slf.py();
-        let ExprEnum::Custom { args, .. } = &slf.as_super().0 else {
-            unreachable!();
-        };
-        let mut out = Vec::with_capacity(args.len());
-        for arg in args {
-            out.push(child(py, arg)?);
+        let inner = Self::inner(&slf);
+
+        // instead of creating a Vec and then creating a PyTuple, which is `T(n) = 2n`
+        // we can use unsafe tuple to create PyTuple directly, which is `T(n) = n`
+        let tuple = unsafe { pyo3::ffi::PyTuple_New(inner.args.len() as isize) };
+
+        for (ix, arg) in inner.args.iter().enumerate() {
+            match PyExpr(arg.clone()).into_subclasses(py) {
+                Ok(bound) => unsafe {
+                    pyo3::ffi::PyTuple_SetItem(tuple, ix as isize, bound.into_ptr());
+                },
+                Err(err) => unsafe {
+                    pyo3::ffi::Py_DECREF(tuple);
+                    return Err(err);
+                },
+            }
         }
-        Ok(pyo3::types::PyTuple::new(py, out)?.into_any())
+
+        Ok(unsafe { pyo3::Bound::from_owned_ptr(py, tuple) })
     }
 }

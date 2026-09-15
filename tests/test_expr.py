@@ -1,10 +1,10 @@
 import pytest
 
-from rapidquery import Asterisk, Expr, Func, Ident, Unquote, Value
+from rapidquery import Asterisk, Expr, Function, Ident, Unquote, Value
 from rapidquery.data_type import DataType
 from rapidquery.expr import (
     Between,
-    Binary,
+    BinaryExpr,
     Case,
     Cast,
     Custom,
@@ -13,7 +13,7 @@ from rapidquery.expr import (
     IsDistinctFrom,
     Like,
     TupleExpr,
-    Unary,
+    UnaryExpr,
 )
 
 
@@ -21,14 +21,14 @@ class TestExprHierarchy:
     def test_ident_and_value_are_expr(self):
         assert isinstance(Ident("id"), Expr)
         assert isinstance(Value(1), Expr)
-        assert isinstance(Func("SUM", "amount"), Expr)
+        assert isinstance(Function("SUM", "amount"), Expr)
 
     def test_ident_value_live_in_expr_module(self):
         assert Ident.__module__ == "rapidquery._core.expr"
         assert Value.__module__ == "rapidquery._core.expr"
         assert Unquote.__module__ == "rapidquery._core.expr"
         assert Asterisk.__module__ == "rapidquery._core.expr"
-        assert Func.__module__ == "rapidquery._core.expr"
+        assert Function.__module__ == "rapidquery._core.expr"
 
     def test_base_expr_cannot_be_instantiated(self):
         with pytest.raises(TypeError):
@@ -43,7 +43,7 @@ class TestExprHierarchy:
 
 class TestBinaryUnary:
     def test_str_is_ident(self):
-        expr = Binary("a", "+", "b")
+        expr = BinaryExpr("a", "+", "b")
         assert isinstance(expr.left, Ident)
         assert expr.left[0] == "a"
         assert expr.op == "+"
@@ -51,40 +51,40 @@ class TestBinaryUnary:
         assert repr(expr) == 'Binary(Ident("a"), "+", Ident("b"))'
 
     def test_value_for_string_literal(self):
-        expr = Binary("id", "=", Value("x"))
+        expr = BinaryExpr("id", "=", Value("x"))
         assert isinstance(expr.left, Ident)
         assert isinstance(expr.right, Value)
         assert expr.right.object == "x"
 
     def test_custom_operator(self):
-        expr = Binary("data", "->", Unquote("key"))
+        expr = BinaryExpr("data", "->", Unquote("key"))
         assert expr.op == "->"
 
     def test_unary_not(self):
-        expr = Unary("NOT", "x")
+        expr = UnaryExpr("NOT", "x")
         assert expr.op == "NOT"
         assert isinstance(expr.expr, Ident)
 
     def test_unknown_unary_raises(self):
         with pytest.raises(ValueError, match="unknown unary"):
-            Unary("@", "x")
+            UnaryExpr("@", "x")
 
 
 class TestFunc:
     def test_args_are_idents(self):
-        fn = Func("SUM", "amount")
+        fn = Function("SUM", "amount")
         assert isinstance(fn.name, Ident)
         assert fn.args is not None
         assert isinstance(fn.args[0], Ident)
         assert fn.filter is None
 
     def test_bare_function(self):
-        fn = Func("CURRENT_TIMESTAMP", parentheses=False)
+        fn = Function("CURRENT_TIMESTAMP", parentheses=False)
         assert fn.args is None
         assert "parentheses=False" in repr(fn)
 
     def test_distinct(self):
-        fn = Func("COUNT", "id", distinct=True)
+        fn = Function("COUNT", "id", distinct=True)
         assert "distinct=True" in repr(fn)
 
 
@@ -144,5 +144,5 @@ class TestEquality:
         assert hash(Ident("id")) != hash(Ident(Unquote("id")))
 
     def test_binary_equality(self):
-        assert Binary("a", "+", "b") == Binary("a", "+", "b")
-        assert Binary("a", "+", "b") != Binary("a", "-", "b")
+        assert BinaryExpr("a", "+", "b") == BinaryExpr("a", "+", "b")
+        assert BinaryExpr("a", "+", "b") != BinaryExpr("a", "-", "b")

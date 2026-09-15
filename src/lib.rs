@@ -25,7 +25,6 @@ mod _core {
     fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
         use crate::internal::utils::PyModuleSubmoduleExt;
 
-        // Cache PyTypeObject* before any Python code can extract a dialect.
         crate::typeref::initialize_typeref(m.py());
         m.init_submodules()
     }

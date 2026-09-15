@@ -48,7 +48,6 @@ class Ident(Expr):
     def __getitem__(self, index: int) -> str | Unquote | Asterisk: ...
     @overload
     def __getitem__(self, index: slice) -> Ident: ...
-    def __iter__(self) -> Iterator[str | Unquote | Asterisk]: ...
     def to_list(self) -> Sequence[str | Unquote | Asterisk]: ...
     def to_sql(self, dialect: type[SqlDialect] | SqlDialect) -> str: ...
 
@@ -72,14 +71,13 @@ class Value(Expr, typing.Generic[_T]):
     def to_sql(self, dialect: type[SqlDialect] | SqlDialect) -> str: ...
 
 @final
-class Func(Expr):
+class Function(Expr):
     def __new__(
         cls,
         name: str | Ident | Unquote,
         *args: object,
         distinct: bool | None = None,
         filter: object | None = None,
-        parentheses: bool = True,
     ) -> Self: ...
     @property
     def name(self) -> Ident: ...
@@ -95,7 +93,7 @@ class TupleExpr(Expr):
     def items(self) -> tuple[Expr, ...]: ...
 
 @final
-class Unary(Expr):
+class UnaryExpr(Expr):
     def __new__(cls, op: str, expr: object, /) -> Self: ...
     @property
     def op(self) -> str: ...
@@ -103,7 +101,7 @@ class Unary(Expr):
     def expr(self) -> Expr: ...
 
 @final
-class Binary(Expr):
+class BinaryExpr(Expr):
     def __new__(cls, left: object, op: str, right: object, /) -> Self: ...
     @property
     def left(self) -> Expr: ...
@@ -113,7 +111,7 @@ class Binary(Expr):
     def right(self) -> Expr: ...
 
 @final
-class Is(Expr):
+class IsExpr(Expr):
     def __new__(cls, expr: object, kind: str, *, negated: bool = False) -> Self: ...
     @property
     def expr(self) -> Expr: ...
@@ -123,7 +121,7 @@ class Is(Expr):
     def negated(self) -> bool: ...
 
 @final
-class IsDistinctFrom(Expr):
+class IsDistinctFromExpr(Expr):
     def __new__(cls, left: object, right: object, *, negated: bool = False) -> Self: ...
     @property
     def left(self) -> Expr: ...
@@ -133,7 +131,7 @@ class IsDistinctFrom(Expr):
     def negated(self) -> bool: ...
 
 @final
-class InList(Expr):
+class InListExpr(Expr):
     def __new__(
         cls, expr: object, list: Iterable[object], *, negated: bool = False
     ) -> Self: ...
@@ -145,7 +143,7 @@ class InList(Expr):
     def negated(self) -> bool: ...
 
 @final
-class Between(Expr):
+class BetweenExpr(Expr):
     def __new__(
         cls,
         expr: object,
@@ -164,7 +162,7 @@ class Between(Expr):
     def negated(self) -> bool: ...
 
 @final
-class Like(Expr):
+class LikeExpr(Expr):
     def __new__(
         cls,
         expr: object,
@@ -186,7 +184,7 @@ class Like(Expr):
     def escape(self) -> str | None: ...
 
 @final
-class Cast(Expr):
+class CastExpr(Expr):
     def __new__(cls, expr: object, data_type: DataType, /) -> Self: ...
     @property
     def expr(self) -> Expr: ...
@@ -194,7 +192,7 @@ class Cast(Expr):
     def data_type(self) -> DataType: ...
 
 @final
-class Case(Expr):
+class CaseExpr(Expr):
     def __new__(
         cls,
         when_then: Iterable[tuple[object, object]],
@@ -210,7 +208,7 @@ class Case(Expr):
     def else_(self) -> Expr | None: ...
 
 @final
-class Custom(Expr):
+class CustomExpr(Expr):
     def __new__(cls, sql: str, *args: object) -> Self: ...
     @property
     def sql(self) -> str: ...

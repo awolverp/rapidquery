@@ -12,7 +12,7 @@ pub use submodule_ext::*;
 /// returned slice is valid until that object is mutated or the GIL is
 /// released. The GIL must be held (`py`).
 #[inline]
-pub unsafe fn py_str<'a>(
+pub unsafe fn borrow_py_str_buffer<'a>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
 ) -> pyo3::PyResult<&'a str> {
@@ -53,6 +53,12 @@ pub unsafe fn get_type_name<'a>(py: pyo3::Python<'a>, obj: *mut pyo3::ffi::PyObj
             .map(|x| x.to_string_lossy().into_owned())
             .unwrap_or_else(|_| String::from("<unknown>"))
     }
+}
+
+/// Gets the Python builtin value `None` as [`pyo3::Bound<'_, pyo3::PyAny>`].
+#[inline]
+pub fn new_pynone<'py>(py: pyo3::Python<'py>) -> pyo3::Bound<'py, pyo3::PyAny> {
+    unsafe { pyo3::Bound::from_borrowed_ptr(py, pyo3::ffi::Py_None()) }
 }
 
 /// Helper enum to accept either an `isize` index or a `slice` in `__getitem__`.
