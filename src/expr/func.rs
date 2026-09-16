@@ -1,10 +1,8 @@
-use pyo3::types::{PyAnyMethods, PyTupleMethods};
-
 use crate::internal::{alias, utils};
 
 use super::base::PyExpr;
 use super::enum_::{DuplicateTreatment, FunctionArguments};
-use super::extractors::{ExprExtractor, IdentExtractor};
+use super::extractors::{ConditionExtractor, ExprExtractor, IdentExtractor};
 
 /// SQL function call.
 ///
@@ -44,36 +42,29 @@ impl PyFunction {
 #[pyo3::pymethods]
 impl PyFunction {
     #[new]
-    #[pyo3(signature = (name, *args, distinct = None, filter = None))]
+    #[pyo3(signature = (name, args = None, *, distinct = None, filter = None))]
     fn __new__(
         name: IdentExtractor,
-        args: alias::ArgsType<'_>,
+        args: Option<Vec<ExprExtractor>>,
         distinct: Option<bool>,
-        filter: Option<ExprExtractor>,
+        filter: Option<ConditionExtractor>,
     ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
-        let func_args = if args.is_empty() {
-            FunctionArguments::None
-        } else {
-            let mut extracted = Vec::with_capacity(args.len());
-
-            for item in args.iter() {
-                extracted.push(item.extract::<ExprExtractor>()?.0);
-            }
-
-            FunctionArguments::List {
+        let func_args = match args {
+            None => FunctionArguments::None,
+            Some(x) => FunctionArguments::List {
                 duplicate_treatment: match distinct {
                     Some(true) => Some(DuplicateTreatment::Distinct),
                     Some(false) => Some(DuplicateTreatment::All),
                     None => None,
                 },
-                args: extracted,
-            }
+                args: x.into_iter().map(|ExprExtractor(x)| x).collect(),
+            },
         };
 
         let inner = super::enum_::Function {
             name: name.0,
             args: func_args,
-            filter: filter.map(|ExprExtractor(expr)| Box::new(expr)),
+            filter: filter.map(|ConditionExtractor(expr)| Box::new(expr)),
         };
         Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
     }

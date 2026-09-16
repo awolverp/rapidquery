@@ -202,7 +202,8 @@ class Function(Expr):
     def __new__(
         cls,
         name: str | Ident | Unquote,
-        *args: object,
+        args: typing.Iterable[object] | None,
+        *,
         distinct: bool | None = None,
         filter: Expr | None = None,
     ) -> Self:
@@ -211,9 +212,8 @@ class Function(Expr):
 
         Args:
             name: Function name (``str``, ``Ident``, or ``Unquote``).
-            *args: Positional argument expressions. A bare ``str`` is a
-                column. An empty argument list means no parentheses
-                (``CURRENT_TIMESTAMP``).
+            args: Positional argument expressions. A bare ``str`` is a
+                column. `None` means no parentheses (``CURRENT_TIMESTAMP``).
             distinct: ``True`` inserts ``DISTINCT``, ``False`` inserts
                 ``ALL``, omitted inserts neither.
             filter: Optional ``FILTER (WHERE …)`` predicate.

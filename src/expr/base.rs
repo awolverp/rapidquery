@@ -9,6 +9,7 @@
 // `custom`. Prefer named methods over v0 dunders that return `Expr`.
 
 use crate::internal::alias;
+use crate::sql;
 
 use super::enum_::ExprEnum;
 
@@ -76,6 +77,24 @@ impl PyExpr {
 
 #[pyo3::pymethods]
 impl PyExpr {
+    /// Render this expression as a parameterized statement.
+    fn prepare(
+        slf: pyo3::PyRef<'_, Self>,
+        py: pyo3::Python<'_>,
+        dialect: crate::dialect::py::PySqlDialect,
+    ) -> pyo3::PyResult<(String, sql::PrepareParams)> {
+        sql::prepare(py, &slf.0, &dialect.0).map_err(Into::into)
+    }
+
+    /// Render this expression as raw SQL (values inlined as literals).
+    fn to_sql(
+        slf: pyo3::PyRef<'_, Self>,
+        py: pyo3::Python<'_>,
+        dialect: crate::dialect::py::PySqlDialect,
+    ) -> pyo3::PyResult<String> {
+        sql::write_sql(py, &slf.0, &dialect.0).map_err(Into::into)
+    }
+
     fn __repr__(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
         self.0.python_repr(py)
     }
