@@ -216,6 +216,13 @@ impl From<Custom> for ExprEnum {
 }
 
 impl ExprEnum {
+    /// `true` when this node can appear as a SQL condition (`WHERE`,
+    /// `WHEN`, `FILTER`). Identifiers and bound values are not conditions.
+    #[inline]
+    pub(crate) fn is_condition(&self) -> bool {
+        !matches!(self, Self::Ident(_) | Self::Value(_))
+    }
+
     /// Lower is tighter binding.
     #[inline]
     fn precedence(&self) -> u8 {

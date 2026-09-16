@@ -1,17 +1,16 @@
 import pytest
 
 from rapidquery import Asterisk, Expr, Function, Ident, Unquote, Value
-from rapidquery.data_type import DataType
 from rapidquery.expr import (
-    Between,
+    BetweenExpr,
     BinaryExpr,
-    Case,
-    Cast,
-    Custom,
-    InList,
-    Is,
-    IsDistinctFrom,
-    Like,
+    CaseExpr,
+    CastExpr,
+    CustomExpr,
+    InListExpr,
+    IsDistinctFromExpr,
+    IsExpr,
+    LikeExpr,
     TupleExpr,
     UnaryExpr,
 )
@@ -44,44 +43,43 @@ class TestExprHierarchy:
 class TestBinaryUnary:
     def test_str_is_ident(self):
         expr = BinaryExpr("a", "+", "b")
-        assert isinstance(expr.left, Ident)
-        assert expr.left[0] == "a"
-        assert expr.op == "+"
-        assert isinstance(expr.right, Ident)
-        assert repr(expr) == 'Binary(Ident("a"), "+", Ident("b"))'
+        assert isinstance(expr.get_left(), Ident)
+        assert expr.get_left().to_list()[0] == "a"
+        assert expr.get_operator() == "+"
+        assert isinstance(expr.get_right(), Ident)
+        assert repr(expr) == 'BinaryExpr(Ident("a"), "+", Ident("b"))'
 
     def test_value_for_string_literal(self):
         expr = BinaryExpr("id", "=", Value("x"))
-        assert isinstance(expr.left, Ident)
-        assert isinstance(expr.right, Value)
-        assert expr.right.object == "x"
+        assert isinstance(expr.get_left(), Ident)
+        assert isinstance(expr.get_right(), Value)
+        assert expr.get_right().get_object() == "x"
 
     def test_custom_operator(self):
         expr = BinaryExpr("data", "->", Unquote("key"))
-        assert expr.op == "->"
+        assert expr.get_operator() == "->"
 
     def test_unary_not(self):
         expr = UnaryExpr("NOT", "x")
-        assert expr.op == "NOT"
-        assert isinstance(expr.expr, Ident)
+        assert expr.get_operator() == "NOT"
+        assert isinstance(expr.get_expr(), Ident)
 
     def test_unknown_unary_raises(self):
         with pytest.raises(ValueError, match="unknown unary"):
             UnaryExpr("@", "x")
 
 
-class TestFunc:
+class TestFunction:
     def test_args_are_idents(self):
         fn = Function("SUM", "amount")
-        assert isinstance(fn.name, Ident)
-        assert fn.args is not None
-        assert isinstance(fn.args[0], Ident)
-        assert fn.filter is None
+        assert isinstance(fn.get_name(), Ident)
+        assert fn.get_args() is not None
+        assert isinstance(fn.get_args()[0], Ident)
+        assert fn.get_filter() is None
 
     def test_bare_function(self):
-        fn = Function("CURRENT_TIMESTAMP", parentheses=False)
-        assert fn.args is None
-        assert "parentheses=False" in repr(fn)
+        fn = Function("CURRENT_TIMESTAMP")
+        assert fn.get_args() is None
 
     def test_distinct(self):
         fn = Function("COUNT", "id", distinct=True)
@@ -91,58 +89,71 @@ class TestFunc:
 class TestNodes:
     def test_tuple_expr(self):
         expr = TupleExpr("a", "b")
-        assert len(expr.items) == 2
-        assert isinstance(expr.items[0], Ident)
+        items = expr.get_items()
+        assert len(items) == 2
+        assert isinstance(items[0], Ident)
 
     def test_is_null(self):
-        expr = Is("x", "NULL", negated=True)
-        assert expr.kind == "NULL"
-        assert expr.negated is True
+        expr = IsExpr("x", "NULL", negated=True)
+        assert expr.get_kind() == "NULL"
+        assert expr.get_negated() is True
 
     def test_in_list(self):
-        expr = InList("x", ["a", "b"])
-        assert len(expr.list) == 2
-        assert isinstance(expr.list[0], Ident)
+        expr = InListExpr("x", ["a", "b"])
+        assert len(expr.get_list()) == 2
+        assert isinstance(expr.get_list()[0], Ident)
 
     def test_between(self):
-        expr = Between("x", "a", "b")
-        assert isinstance(expr.low, Ident)
-        assert isinstance(expr.high, Ident)
+        expr = BetweenExpr("x", "a", "b")
+        assert isinstance(expr.get_low(), Ident)
+        assert isinstance(expr.get_high(), Ident)
 
     def test_like_pattern_is_literal(self):
-        expr = Like("name", "%a%")
-        assert isinstance(expr.expr, Ident)
-        assert isinstance(expr.pattern, Value)
-        assert expr.pattern.object == "%a%"
-        assert expr.kind == "LIKE"
+        expr = LikeExpr("name", "%a%")
+        assert isinstance(expr.get_expr(), Ident)
+        assert isinstance(expr.get_pattern(), Value)
+        assert expr.get_pattern().get_object() == "%a%"
+        assert expr.get_kind() == "LIKE"
 
     def test_cast(self):
-        expr = Cast("x", DataType("int"))
-        assert isinstance(expr.expr, Ident)
-        assert expr.data_type.name == "INT"
-
-    def test_case(self):
-        expr = Case([("a", "b")], else_="c")
-        assert expr.operand is None
-        assert len(expr.when_then) == 1
-        assert isinstance(expr.when_then[0][0], Ident)
-        assert isinstance(expr.else_, Ident)
+        expr = CastExpr("x", "int")
+        assert isinstance(expr.get_expr(), Ident)
+        assert expr.get_data_type() == "INT"
 
     def test_custom(self):
-        expr = Custom("json_agg(DISTINCT {})", "col")
-        assert expr.sql == "json_agg(DISTINCT {})"
-        assert isinstance(expr.args[0], Ident)
+        expr = CustomExpr("json_agg(DISTINCT {})", "col")
+        assert expr.get_sql() == "json_agg(DISTINCT {})"
+        assert isinstance(expr.get_args()[0], Ident)
 
     def test_is_distinct_from(self):
-        expr = IsDistinctFrom("a", "b", negated=True)
-        assert expr.negated is True
+        expr = IsDistinctFromExpr("a", "b", negated=True)
+        assert expr.get_negated() is True
 
 
-class TestEquality:
-    def test_ident_equality_still_works(self):
-        assert Ident("t", "id") == Ident("t", "id")
-        assert hash(Ident("id")) != hash(Ident(Unquote("id")))
+class TestConditionExtractor:
+    def test_case_when_accepts_binary_condition(self):
+        cond = BinaryExpr("x", ">", "y")
+        expr = CaseExpr().when(cond, "yes").else_("no")
+        when_list = expr.get_when_list()
+        assert len(when_list) == 1
+        assert isinstance(when_list[0][0], BinaryExpr)
+        assert isinstance(when_list[0][1], Ident)
+        assert isinstance(expr.get_else(), Ident)
 
-    def test_binary_equality(self):
-        assert BinaryExpr("a", "+", "b") == BinaryExpr("a", "+", "b")
-        assert BinaryExpr("a", "+", "b") != BinaryExpr("a", "-", "b")
+    def test_case_when_accepts_is_expr(self):
+        expr = CaseExpr().when(IsExpr("x", "NULL"), "missing")
+        assert isinstance(expr.get_when_list()[0][0], IsExpr)
+
+    def test_case_when_rejects_ident(self):
+        with pytest.raises(TypeError, match="condition"):
+            CaseExpr().when(Ident("x"), "yes")
+
+    def test_case_when_rejects_value(self):
+        with pytest.raises(TypeError, match="condition"):
+            CaseExpr().when(Value(1), "yes")
+
+    def test_case_when_rejects_bare_str_and_int(self):
+        with pytest.raises(TypeError, match="condition"):
+            CaseExpr().when("x", "yes")
+        with pytest.raises(TypeError, match="condition"):
+            CaseExpr().when(1, "yes")

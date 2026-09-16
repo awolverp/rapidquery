@@ -181,6 +181,22 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for ConditionExtractor {
     fn extract(
         obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>,
     ) -> Result<Self, Self::Error> {
-        todo!()
+        let ptr = obj.as_ptr();
+        unsafe {
+            if crate::typeref::check(ptr, crate::typeref::EXPR_TYPE) {
+                let expr = obj.cast_unchecked::<super::base::PyExpr>();
+                let inner = &expr.get().0;
+
+                if inner.is_condition() {
+                    return Ok(Self(inner.clone()));
+                }
+            }
+        }
+
+        rapidquery_macros::pyerr!(
+            Err(PyTypeError),
+            "expected a condition expression, got {}",
+            unsafe { crate::internal::utils::get_type_name(obj.py(), obj.as_ptr()) }
+        )
     }
 }
