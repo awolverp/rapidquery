@@ -131,6 +131,12 @@ impl PyDataType {
     ///
     /// Returns:
     ///     A SQL fragment produced by this type's serializer.
+    ///
+    /// Raises:
+    ///     TypeError: If `object` is not an accepted type for this serializer.
+    ///     ValueError: If `object` is the right type but cannot be represented.
+    ///     NotImplementedError: If `dialect` has no native literal for this
+    ///             type's serializer (bit strings, `ARRAY[…]`, inet, macaddr).
     fn serialize(
         &self,
         dialect: crate::dialect::py::PySqlDialect,

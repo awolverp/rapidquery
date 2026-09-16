@@ -97,6 +97,18 @@ impl SerializerEnum {
         }
     }
 
+    /// Whether `dialect` can emit a native literal for this serializer.
+    #[inline]
+    pub fn is_supported_by(&self, dialect: &crate::dialect::SqlDialect) -> bool {
+        match self {
+            Self::Bit => dialect.supports_bit(),
+            Self::Array(_) => dialect.supports_array(),
+            Self::Inet => dialect.supports_inet(),
+            Self::MacAddress => dialect.supports_mac_address(),
+            _ => true,
+        }
+    }
+
     pub fn infer_bound(bound: &alias::BoundObject) -> Self {
         unsafe {
             let object_ptr = bound.as_ptr();

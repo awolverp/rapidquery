@@ -39,6 +39,8 @@ class Serializer(typing.Generic[_T]):
             TypeError: If `object` is not an accepted type for this serializer.
             ValueError: If `object` is the right type but cannot be represented
                     (for example a non-finite float).
+            NotImplementedError: If `dialect` has no native literal for this
+                    serializer (bit strings, `ARRAY[…]`, inet, macaddr).
         """
 
     def __eq__(self, other: object) -> bool: ...
@@ -110,6 +112,7 @@ class UuidSerializer(Serializer[uuid.UUID | str]):
 
     Raises:
         TypeError: If the value is not a `uuid.UUID` or `str`.
+        ValueError: If the value is `str`, but it is not a UUID.
     """
 
     def __new__(cls) -> typing.Self: ...
@@ -133,10 +136,12 @@ class BitSerializer(Serializer[str]):
     Serializes bit strings as dialect bit-string literals.
 
     Accepts a `str` consisting only of `'0'` and `'1'` characters.
+    Supported on PostgreSQL, DuckDB, MySQL, and Teradata.
 
     Raises:
         TypeError: If the value is not a `str`.
         ValueError: If the string is empty or contains characters other than `'0'` and `'1'`.
+        NotImplementedError: If the dialect has no native bit-string literal.
     """
 
     def __new__(cls) -> typing.Self: ...
@@ -149,7 +154,7 @@ class JSONSerializer(Serializer[typing.Any]):
     Accepts any object that the JSON encoder can dump. Uses `orjson` when it
     is installed, otherwise the stdlib `json` module. The JSON text is then
     wrapped with the dialect's string quoting. With `orjson`, datetime, UUID,
-    dataclass, and non-str dict keys are encoded natively; stdlib `json`
+    enum.StrEnum, and dataclass are encoded natively; stdlib `json`
     rejects those.
 
     Raises:
@@ -207,10 +212,11 @@ class InetSerializer(Serializer[typing.Any]):
 
     Accepts `str` or `ipaddress` objects (`IPv4Address`, `IPv6Address`,
     `IPv4Network`, `IPv6Network`, and related types whose `str()` is a valid
-    address or CIDR).
+    address or CIDR). Supported on PostgreSQL and DuckDB.
 
     Raises:
         ValueError: If the value is not a valid IPv4/IPv6 address or network.
+        NotImplementedError: If the dialect has no native INET type.
     """
 
     def __new__(cls) -> typing.Self: ...
@@ -221,9 +227,11 @@ class MacAddressSerializer(Serializer[str]):
     Serializes MAC addresses as quoted SQL literals.
 
     Accepts a `str` using `:` or `-` as the separator.
+    Supported on PostgreSQL.
 
     Raises:
         ValueError: If the value is not a valid MAC address.
+        NotImplementedError: If the dialect has no native MACADDR type.
     """
 
     def __new__(cls) -> typing.Self: ...
@@ -246,7 +254,11 @@ class ArraySerializer(Serializer[list[_T] | tuple[_T]]):
 
     Each element is serialized independently with `element`. Accepts `list`
     or `tuple`. Nested arrays are expressed by wrapping another
-    `ArraySerializer`.
+    `ArraySerializer`. Supported on PostgreSQL, DuckDB, and BigQuery.
+
+    Raises:
+        TypeError: If the value is not a `list` or `tuple`.
+        NotImplementedError: If the dialect has no `ARRAY[…]` constructor.
     """
 
     def __new__(cls, element: Serializer[_T]) -> typing.Self:
@@ -364,6 +376,12 @@ class DataType(typing.Generic[_T]):
 
         Returns:
             A SQL fragment produced by this type's serializer.
+
+        Raises:
+            TypeError: If `object` is not an accepted type for this serializer.
+            ValueError: If `object` is the right type but cannot be represented.
+            NotImplementedError: If `dialect` has no native literal for this
+                    type's serializer (bit strings, `ARRAY[…]`, inet, macaddr).
         """
 
     def __eq__(self, other: object) -> bool: ...

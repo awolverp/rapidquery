@@ -45,6 +45,7 @@ smallvec = { version = "1.16.0", default-features = false }
 sqlparser = { version = "0.62.0", default-features = false }
 # ONLY for inspiring the source
 sea-query = { version = "1.0.2", default-features = false }
+uuid = { version = "1.26.1", default-features = false }
 
 [features]
 default = ["extension-module"]

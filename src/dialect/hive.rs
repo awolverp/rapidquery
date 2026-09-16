@@ -58,6 +58,7 @@ pub(super) fn encode_bytes<W: std::fmt::Write>(writer: &mut W, bytes: &[u8]) -> 
     writer.write_str("')")
 }
 
+// Unsupported: Serializer::write_sql raises NotImplementedError via supports_bit.
 pub(super) fn encode_bits<W: std::fmt::Write>(writer: &mut W, bits: &str) -> std::fmt::Result {
     write!(writer, "CAST({} AS BIGINT)", super::bits_as_i64(bits))
 }

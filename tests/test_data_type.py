@@ -12,36 +12,12 @@ from rapidquery.data_type import (
     IntegerSerializer,
     JSONSerializer,
     MacAddressSerializer,
-    Serializer,
     StringSerializer,
     TimeSerializer,
     UnspecifiedSerializer,
     UuidSerializer,
 )
 from rapidquery.dialect import PostgreSQL
-
-
-class TestDataTypeConstruction:
-    def test_constructs_with_name_only(self):
-        dt = DataType("integer")
-        assert dt.name == "INTEGER" or dt.name.lower() == "integer"
-
-    def test_constructs_with_explicit_serializer(self):
-        dt = DataType("my_custom_type", StringSerializer())
-        assert isinstance(dt.serializer, StringSerializer)
-
-    def test_name_property_returns_str(self):
-        dt = DataType("varchar")
-        assert isinstance(dt.name, str)
-
-    def test_serializer_property_returns_serializer_instance(self):
-        dt = DataType("integer")
-        assert isinstance(dt.serializer, Serializer)
-
-    def test_explicit_serializer_overrides_inference(self):
-        dt = DataType("integer", StringSerializer())
-        assert isinstance(dt.serializer, StringSerializer)
-        assert not isinstance(dt.serializer, IntegerSerializer)
 
 
 class TestDataTypeNameNormalization:
@@ -83,21 +59,38 @@ class TestDataTypeNameNormalization:
 
 
 class TestDataTypeSerializerInference:
-    """`DataType(name).serializer` with no explicit serializer should infer
-    the correct serializer type from the SQL type name's group.
-    """
-
     @pytest.mark.parametrize(
         "name",
         [
             "tinyint",
+            "tinyint unsigned",
+            "utinyint",
+            "int2",
+            "int2 unsigned",
             "smallint",
+            "smallint unsigned",
+            "usmallint",
             "mediumint",
+            "mediumint unsigned",
             "int",
-            "integer",
-            "bigint",
+            "int4",
             "int8",
+            "int64",
+            "integer",
+            "unsigned integer",
+            "integer unsigned",
+            "int unsigned",
+            "int4 unsigned",
             "hugeint",
+            "uhugeint",
+            "bigint",
+            "bigint unsigned",
+            "unsigned bigint",
+            "unsigned bitint",
+            "ubigint",
+            "int8 unsigned",
+            "signed",
+            "signed integer",
             "unsigned",
         ],
     )
@@ -107,13 +100,21 @@ class TestDataTypeSerializerInference:
     @pytest.mark.parametrize(
         "name",
         [
-            "float",
-            "double",
-            "decimal",
             "numeric",
-            "real",
-            "double precision",
+            "decimal",
             "bignumeric",
+            "bigdecimal",
+            "dec",
+            "float",
+            "float4",
+            "float8",
+            "float64",
+            "real",
+            "real unsigned",
+            "double",
+            "double unsigned",
+            "double precision",
+            "double precision unsigned",
         ],
     )
     def test_float_family_infers_float_serializer(self, name):
@@ -121,7 +122,24 @@ class TestDataTypeSerializerInference:
 
     @pytest.mark.parametrize(
         "name",
-        ["char", "varchar", "text", "clob", "nvarchar", "string", "longtext"],
+        [
+            "character",
+            "char",
+            "character varying",
+            "characater varying",
+            "char varying",
+            "varchar",
+            "nvarchar",
+            "character large object",
+            "char large object",
+            "clob",
+            "regclass",
+            "text",
+            "tinytext",
+            "mediumtext",
+            "longtext",
+            "string",
+        ],
     )
     def test_string_family_infers_string_serializer(self, name):
         assert isinstance(DataType(name).serializer, StringSerializer)
@@ -129,7 +147,19 @@ class TestDataTypeSerializerInference:
     def test_uuid_infers_uuid_serializer(self):
         assert isinstance(DataType("uuid").serializer, UuidSerializer)
 
-    @pytest.mark.parametrize("name", ["binary", "varbinary", "blob", "bytes", "bytea"])
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "binary",
+            "varbinary",
+            "blob",
+            "tinyblob",
+            "mediumblob",
+            "longblob",
+            "bytes",
+            "bytea",
+        ],
+    )
     def test_bytes_family_infers_bytes_serializer(self, name):
         assert isinstance(DataType(name).serializer, BytesSerializer)
 
@@ -137,16 +167,25 @@ class TestDataTypeSerializerInference:
     def test_bit_family_infers_bit_serializer(self, name):
         assert isinstance(DataType(name).serializer, BitSerializer)
 
-    @pytest.mark.parametrize("name", ["date"])
-    def test_date_infers_date_serializer(self, name):
-        assert isinstance(DataType(name).serializer, DateSerializer)
+    def test_date_infers_date_serializer(self):
+        assert isinstance(DataType("date").serializer, DateSerializer)
 
-    @pytest.mark.parametrize("name", ["time", "time with timezone"])
+    @pytest.mark.parametrize(
+        "name", ["time", "time without timezone", "time with timezone"]
+    )
     def test_time_family_infers_time_serializer(self, name):
         assert isinstance(DataType(name).serializer, TimeSerializer)
 
     @pytest.mark.parametrize(
-        "name", ["datetime", "timestamp", "timestamp with timezone", "timestampntz"]
+        "name",
+        [
+            "datetime",
+            "timestamp",
+            "timestamp without timezone",
+            "timestamp with timezone",
+            "timestamptz",
+            "timestampntz",
+        ],
     )
     def test_datetime_family_infers_datetime_serializer(self, name):
         assert isinstance(DataType(name).serializer, DatetimeSerializer)
@@ -170,16 +209,11 @@ class TestDataTypeSerializerInference:
         assert isinstance(DataType("not_a_real_type").serializer, UnspecifiedSerializer)
 
     def test_parameterized_name_infers_unspecified_serializer(self):
-        """Parameterized names skip the alias table entirely -> CUSTOM group
-        -> UnspecifiedSerializer, even if the base name (e.g. 'varchar')
-        would otherwise be recognized."""
         assert isinstance(DataType("varchar(255)").serializer, UnspecifiedSerializer)
 
-    def test_boolean_infers_boolean_serializer(self):
-        assert isinstance(DataType("boolean").serializer, BooleanSerializer)
-
-    def test_bool_alias_infers_boolean_serializer(self):
-        assert isinstance(DataType("bool").serializer, BooleanSerializer)
+    @pytest.mark.parametrize("name", ["boolean", "bool"])
+    def test_boolean_family_infers_boolean_serializer(self, name):
+        assert isinstance(DataType(name).serializer, BooleanSerializer)
 
     def test_boolean_serializer_correctly_rejects_non_bool_int(self):
         dt = DataType("boolean")

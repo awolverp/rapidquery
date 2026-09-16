@@ -309,6 +309,33 @@ impl SqlDialect {
         dispatch!(self, const PLACEHOLDER_SYNTAX)
     }
 
+    /// Native bit-string literals (`B'…'`, `b'…'`, `'…'B`).
+    #[inline]
+    pub fn supports_bit(self) -> bool {
+        matches!(
+            self,
+            Self::PostgreSql | Self::DuckDb | Self::MySql | Self::Teradata
+        )
+    }
+
+    /// `ARRAY[…]` constructor syntax.
+    #[inline]
+    pub fn supports_array(self) -> bool {
+        matches!(self, Self::PostgreSql | Self::DuckDb | Self::BigQuery)
+    }
+
+    /// Native `INET` / `CIDR` types.
+    #[inline]
+    pub fn supports_inet(self) -> bool {
+        matches!(self, Self::PostgreSql | Self::DuckDb)
+    }
+
+    /// Native `MACADDR` type.
+    #[inline]
+    pub fn supports_mac_address(self) -> bool {
+        matches!(self, Self::PostgreSql)
+    }
+
     /// Write a boolean literal (`TRUE`/`FALSE` or `1`/`0`).
     #[inline]
     pub fn format_boolean<W: Write>(&self, writer: &mut W, value: bool) -> fmt::Result {

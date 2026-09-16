@@ -20,6 +20,15 @@ impl super::serializer_enum::SerializerEnum {
         object: &alias::BoundObject<'_>,
         out: &mut String,
     ) -> pyo3::PyResult<()> {
+        if !self.is_supported_by(dialect) {
+            return rapidquery_macros::pyerr!(
+                Err(PyNotImplementedError),
+                "{} does not support {}",
+                dialect.name(),
+                super::class_name(self)
+            );
+        }
+
         let py = object.py();
         let ptr = object.as_ptr();
         unsafe {
@@ -223,7 +232,11 @@ unsafe fn write_uuid(
         write_quoted(dialect, out, &text);
         Ok(())
     } else if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
-        write_quoted(dialect, out, borrow_py_str_buffer(py, ptr)?);
+        let borrowed = borrow_py_str_buffer(py, ptr)?;
+        let parsed = uuid::Uuid::try_parse(borrowed)
+            .map_err(|e| rapidquery_macros::pyerr!(PyValueError, "invalid uuid str: {}", e))?;
+
+        write_quoted(dialect, out, &parsed.hyphenated().to_string());
         Ok(())
     } else {
         rapidquery_macros::pyerr!(

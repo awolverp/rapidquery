@@ -877,3 +877,47 @@ fn placeholder_sigil_matches_syntax() {
     assert_eq!(PlaceholderSyntax::Colon.sigil(), ':');
     assert_eq!(PlaceholderSyntax::DollarNamed.sigil(), '$');
 }
+
+#[test]
+fn serializer_support_matrix() {
+    const BIT: &[SqlDialect] = &[
+        SqlDialect::DuckDb,
+        SqlDialect::MySql,
+        SqlDialect::PostgreSql,
+        SqlDialect::Teradata,
+    ];
+    const ARRAY: &[SqlDialect] = &[
+        SqlDialect::BigQuery,
+        SqlDialect::DuckDb,
+        SqlDialect::PostgreSql,
+    ];
+    const INET: &[SqlDialect] = &[SqlDialect::DuckDb, SqlDialect::PostgreSql];
+    const MAC: &[SqlDialect] = &[SqlDialect::PostgreSql];
+
+    for dialect in ALL_DIALECTS {
+        assert_eq!(
+            dialect.supports_bit(),
+            BIT.contains(dialect),
+            "{} supports_bit",
+            dialect.name()
+        );
+        assert_eq!(
+            dialect.supports_array(),
+            ARRAY.contains(dialect),
+            "{} supports_array",
+            dialect.name()
+        );
+        assert_eq!(
+            dialect.supports_inet(),
+            INET.contains(dialect),
+            "{} supports_inet",
+            dialect.name()
+        );
+        assert_eq!(
+            dialect.supports_mac_address(),
+            MAC.contains(dialect),
+            "{} supports_mac_address",
+            dialect.name()
+        );
+    }
+}

@@ -20,8 +20,6 @@ use crate::internal::utils::get_type_name;
 
 use super::SqlDialect;
 
-// `subclass` is so the 13 built-in dialects can `extends` this type from
-// Rust. Python subclasses are not accepted by the extractor below.
 /// Abstract SQL dialect.
 ///
 /// Concrete dialects are frozen subclasses (`PostgreSQL`, `DuckDB`, ...).

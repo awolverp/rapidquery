@@ -2,6 +2,8 @@
 SQL dialect markers.
 """
 
+# TODO: rename PostgreSQL to PostgreSql, SQLite to Sqlite, MSSQL to MsSql, DuckDB to DuckDb
+
 from ._core.dialect import (
     MSSQL,
     BigQuery,

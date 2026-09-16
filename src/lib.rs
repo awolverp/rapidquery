@@ -24,8 +24,25 @@ mod _core {
     #[cold]
     fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
         use crate::internal::utils::PyModuleSubmoduleExt;
+        use pyo3::types::PyModuleMethods;
 
         crate::typeref::initialize_typeref(m.py());
+
+        m.add(
+            "_feature_only_stdlib_json",
+            cfg_select! {
+                feature = "only-stdlib-json" => true,
+                not(feature = "only-stdlib-json") => false,
+            },
+        )?;
+        m.add(
+            "_feature_only_orjson",
+            cfg_select! {
+                feature = "only-orjson" => true,
+                not(feature = "only-orjson") => false,
+            },
+        )?;
+
         m.init_submodules()
     }
 }

@@ -5,7 +5,7 @@ pub use serializer_enum::SerializerEnum;
 
 use crate::internal::alias;
 
-fn class_name(serializer: &SerializerEnum) -> &'static str {
+pub(super) fn class_name(serializer: &SerializerEnum) -> &'static str {
     match serializer {
         SerializerEnum::Integer => "IntegerSerializer",
         SerializerEnum::Float => "FloatSerializer",
@@ -119,6 +119,8 @@ impl PySerializer {
     ///     TypeError: If `object` is not an accepted type for this serializer.
     ///     ValueError: If `object` is the right type but cannot be represented
     ///             (for example a non-finite float).
+    ///     NotImplementedError: If `dialect` has no native literal for this
+    ///             serializer (bit strings, `ARRAY[…]`, inet, macaddr).
     fn serialize(
         &self,
         dialect: crate::dialect::py::PySqlDialect,
@@ -226,17 +228,19 @@ impl_unit_serializers! {
 
     /// Serializes bit strings as dialect bit-string literals.
     /// Accepts a `str` consisting only of `'0'` and `'1'` characters.
+    /// Supported on PostgreSQL, DuckDB, MySQL, and Teradata.
     ///
     /// Raises:
     ///     TypeError: If the value is not a `str`.
     ///     ValueError: If the string is empty or contains characters other than `'0'` and `'1'`.
+    ///     NotImplementedError: If the dialect has no native bit-string literal.
     Bit => PyBitSerializer => "BitSerializer",
 
     /// Serializes a JSON-encodable object as a quoted SQL string literal.
     /// Accepts any object that the JSON encoder can dump. Uses `orjson` when it
     /// is installed, otherwise the stdlib `json` module. The JSON text is then
     /// wrapped with the dialect's string quoting. With `orjson`, datetime,
-    /// UUID, dataclass, and non-str dict keys are encoded natively; stdlib
+    /// UUID, enum.StrEnum, and dataclass are encoded natively; stdlib
     /// `json` rejects those.
     ///
     /// Raises:
@@ -270,17 +274,20 @@ impl_unit_serializers! {
     /// Serializes IP addresses and networks as quoted SQL literals.
     /// Accepts `str` or `ipaddress` objects (`IPv4Address`, `IPv6Address`,
     /// `IPv4Network`, `IPv6Network`, and related types whose `str()` is a valid
-    /// address or CIDR).
+    /// address or CIDR). Supported on PostgreSQL and DuckDB.
     ///
     /// Raises:
     ///     ValueError: If the value is not a valid IPv4/IPv6 address or network.
+    ///     NotImplementedError: If the dialect has no native INET type.
     Inet => PyInetSerializer => "InetSerializer",
 
     /// Serializes MAC addresses as quoted SQL literals.
     /// Accepts a `str` using `:` or `-` as the separator.
+    /// Supported on PostgreSQL.
     ///
     /// Raises:
     ///     ValueError: If the value is not a valid MAC address.
+    ///     NotImplementedError: If the dialect has no native MACADDR type.
     MacAddress => PyMacAddressSerializer => "MacAddressSerializer",
 
     /// Inserts `str(obj)` into SQL with no quoting or type check.
@@ -293,7 +300,11 @@ impl_unit_serializers! {
 ///
 /// Each element is serialized independently with `element`. Accepts `list`
 /// or `tuple`. Nested arrays are expressed by wrapping another
-/// `ArraySerializer`.
+/// `ArraySerializer`. Supported on PostgreSQL, DuckDB, and BigQuery.
+///
+/// Raises:
+///     TypeError: If the value is not a `list` or `tuple`.
+///     NotImplementedError: If the dialect has no `ARRAY[…]` constructor.
 #[rapidquery_macros::pyclass(
     "ArraySerializer",
     extends = PySerializer,

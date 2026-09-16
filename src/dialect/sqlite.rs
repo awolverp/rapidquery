@@ -43,6 +43,7 @@ pub(super) fn encode_bytes<W: std::fmt::Write>(writer: &mut W, bytes: &[u8]) -> 
     super::write_x_hex_literal(writer, bytes)
 }
 
+// Unsupported: Serializer::write_sql raises NotImplementedError via supports_bit.
 pub(super) fn encode_bits<W: std::fmt::Write>(writer: &mut W, bits: &str) -> std::fmt::Result {
     write!(writer, "{}", super::bits_as_i64(bits))
 }
