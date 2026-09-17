@@ -89,9 +89,10 @@ impl WriteSql for Function {
                 args,
             } => {
                 out.push_char('(');
+
                 if let Some(dt) = duplicate_treatment {
-                    out.push_str(dt.as_sql());
                     if !args.is_empty() {
+                        out.push_str(dt.as_sql());
                         out.push_char(' ');
                     }
                 }

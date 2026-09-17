@@ -1,4 +1,5 @@
 import pytest
+from rapidquery._core import _feature_only_stdlib_json
 
 from rapidquery.dialect import (
     MSSQL,
@@ -16,6 +17,14 @@ from rapidquery.dialect import (
     SQLite,
     Teradata,
 )
+
+try:
+    import orjson  # ruff: ignore[F401]
+
+    USING_ORJSON = not _feature_only_stdlib_json
+except ImportError:
+    USING_ORJSON = False
+
 
 ALL_DIALECTS = [
     BigQuery,

@@ -102,6 +102,24 @@ impl PyIdent {
         Self::inner(&slf).len()
     }
 
+    fn __getitem__<'py>(
+        slf: pyo3::PyRef<'py, Self>,
+        index: isize,
+    ) -> pyo3::PyResult<alias::BoundObject<'py>> {
+        let inner = Self::inner(&slf);
+
+        let x = if index < 0 {
+            (inner.len() as isize) + index
+        } else {
+            index
+        };
+
+        match inner.parts().get(x as usize) {
+            Some(part) => ident_part_to_pyobject(slf.py(), part),
+            None => rapidquery_macros::pyerr!(Err(PyIndexError), "index out of range"),
+        }
+    }
+
     /// Returns the parts as a list (`str`, `Unquote`, or `Asterisk`).
     fn to_list(
         slf: pyo3::PyRef<'_, Self>,
@@ -112,6 +130,31 @@ impl PyIdent {
             .iter()
             .map(|part| ident_part_to_pyobject(py, part).map(|bound| bound.unbind()))
             .collect()
+    }
+
+    fn __hash__(slf: pyo3::PyRef<'_, Self>) -> u64 {
+        use std::hash::{DefaultHasher, Hash, Hasher};
+
+        let mut state = DefaultHasher::default();
+        let inner = Self::inner(&slf);
+        inner.hash(&mut state);
+        state.finish()
+    }
+
+    fn __eq__(slf: pyo3::PyRef<'_, Self>, other: pyo3::PyRef<'_, Self>) -> bool {
+        if slf.as_ptr() == other.as_ptr() {
+            return true;
+        }
+
+        Self::inner(&slf).eq(Self::inner(&other))
+    }
+
+    fn __ne__(slf: pyo3::PyRef<'_, Self>, other: pyo3::PyRef<'_, Self>) -> bool {
+        if slf.as_ptr() == other.as_ptr() {
+            return true;
+        }
+
+        Self::inner(&slf).ne(Self::inner(&other))
     }
 }
 

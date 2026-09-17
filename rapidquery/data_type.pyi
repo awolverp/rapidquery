@@ -94,7 +94,7 @@ class StringSerializer(Serializer[str | enum.Enum]):
     """
     Serializes text as a quoted, escaped SQL string literal.
 
-    Accepts `str`, or an `enum.Enum` member whose `.value` is a `str`. The
+    Accepts `str`, or an `enum.StrEnum`. The
     dialect supplies quoting and escaping.
 
     Raises:

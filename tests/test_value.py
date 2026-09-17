@@ -1,0 +1,153 @@
+import datetime
+import decimal
+import enum
+import uuid
+
+import pytest
+
+from rapidquery.data_type import (
+    ArraySerializer,
+    BitSerializer,
+    BooleanSerializer,
+    BytesSerializer,
+    DataType,
+    DateSerializer,
+    DatetimeSerializer,
+    FloatSerializer,
+    InetSerializer,
+    IntegerSerializer,
+    JSONSerializer,
+    MacAddressSerializer,
+    Serializer,
+    StringSerializer,
+    TimeSerializer,
+    UnspecifiedSerializer,
+    UuidSerializer,
+)
+from rapidquery.dialect import PostgreSQL
+from rapidquery.expr import Expr, Value
+from tests.conftest import USING_ORJSON
+
+
+class ValidEnum(enum.StrEnum):
+    TEST = "test"
+
+
+class InvalidEnum(enum.Enum):
+    TEST = 1
+
+
+INFER_TEST_CASES: dict[type[Serializer], list[object]] = {
+    IntegerSerializer: [1, 18_446_744_073_709_551_615, -1],
+    FloatSerializer: [1.0, decimal.Decimal("1.0"), decimal.Decimal(1)],
+    BooleanSerializer: [True, False],
+    StringSerializer: ["string", ValidEnum.TEST],
+    UuidSerializer: [uuid.uuid4()],
+    BytesSerializer: [b"bytes"],
+    BitSerializer: [],
+    JSONSerializer: [
+        list(),  # ruff: ignore
+        dict(),  # ruff: ignore
+        {"OK": 1},
+    ],
+    DateSerializer: [datetime.datetime.now(tz=datetime.UTC).date()],
+    TimeSerializer: [datetime.datetime.now(tz=datetime.UTC).time()],
+    DatetimeSerializer: [datetime.datetime.now(tz=datetime.UTC)],
+    InetSerializer: [],
+    MacAddressSerializer: [],
+    UnspecifiedSerializer: [datetime.timezone.utc, InvalidEnum.TEST],
+    ArraySerializer: [],
+}
+
+if USING_ORJSON:
+    INFER_TEST_CASES[JSONSerializer].append({"OK": datetime.datetime.now()})  # ruff: ignore
+    INFER_TEST_CASES[JSONSerializer].append({"OK": uuid.uuid4()})
+
+
+class TestValueConstruction:
+    def test_new_overload_1(self):
+        val = Value(1)
+        assert isinstance(val, Expr)
+        assert val.get_object() == 1
+        assert isinstance(val.get_serializer(), IntegerSerializer)
+
+    def test_new_overload_2(self):
+        val = Value(1, InetSerializer())
+        assert isinstance(val, Expr)
+        assert val.get_object() == 1
+        assert isinstance(val.get_serializer(), InetSerializer)
+
+    @pytest.mark.parametrize(
+        "serializer_cls, value",
+        [
+            pytest.param(cls, value, id=f"{cls.__name__}-{value!r}")
+            for cls, values in INFER_TEST_CASES.items()
+            for value in values
+        ],
+    )
+    def test_infers(self, serializer_cls: type[Serializer], value: object):
+        val = Value(value)
+        assert val.get_object() == value
+        assert isinstance(val.get_serializer(), serializer_cls)
+
+    def test_wrap_inner(self):
+        inner = Value(object(), UnspecifiedSerializer())
+        outer = Value(inner)
+
+        assert inner.get_object() is outer.get_object()
+        assert inner.get_serializer() == outer.get_serializer()
+
+    def test_wrap_trick_to_change_serializer(self):
+        inner = Value(object(), InetSerializer())
+        outer = Value(inner, UnspecifiedSerializer())
+
+        assert inner.get_object() is outer.get_object()
+        assert isinstance(inner.get_serializer(), InetSerializer)
+        assert isinstance(outer.get_serializer(), UnspecifiedSerializer)
+
+    def test_data_type_serializer_override(self):
+        value = Value("x", DataType("integer", StringSerializer()))
+        assert isinstance(value.get_serializer(), StringSerializer)
+
+
+class TestValueToSql:
+    def test_integer_literal(self):
+        assert Value(42).to_sql(PostgreSQL) == "42"
+
+    def test_string_literal_matches_string_serializer(self):
+        assert Value("hi").to_sql(PostgreSQL) == StringSerializer().serialize(
+            PostgreSQL, "hi"
+        )
+
+    def test_none_is_null(self):
+        assert Value(None).to_sql(PostgreSQL) == "NULL"
+
+    def test_accepts_dialect_class_or_instance(self):
+        value = Value(1)
+        assert value.to_sql(PostgreSQL) == value.to_sql(PostgreSQL())
+
+    def test_propagates_serializer_type_error(self):
+        with pytest.raises(TypeError):
+            Value("not an int", IntegerSerializer()).to_sql(PostgreSQL)
+
+
+class TestValueEquality:
+    def test_equal_when_object_and_serializer_match(self):
+        assert Value(1) == Value(1)
+        assert hash(Value(1)) == hash(Value(1))
+
+    def test_unequal_when_serializer_differs(self):
+        assert Value(1) != Value(1, StringSerializer())
+
+    def test_unequal_when_object_differs(self):
+        assert Value(1) != Value(2)
+
+    def test_not_equal_to_bare_object(self):
+        assert Value(1) != 1
+
+    def test_unhashable_object_raises(self):
+        with pytest.raises(TypeError):
+            hash(Value({"a": 1}))
+
+    def test_repr_includes_object_and_serializer(self):
+        assert repr(Value(42)) == "Value(42, IntegerSerializer())"

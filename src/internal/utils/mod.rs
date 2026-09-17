@@ -60,10 +60,3 @@ pub unsafe fn get_type_name<'a>(py: pyo3::Python<'a>, obj: *mut pyo3::ffi::PyObj
 pub fn new_pynone<'py>(py: pyo3::Python<'py>) -> pyo3::Bound<'py, pyo3::PyAny> {
     unsafe { pyo3::Bound::from_borrowed_ptr(py, pyo3::ffi::Py_None()) }
 }
-
-/// Helper enum to accept either an `isize` index or a `slice` in `__getitem__`.
-#[derive(Debug, pyo3::FromPyObject)]
-pub enum IndexOrSlice {
-    Index(isize),
-    Slice(pyo3::Py<pyo3::types::PySlice>),
-}

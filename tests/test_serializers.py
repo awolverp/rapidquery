@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 import pytest
-from rapidquery._core import _feature_only_stdlib_json
 
 from rapidquery.data_type import (
     ArraySerializer,
@@ -45,7 +44,7 @@ from rapidquery.dialect import (
     Teradata,
 )
 
-from .conftest import ALL_DIALECTS
+from .conftest import ALL_DIALECTS, USING_ORJSON
 
 # Quoted-literal wrap groups (payloads with no quotes/backslashes).
 _PG = (PostgreSQL,)
@@ -95,13 +94,6 @@ _ARRAY_OK = (BigQuery, DuckDB, PostgreSQL)
 _ARRAY_NO = tuple(d for d in ALL_DIALECTS if d not in _ARRAY_OK)
 _INET_NO = tuple(d for d in ALL_DIALECTS if d not in (DuckDB, PostgreSQL))
 _MAC_NO = tuple(d for d in ALL_DIALECTS if d is not PostgreSQL)
-
-try:
-    import orjson  # ruff: ignore[F401]
-
-    USING_ORJSON = not _feature_only_stdlib_json
-except ImportError:
-    USING_ORJSON = False
 
 
 class ValidStrEnum(enum.StrEnum):

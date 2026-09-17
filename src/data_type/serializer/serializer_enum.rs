@@ -136,10 +136,8 @@ impl SerializerEnum {
                 return Self::Integer;
             }
 
-            // str/Enum -> String
-            if pyo3::ffi::PyUnicode_CheckExact(object_ptr) == 1
-                || object_type_ptr == crate::typeref::STD_ENUM_TYPE
-            {
+            // str/enum.StrEnum -> String
+            if pyo3::ffi::PyUnicode_Check(object_ptr) == 1 {
                 return Self::String;
             }
 

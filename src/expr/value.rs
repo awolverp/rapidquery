@@ -109,4 +109,33 @@ impl PyValue {
     fn get_serializer(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
         PySerializer(Self::inner(&slf).serializer.clone()).into_subclasses(slf.py())
     }
+
+    fn __hash__(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<u64> {
+        use pyo3::types::PyAnyMethods;
+        use std::hash::{DefaultHasher, Hash, Hasher};
+
+        let inner = Self::inner(&slf);
+        let hash_object = inner.object.bind(slf.py()).hash()?;
+
+        let mut state = DefaultHasher::default();
+        state.write_isize(hash_object);
+        inner.serializer.hash(&mut state);
+        Ok(state.finish())
+    }
+
+    fn __eq__(slf: pyo3::PyRef<'_, Self>, other: pyo3::PyRef<'_, Self>) -> bool {
+        if slf.as_ptr() == other.as_ptr() {
+            return true;
+        }
+
+        Self::inner(&slf).eq(Self::inner(&other))
+    }
+
+    fn __ne__(slf: pyo3::PyRef<'_, Self>, other: pyo3::PyRef<'_, Self>) -> bool {
+        if slf.as_ptr() == other.as_ptr() {
+            return true;
+        }
+
+        Self::inner(&slf).ne(Self::inner(&other))
+    }
 }

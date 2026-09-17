@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use pyo3::types::PyTupleMethods;
 
 use super::enum_::{ExprEnum, Ident, IdentPart};
@@ -57,14 +59,15 @@ fn extract_expr(
 
             // a bare `str` becomes [`ExprEnum::Ident`] if `str_as_ident`
             if str_as_ident {
-                let part = IdentPart::quoted(s)
+                let inner = Ident::from_str(s)
                     .map_err(|err| rapidquery_macros::pyerr!(PyValueError, "{}", err))?;
 
-                return Ok(ExprEnum::Ident(Ident::from_one(part)));
+                return Ok(ExprEnum::Ident(inner));
             }
 
-            return Ok(ExprEnum::Value(super::enum_::Value::infer_bound(
-                obj.as_any().clone(),
+            return Ok(ExprEnum::Value(super::enum_::Value::new(
+                obj.as_any().clone().unbind(),
+                crate::data_type::SerializerEnum::String,
             )));
         }
 
@@ -167,6 +170,17 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for IdentExtractor {
     fn extract(
         obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>,
     ) -> Result<Self, Self::Error> {
+        unsafe {
+            // SAFETY: `ptr` is a live borrowed `PyObject`.
+            if pyo3::ffi::PyUnicode_CheckExact(obj.as_ptr()) == 1 {
+                let s = utils::borrow_py_str_buffer(obj.py(), obj.as_ptr())?;
+                let inner = Ident::from_str(s)
+                    .map_err(|e| rapidquery_macros::pyerr!(PyValueError, "{}", e))?;
+
+                return Ok(Self(inner));
+            }
+        }
+
         match extract_ident_argument(obj)? {
             ExtractedIdentArgument::Ident(ident) => Ok(Self(ident)),
             ExtractedIdentArgument::Part(part) => Ok(Self(Ident::from_one(part))),

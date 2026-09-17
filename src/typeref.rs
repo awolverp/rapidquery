@@ -54,7 +54,7 @@ pub(crate) static mut STD_UUID_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::nu
 pub(crate) static mut STD_DATETIME_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut STD_DATE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut STD_TIME_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut STD_ENUM_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+// pub(crate) static mut STD_ENUM_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
 unsafe fn get_type_object_for<T: pyo3::PyTypeInfo>(
     py: pyo3::Python,
@@ -142,7 +142,7 @@ fn _initialize_typeref(py: pyo3::Python) {
 
         STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");
         STD_UUID_TYPE = look_up_type_object(c"uuid", c"UUID");
-        STD_ENUM_TYPE = look_up_type_object(c"enum", c"EnumMeta");
+        // STD_ENUM_TYPE = look_up_type_object(c"enum", c"EnumMeta");
 
         pyo3::ffi::PyDateTime_IMPORT();
         let datetime_capsule = pyo3::ffi::PyCapsule_Import(c"datetime.datetime_CAPI".as_ptr(), 1)

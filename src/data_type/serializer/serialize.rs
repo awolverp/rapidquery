@@ -185,35 +185,14 @@ unsafe fn write_str(
     dialect: &SqlDialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
-    if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
+    if pyo3::ffi::PyUnicode_Check(ptr) == 1 {
         write_quoted(dialect, out, borrow_py_str_buffer(py, ptr)?);
         return Ok(());
     }
 
-    // type(type(obj)) is EnumMeta — the instance is an enum member.
-    if (*pyo3::ffi::Py_TYPE(ptr)).ob_base.ob_base.ob_type == crate::typeref::STD_ENUM_TYPE {
-        let value = pyo3::ffi::PyObject_GetAttrString(ptr, c"value".as_ptr());
-        if value.is_null() {
-            return Err(pyo3::PyErr::fetch(py));
-        }
-        let is_str = pyo3::ffi::PyUnicode_CheckExact(value) == 1;
-        let result = if is_str {
-            write_quoted(dialect, out, borrow_py_str_buffer(py, value)?);
-            Ok(())
-        } else {
-            rapidquery_macros::pyerr!(
-                Err(PyTypeError),
-                "expected str/Enum for string serialization, got {}",
-                get_type_name(py, ptr)
-            )
-        };
-        pyo3::ffi::Py_DECREF(value);
-        return result;
-    }
-
     rapidquery_macros::pyerr!(
         Err(PyTypeError),
-        "expected str/Enum for string serialization, got {}",
+        "expected str for string serialization, got {}",
         get_type_name(py, ptr)
     )
 }

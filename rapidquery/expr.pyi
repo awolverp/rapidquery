@@ -3,6 +3,7 @@ from collections.abc import Iterable, Sequence
 from typing import Self, final, overload
 
 from rapidquery.data_type import DataType, Serializer
+from rapidquery.dialect import SqlDialect
 
 class Expr:
     """
@@ -12,6 +13,18 @@ class Expr:
     ``Function``, ``BinaryExpr``, …). This base class cannot be
     instantiated.
     """
+
+    def to_sql(self, dialect: type[SqlDialect] | SqlDialect) -> str:
+        """
+        Render this expression as raw SQL (values inlined as literals).
+        """
+
+    def prepare(
+        self, dialect: type[SqlDialect] | SqlDialect
+    ) -> tuple[str, dict[str, typing.Any]]:
+        """
+        Render this expression as a parameterized statement.
+        """
 
 @final
 class Unquote:
@@ -115,6 +128,10 @@ class Ident(Expr):
             Part count; always at least 1.
         """
 
+    def __getitem__(self, index: int) -> str | Unquote | Asterisk: ...
+    def __hash__(self) -> int: ...
+    def __eq__(self, value: object, /) -> bool: ...
+    def __ne__(self, value: object, /) -> bool: ...
     def to_list(self) -> Sequence[str | Unquote | Asterisk]:
         """
         Return the parts as a list.
@@ -188,6 +205,10 @@ class Value(Expr, typing.Generic[_T]):
             value is bound as a parameter.
         """
 
+    def __hash__(self) -> int: ...
+    def __eq__(self, value: object, /) -> bool: ...
+    def __ne__(self, value: object, /) -> bool: ...
+
 @final
 class Function(Expr):
     """
@@ -202,7 +223,7 @@ class Function(Expr):
     def __new__(
         cls,
         name: str | Ident | Unquote,
-        args: typing.Iterable[object] | None,
+        args: typing.Iterable[object] | None = None,
         *,
         distinct: bool | None = None,
         filter: Expr | None = None,
@@ -234,6 +255,7 @@ class Function(Expr):
             The function name as an ``Ident``.
         """
 
+    def get_distinct(self) -> bool | None: ...
     def get_args(self) -> tuple[Expr, ...] | None:
         """
         Return the positional arguments.

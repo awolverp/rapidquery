@@ -74,6 +74,22 @@ impl PyFunction {
         PyExpr(super::enum_::ExprEnum::Ident(inner.name.clone())).into_subclasses(slf.py())
     }
 
+    fn get_distinct(slf: pyo3::PyRef<'_, Self>) -> Option<bool> {
+        let inner = Self::inner(&slf);
+
+        match inner.args {
+            FunctionArguments::None => None,
+            FunctionArguments::List {
+                duplicate_treatment: None,
+                ..
+            } => None,
+            FunctionArguments::List {
+                duplicate_treatment: Some(x),
+                ..
+            } => Some(matches!(x, DuplicateTreatment::Distinct)),
+        }
+    }
+
     fn get_args(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
         let py = slf.py();
         let inner = Self::inner(&slf);
