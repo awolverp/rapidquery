@@ -233,8 +233,7 @@ class Function(Expr):
 
         Args:
             name: Function name (``str``, ``Ident``, or ``Unquote``).
-            args: Positional argument expressions. A bare ``str`` is a
-                column. `None` means no parentheses (``CURRENT_TIMESTAMP``).
+            args: Positional argument expressions. `None` means no parentheses (``CURRENT_TIMESTAMP``).
             distinct: ``True`` inserts ``DISTINCT``, ``False`` inserts
                 ``ALL``, omitted inserts neither.
             filter: Optional ``FILTER (WHERE …)`` predicate.
@@ -282,7 +281,7 @@ class TupleExpr(Expr):
         Create a tuple expression.
 
         Args:
-            *items: Elements of the tuple. A bare ``str`` is a column.
+            *items: Elements of the tuple.
 
         Returns:
             A new ``TupleExpr``.
@@ -300,13 +299,15 @@ class TupleExpr(Expr):
 class UnaryExpr(Expr):
     """Unary expression (``NOT x``, ``-x``, ``+x``, ``~x``)."""
 
-    def __new__(cls, operator: str, expr: object, /) -> Self:
+    def __new__(
+        cls, operator: typing.Literal["NOT", "+", "-", "~"] | str, expr: object, /
+    ) -> Self:
         """
         Create a unary expression.
 
         Args:
             operator: One of ``NOT``, ``+``, ``-``, or ``~``.
-            expr: The operand. A bare ``str`` is a column.
+            expr: The operand.
 
         Returns:
             A new ``UnaryExpr``.
@@ -315,7 +316,7 @@ class UnaryExpr(Expr):
             ValueError: If ``operator`` is not a known unary operator.
         """
 
-    def get_operator(self) -> str:
+    def get_operator(self) -> typing.Literal["NOT", "+", "-", "~"]:
         """
         Return the unary operator spelling.
 
@@ -336,20 +337,48 @@ class BinaryExpr(Expr):
     """
     Binary expression (``a + b``, ``a AND b``, custom operators).
 
-    A bare ``str`` on either side is a column. Pass ``Value(...)`` for a
-    string literal. Unknown operator spellings are stored as a custom
+    Unknown operator spellings are stored as a custom
     operator (for example ``->``).
     """
 
-    def __new__(cls, left: object, operator: str, right: object, /) -> Self:
+    def __new__(
+        cls,
+        left: object,
+        operator: typing.Literal[
+            "+",
+            "-",
+            "*",
+            "/",
+            "%",
+            "=",
+            "<>",
+            "!=",
+            "<",
+            "<=",
+            ">=",
+            ">",
+            "AND",
+            "OR",
+            "XOR",
+            "&",
+            "|",
+            "^",
+            "<<",
+            ">>",
+            "||",
+        ]
+        | str,
+        right: object,
+        /,
+    ) -> Self:
         """
         Create a binary expression.
 
         Args:
-            left: Left operand. A bare ``str`` is a column.
+            left: Left operand.
             operator: SQL operator spelling (``+``, ``AND``, ``=``,
                 ``->``, …). ``!=`` is stored as ``<>``.
-            right: Right operand. A bare ``str`` is a column.
+            right: Right operand.
 
         Returns:
             A new ``BinaryExpr``.
@@ -384,12 +413,19 @@ class BinaryExpr(Expr):
 class IsExpr(Expr):
     """``expr IS [NOT] {NULL | TRUE | FALSE | UNKNOWN}``."""
 
-    def __new__(cls, expr: object, kind: str, /, *, negated: bool = False) -> Self:
+    def __new__(
+        cls,
+        expr: object,
+        kind: typing.Literal["NULL", "TRUE", "FALSE", "UNKNOWN"] | str,
+        /,
+        *,
+        negated: bool = False,
+    ) -> Self:
         """
         Create an ``IS`` predicate.
 
         Args:
-            expr: The tested expression. A bare ``str`` is a column.
+            expr: The tested expression.
             kind: ``NULL``, ``TRUE``, ``FALSE``, or ``UNKNOWN``.
             negated: If ``True``, emit ``IS NOT``.
 
@@ -408,7 +444,7 @@ class IsExpr(Expr):
             The left-hand expression.
         """
 
-    def get_kind(self) -> str:
+    def get_kind(self) -> typing.Literal["NULL", "TRUE", "FALSE", "UNKNOWN"]:
         """
         Return the ``IS`` kind.
 
@@ -433,8 +469,8 @@ class IsDistinctFromExpr(Expr):
         Create an ``IS DISTINCT FROM`` predicate.
 
         Args:
-            left: Left operand. A bare ``str`` is a column.
-            right: Right operand. A bare ``str`` is a column.
+            left: Left operand.
+            right: Right operand.
             negated: If ``True``, emit ``IS NOT DISTINCT FROM``.
 
         Returns:
@@ -476,9 +512,8 @@ class InListExpr(Expr):
         Create an ``IN`` list predicate.
 
         Args:
-            expr: The tested expression. A bare ``str`` is a column.
-            list: Iterable of list elements. Each bare ``str`` is a
-                column.
+            expr: The tested expression.
+            list: Iterable of list elements.
             negated: If ``True``, emit ``NOT IN``.
 
         Returns:
@@ -526,9 +561,9 @@ class BetweenExpr(Expr):
         Create a ``BETWEEN`` predicate.
 
         Args:
-            expr: The tested expression. A bare ``str`` is a column.
-            low: Lower bound. A bare ``str`` is a column.
-            high: Upper bound. A bare ``str`` is a column.
+            expr: The tested expression.
+            low: Lower bound.
+            high: Upper bound.
             negated: If ``True``, emit ``NOT BETWEEN``.
 
         Returns:
@@ -569,11 +604,7 @@ class BetweenExpr(Expr):
 
 @final
 class LikeExpr(Expr):
-    """``expr [NOT] LIKE / ILIKE / SIMILAR TO / RLIKE pattern``.
-
-    The pattern uses literal-priority extraction: a bare ``str`` is a
-    string value, not a column.
-    """
+    """``expr [NOT] LIKE / ILIKE / SIMILAR TO / RLIKE pattern``."""
 
     def __new__(
         cls,
@@ -581,7 +612,7 @@ class LikeExpr(Expr):
         pattern: object,
         /,
         *,
-        kind: str = "LIKE",
+        kind: typing.Literal["LIKE", "ILIKE", "SIMILAR TO", "RLIKE"] | str = "LIKE",
         negated: bool = False,
         escape: str | None = None,
     ) -> Self:
@@ -589,8 +620,8 @@ class LikeExpr(Expr):
         Create a ``LIKE``-family predicate.
 
         Args:
-            expr: The tested expression. A bare ``str`` is a column.
-            pattern: The pattern. A bare ``str`` is a string literal.
+            expr: The tested expression.
+            pattern: The pattern.
             kind: ``LIKE``, ``ILIKE``, ``SIMILAR TO``, or ``RLIKE``.
             negated: If ``True``, emit ``NOT LIKE`` (or the matching
                 negated form).
@@ -619,7 +650,7 @@ class LikeExpr(Expr):
             Usually a ``Value`` when constructed from a string.
         """
 
-    def get_kind(self) -> str:
+    def get_kind(self) -> typing.Literal["LIKE", "ILIKE", "SIMILAR TO", "RLIKE"]:
         """
         Return the operator kind.
 
@@ -652,7 +683,7 @@ class CastExpr(Expr):
         Create a ``CAST`` expression.
 
         Args:
-            expr: The expression to cast. A bare ``str`` is a column.
+            expr: The expression to cast.
             to: SQL type name (``INT``, ``VARCHAR(255)``, …). Known
                 names are canonicalized the same way as ``DataType``.
 
@@ -693,8 +724,7 @@ class CaseExpr(Expr):
         Create an empty ``CASE`` expression.
 
         Args:
-            operand: Optional simple-``CASE`` operand. A bare ``str``
-                is a column. Omit for a searched ``CASE``.
+            operand: Optional simple-``CASE``. Omit for a searched ``CASE``.
 
         Returns:
             A new ``CaseExpr`` with no ``WHEN`` clauses.
@@ -706,7 +736,7 @@ class CaseExpr(Expr):
 
         Args:
             when: A condition expression (not ``Ident`` or ``Value``).
-            then: Result expression. A bare ``str`` is a column.
+            then: Result expression.
 
         Returns:
             A new ``CaseExpr`` with the clause appended.
@@ -720,7 +750,7 @@ class CaseExpr(Expr):
         Set the ``ELSE`` result.
 
         Args:
-            result: The else expression. A bare ``str`` is a column.
+            result: The else expression.
 
         Returns:
             A new ``CaseExpr`` with ``ELSE`` set.
@@ -769,8 +799,7 @@ class CustomExpr(Expr):
         Args:
             sql: Template string. Each ``{}`` is replaced by one
                 argument. ``{{`` and ``}}`` emit ``{`` and ``}``.
-            *args: Expressions interpolated at ``{}`` slots. A bare
-                ``str`` is a column.
+            *args: Expressions interpolated at ``{}`` slots.
 
         Returns:
             A new ``CustomExpr``.

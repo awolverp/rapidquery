@@ -59,6 +59,8 @@ pub struct Like {
     pub kind: LikeKind,
     pub negated: bool,
     pub expr: Box<ExprEnum>,
+
+    // TODO: may it's better to keep `Arcstr | list of Arcstr`
     pub pattern: Box<ExprEnum>,
     pub escape: Option<char>,
 }

@@ -16,9 +16,6 @@ unsafe fn is_asterisk(obj: *mut pyo3::ffi::PyObject) -> bool {
     type_ptr == crate::typeref::ASTERISK_TYPE
 }
 
-/// Ident-priority extractor: a bare `str` becomes [`ExprEnum::Ident`].
-pub struct ExprExtractor(pub ExprEnum);
-
 /// Literal-priority extractor: a bare `str` becomes [`ExprEnum::Value`].
 pub struct LiteralExprExtractor(pub ExprEnum);
 
@@ -139,17 +136,6 @@ pub(super) fn extract_ident_argument(
         "expected str, Ident, Unquote or Asterisk, got {}",
         unsafe { crate::internal::utils::get_type_name(obj.py(), obj.as_ptr()) }
     )
-}
-
-impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for ExprExtractor {
-    type Error = pyo3::PyErr;
-
-    #[inline]
-    fn extract(
-        obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>,
-    ) -> Result<Self, Self::Error> {
-        extract_expr(obj, true).map(Self)
-    }
 }
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for LiteralExprExtractor {

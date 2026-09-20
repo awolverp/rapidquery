@@ -2,7 +2,7 @@ use crate::internal::{alias, utils};
 
 use super::base::PyExpr;
 use super::enum_::{DuplicateTreatment, FunctionArguments};
-use super::extractors::{ConditionExtractor, ExprExtractor, IdentExtractor};
+use super::extractors::{ConditionExtractor, IdentExtractor, LiteralExprExtractor};
 
 /// SQL function call.
 ///
@@ -45,7 +45,7 @@ impl PyFunction {
     #[pyo3(signature = (name, args = None, *, distinct = None, filter = None))]
     fn __new__(
         name: IdentExtractor,
-        args: Option<Vec<ExprExtractor>>,
+        args: Option<Vec<LiteralExprExtractor>>,
         distinct: Option<bool>,
         filter: Option<ConditionExtractor>,
     ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
@@ -57,7 +57,7 @@ impl PyFunction {
                     Some(false) => Some(DuplicateTreatment::All),
                     None => None,
                 },
-                args: x.into_iter().map(|ExprExtractor(x)| x).collect(),
+                args: x.into_iter().map(|LiteralExprExtractor(x)| x).collect(),
             },
         };
 

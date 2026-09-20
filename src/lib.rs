@@ -8,6 +8,21 @@ pub mod internal;
 pub mod sql;
 pub mod typeref;
 
+// Tasks until being stable (until this part)
+// - Support `any` in LikeExpr
+// - Pattern in LikeExpr should not parameterized
+// - Support `null_treatment` in Function
+// - Support `AtDashAt`, `DoubleAt`, `Hash`, `PGAbs`, `PGCubeRoot`, `PGPostfixFactorial`,
+//           `PGPrefixFactorial`, `PGSquareRoot`, `QuestionDash`, and `QuestionPipe` in UnaryExpr
+// - Support IsNormalizedExpr
+// - Support `TryCast`, `SafeCast`, and `DoubleColon` kinds in CastExpr
+// - Support `array` and `format` in CastExpr
+// - Support TrimExpr
+// - Support CollateExpr
+// - Raise error when something is not supported by a dialect
+// - Update docstrings
+// - Test and coverage everything and edge cases
+
 /// RapidQuery native extension.
 #[pyo3::pymodule(gil_used = false)]
 mod _core {
