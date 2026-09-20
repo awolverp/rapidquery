@@ -336,6 +336,14 @@ impl SqlDialect {
         matches!(self, Self::PostgreSql)
     }
 
+    /// `{IGNORE|RESPECT} NULLS` inside the argument list
+    /// (`FIRST_VALUE(x IGNORE NULLS)`), as documented for BigQuery and DuckDB.
+    /// Other dialects emit it after the closing parenthesis.
+    #[inline]
+    pub fn null_treatment_inside_parens(self) -> bool {
+        matches!(self, Self::BigQuery | Self::DuckDb)
+    }
+
     /// Write a boolean literal (`TRUE`/`FALSE` or `1`/`0`).
     #[inline]
     pub fn format_boolean<W: Write>(&self, writer: &mut W, value: bool) -> fmt::Result {

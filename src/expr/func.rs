@@ -1,20 +1,21 @@
+use pyo3::types::{PyAnyMethods, PyTupleMethods};
+
 use crate::internal::{alias, utils};
 
 use super::base::PyExpr;
-use super::enum_::{DuplicateTreatment, FunctionArguments};
+use super::enum_::{DuplicateTreatment, FunctionArguments, NullTreatment};
 use super::extractors::{ConditionExtractor, IdentExtractor, LiteralExprExtractor};
 
 /// SQL function call.
 ///
-/// `name` is an identifier (`SUM`, `schema.fn`). `parentheses=False` emits
-/// `CURRENT_TIMESTAMP` with no argument list. `distinct=True` inserts
-/// `DISTINCT` inside the parentheses.
+/// `name` is an identifier (`SUM`, `schema.fn`). The constructor emits a
+/// bare name such as `CURRENT_TIMESTAMP` (no parentheses). `.call(...)`
+/// adds an argument list; `.filter(...)` adds `FILTER (WHERE …)`;
+/// `.ignore_nulls()` / `.respect_nulls()` add a postfix null-treatment
+/// clause. Each method returns a new frozen `Function`.
 ///
 /// Args:
 ///     name: Function name (`str`, `Ident`, `Unquote`).
-///     args: Positional argument expressions. A bare `str` is a column.
-///     distinct: `True` → `DISTINCT`, `False` → `ALL`, omitted → neither.
-///     filter: Optional `FILTER (WHERE …)` predicate.
 #[rapidquery_macros::pyclass(
     "Function",
     skip_from_py_object,
@@ -37,36 +38,74 @@ impl PyFunction {
             _ => unsafe { std::hint::unreachable_unchecked() },
         }
     }
+
+    fn wrap(
+        py: pyo3::Python<'_>,
+        inner: super::enum_::Function,
+    ) -> pyo3::PyResult<alias::PyObject> {
+        pyo3::Py::new(
+            py,
+            pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self),
+        )
+        .map(pyo3::Py::into_any)
+    }
 }
 
 #[pyo3::pymethods]
 impl PyFunction {
     #[new]
-    #[pyo3(signature = (name, args = None, *, distinct = None, filter = None))]
-    fn __new__(
-        name: IdentExtractor,
-        args: Option<Vec<LiteralExprExtractor>>,
-        distinct: Option<bool>,
-        filter: Option<ConditionExtractor>,
-    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
-        let func_args = match args {
-            None => FunctionArguments::None,
-            Some(x) => FunctionArguments::List {
-                duplicate_treatment: match distinct {
-                    Some(true) => Some(DuplicateTreatment::Distinct),
-                    Some(false) => Some(DuplicateTreatment::All),
-                    None => None,
-                },
-                args: x.into_iter().map(|LiteralExprExtractor(x)| x).collect(),
-            },
-        };
-
+    #[pyo3(signature = (name, /))]
+    fn __new__(name: IdentExtractor) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
         let inner = super::enum_::Function {
             name: name.0,
-            args: func_args,
-            filter: filter.map(|ConditionExtractor(expr)| Box::new(expr)),
+            args: FunctionArguments::None,
+            filter: None,
+            null_treatment: None,
         };
         Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
+    }
+
+    #[pyo3(signature = (*args, distinct = None))]
+    fn call(
+        slf: pyo3::PyRef<'_, Self>,
+        args: alias::ArgsType<'_>,
+        distinct: Option<bool>,
+    ) -> pyo3::PyResult<alias::PyObject> {
+        let mut inner = Self::inner(&slf).clone();
+        let mut extracted = Vec::with_capacity(args.len());
+        for item in args.iter() {
+            extracted.push(item.extract::<LiteralExprExtractor>()?.0);
+        }
+        inner.args = FunctionArguments::List {
+            duplicate_treatment: match distinct {
+                Some(true) => Some(DuplicateTreatment::Distinct),
+                Some(false) => Some(DuplicateTreatment::All),
+                None => None,
+            },
+            args: extracted,
+        };
+        Self::wrap(slf.py(), inner)
+    }
+
+    fn filter(
+        slf: pyo3::PyRef<'_, Self>,
+        predicate: ConditionExtractor,
+    ) -> pyo3::PyResult<alias::PyObject> {
+        let mut inner = Self::inner(&slf).clone();
+        inner.filter = Some(Box::new(predicate.0));
+        Self::wrap(slf.py(), inner)
+    }
+
+    fn ignore_nulls(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::PyObject> {
+        let mut inner = Self::inner(&slf).clone();
+        inner.null_treatment = Some(NullTreatment::IgnoreNulls);
+        Self::wrap(slf.py(), inner)
+    }
+
+    fn respect_nulls(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::PyObject> {
+        let mut inner = Self::inner(&slf).clone();
+        inner.null_treatment = Some(NullTreatment::RespectNulls);
+        Self::wrap(slf.py(), inner)
     }
 
     fn get_name(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
@@ -126,5 +165,9 @@ impl PyFunction {
             Some(e) => super::base::into_subclasses(py, (**e).clone()),
             None => Ok(utils::new_pynone(py)),
         }
+    }
+
+    fn get_null_treatment(slf: pyo3::PyRef<'_, Self>) -> Option<&'static str> {
+        Self::inner(&slf).null_treatment.map(NullTreatment::as_sql)
     }
 }

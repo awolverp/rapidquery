@@ -11,7 +11,6 @@ pub mod typeref;
 // Tasks until being stable (until this part)
 // - Support `any` in LikeExpr
 // - Pattern in LikeExpr should not parameterized
-// - Support `null_treatment` in Function
 // - Support `AtDashAt`, `DoubleAt`, `Hash`, `PGAbs`, `PGCubeRoot`, `PGPostfixFactorial`,
 //           `PGPrefixFactorial`, `PGSquareRoot`, `QuestionDash`, and `QuestionPipe` in UnaryExpr
 // - Support IsNormalizedExpr

@@ -21,6 +21,27 @@ impl DuplicateTreatment {
     }
 }
 
+/// How `NULL`s are treated in some window/aggregate functions.
+///
+/// Placement is dialect-specific: postfix `LAG(x) IGNORE NULLS`, or
+/// inside the argument list on BigQuery/DuckDB (`LAG(x IGNORE NULLS)`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NullTreatment {
+    /// `IGNORE NULLS`
+    IgnoreNulls,
+    /// `RESPECT NULLS`
+    RespectNulls,
+}
+
+impl NullTreatment {
+    pub fn as_sql(self) -> &'static str {
+        match self {
+            Self::IgnoreNulls => "IGNORE NULLS",
+            Self::RespectNulls => "RESPECT NULLS",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum FunctionArguments {
     /// Used for special functions like `CURRENT_TIMESTAMP` that are invoked
@@ -42,35 +63,50 @@ pub struct Function {
     pub args: FunctionArguments,
     /// e.g. `x > 5` in `COUNT(x) FILTER (WHERE x > 5)`
     pub filter: Option<Box<ExprEnum>>,
-    // TODO: null_treatment, over, within_group
+    /// `IGNORE NULLS` / `RESPECT NULLS`. Inside the parens on BigQuery
+    /// and DuckDB; after the call on other dialects.
+    pub null_treatment: Option<NullTreatment>,
+    // TODO: over, within_group
 }
 
 impl Function {
     pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        let mut buf = format!("Function({}", self.name.python_repr());
+        let mut buf = format!("Function({})", self.name.python_repr());
         match &self.args {
             FunctionArguments::None => (),
             FunctionArguments::List {
                 duplicate_treatment,
                 args,
             } => {
-                for arg in args {
-                    buf.push_str(", ");
+                buf.push_str(".call(");
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        buf.push_str(", ");
+                    }
                     buf.push_str(&arg.python_repr(py)?);
                 }
                 if let Some(dt) = duplicate_treatment {
+                    if !args.is_empty() {
+                        buf.push_str(", ");
+                    }
                     match dt {
-                        DuplicateTreatment::Distinct => buf.push_str(", distinct=True"),
-                        DuplicateTreatment::All => buf.push_str(", distinct=False"),
+                        DuplicateTreatment::Distinct => buf.push_str("distinct=True"),
+                        DuplicateTreatment::All => buf.push_str("distinct=False"),
                     }
                 }
+                buf.push(')');
             }
         }
-        if let Some(filter) = &self.filter {
-            buf.push_str(", filter=");
-            buf.push_str(&filter.python_repr(py)?);
+        match self.null_treatment {
+            Some(NullTreatment::IgnoreNulls) => buf.push_str(".ignore_nulls()"),
+            Some(NullTreatment::RespectNulls) => buf.push_str(".respect_nulls()"),
+            None => {}
         }
-        buf.push(')');
+        if let Some(filter) = &self.filter {
+            buf.push_str(".filter(");
+            buf.push_str(&filter.python_repr(py)?);
+            buf.push(')');
+        }
         Ok(buf)
     }
 }
@@ -82,8 +118,15 @@ impl WriteSql for Function {
         out: &mut W,
     ) -> PrepareResult<()> {
         self.name.write_sql(dialect, out)?;
+        let nt_inside = dialect.null_treatment_inside_parens();
         match &self.args {
-            FunctionArguments::None => {}
+            FunctionArguments::None => {
+                // No parentheses to put the clause in; always postfix.
+                if let Some(nt) = self.null_treatment {
+                    out.push_char(' ');
+                    out.push_str(nt.as_sql());
+                }
+            }
             FunctionArguments::List {
                 duplicate_treatment,
                 args,
@@ -97,7 +140,17 @@ impl WriteSql for Function {
                     }
                 }
                 write_separated(dialect, out, args, ", ")?;
+                if nt_inside && let Some(nt) = self.null_treatment {
+                    if !args.is_empty() {
+                        out.push_char(' ');
+                    }
+                    out.push_str(nt.as_sql());
+                }
                 out.push_char(')');
+                if !nt_inside && let Some(nt) = self.null_treatment {
+                    out.push_char(' ');
+                    out.push_str(nt.as_sql());
+                }
             }
         }
         if let Some(filter) = &self.filter {

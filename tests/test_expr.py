@@ -1,6 +1,6 @@
 import pytest
 
-from rapidquery.dialect import PostgreSQL, SqlDialect
+from rapidquery.dialect import BigQuery, DuckDB, PostgreSQL, SqlDialect
 from rapidquery.expr import (
     Asterisk,
     BetweenExpr,
@@ -66,15 +66,18 @@ class TestFunction:
         assert fn.get_distinct() is None
         assert fn.get_args() is None
         assert fn.get_filter() is None
+        assert fn.get_null_treatment() is None
 
-        fn = Function("example", filter=BinaryExpr(1, ">", 2))
+        fn = Function("example").filter(BinaryExpr(1, ">", 2))
         assert fn.get_name() == Ident("example")
         assert fn.get_distinct() is None
         assert fn.get_args() is None
         assert isinstance(fn.get_filter(), BinaryExpr)
 
-        fn = Function(
-            "count", [Ident("id")], distinct=False, filter=BinaryExpr(1, ">", 2)
+        fn = (
+            Function("count")
+            .call(Ident("id"), distinct=False)
+            .filter(BinaryExpr(1, ">", 2))
         )
         assert fn.get_name() == Ident("count")
         assert fn.get_distinct() is False
@@ -87,6 +90,12 @@ class TestFunction:
         fn = Function("schema.fn")
         assert fn.get_name() == Ident("schema", "fn")
 
+        bare = Function("now")
+        called = bare.call()
+        assert called is not bare
+        assert called.get_args() == ()
+        assert bare.get_args() is None
+
     def test_to_sql(self):
         fn = Function("current_timestamp")
         assert fn.to_sql(PostgreSQL) == '"current_timestamp"'
@@ -94,48 +103,80 @@ class TestFunction:
         fn = Function(Unquote("CURRENT_TIMESTAMP"))
         assert fn.to_sql(PostgreSQL) == "CURRENT_TIMESTAMP"
 
-        fn = Function(Unquote("NOW"), [])
+        fn = Function(Unquote("NOW")).call()
         assert fn.to_sql(PostgreSQL) == "NOW()"
 
         fn = Function(Unquote("NOW"))
         assert fn.to_sql(PostgreSQL) == "NOW"
 
-        fn = Function(
-            "count", [Asterisk], filter=BinaryExpr(Ident("status"), "=", "completed")
+        fn = Function("count").call(Asterisk).filter(
+            BinaryExpr(Ident("status"), "=", "completed")
         )
         assert (
             fn.to_sql(PostgreSQL)
             == '"count"(*) FILTER (WHERE "status" = E\'completed\')'
         )
 
-        fn = Function(
-            "count",
-            [Ident("id")],
-            distinct=False,
-            filter=BinaryExpr(Ident("status"), "=", "completed"),
+        fn = (
+            Function("count")
+            .call(Ident("id"), distinct=False)
+            .filter(BinaryExpr(Ident("status"), "=", "completed"))
         )
         assert (
             fn.to_sql(PostgreSQL)
             == '"count"(ALL "id") FILTER (WHERE "status" = E\'completed\')'
         )
 
-        fn = Function(
-            "count",
-            [Ident("id")],
-            distinct=True,
-            filter=BinaryExpr(Ident("status"), "=", "completed"),
+        fn = (
+            Function("count")
+            .call(Ident("id"), distinct=True)
+            .filter(BinaryExpr(Ident("status"), "=", "completed"))
         )
         assert (
             fn.to_sql(PostgreSQL)
             == '"count"(DISTINCT "id") FILTER (WHERE "status" = E\'completed\')'
         )
 
-        fn = Function(
-            "now",
-            [],
-            distinct=True,
-        )
+        fn = Function("now").call(distinct=True)
         assert fn.to_sql(PostgreSQL) == '"now"()'
+
+        fn = Function("custom").call(1, 2, Ident("id"), distinct=True)
+        assert fn.to_sql(PostgreSQL) == '"custom"(DISTINCT 1, 2, "id")'
+
+        fn = Function("lag").call(Ident("x")).ignore_nulls()
+        assert fn.to_sql(PostgreSQL) == '"lag"("x") IGNORE NULLS'
+        assert fn.to_sql(BigQuery) == "`lag`(`x` IGNORE NULLS)"
+        assert fn.to_sql(DuckDB) == '"lag"("x" IGNORE NULLS)'
+        assert fn.get_null_treatment() == "IGNORE NULLS"
+
+        fn = Function("lag").call(Ident("x")).respect_nulls()
+        assert fn.to_sql(PostgreSQL) == '"lag"("x") RESPECT NULLS'
+        assert fn.to_sql(BigQuery) == "`lag`(`x` RESPECT NULLS)"
+        assert fn.to_sql(DuckDB) == '"lag"("x" RESPECT NULLS)'
+        assert fn.get_null_treatment() == "RESPECT NULLS"
+
+        fn = Function("lag").call().ignore_nulls()
+        assert fn.to_sql(PostgreSQL) == '"lag"() IGNORE NULLS'
+        assert fn.to_sql(BigQuery) == "`lag`(IGNORE NULLS)"
+
+        fn = Function("lag").ignore_nulls()
+        assert fn.to_sql(PostgreSQL) == '"lag" IGNORE NULLS'
+        assert fn.to_sql(BigQuery) == "`lag` IGNORE NULLS"
+
+        fn = (
+            Function("count")
+            .call(Ident("id"))
+            .ignore_nulls()
+            .filter(BinaryExpr(Ident("status"), "=", "completed"))
+        )
+        assert (
+            fn.to_sql(PostgreSQL)
+            == '"count"("id") IGNORE NULLS FILTER (WHERE "status" = E\'completed\')'
+        )
+        assert (
+            fn.to_sql(BigQuery)
+            == "`count`(`id` IGNORE NULLS) FILTER (WHERE `status` = 'completed')"
+        )
 
     def test_edge_cases(self):
         with pytest.raises(TypeError):
@@ -145,32 +186,45 @@ class TestFunction:
             Function("")
 
         with pytest.raises(TypeError, match="condition"):
-            Function("now", filter=Ident("x"))  # pyright: ignore
+            Function("now").filter(Ident("x"))  # pyright: ignore
 
         with pytest.raises(TypeError, match="condition"):
-            Function("now", filter=1)  # pyright: ignore
+            Function("now").filter(1)  # pyright: ignore
 
-        fn = Function("now", distinct=True)
-        assert fn.get_distinct() is None
-        assert fn.get_args() is None
-        assert fn.to_sql(PostgreSQL) == '"now"'
-
-        fn = Function("f", ["id"])
+        fn = Function("f").call("id")
         assert fn.get_args() == (Value("id"),)
         assert fn.to_sql(PostgreSQL) == '"f"(E\'id\')'
 
-        fn = Function(Ident("schema.fn"), [])
+        fn = Function(Ident("schema.fn")).call()
         assert fn.get_name() == Ident("schema.fn")
         assert fn.to_sql(PostgreSQL) == '"schema.fn"()'
 
-        fn = Function(
-            "count",
-            [1],
-            filter=BinaryExpr(Ident("x"), ">", 2),
-        )
+        first = Function("f").call(1)
+        second = first.call(2, 3)
+        assert first.get_args() == (Value(1),)
+        assert second.get_args() == (Value(2), Value(3))
+
+        filtered = Function("f").filter(BinaryExpr(1, ">", 0))
+        replaced = filtered.filter(BinaryExpr(2, ">", 0))
+        assert filtered.to_sql(PostgreSQL) == '"f" FILTER (WHERE 1 > 0)'
+        assert replaced.to_sql(PostgreSQL) == '"f" FILTER (WHERE 2 > 0)'
+
+        ignored = Function("lag").call(Ident("x")).ignore_nulls()
+        respected = ignored.respect_nulls()
+        assert ignored.get_null_treatment() == "IGNORE NULLS"
+        assert respected.get_null_treatment() == "RESPECT NULLS"
+        assert ignored.to_sql(PostgreSQL) == '"lag"("x") IGNORE NULLS'
+        assert respected.to_sql(PostgreSQL) == '"lag"("x") RESPECT NULLS'
+
+        fn = Function("count").call(1).filter(BinaryExpr(Ident("x"), ">", 2))
         sql, params = fn.prepare(PostgreSQL)
         assert sql == '"count"(:param_0) FILTER (WHERE "x" > :param_1)'
         assert params == {"param_0": 1, "param_1": 2}
+
+        assert (
+            repr(Function("lag").call(Ident("x")).ignore_nulls())
+            == 'Function(Ident("lag")).call(Ident("x")).ignore_nulls()'
+        )
 
 
 class TestTupleExpr:
@@ -225,7 +279,7 @@ class TestUnaryExpr:
             UnaryExpr("!", 1)
 
     def test_to_sql(self):
-        un = UnaryExpr("-", Function("now", []))
+        un = UnaryExpr("-", Function("now").call())
         assert un.to_sql(PostgreSQL) == '-"now"()'
 
         assert UnaryExpr("NOT", 1).to_sql(PostgreSQL) == "NOT 1"

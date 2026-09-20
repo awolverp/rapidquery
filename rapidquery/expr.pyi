@@ -214,29 +214,18 @@ class Function(Expr):
     """
     SQL function call.
 
-    ``name`` is an identifier (``SUM``, ``schema.fn``). Passing no
-    positional arguments emits a bare call such as
-    ``CURRENT_TIMESTAMP`` (no parentheses). ``distinct=True`` inserts
-    ``DISTINCT`` inside the parentheses.
+    ``name`` is an identifier (``SUM``, ``schema.fn``). The constructor
+    emits a bare name such as ``CURRENT_TIMESTAMP`` (no parentheses).
+    Chain ``call``, ``filter``, ``ignore_nulls``, and ``respect_nulls``.
+    Each method returns a new frozen instance.
     """
 
-    def __new__(
-        cls,
-        name: str | Ident | Unquote,
-        args: typing.Iterable[object] | None = None,
-        *,
-        distinct: bool | None = None,
-        filter: Expr | None = None,
-    ) -> Self:
+    def __new__(cls, name: str | Ident | Unquote, /) -> Self:
         """
-        Create a function call.
+        Create a function name with no argument list.
 
         Args:
             name: Function name (``str``, ``Ident``, or ``Unquote``).
-            args: Positional argument expressions. `None` means no parentheses (``CURRENT_TIMESTAMP``).
-            distinct: ``True`` inserts ``DISTINCT``, ``False`` inserts
-                ``ALL``, omitted inserts neither.
-            filter: Optional ``FILTER (WHERE …)`` predicate.
 
         Returns:
             A new ``Function``.
@@ -244,6 +233,56 @@ class Function(Expr):
         Raises:
             TypeError: If ``name`` is not an identifier.
             ValueError: If ``name`` is an empty or invalid identifier.
+        """
+
+    def call(self, *args: object, distinct: bool | None = None) -> Self:
+        """
+        Attach an argument list (including empty parentheses).
+
+        Args:
+            *args: Positional argument expressions.
+            distinct: ``True`` inserts ``DISTINCT``, ``False`` inserts
+                ``ALL``, omitted inserts neither.
+
+        Returns:
+            A new ``Function`` with this argument list.
+        """
+
+    def filter(self, predicate: Expr, /) -> Self:
+        """
+        Attach a ``FILTER (WHERE …)`` predicate.
+
+        Args:
+            predicate: A condition expression (not ``Ident`` or ``Value``).
+
+        Returns:
+            A new ``Function`` with the filter set.
+
+        Raises:
+            TypeError: If ``predicate`` is not a condition expression.
+        """
+
+    def ignore_nulls(self) -> Self:
+        """
+        Attach ``IGNORE NULLS``.
+
+        BigQuery and DuckDB emit it inside the parentheses
+        (``LAG(x IGNORE NULLS)``). Other dialects emit it after the
+        call (``LAG(x) IGNORE NULLS``).
+
+        Returns:
+            A new ``Function`` with this null treatment.
+        """
+
+    def respect_nulls(self) -> Self:
+        """
+        Attach ``RESPECT NULLS``.
+
+        Placement follows ``ignore_nulls`` (inside the parentheses on
+        BigQuery and DuckDB).
+
+        Returns:
+            A new ``Function`` with this null treatment.
         """
 
     def get_name(self) -> Ident:
@@ -270,6 +309,16 @@ class Function(Expr):
 
         Returns:
             The filter expression, or ``None``.
+        """
+
+    def get_null_treatment(
+        self,
+    ) -> typing.Literal["IGNORE NULLS", "RESPECT NULLS"] | None:
+        """
+        Return the postfix null-treatment clause, if any.
+
+        Returns:
+            ``IGNORE NULLS``, ``RESPECT NULLS``, or ``None``.
         """
 
 @final
