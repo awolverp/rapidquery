@@ -931,13 +931,20 @@ class RLikeExpr(Expr):
 class CastExpr(Expr):
     """``CAST(expr AS type)``."""
 
-    def __new__(cls, expr: object, to: str, /) -> Self:
+    def __new__(
+        cls,
+        expr: object,
+        data_type_name: str | DataType,
+        /,
+        *,
+        kind: typing.Literal["CAST", "TRY_CAST", "SAFE_CAST"] | str = "CAST",
+    ) -> Self:
         """
         Create a ``CAST`` expression.
 
         Args:
             expr: The expression to cast.
-            to: SQL type name (``INT``, ``VARCHAR(255)``, …). Known
+            data_type_name: SQL type name (``INT``, ``VARCHAR(255)``, …). Known
                 names are canonicalized the same way as ``DataType``.
 
         Returns:
@@ -952,13 +959,15 @@ class CastExpr(Expr):
             The inner expression.
         """
 
-    def get_data_type(self) -> str:
+    def get_data_type_name(self) -> str:
         """
         Return the target SQL type name.
 
         Returns:
             The canonical type spelling.
         """
+
+    def get_kind(self) -> typing.Literal["CAST", "TRY_CAST", "SAFE_CAST"]: ...
 
 @final
 class CaseExpr(Expr):

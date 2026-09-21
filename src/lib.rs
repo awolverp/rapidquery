@@ -9,7 +9,6 @@ pub mod sql;
 pub mod typeref;
 
 // Tasks until being stable (until this part)
-// - Support `TryCast`, `SafeCast` kinds in CastExpr
 // - Support `array` and `format` in CastExpr
 // - Support TrimExpr
 // - Support CollateExpr

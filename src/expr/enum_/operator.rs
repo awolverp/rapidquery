@@ -222,3 +222,35 @@ impl NormalizationForm {
         }
     }
 }
+
+/// Unary operator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CastKind {
+    Cast,
+    TryCast,
+    SafeCast,
+}
+
+impl CastKind {
+    #[inline]
+    pub fn parse(s: &str) -> Option<Self> {
+        if s.eq_ignore_ascii_case("CAST") {
+            Some(Self::Cast)
+        } else if s.eq_ignore_ascii_case("TRY_CAST") {
+            Some(Self::TryCast)
+        } else if s.eq_ignore_ascii_case("SAFE_CAST") {
+            Some(Self::SafeCast)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    pub fn as_sql(self) -> &'static str {
+        match self {
+            Self::Cast => "CAST",
+            Self::TryCast => "TRY_CAST",
+            Self::SafeCast => "SAFE_CAST",
+        }
+    }
+}

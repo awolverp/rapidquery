@@ -3,7 +3,7 @@ use pyo3::types::{PyAnyMethods, PyTupleMethods};
 use super::base::PyExpr;
 use super::enum_::ExprEnum;
 use super::extractors::{ConditionExtractor, LiteralExprExtractor, extract_like_pattern};
-use crate::data_type::DataTypeName;
+use crate::data_type::DataTypeNameExtractor;
 use crate::internal::{alias, utils};
 
 macro_rules! empty_node {
@@ -549,14 +549,22 @@ impl PyRLikeExpr {
 #[pyo3::pymethods]
 impl PyCastExpr {
     #[new]
-    #[pyo3(signature = (expr, to, /))]
-    fn __new__(expr: LiteralExprExtractor, to: String) -> pyo3::PyClassInitializer<Self> {
-        let data_type_name = DataTypeName::from(to);
-        let inner = super::enum_::Cast {
-            expr: Box::new(expr.0),
-            data_type: data_type_name,
+    #[pyo3(signature = (expr, data_type_name, /, *, kind=String::from("CAST")))]
+    fn __new__(
+        expr: LiteralExprExtractor,
+        data_type_name: DataTypeNameExtractor,
+        kind: String,
+    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+        let Some(kind) = super::enum_::CastKind::parse(&kind) else {
+            return rapidquery_macros::pyerr!(Err(PyValueError), "unknown cast kind {:?}", kind);
         };
-        pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self)
+
+        let inner = super::enum_::Cast {
+            kind,
+            expr: Box::new(expr.0),
+            data_type_name: data_type_name.0,
+        };
+        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
     }
 
     fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
@@ -564,9 +572,14 @@ impl PyCastExpr {
         super::base::into_subclasses(slf.py(), (*inner.expr).clone())
     }
 
-    fn get_data_type(slf: pyo3::PyRef<'_, Self>) -> String {
+    fn get_data_type_name(slf: pyo3::PyRef<'_, Self>) -> String {
         let inner = Self::inner(&slf);
-        inner.data_type.to_string()
+        inner.data_type_name.to_string()
+    }
+
+    fn get_kind(slf: pyo3::PyRef<'_, Self>) -> &'static str {
+        let inner = Self::inner(&slf);
+        inner.kind.as_sql()
     }
 }
 #[pyo3::pymethods]

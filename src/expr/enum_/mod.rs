@@ -98,8 +98,9 @@ pub struct RLike {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Cast {
+    pub kind: CastKind,
     pub expr: Box<ExprEnum>,
-    pub data_type: crate::data_type::DataTypeName,
+    pub data_type_name: crate::data_type::DataTypeName,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -510,10 +511,15 @@ impl ExprEnum {
                 buf.push(')');
                 Ok(buf)
             }
-            Self::Cast(Cast { expr, data_type }) => Ok(format!(
-                "CastExpr({}, {:?})",
+            Self::Cast(Cast {
+                kind,
+                expr,
+                data_type_name: data_type,
+            }) => Ok(format!(
+                "CastExpr({}, {:?}, kind={:?})",
                 expr.python_repr(py)?,
                 data_type.as_str(),
+                kind.as_sql()
             )),
             Self::Case(Case {
                 operand,
@@ -810,8 +816,13 @@ impl WriteSql for ExprEnum {
                 pattern.write_operand(dialect, out, prec, true)?;
                 write_escape(dialect, out, *escape)
             }
-            Self::Cast(Cast { expr, data_type }) => {
-                out.push_str("CAST(");
+            Self::Cast(Cast {
+                kind,
+                expr,
+                data_type_name: data_type,
+            }) => {
+                out.push_str(kind.as_sql());
+                out.push_char('(');
                 expr.write_sql(dialect, out)?;
                 out.push_str(" AS ");
                 data_type.write_sql(dialect, out)?;

@@ -1,10 +1,10 @@
-// //! SQL data types: interned names, serializers, and the composed [`DataType`].
-// //!
-// //! A [`DataTypeName`] is a canonical spelling plus a [`DataTypeGroup`]. The
-// //! group is the inference key for which [`Serializer`] [`DataType::from_name`]
-// //! constructs when none is passed. Groups are serializer-oriented: `NUMERIC`
-// //! and `DECIMAL` sit in [`DataTypeGroup::Float`] because they share a
-// //! serializer with IEEE floats.
+//! SQL data types: interned names, serializers, and the composed [`DataType`].
+//!
+//! A [`DataTypeName`] is a canonical spelling plus a [`DataTypeGroup`]. The
+//! group is the inference key for which [`Serializer`] [`DataType::from_name`]
+//! constructs when none is passed. Groups are serializer-oriented: `NUMERIC`
+//! and `DECIMAL` sit in [`DataTypeGroup::Float`] because they share a
+//! serializer with IEEE floats.
 
 mod name;
 mod serializer;
@@ -15,7 +15,7 @@ mod tests;
 pub use name::{DataTypeGroup, DataTypeName};
 pub use serializer::*;
 
-use crate::internal::alias;
+use crate::internal::{alias, utils};
 
 /// Represents a SQL data type.
 ///
@@ -152,6 +152,39 @@ impl PyDataType {
             "DataType({:?}, {})",
             self.name.as_str(),
             serializer_repr(&self.serializer)
+        )
+    }
+}
+
+/// An extractor for DataTypeName, which accepts `str` and `DataType`
+pub struct DataTypeNameExtractor(pub DataTypeName);
+
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for DataTypeNameExtractor {
+    type Error = pyo3::PyErr;
+
+    fn extract(
+        obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>,
+    ) -> Result<Self, Self::Error> {
+        let ptr = obj.as_ptr();
+
+        unsafe {
+            // SAFETY: `ptr` is a live borrowed `PyObject`. Type pointers are
+            // interned in `initialize_typeref` before any extractor runs.
+            if crate::typeref::check(ptr, crate::typeref::DATATYPE_TYPE) {
+                let dt = obj.cast_unchecked::<PyDataType>();
+                return Ok(Self(dt.get().name.clone()));
+            }
+
+            if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
+                let borrowed = utils::borrow_py_str_buffer(obj.py(), ptr)?;
+                return Ok(Self(DataTypeName::from(borrowed)));
+            }
+        }
+
+        rapidquery_macros::pyerr!(
+            Err(PyTypeError),
+            "expected Serializer or DataType, got {}",
+            unsafe { crate::internal::utils::get_type_name(obj.py(), obj.as_ptr()) }
         )
     }
 }

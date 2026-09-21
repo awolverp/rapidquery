@@ -1,6 +1,14 @@
 import pytest
 
-from rapidquery.dialect import BigQuery, DuckDB, PostgreSQL, SQLite, Snowflake, SqlDialect
+from rapidquery.data_type import DataType
+from rapidquery.dialect import (
+    BigQuery,
+    DuckDB,
+    PostgreSQL,
+    Snowflake,
+    SqlDialect,
+    SQLite,
+)
 from rapidquery.expr import (
     Asterisk,
     BetweenExpr,
@@ -461,18 +469,17 @@ class TestIsNormalizedExpr:
             IsNormalizedExpr(Ident("s"), "NFKC2")
 
     def test_to_sql(self):
-        assert IsNormalizedExpr(Ident("s")).to_sql(PostgreSQL) == (
-            '"s" IS NORMALIZED'
-        )
+        assert IsNormalizedExpr(Ident("s")).to_sql(PostgreSQL) == ('"s" IS NORMALIZED')
         assert IsNormalizedExpr(Ident("s"), negated=True).to_sql(PostgreSQL) == (
             '"s" IS NOT NORMALIZED'
         )
         assert IsNormalizedExpr(Ident("s"), "nFd").to_sql(PostgreSQL) == (
             '"s" IS NFD NORMALIZED'
         )
-        assert IsNormalizedExpr(Ident("s"), "NFKC", negated=True).to_sql(
-            PostgreSQL
-        ) == '"s" IS NOT NFKC NORMALIZED'
+        assert (
+            IsNormalizedExpr(Ident("s"), "NFKC", negated=True).to_sql(PostgreSQL)
+            == '"s" IS NOT NFKC NORMALIZED'
+        )
 
         sql, params = IsNormalizedExpr(Ident("s"), "NFC").prepare(PostgreSQL)
         assert sql == '"s" IS NFC NORMALIZED'
@@ -662,13 +669,9 @@ class TestLikeExpr:
 
         any_like = LikeExpr(Ident("name"), ["%a%", "%b%"])
         assert (
-            any_like.to_sql(PostgreSQL)
-            == "\"name\" LIKE ANY (ARRAY[E'%a%', E'%b%'])"
+            any_like.to_sql(PostgreSQL) == "\"name\" LIKE ANY (ARRAY[E'%a%', E'%b%'])"
         )
-        assert (
-            any_like.to_sql(Snowflake)
-            == "\"name\" LIKE ANY ('%a%', '%b%')"
-        )
+        assert any_like.to_sql(Snowflake) == "\"name\" LIKE ANY ('%a%', '%b%')"
         assert any_like.to_sql(SQLite) == (
             "(\"name\" LIKE '%a%' OR \"name\" LIKE '%b%')"
         )
@@ -682,20 +685,14 @@ class TestLikeExpr:
             negated.to_sql(PostgreSQL)
             == "NOT (\"name\" LIKE ANY (ARRAY[E'%a%', E'%b%']))"
         )
-        assert (
-            negated.to_sql(Snowflake)
-            == "\"name\" NOT LIKE ANY ('%a%', '%b%')"
-        )
+        assert negated.to_sql(Snowflake) == "\"name\" NOT LIKE ANY ('%a%', '%b%')"
         assert negated.to_sql(SQLite) == (
             "(\"name\" NOT LIKE '%a%' AND \"name\" NOT LIKE '%b%')"
         )
 
-        ilike_any = LikeExpr(
-            Ident("name"), ["%a%", "%b%"], case_sensitive=False
-        )
+        ilike_any = LikeExpr(Ident("name"), ["%a%", "%b%"], case_sensitive=False)
         assert (
-            ilike_any.to_sql(PostgreSQL)
-            == "\"name\" ILIKE ANY (ARRAY[E'%a%', E'%b%'])"
+            ilike_any.to_sql(PostgreSQL) == "\"name\" ILIKE ANY (ARRAY[E'%a%', E'%b%'])"
         )
 
         escaped = LikeExpr(Ident("name"), ["%a%", "%b%"], escape="!")
@@ -818,16 +815,33 @@ class TestCastExpr:
     def test_new(self):
         cast = CastExpr(Ident("id"), "int")
         assert cast.get_expr() == Ident("id")
-        assert cast.get_data_type() == "INT"
+        assert cast.get_data_type_name() == "INT"
+        assert cast.get_kind() == "CAST"
 
-        cast = CastExpr(1, "varchar(255)")
+        cast = CastExpr(1, "varchar(255)", kind="TRY_CAST")
         assert cast.get_expr() == Value(1)
-        assert cast.get_data_type() == "varchar(255)"
+        assert cast.get_data_type_name() == "varchar(255)"
+        assert cast.get_kind() == "TRY_CAST"
 
-        cast = CastExpr(Ident("x"), "some_totally_unknown_type")
-        assert cast.get_data_type() == "some_totally_unknown_type"
+        cast = CastExpr(Ident("x"), "some_totally_unknown_type", kind="cAsT")
+        assert cast.get_data_type_name() == "some_totally_unknown_type"
+        assert cast.get_kind() == "CAST"
+
+        dt = DataType("integer")
+        cast = CastExpr(Ident("x"), dt, kind="SAFE_CAST")
+        assert cast.get_data_type_name() == dt.name
+        assert cast.get_kind() == "SAFE_CAST"
 
     def test_to_sql(self):
+        assert CastExpr(Ident("id"), "int").to_sql(PostgreSQL) == 'CAST("id" AS INT)'
+        assert (
+            CastExpr(Ident("id"), "int", kind="SAFE_CAST").to_sql(PostgreSQL)
+            == 'SAFE_CAST("id" AS INT)'
+        )
+        assert (
+            CastExpr(Ident("id"), "int", kind="TRY_CAST").to_sql(PostgreSQL)
+            == 'TRY_CAST("id" AS INT)'
+        )
         assert CastExpr(Ident("id"), "int").to_sql(PostgreSQL) == 'CAST("id" AS INT)'
         assert CastExpr(1, "varchar(255)").to_sql(PostgreSQL) == (
             "CAST(1 AS varchar(255))"
