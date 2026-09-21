@@ -929,7 +929,7 @@ class RLikeExpr(Expr):
 
 @final
 class CastExpr(Expr):
-    """``CAST(expr AS type)``."""
+    """``CAST(expr AS type [FORMAT format [AT TIME ZONE tz]])``."""
 
     def __new__(
         cls,
@@ -938,17 +938,29 @@ class CastExpr(Expr):
         /,
         *,
         kind: typing.Literal["CAST", "TRY_CAST", "SAFE_CAST"] | str = "CAST",
+        format: object | None = None,
+        at_time_zone: object | None = None,
     ) -> Self:
         """
         Create a ``CAST`` expression.
 
         Args:
             expr: The expression to cast.
-            data_type_name: SQL type name (``INT``, ``VARCHAR(255)``, …). Known
-                names are canonicalized the same way as ``DataType``.
+            data_type_name: SQL type name (``INT``, ``VARCHAR(255)``,
+                ``INT ARRAY``, …). Known names are canonicalized the
+                same way as ``DataType``. Array types are part of the
+                name (``INT ARRAY``), not a Cast flag.
+            kind: ``CAST``, ``TRY_CAST``, or ``SAFE_CAST``.
+            format: Optional BigQuery ``FORMAT`` expression.
+            at_time_zone: Optional ``AT TIME ZONE`` expression. Requires
+                ``format``.
 
         Returns:
             A new ``CastExpr``.
+
+        Raises:
+            ValueError: If ``kind`` is unknown, or ``at_time_zone`` is
+                set without ``format``.
         """
 
     def get_expr(self) -> Expr:
@@ -968,6 +980,120 @@ class CastExpr(Expr):
         """
 
     def get_kind(self) -> typing.Literal["CAST", "TRY_CAST", "SAFE_CAST"]: ...
+
+    def get_format(self) -> Expr | None:
+        """
+        Return the ``FORMAT`` expression, if any.
+
+        Returns:
+            The format expression, or ``None``.
+        """
+
+    def get_at_time_zone(self) -> Expr | None:
+        """
+        Return the ``AT TIME ZONE`` expression, if any.
+
+        Returns:
+            The time zone expression, or ``None``.
+        """
+
+@final
+class TrimExpr(Expr):
+    """``TRIM([BOTH|LEADING|TRAILING] [what FROM] expr[, chars…])``."""
+
+    def __new__(
+        cls,
+        expr: object,
+        /,
+        *,
+        where: typing.Literal["BOTH", "LEADING", "TRAILING"] | str | None = None,
+        what: object | None = None,
+        characters: Sequence[object] | None = None,
+    ) -> Self:
+        """
+        Create a ``TRIM`` expression.
+
+        Args:
+            expr: The string to trim.
+            where: Optional ``BOTH``, ``LEADING``, or ``TRAILING``.
+            what: Characters to remove in ``TRIM(what FROM expr)`` form.
+            characters: Sequence of extra arguments for
+                ``TRIM(expr, c1, c2)``. A ``str`` is not a sequence
+                (use ``what``).
+
+        Returns:
+            A new ``TrimExpr``.
+
+        Raises:
+            ValueError: If ``where`` is unknown, ``characters`` is empty,
+                or both ``what`` and ``characters`` are set.
+            TypeError: If ``characters`` is not a list or tuple.
+        """
+
+    def get_expr(self) -> Expr:
+        """
+        Return the trimmed expression.
+
+        Returns:
+            The source expression.
+        """
+
+    def get_where(self) -> typing.Literal["BOTH", "LEADING", "TRAILING"] | None:
+        """
+        Return the trim side, if any.
+
+        Returns:
+            ``BOTH``, ``LEADING``, ``TRAILING``, or ``None``.
+        """
+
+    def get_what(self) -> Expr | None:
+        """
+        Return the ``FROM`` characters expression, if any.
+
+        Returns:
+            The ``what`` expression, or ``None``.
+        """
+
+    def get_characters(self) -> tuple[Expr, ...] | None:
+        """
+        Return the comma-list characters, if any.
+
+        Returns:
+            A tuple of expressions, or ``None``.
+        """
+
+@final
+class CollateExpr(Expr):
+    """``expr COLLATE collation``."""
+
+    def __new__(cls, expr: object, collation: str | Unquote | Ident, /) -> Self:
+        """
+        Create a ``COLLATE`` expression.
+
+        Args:
+            expr: The expression to collate.
+            collation: Collation name as an identifier (``str`` is
+                split on dots like ``Function`` names).
+
+        Returns:
+            A new ``CollateExpr``.
+        """
+
+    def get_expr(self) -> Expr:
+        """
+        Return the collated expression.
+
+        Returns:
+            The inner expression.
+        """
+
+    def get_collation(self) -> Ident:
+        """
+        Return the collation identifier.
+
+        Returns:
+            The collation name.
+        """
 
 @final
 class CaseExpr(Expr):

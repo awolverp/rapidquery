@@ -2,7 +2,10 @@ use pyo3::types::{PyAnyMethods, PyTupleMethods};
 
 use super::base::PyExpr;
 use super::enum_::ExprEnum;
-use super::extractors::{ConditionExtractor, LiteralExprExtractor, extract_like_pattern};
+use super::extractors::{
+    ConditionExtractor, IdentExtractor, LiteralExprExtractor, extract_like_pattern,
+    extract_trim_characters,
+};
 use crate::data_type::DataTypeNameExtractor;
 use crate::internal::{alias, utils};
 
@@ -77,8 +80,14 @@ empty_node! {
     /// `expr [NOT] RLIKE pattern`.
     PyRLikeExpr(RLike(super::enum_::RLike)) => "RLikeExpr",
 
-    /// `CAST(expr AS type)`.
+    /// `CAST(expr AS type [FORMAT …])`.
     PyCastExpr(Cast(super::enum_::Cast)) => "CastExpr",
+
+    /// `TRIM([BOTH|LEADING|TRAILING] [what FROM] expr)`.
+    PyTrimExpr(Trim(super::enum_::Trim)) => "TrimExpr",
+
+    /// `expr COLLATE collation`.
+    PyCollateExpr(Collate(super::enum_::Collate)) => "CollateExpr",
 
     /// `CASE [operand] WHEN … THEN … [ELSE …] END`.
     PyCaseExpr(Case(super::enum_::Case)) => "CaseExpr",
@@ -549,20 +558,30 @@ impl PyRLikeExpr {
 #[pyo3::pymethods]
 impl PyCastExpr {
     #[new]
-    #[pyo3(signature = (expr, data_type_name, /, *, kind=String::from("CAST")))]
+    #[pyo3(signature = (expr, data_type_name, /, *, kind=String::from("CAST"), format=None, at_time_zone=None))]
     fn __new__(
         expr: LiteralExprExtractor,
         data_type_name: DataTypeNameExtractor,
         kind: String,
+        format: Option<LiteralExprExtractor>,
+        at_time_zone: Option<LiteralExprExtractor>,
     ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
         let Some(kind) = super::enum_::CastKind::parse(&kind) else {
             return rapidquery_macros::pyerr!(Err(PyValueError), "unknown cast kind {:?}", kind);
         };
+        if format.is_none() && at_time_zone.is_some() {
+            return rapidquery_macros::pyerr!(
+                Err(PyValueError),
+                "AT TIME ZONE requires FORMAT"
+            );
+        }
 
         let inner = super::enum_::Cast {
             kind,
             expr: Box::new(expr.0),
             data_type_name: data_type_name.0,
+            format: format.map(|LiteralExprExtractor(e)| Box::new(e)),
+            at_time_zone: at_time_zone.map(|LiteralExprExtractor(e)| Box::new(e)),
         };
         Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
     }
@@ -580,6 +599,127 @@ impl PyCastExpr {
     fn get_kind(slf: pyo3::PyRef<'_, Self>) -> &'static str {
         let inner = Self::inner(&slf);
         inner.kind.as_sql()
+    }
+
+    fn get_format(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+        let inner = Self::inner(&slf);
+        match inner.format.as_ref() {
+            Some(expr) => super::base::into_subclasses(slf.py(), (**expr).clone()),
+            None => Ok(utils::new_pynone(slf.py())),
+        }
+    }
+
+    fn get_at_time_zone(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+        let inner = Self::inner(&slf);
+        match inner.at_time_zone.as_ref() {
+            Some(expr) => super::base::into_subclasses(slf.py(), (**expr).clone()),
+            None => Ok(utils::new_pynone(slf.py())),
+        }
+    }
+}
+
+#[pyo3::pymethods]
+impl PyTrimExpr {
+    #[new]
+    #[pyo3(signature = (expr, /, *, r#where = None, what = None, characters = None))]
+    fn __new__(
+        expr: LiteralExprExtractor,
+        r#where: Option<&str>,
+        what: Option<LiteralExprExtractor>,
+        characters: Option<alias::BoundObject<'_>>,
+    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+        if what.is_some() && characters.is_some() {
+            return rapidquery_macros::pyerr!(
+                Err(PyValueError),
+                "TRIM what and characters cannot both be set"
+            );
+        }
+
+        let where_ = match r#where {
+            None => None,
+            Some(s) => {
+                let Some(parsed) = super::enum_::TrimWhere::parse(s) else {
+                    return rapidquery_macros::pyerr!(
+                        Err(PyValueError),
+                        "unknown TRIM where {:?}; expected BOTH, LEADING, or TRAILING",
+                        s
+                    );
+                };
+                Some(parsed)
+            }
+        };
+
+        let characters = match characters {
+            None => None,
+            Some(obj) => Some(extract_trim_characters(obj.as_borrowed())?),
+        };
+
+        let inner = super::enum_::Trim {
+            expr: Box::new(expr.0),
+            where_,
+            what: what.map(|LiteralExprExtractor(e)| Box::new(e)),
+            characters,
+        };
+        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
+    }
+
+    fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.expr).clone())
+    }
+
+    fn get_where(slf: pyo3::PyRef<'_, Self>) -> Option<&'static str> {
+        let inner = Self::inner(&slf);
+        inner.where_.map(super::enum_::TrimWhere::as_sql)
+    }
+
+    fn get_what(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+        let inner = Self::inner(&slf);
+        match inner.what.as_ref() {
+            Some(expr) => super::base::into_subclasses(slf.py(), (**expr).clone()),
+            None => Ok(utils::new_pynone(slf.py())),
+        }
+    }
+
+    fn get_characters(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+        let py = slf.py();
+        let inner = Self::inner(&slf);
+        match inner.characters.as_ref() {
+            None => Ok(utils::new_pynone(py)),
+            Some(chars) => {
+                let mut out = Vec::with_capacity(chars.len());
+                for c in chars {
+                    out.push(super::base::into_subclasses(py, c.clone())?);
+                }
+                Ok(pyo3::types::PyTuple::new(py, out)?.into_any())
+            }
+        }
+    }
+}
+
+#[pyo3::pymethods]
+impl PyCollateExpr {
+    #[new]
+    #[pyo3(signature = (expr, collation, /))]
+    fn __new__(
+        expr: LiteralExprExtractor,
+        collation: IdentExtractor,
+    ) -> pyo3::PyClassInitializer<Self> {
+        let inner = super::enum_::Collate {
+            expr: Box::new(expr.0),
+            collation: collation.0,
+        };
+        pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self)
+    }
+
+    fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.expr).clone())
+    }
+
+    fn get_collation(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), inner.collation.clone().into())
     }
 }
 #[pyo3::pymethods]

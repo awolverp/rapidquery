@@ -72,6 +72,8 @@ impl PyExpr {
             ExprEnum::SimilarTo(_) => wrap::<super::nodes::PySimilarToExpr>(py, self),
             ExprEnum::RLike(_) => wrap::<super::nodes::PyRLikeExpr>(py, self),
             ExprEnum::Cast(_) => wrap::<super::nodes::PyCastExpr>(py, self),
+            ExprEnum::Trim(_) => wrap::<super::nodes::PyTrimExpr>(py, self),
+            ExprEnum::Collate(_) => wrap::<super::nodes::PyCollateExpr>(py, self),
             ExprEnum::Case(_) => wrap::<super::nodes::PyCaseExpr>(py, self),
             ExprEnum::Custom(_) => wrap::<super::nodes::PyCustomExpr>(py, self),
         }

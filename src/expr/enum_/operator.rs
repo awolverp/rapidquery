@@ -254,3 +254,35 @@ impl CastKind {
         }
     }
 }
+
+/// `BOTH` / `LEADING` / `TRAILING` in [`super::Trim`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TrimWhere {
+    Both,
+    Leading,
+    Trailing,
+}
+
+impl TrimWhere {
+    #[inline]
+    pub fn parse(s: &str) -> Option<Self> {
+        if s.eq_ignore_ascii_case("BOTH") {
+            Some(Self::Both)
+        } else if s.eq_ignore_ascii_case("LEADING") {
+            Some(Self::Leading)
+        } else if s.eq_ignore_ascii_case("TRAILING") {
+            Some(Self::Trailing)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    pub fn as_sql(self) -> &'static str {
+        match self {
+            Self::Both => "BOTH",
+            Self::Leading => "LEADING",
+            Self::Trailing => "TRAILING",
+        }
+    }
+}

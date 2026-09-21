@@ -101,6 +101,25 @@ pub struct Cast {
     pub kind: CastKind,
     pub expr: Box<ExprEnum>,
     pub data_type_name: crate::data_type::DataTypeName,
+    pub format: Option<Box<ExprEnum>>,
+    pub at_time_zone: Option<Box<ExprEnum>>,
+}
+
+/// `TRIM([BOTH|LEADING|TRAILING] [<what> FROM] <expr>[, chars…])`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Trim {
+    pub expr: Box<ExprEnum>,
+    pub where_: Option<TrimWhere>,
+    pub what: Option<Box<ExprEnum>>,
+    /// Comma-list form `TRIM(expr, c1, c2)`. Never empty when `Some`.
+    pub characters: Option<Vec<ExprEnum>>,
+}
+
+/// `expr COLLATE collation`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Collate {
+    pub expr: Box<ExprEnum>,
+    pub collation: Ident,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -148,6 +167,8 @@ pub enum ExprEnum {
     SimilarTo(SimilarTo),
     RLike(RLike),
     Cast(Cast),
+    Trim(Trim),
+    Collate(Collate),
     Case(Case),
     Custom(Custom),
 }
@@ -260,6 +281,20 @@ impl From<Cast> for ExprEnum {
     }
 }
 
+impl From<Trim> for ExprEnum {
+    #[inline]
+    fn from(value: Trim) -> Self {
+        Self::Trim(value)
+    }
+}
+
+impl From<Collate> for ExprEnum {
+    #[inline]
+    fn from(value: Collate) -> Self {
+        Self::Collate(value)
+    }
+}
+
 impl From<Case> for ExprEnum {
     #[inline]
     fn from(value: Case) -> Self {
@@ -291,6 +326,8 @@ impl ExprEnum {
             | Self::Tuple(_)
             | Self::Function(_)
             | Self::Cast(_)
+            | Self::Trim(_)
+            | Self::Collate(_)
             | Self::Case(_)
             | Self::Custom(_) => 0,
             Self::Unary(_) => 1,
@@ -515,11 +552,51 @@ impl ExprEnum {
                 kind,
                 expr,
                 data_type_name: data_type,
-            }) => Ok(format!(
-                "CastExpr({}, {:?}, kind={:?})",
+                format,
+                at_time_zone,
+            }) => {
+                let mut buf = format!(
+                    "CastExpr({}, {:?}",
+                    expr.python_repr(py)?,
+                    data_type.as_str()
+                );
+                if *kind != CastKind::Cast {
+                    write!(buf, ", kind={:?}", kind.as_sql()).unwrap();
+                }
+                if let Some(format) = format {
+                    write!(buf, ", format={}", format.python_repr(py)?).unwrap();
+                }
+                if let Some(tz) = at_time_zone {
+                    write!(buf, ", at_time_zone={}", tz.python_repr(py)?).unwrap();
+                }
+                buf.push(')');
+                Ok(buf)
+            }
+            Self::Trim(Trim {
+                expr,
+                where_,
+                what,
+                characters,
+            }) => {
+                let mut buf = format!("TrimExpr({}", expr.python_repr(py)?);
+                if let Some(where_) = where_ {
+                    write!(buf, ", where={:?}", where_.as_sql()).unwrap();
+                }
+                if let Some(what) = what {
+                    write!(buf, ", what={}", what.python_repr(py)?).unwrap();
+                }
+                if let Some(characters) = characters {
+                    buf.push_str(", characters=[");
+                    join_reprs(py, &mut buf, characters)?;
+                    buf.push(']');
+                }
+                buf.push(')');
+                Ok(buf)
+            }
+            Self::Collate(Collate { expr, collation }) => Ok(format!(
+                "CollateExpr({}, {})",
                 expr.python_repr(py)?,
-                data_type.as_str(),
-                kind.as_sql()
+                collation.python_repr()
             )),
             Self::Case(Case {
                 operand,
@@ -820,14 +897,59 @@ impl WriteSql for ExprEnum {
                 kind,
                 expr,
                 data_type_name: data_type,
+                format,
+                at_time_zone,
             }) => {
                 out.push_str(kind.as_sql());
                 out.push_char('(');
                 expr.write_sql(dialect, out)?;
                 out.push_str(" AS ");
                 data_type.write_sql(dialect, out)?;
+                if let Some(format) = format {
+                    out.push_str(" FORMAT ");
+                    format.write_sql(dialect, out)?;
+                    if let Some(tz) = at_time_zone {
+                        out.push_str(" AT TIME ZONE ");
+                        tz.write_sql(dialect, out)?;
+                    }
+                }
                 out.push_char(')');
                 Ok(())
+            }
+            Self::Trim(Trim {
+                expr,
+                where_,
+                what,
+                characters,
+            }) => {
+                out.push_str("TRIM(");
+                if let Some(where_) = where_ {
+                    out.push_str(where_.as_sql());
+                    out.push_char(' ');
+                }
+                if let Some(what) = what {
+                    what.write_sql(dialect, out)?;
+                    out.push_str(" FROM ");
+                    expr.write_sql(dialect, out)?;
+                } else if where_.is_some() {
+                    out.push_str("FROM ");
+                    expr.write_sql(dialect, out)?;
+                } else {
+                    expr.write_sql(dialect, out)?;
+                }
+                if let Some(characters) = characters {
+                    for c in characters {
+                        out.push_str(", ");
+                        c.write_sql(dialect, out)?;
+                    }
+                }
+                out.push_char(')');
+                Ok(())
+            }
+            Self::Collate(Collate { expr, collation }) => {
+                expr.write_operand(dialect, out, self.precedence(), false)?;
+                out.push_str(" COLLATE ");
+                collation.write_sql(dialect, out)
             }
             Self::Case(Case {
                 operand,

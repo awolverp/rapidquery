@@ -15,6 +15,7 @@ from rapidquery.expr import (
     BinaryExpr,
     CaseExpr,
     CastExpr,
+    CollateExpr,
     CustomExpr,
     Expr,
     Function,
@@ -26,6 +27,7 @@ from rapidquery.expr import (
     LikeExpr,
     RLikeExpr,
     SimilarToExpr,
+    TrimExpr,
     TupleExpr,
     UnaryExpr,
     Unquote,
@@ -55,6 +57,8 @@ class TestExpr:
             SimilarToExpr(Ident("name"), "%a%"),
             RLikeExpr(Ident("name"), "%a%"),
             CastExpr(Ident("id"), "int"),
+            TrimExpr(Ident("s")),
+            CollateExpr(Ident("s"), "en_US"),
             CaseExpr(),
             CustomExpr("1"),
         ]
@@ -832,6 +836,19 @@ class TestCastExpr:
         assert cast.get_data_type_name() == dt.name
         assert cast.get_kind() == "SAFE_CAST"
 
+        formatted = CastExpr(Ident("s"), "DATE", format="%Y-%m-%d")
+        assert formatted.get_format() == Value("%Y-%m-%d")
+        assert formatted.get_at_time_zone() is None
+
+        tz = CastExpr(
+            Ident("s"), "TIMESTAMP", format="%Y-%m-%d", at_time_zone="UTC"
+        )
+        assert tz.get_format() == Value("%Y-%m-%d")
+        assert tz.get_at_time_zone() == Value("UTC")
+
+        with pytest.raises(ValueError, match="AT TIME ZONE requires FORMAT"):
+            CastExpr(Ident("s"), "TIMESTAMP", at_time_zone="UTC")
+
     def test_to_sql(self):
         assert CastExpr(Ident("id"), "int").to_sql(PostgreSQL) == 'CAST("id" AS INT)'
         assert (
@@ -846,10 +863,144 @@ class TestCastExpr:
         assert CastExpr(1, "varchar(255)").to_sql(PostgreSQL) == (
             "CAST(1 AS varchar(255))"
         )
+        assert CastExpr(Ident("id"), "INT ARRAY").to_sql(PostgreSQL) == (
+            'CAST("id" AS INT ARRAY)'
+        )
+        assert (
+            CastExpr(Ident("s"), "DATE", format="%Y-%m-%d").to_sql(PostgreSQL)
+            == "CAST(\"s\" AS DATE FORMAT E'%Y-%m-%d')"
+        )
+        assert (
+            CastExpr(
+                Ident("s"),
+                "TIMESTAMP",
+                kind="SAFE_CAST",
+                format="%Y-%m-%d",
+                at_time_zone="UTC",
+            ).to_sql(PostgreSQL)
+            == "SAFE_CAST(\"s\" AS TIMESTAMP FORMAT E'%Y-%m-%d' AT TIME ZONE E'UTC')"
+        )
 
         sql, params = CastExpr(1, "INT").prepare(PostgreSQL)
         assert sql == "CAST(:param_0 AS INT)"
         assert params == {"param_0": 1}
+
+        sql, params = CastExpr("s", "DATE", format="%Y-%m-%d").prepare(PostgreSQL)
+        assert sql == "CAST(:param_0 AS DATE FORMAT :param_1)"
+        assert params == {"param_0": "s", "param_1": "%Y-%m-%d"}
+
+        assert repr(CastExpr(Ident("id"), "int")) == 'CastExpr(Ident("id"), "INT")'
+        assert (
+            repr(CastExpr(Ident("id"), "int", kind="TRY_CAST"))
+            == 'CastExpr(Ident("id"), "INT", kind="TRY_CAST")'
+        )
+        assert (
+            repr(CastExpr(Ident("s"), "DATE", format="%Y-%m-%d"))
+            == "CastExpr(Ident(\"s\"), \"DATE\", "
+            "format=Value('%Y-%m-%d', StringSerializer()))"
+        )
+
+
+class TestTrimExpr:
+    def test_new(self):
+        trim = TrimExpr(Ident("s"))
+        assert trim.get_expr() == Ident("s")
+        assert trim.get_where() is None
+        assert trim.get_what() is None
+        assert trim.get_characters() is None
+
+        trim = TrimExpr(Ident("s"), where="leading", what="x")
+        assert trim.get_where() == "LEADING"
+        assert trim.get_what() == Value("x")
+        assert trim.get_characters() is None
+
+        trim = TrimExpr(Ident("s"), characters=["a", Ident("b")])
+        assert trim.get_characters() == (Value("a"), Ident("b"))
+
+        with pytest.raises(ValueError, match="unknown TRIM where"):
+            TrimExpr(Ident("s"), where="MIDDLE")
+        with pytest.raises(ValueError, match="empty"):
+            TrimExpr(Ident("s"), characters=[])
+        with pytest.raises(ValueError, match="cannot both be set"):
+            TrimExpr(Ident("s"), what="x", characters=["y"])
+        with pytest.raises(TypeError, match="list or tuple"):
+            TrimExpr(Ident("s"), characters="xy")  # pyright: ignore
+
+    def test_to_sql(self):
+        assert TrimExpr(Ident("s")).to_sql(PostgreSQL) == 'TRIM("s")'
+        assert TrimExpr(Ident("s"), where="LEADING").to_sql(PostgreSQL) == (
+            'TRIM(LEADING FROM "s")'
+        )
+        assert TrimExpr(Ident("s"), what="x").to_sql(PostgreSQL) == (
+            "TRIM(E'x' FROM \"s\")"
+        )
+        assert TrimExpr(Ident("s"), where="BOTH", what="x").to_sql(PostgreSQL) == (
+            "TRIM(BOTH E'x' FROM \"s\")"
+        )
+        assert TrimExpr(Ident("s"), characters=["a", "b"]).to_sql(PostgreSQL) == (
+            "TRIM(\"s\", E'a', E'b')"
+        )
+
+        sql, params = TrimExpr(Ident("s"), what="x").prepare(PostgreSQL)
+        assert sql == 'TRIM(:param_0 FROM "s")'
+        assert params == {"param_0": "x"}
+
+        sql, params = TrimExpr(Ident("s"), characters=["a", "b"]).prepare(
+            PostgreSQL
+        )
+        assert sql == 'TRIM("s", :param_0, :param_1)'
+        assert params == {"param_0": "a", "param_1": "b"}
+
+        assert repr(TrimExpr(Ident("s"))) == 'TrimExpr(Ident("s"))'
+        assert (
+            repr(TrimExpr(Ident("s"), where="BOTH", what="x"))
+            == 'TrimExpr(Ident("s"), where="BOTH", '
+            "what=Value('x', StringSerializer()))"
+        )
+        assert (
+            repr(TrimExpr(Ident("s"), characters=["a", "b"]))
+            == 'TrimExpr(Ident("s"), characters=['
+            "Value('a', StringSerializer()), Value('b', StringSerializer())])"
+        )
+
+
+class TestCollateExpr:
+    def test_new(self):
+        col = CollateExpr(Ident("name"), "en_US")
+        assert col.get_expr() == Ident("name")
+        assert col.get_collation() == Ident("en_US")
+
+        col = CollateExpr("café", Ident("pg_catalog", "default"))
+        assert col.get_expr() == Value("café")
+        assert col.get_collation() == Ident("pg_catalog", "default")
+
+        col = CollateExpr(Ident("name"), Unquote("C"))
+        assert col.get_collation() == Ident(Unquote("C"))
+
+        col = CollateExpr(Ident("name"), "pg_catalog.default")
+        assert col.get_collation() == Ident("pg_catalog", "default")
+
+    def test_to_sql(self):
+        assert CollateExpr(Ident("name"), "en_US").to_sql(PostgreSQL) == (
+            '"name" COLLATE "en_US"'
+        )
+        assert CollateExpr(Ident("name"), Unquote("C")).to_sql(PostgreSQL) == (
+            '"name" COLLATE C'
+        )
+        assert CollateExpr(Ident("name"), Ident("pg_catalog", "default")).to_sql(
+            PostgreSQL
+        ) == '"name" COLLATE "pg_catalog"."default"'
+        assert CollateExpr(BinaryExpr(1, "+", 2), "en_US").to_sql(PostgreSQL) == (
+            '(1 + 2) COLLATE "en_US"'
+        )
+        assert BinaryExpr(
+            CollateExpr(Ident("a"), "c"), "+", 1
+        ).to_sql(PostgreSQL) == '"a" COLLATE "c" + 1'
+
+        assert (
+            repr(CollateExpr(Ident("name"), "en_US"))
+            == 'CollateExpr(Ident("name"), Ident("en_US"))'
+        )
 
 
 class TestCaseExpr:
