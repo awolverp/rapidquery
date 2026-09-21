@@ -19,7 +19,7 @@ from rapidquery.dialect import (
 )
 
 try:
-    import orjson  # ruff: ignore[F401]
+    import orjson
 
     USING_ORJSON = not _feature_only_stdlib_json
 except ImportError:

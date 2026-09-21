@@ -2,7 +2,7 @@ use pyo3::types::{PyAnyMethods, PyTupleMethods};
 
 use super::base::PyExpr;
 use super::enum_::ExprEnum;
-use super::extractors::{ConditionExtractor, LiteralExprExtractor};
+use super::extractors::{ConditionExtractor, LiteralExprExtractor, extract_like_pattern};
 use crate::data_type::DataTypeName;
 use crate::internal::{alias, utils};
 
@@ -65,8 +65,14 @@ empty_node! {
     // /// `expr [NOT] BETWEEN low AND high`.
     PyBetweenExpr(Between(super::enum_::Between)) => "BetweenExpr",
 
-    /// `expr [NOT] LIKE / ILIKE / SIMILAR TO / RLIKE pattern`.
+    /// `expr [NOT] LIKE / ILIKE [ANY] pattern`.
     PyLikeExpr(Like(super::enum_::Like)) => "LikeExpr",
+
+    /// `expr [NOT] SIMILAR TO pattern`.
+    PySimilarToExpr(SimilarTo(super::enum_::SimilarTo)) => "SimilarToExpr",
+
+    /// `expr [NOT] RLIKE pattern`.
+    PyRLikeExpr(RLike(super::enum_::RLike)) => "RLikeExpr",
 
     /// `CAST(expr AS type)`.
     PyCastExpr(Cast(super::enum_::Cast)) => "CastExpr",
@@ -348,28 +354,85 @@ impl PyBetweenExpr {
 #[pyo3::pymethods]
 impl PyLikeExpr {
     #[new]
-    #[pyo3(signature = (expr, pattern, /, *, kind = "LIKE", negated = false, escape = None))]
+    #[pyo3(signature = (expr, pattern, /, *, negated = false, case_sensitive = true, escape = None))]
+    fn __new__(
+        expr: LiteralExprExtractor,
+        pattern: alias::BoundObject<'_>,
+        negated: bool,
+        case_sensitive: bool,
+        escape: Option<char>,
+    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+        let inner = super::enum_::Like {
+            case_sensitive,
+            negated,
+            expr: Box::new(expr.0),
+            pattern: extract_like_pattern(pattern.as_borrowed())?,
+            escape,
+        };
+        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
+    }
+
+    fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.expr).clone())
+    }
+
+    fn get_pattern(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+        let py = slf.py();
+        let inner = Self::inner(&slf);
+        match &inner.pattern {
+            super::enum_::LikePattern::One(p) => super::base::into_subclasses(py, (**p).clone()),
+            super::enum_::LikePattern::Any(ps) => {
+                let tuple = unsafe { pyo3::ffi::PyTuple_New(ps.len() as isize) };
+                for (ix, arg) in ps.iter().enumerate() {
+                    match PyExpr(arg.clone()).into_subclasses(py) {
+                        Ok(bound) => unsafe {
+                            pyo3::ffi::PyTuple_SetItem(tuple, ix as isize, bound.into_ptr());
+                        },
+                        Err(err) => unsafe {
+                            pyo3::ffi::Py_DECREF(tuple);
+                            return Err(err);
+                        },
+                    }
+                }
+                Ok(unsafe { pyo3::Bound::from_owned_ptr(py, tuple) })
+            }
+        }
+    }
+
+    fn get_negated(slf: pyo3::PyRef<'_, Self>) -> bool {
+        let inner = Self::inner(&slf);
+        inner.negated
+    }
+
+    fn get_case_sensitive(slf: pyo3::PyRef<'_, Self>) -> bool {
+        let inner = Self::inner(&slf);
+        inner.case_sensitive
+    }
+
+    fn get_escape(slf: pyo3::PyRef<'_, Self>) -> Option<char> {
+        let inner = Self::inner(&slf);
+        inner.escape
+    }
+}
+
+#[pyo3::pymethods]
+impl PySimilarToExpr {
+    #[new]
+    #[pyo3(signature = (expr, pattern, /, *, negated = false, escape = None))]
     fn __new__(
         expr: LiteralExprExtractor,
         pattern: LiteralExprExtractor,
-        kind: &str,
         negated: bool,
         escape: Option<char>,
-    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
-        let Some(kind) = super::enum_::LikeKind::parse(kind) else {
-            return rapidquery_macros::pyerr!(
-                Err(PyValueError),
-                "unknown LIKE kind {kind:?}; expected LIKE, ILIKE, SIMILAR TO, or RLIKE"
-            );
-        };
-        let inner = super::enum_::Like {
-            kind,
+    ) -> pyo3::PyClassInitializer<Self> {
+        let inner = super::enum_::SimilarTo {
             negated,
             expr: Box::new(expr.0),
             pattern: Box::new(pattern.0),
             escape,
         };
-        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
+        pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self)
     }
 
     fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
@@ -382,9 +445,44 @@ impl PyLikeExpr {
         super::base::into_subclasses(slf.py(), (*inner.pattern).clone())
     }
 
-    fn get_kind(slf: pyo3::PyRef<'_, Self>) -> &'static str {
+    fn get_negated(slf: pyo3::PyRef<'_, Self>) -> bool {
         let inner = Self::inner(&slf);
-        inner.kind.as_sql()
+        inner.negated
+    }
+
+    fn get_escape(slf: pyo3::PyRef<'_, Self>) -> Option<char> {
+        let inner = Self::inner(&slf);
+        inner.escape
+    }
+}
+
+#[pyo3::pymethods]
+impl PyRLikeExpr {
+    #[new]
+    #[pyo3(signature = (expr, pattern, /, *, negated = false, escape = None))]
+    fn __new__(
+        expr: LiteralExprExtractor,
+        pattern: LiteralExprExtractor,
+        negated: bool,
+        escape: Option<char>,
+    ) -> pyo3::PyClassInitializer<Self> {
+        let inner = super::enum_::RLike {
+            negated,
+            expr: Box::new(expr.0),
+            pattern: Box::new(pattern.0),
+            escape,
+        };
+        pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self)
+    }
+
+    fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.expr).clone())
+    }
+
+    fn get_pattern(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.pattern).clone())
     }
 
     fn get_negated(slf: pyo3::PyRef<'_, Self>) -> bool {

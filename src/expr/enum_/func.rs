@@ -133,11 +133,11 @@ impl WriteSql for Function {
             } => {
                 out.push_char('(');
 
-                if let Some(dt) = duplicate_treatment {
-                    if !args.is_empty() {
-                        out.push_str(dt.as_sql());
-                        out.push_char(' ');
-                    }
+                if let Some(dt) = duplicate_treatment
+                    && !args.is_empty()
+                {
+                    out.push_str(dt.as_sql());
+                    out.push_char(' ');
                 }
                 write_separated(dialect, out, args, ", ")?;
                 if nt_inside && let Some(nt) = self.null_treatment {

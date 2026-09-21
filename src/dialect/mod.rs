@@ -44,6 +44,17 @@ mod tests;
 
 pub use py::dialect_mod;
 
+/// How `LIKE ANY` / `ILIKE ANY` is rendered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LikeAnySyntax {
+    /// PostgreSQL: `LIKE ANY (ARRAY[p, …])`.
+    ArrayConstructor,
+    /// Snowflake / Spark / Databricks: `LIKE ANY (p, …)`.
+    PatternList,
+    /// No native ANY: `(x LIKE p1 OR x LIKE p2)`.
+    OrExpansion,
+}
+
 /// How a boolean literal is spelled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BoolFormat {
@@ -342,6 +353,16 @@ impl SqlDialect {
     #[inline]
     pub fn null_treatment_inside_parens(self) -> bool {
         matches!(self, Self::BigQuery | Self::DuckDb)
+    }
+
+    /// How `LIKE ANY` / `ILIKE ANY` is spelled.
+    #[inline]
+    pub fn like_any_syntax(self) -> LikeAnySyntax {
+        match self {
+            Self::PostgreSql => LikeAnySyntax::ArrayConstructor,
+            Self::Snowflake | Self::Spark | Self::Databricks => LikeAnySyntax::PatternList,
+            _ => LikeAnySyntax::OrExpansion,
+        }
     }
 
     /// Write a boolean literal (`TRUE`/`FALSE` or `1`/`0`).

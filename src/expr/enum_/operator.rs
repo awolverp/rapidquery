@@ -146,39 +146,3 @@ impl IsKind {
         }
     }
 }
-
-/// Pattern-matching operator family.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum LikeKind {
-    Like,
-    ILike,
-    SimilarTo,
-    RLike,
-}
-
-impl LikeKind {
-    #[inline]
-    pub fn parse(s: &str) -> Option<Self> {
-        if s.eq_ignore_ascii_case("LIKE") {
-            Some(Self::Like)
-        } else if s.eq_ignore_ascii_case("ILIKE") {
-            Some(Self::ILike)
-        } else if s.eq_ignore_ascii_case("SIMILAR TO") {
-            Some(Self::SimilarTo)
-        } else if s.eq_ignore_ascii_case("RLIKE") {
-            Some(Self::RLike)
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    pub fn as_sql(self) -> &'static str {
-        match self {
-            Self::Like => "LIKE",
-            Self::ILike => "ILIKE",
-            Self::SimilarTo => "SIMILAR TO",
-            Self::RLike => "RLIKE",
-        }
-    }
-}

@@ -90,7 +90,7 @@ impl PyValue {
         };
 
         let expr = super::base::PyExpr(super::enum_::ExprEnum::Value(value));
-        return pyo3::PyClassInitializer::from(expr).add_subclass(PyValue);
+        pyo3::PyClassInitializer::from(expr).add_subclass(PyValue)
     }
 
     /// Returns the wrapped Python object.

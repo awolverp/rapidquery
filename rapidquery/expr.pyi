@@ -653,7 +653,7 @@ class BetweenExpr(Expr):
 
 @final
 class LikeExpr(Expr):
-    """``expr [NOT] LIKE / ILIKE / SIMILAR TO / RLIKE pattern``."""
+    """``expr [NOT] LIKE / ILIKE pattern`` or ``LIKE ANY`` from a sequence."""
 
     def __new__(
         cls,
@@ -661,26 +661,88 @@ class LikeExpr(Expr):
         pattern: object,
         /,
         *,
-        kind: typing.Literal["LIKE", "ILIKE", "SIMILAR TO", "RLIKE"] | str = "LIKE",
         negated: bool = False,
+        case_sensitive: bool = True,
         escape: str | None = None,
     ) -> Self:
         """
         Create a ``LIKE``-family predicate.
 
+        A ``list`` or ``tuple`` of patterns emits ``LIKE ANY`` (or an
+        equivalent ``OR`` expansion on dialects without native ANY).
+        A single expression (including a ``str``) is scalar ``LIKE``.
+
         Args:
             expr: The tested expression.
-            pattern: The pattern.
-            kind: ``LIKE``, ``ILIKE``, ``SIMILAR TO``, or ``RLIKE``.
-            negated: If ``True``, emit ``NOT LIKE`` (or the matching
-                negated form).
+            pattern: One pattern, or a sequence of patterns.
+            negated: If ``True``, emit ``NOT`` / match-none.
+            case_sensitive: If ``False``, emit ``ILIKE`` instead of ``LIKE``.
             escape: Optional single-character ``ESCAPE`` clause.
 
         Returns:
             A new ``LikeExpr``.
 
         Raises:
-            ValueError: If ``kind`` is not a known ``LIKE`` spelling.
+            ValueError: If ``pattern`` is an empty sequence.
+        """
+
+    def get_expr(self) -> Expr:
+        """
+        Return the tested expression.
+
+        Returns:
+            The left-hand expression.
+        """
+
+    def get_pattern(self) -> Expr | tuple[Expr, ...]:
+        """
+        Return the pattern or the ``LIKE ANY`` patterns.
+
+        Returns:
+            One expression, or a tuple when constructed from a sequence.
+        """
+
+    def get_negated(self) -> bool:
+        """
+        Return whether this is a negated match.
+
+        Returns:
+            ``True`` if the predicate is negated.
+        """
+
+    def get_case_sensitive(self) -> bool: ...
+    def get_escape(self) -> str | None:
+        """
+        Return the ``ESCAPE`` character, if any.
+
+        Returns:
+            A single character, or ``None``.
+        """
+
+@final
+class SimilarToExpr(Expr):
+    """``expr [NOT] SIMILAR TO pattern``."""
+
+    def __new__(
+        cls,
+        expr: object,
+        pattern: object,
+        /,
+        *,
+        negated: bool = False,
+        escape: str | None = None,
+    ) -> Self:
+        """
+        Create a ``SIMILAR TO`` predicate.
+
+        Args:
+            expr: The tested expression.
+            pattern: The pattern.
+            negated: If ``True``, emit ``NOT``.
+            escape: Optional single-character ``ESCAPE`` clause.
+
+        Returns:
+            A new ``SimilarToExpr``.
         """
 
     def get_expr(self) -> Expr:
@@ -699,12 +761,62 @@ class LikeExpr(Expr):
             Usually a ``Value`` when constructed from a string.
         """
 
-    def get_kind(self) -> typing.Literal["LIKE", "ILIKE", "SIMILAR TO", "RLIKE"]:
+    def get_negated(self) -> bool:
         """
-        Return the operator kind.
+        Return whether this is a negated match.
 
         Returns:
-            ``LIKE``, ``ILIKE``, ``SIMILAR TO``, or ``RLIKE``.
+            ``True`` if the predicate is negated.
+        """
+
+    def get_escape(self) -> str | None:
+        """
+        Return the ``ESCAPE`` character, if any.
+
+        Returns:
+            A single character, or ``None``.
+        """
+
+@final
+class RLikeExpr(Expr):
+    """``expr [NOT] RLIKE pattern``."""
+
+    def __new__(
+        cls,
+        expr: object,
+        pattern: object,
+        /,
+        *,
+        negated: bool = False,
+        escape: str | None = None,
+    ) -> Self:
+        """
+        Create a ``RLIKE`` predicate.
+
+        Args:
+            expr: The tested expression.
+            pattern: The pattern.
+            negated: If ``True``, emit ``NOT``.
+            escape: Optional single-character ``ESCAPE`` clause.
+
+        Returns:
+            A new ``RLikeExpr``.
+        """
+
+    def get_expr(self) -> Expr:
+        """
+        Return the tested expression.
+
+        Returns:
+            The left-hand expression.
+        """
+
+    def get_pattern(self) -> Expr:
+        """
+        Return the pattern expression.
+
+        Returns:
+            Usually a ``Value`` when constructed from a string.
         """
 
     def get_negated(self) -> bool:

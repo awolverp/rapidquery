@@ -9,8 +9,6 @@ pub mod sql;
 pub mod typeref;
 
 // Tasks until being stable (until this part)
-// - Support `any` in LikeExpr
-// - Pattern in LikeExpr should not parameterized
 // - Support `AtDashAt`, `DoubleAt`, `Hash`, `PGAbs`, `PGCubeRoot`, `PGPostfixFactorial`,
 //           `PGPrefixFactorial`, `PGSquareRoot`, `QuestionDash`, and `QuestionPipe` in UnaryExpr
 // - Support IsNormalizedExpr
@@ -21,6 +19,14 @@ pub mod typeref;
 // - Raise error when something is not supported by a dialect
 // - Update docstrings
 // - Test and coverage everything and edge cases
+
+// Later tasks:
+// - Complete `Expr` methods
+// - Test `Expr` methods
+// - Benchmark and compare with old version
+// - Open PR
+// - Rewrite dialects and add a new dialect: CustomDialect
+// - Start writing query ASTs.
 
 /// RapidQuery native extension.
 #[pyo3::pymodule(gil_used = false)]

@@ -1,6 +1,6 @@
 import pytest
 
-from rapidquery.dialect import BigQuery, DuckDB, PostgreSQL, SqlDialect
+from rapidquery.dialect import BigQuery, DuckDB, PostgreSQL, SQLite, Snowflake, SqlDialect
 from rapidquery.expr import (
     Asterisk,
     BetweenExpr,
@@ -15,6 +15,8 @@ from rapidquery.expr import (
     IsDistinctFromExpr,
     IsExpr,
     LikeExpr,
+    RLikeExpr,
+    SimilarToExpr,
     TupleExpr,
     UnaryExpr,
     Unquote,
@@ -40,6 +42,8 @@ class TestExpr:
             InListExpr(Ident("id"), [1]),
             BetweenExpr(Ident("id"), 0, 1),
             LikeExpr(Ident("name"), "%a%"),
+            SimilarToExpr(Ident("name"), "%a%"),
+            RLikeExpr(Ident("name"), "%a%"),
             CastExpr(Ident("id"), "int"),
             CaseExpr(),
             CustomExpr("1"),
@@ -109,8 +113,10 @@ class TestFunction:
         fn = Function(Unquote("NOW"))
         assert fn.to_sql(PostgreSQL) == "NOW"
 
-        fn = Function("count").call(Asterisk).filter(
-            BinaryExpr(Ident("status"), "=", "completed")
+        fn = (
+            Function("count")
+            .call(Asterisk)
+            .filter(BinaryExpr(Ident("status"), "=", "completed"))
         )
         assert (
             fn.to_sql(PostgreSQL)
@@ -193,7 +199,7 @@ class TestFunction:
 
         fn = Function("f").call("id")
         assert fn.get_args() == (Value("id"),)
-        assert fn.to_sql(PostgreSQL) == '"f"(E\'id\')'
+        assert fn.to_sql(PostgreSQL) == "\"f\"(E'id')"
 
         fn = Function(Ident("schema.fn")).call()
         assert fn.get_name() == Ident("schema.fn")
@@ -336,7 +342,8 @@ class TestBinaryExpr:
         assert BinaryExpr(1, "!=", 2).to_sql(PostgreSQL) == "1 <> 2"
         assert BinaryExpr(1, "AND", 2).to_sql(PostgreSQL) == "1 AND 2"
         assert (
-            BinaryExpr(BinaryExpr(1, "+", 2), "AND", 3).to_sql(PostgreSQL) == "1 + 2 AND 3"
+            BinaryExpr(BinaryExpr(1, "+", 2), "AND", 3).to_sql(PostgreSQL)
+            == "1 + 2 AND 3"
         )
         assert (
             BinaryExpr(1, "+", BinaryExpr(2, "AND", 3)).to_sql(PostgreSQL)
@@ -508,60 +515,211 @@ class TestLikeExpr:
         like = LikeExpr(Ident("name"), "%a%")
         assert like.get_expr() == Ident("name")
         assert like.get_pattern() == Value("%a%")
-        assert like.get_kind() == "LIKE"
+        assert like.get_case_sensitive() is True
         assert like.get_negated() is False
         assert like.get_escape() is None
 
         like = LikeExpr(
             Ident("name"),
             Ident("pattern"),
-            kind="ilike",
+            case_sensitive=False,
             negated=True,
             escape="!",
         )
         assert like.get_expr() == Ident("name")
         assert like.get_pattern() == Ident("pattern")
-        assert like.get_kind() == "ILIKE"
+        assert like.get_case_sensitive() is False
         assert like.get_negated() is True
         assert like.get_escape() == "!"
 
-        assert LikeExpr(Ident("n"), "p", kind="SIMILAR TO").get_kind() == "SIMILAR TO"
-        assert LikeExpr(Ident("n"), "p", kind="rlike").get_kind() == "RLIKE"
+        any_like = LikeExpr(Ident("name"), ["%a%", "%b%"])
+        assert any_like.get_pattern() == (Value("%a%"), Value("%b%"))
 
-        with pytest.raises(ValueError, match="unknown LIKE kind"):
-            LikeExpr(Ident("n"), "p", kind="MATCH")
+        one_any = LikeExpr(Ident("name"), ["%a%"])
+        assert one_any.get_pattern() == (Value("%a%"),)
+
+        tup = LikeExpr(Ident("name"), ("%a%", Ident("p")))
+        assert tup.get_pattern() == (Value("%a%"), Ident("p"))
+
+        with pytest.raises(ValueError, match="empty"):
+            LikeExpr(Ident("name"), [])
 
         with pytest.raises((TypeError, ValueError)):
             LikeExpr(Ident("n"), "p", escape="ab")  # pyright: ignore
 
     def test_to_sql(self):
         like = LikeExpr(Ident("name"), "%a%")
-        assert like.to_sql(PostgreSQL) == '"name" LIKE E\'%a%\''
+        assert like.to_sql(PostgreSQL) == "\"name\" LIKE E'%a%'"
 
         assert (
-            LikeExpr(Ident("name"), "%a%", kind="ILIKE").to_sql(PostgreSQL)
-            == '"name" ILIKE E\'%a%\''
-        )
-        assert (
-            LikeExpr(Ident("name"), "%a%", kind="SIMILAR TO").to_sql(PostgreSQL)
-            == '"name" SIMILAR TO E\'%a%\''
-        )
-        assert (
-            LikeExpr(Ident("name"), "%a%", kind="RLIKE").to_sql(PostgreSQL)
-            == '"name" RLIKE E\'%a%\''
+            LikeExpr(Ident("name"), "%a%", case_sensitive=False).to_sql(PostgreSQL)
+            == "\"name\" ILIKE E'%a%'"
         )
         assert (
             LikeExpr(Ident("name"), "%a%", negated=True).to_sql(PostgreSQL)
-            == '"name" NOT LIKE E\'%a%\''
+            == "\"name\" NOT LIKE E'%a%'"
         )
         assert (
             LikeExpr(Ident("name"), "%a%", escape="!").to_sql(PostgreSQL)
-            == '"name" LIKE E\'%a%\' ESCAPE E\'!\''
+            == "\"name\" LIKE E'%a%' ESCAPE E'!'"
         )
 
         sql, params = LikeExpr(Ident("name"), "%a%").prepare(PostgreSQL)
         assert sql == '"name" LIKE :param_0'
         assert params == {"param_0": "%a%"}
+
+        any_like = LikeExpr(Ident("name"), ["%a%", "%b%"])
+        assert (
+            any_like.to_sql(PostgreSQL)
+            == "\"name\" LIKE ANY (ARRAY[E'%a%', E'%b%'])"
+        )
+        assert (
+            any_like.to_sql(Snowflake)
+            == "\"name\" LIKE ANY ('%a%', '%b%')"
+        )
+        assert any_like.to_sql(SQLite) == (
+            "(\"name\" LIKE '%a%' OR \"name\" LIKE '%b%')"
+        )
+
+        sql, params = any_like.prepare(PostgreSQL)
+        assert sql == '"name" LIKE ANY (ARRAY[:param_0, :param_1])'
+        assert params == {"param_0": "%a%", "param_1": "%b%"}
+
+        negated = LikeExpr(Ident("name"), ["%a%", "%b%"], negated=True)
+        assert (
+            negated.to_sql(PostgreSQL)
+            == "NOT (\"name\" LIKE ANY (ARRAY[E'%a%', E'%b%']))"
+        )
+        assert (
+            negated.to_sql(Snowflake)
+            == "\"name\" NOT LIKE ANY ('%a%', '%b%')"
+        )
+        assert negated.to_sql(SQLite) == (
+            "(\"name\" NOT LIKE '%a%' AND \"name\" NOT LIKE '%b%')"
+        )
+
+        ilike_any = LikeExpr(
+            Ident("name"), ["%a%", "%b%"], case_sensitive=False
+        )
+        assert (
+            ilike_any.to_sql(PostgreSQL)
+            == "\"name\" ILIKE ANY (ARRAY[E'%a%', E'%b%'])"
+        )
+
+        escaped = LikeExpr(Ident("name"), ["%a%", "%b%"], escape="!")
+        assert (
+            escaped.to_sql(PostgreSQL)
+            == "\"name\" LIKE ANY (ARRAY[E'%a%', E'%b%']) ESCAPE E'!'"
+        )
+        assert escaped.to_sql(SQLite) == (
+            "(\"name\" LIKE '%a%' ESCAPE '!' OR \"name\" LIKE '%b%' ESCAPE '!')"
+        )
+
+        assert (
+            repr(LikeExpr(Ident("name"), ["%a%", "%b%"], negated=True))
+            == "LikeExpr(Ident(\"name\"), [Value('%a%', StringSerializer()), "
+            "Value('%b%', StringSerializer())], negated=True)"
+        )
+
+
+class TestSimilarToExpr:
+    def test_new(self):
+        sim = SimilarToExpr(Ident("name"), "%a%")
+        assert sim.get_expr() == Ident("name")
+        assert sim.get_pattern() == Value("%a%")
+        assert sim.get_negated() is False
+        assert sim.get_escape() is None
+
+        sim = SimilarToExpr(
+            Ident("name"),
+            Ident("pattern"),
+            negated=True,
+            escape="!",
+        )
+        assert sim.get_expr() == Ident("name")
+        assert sim.get_pattern() == Ident("pattern")
+        assert sim.get_negated() is True
+        assert sim.get_escape() == "!"
+
+        with pytest.raises((TypeError, ValueError)):
+            SimilarToExpr(Ident("n"), "p", escape="ab")  # pyright: ignore
+
+    def test_to_sql(self):
+        sim = SimilarToExpr(Ident("name"), "%a%")
+        assert sim.to_sql(PostgreSQL) == "\"name\" SIMILAR TO E'%a%'"
+
+        assert (
+            SimilarToExpr(Ident("name"), "%a%", negated=True).to_sql(PostgreSQL)
+            == "\"name\" NOT SIMILAR TO E'%a%'"
+        )
+        assert (
+            SimilarToExpr(Ident("name"), "%a%", escape="!").to_sql(PostgreSQL)
+            == "\"name\" SIMILAR TO E'%a%' ESCAPE E'!'"
+        )
+
+        sql, params = SimilarToExpr(Ident("name"), "%a%").prepare(PostgreSQL)
+        assert sql == '"name" SIMILAR TO :param_0'
+        assert params == {"param_0": "%a%"}
+
+        assert (
+            repr(SimilarToExpr(Ident("name"), "%a%"))
+            == "SimilarToExpr(Ident(\"name\"), Value('%a%', StringSerializer()))"
+        )
+        assert (
+            repr(SimilarToExpr(Ident("name"), "%a%", negated=True, escape="!"))
+            == "SimilarToExpr(Ident(\"name\"), Value('%a%', StringSerializer()), "
+            "negated=True, escape='!')"
+        )
+
+
+class TestRLikeExpr:
+    def test_new(self):
+        rlike = RLikeExpr(Ident("name"), "%a%")
+        assert rlike.get_expr() == Ident("name")
+        assert rlike.get_pattern() == Value("%a%")
+        assert rlike.get_negated() is False
+        assert rlike.get_escape() is None
+
+        rlike = RLikeExpr(
+            Ident("name"),
+            Ident("pattern"),
+            negated=True,
+            escape="!",
+        )
+        assert rlike.get_expr() == Ident("name")
+        assert rlike.get_pattern() == Ident("pattern")
+        assert rlike.get_negated() is True
+        assert rlike.get_escape() == "!"
+
+        with pytest.raises((TypeError, ValueError)):
+            RLikeExpr(Ident("n"), "p", escape="ab")  # pyright: ignore
+
+    def test_to_sql(self):
+        rlike = RLikeExpr(Ident("name"), "%a%")
+        assert rlike.to_sql(PostgreSQL) == "\"name\" RLIKE E'%a%'"
+
+        assert (
+            RLikeExpr(Ident("name"), "%a%", negated=True).to_sql(PostgreSQL)
+            == "\"name\" NOT RLIKE E'%a%'"
+        )
+        assert (
+            RLikeExpr(Ident("name"), "%a%", escape="!").to_sql(PostgreSQL)
+            == "\"name\" RLIKE E'%a%' ESCAPE E'!'"
+        )
+
+        sql, params = RLikeExpr(Ident("name"), "%a%").prepare(PostgreSQL)
+        assert sql == '"name" RLIKE :param_0'
+        assert params == {"param_0": "%a%"}
+
+        assert (
+            repr(RLikeExpr(Ident("name"), "%a%"))
+            == "RLikeExpr(Ident(\"name\"), Value('%a%', StringSerializer()))"
+        )
+        assert (
+            repr(RLikeExpr(Ident("name"), "%a%", negated=True, escape="!"))
+            == "RLikeExpr(Ident(\"name\"), Value('%a%', StringSerializer()), "
+            "negated=True, escape='!')"
+        )
 
 
 class TestCastExpr:
@@ -625,14 +783,10 @@ class TestCaseExpr:
     def test_to_sql(self):
         assert CaseExpr().to_sql(PostgreSQL) == "CASE END"
 
-        searched = (
-            CaseExpr()
-            .when(BinaryExpr(Ident("id"), ">", 0), "yes")
-            .else_("no")
-        )
+        searched = CaseExpr().when(BinaryExpr(Ident("id"), ">", 0), "yes").else_("no")
         assert (
             searched.to_sql(PostgreSQL)
-            == 'CASE WHEN "id" > 0 THEN E\'yes\' ELSE E\'no\' END'
+            == "CASE WHEN \"id\" > 0 THEN E'yes' ELSE E'no' END"
         )
 
         simple = (

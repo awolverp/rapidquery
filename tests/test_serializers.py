@@ -508,7 +508,7 @@ SERIALIZE_TEST_CASES: list[SerializeTestCase] = [
     SerializeTestCase(
         DateSerializer(),
         ALL_DIALECTS,
-        datetime.datetime(2024, 1, 15, 10, 0),  # ruff: ignore[DTZ001]
+        datetime.datetime(2024, 1, 15, 10, 0),
         TypeError,
     ),
     SerializeTestCase(DateSerializer(), ALL_DIALECTS, "2024-01-15", TypeError),
@@ -545,19 +545,19 @@ SERIALIZE_TEST_CASES: list[SerializeTestCase] = [
     SerializeTestCase(
         DatetimeSerializer(),
         _PG,
-        datetime.datetime(2024, 1, 15, 10, 30, 0),  # ruff: ignore[DTZ001]
+        datetime.datetime(2024, 1, 15, 10, 30, 0),
         "E'2024-01-15 10:30:00'",
     ),
     SerializeTestCase(
         DatetimeSerializer(),
         _MSSQL,
-        datetime.datetime(2024, 1, 15, 10, 30, 0),  # ruff: ignore[DTZ001]
+        datetime.datetime(2024, 1, 15, 10, 30, 0),
         "N'2024-01-15 10:30:00'",
     ),
     SerializeTestCase(
         DatetimeSerializer(),
         _PLAIN_QUOTE,
-        datetime.datetime(2024, 1, 15, 10, 30, 0),  # ruff: ignore[DTZ001]
+        datetime.datetime(2024, 1, 15, 10, 30, 0),
         "'2024-01-15 10:30:00'",
     ),
     SerializeTestCase(

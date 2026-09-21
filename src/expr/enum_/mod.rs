@@ -8,7 +8,7 @@ pub use ident::*;
 pub use operator::*;
 pub use value::*;
 
-use crate::dialect::SqlDialect;
+use crate::dialect::{LikeAnySyntax, SqlDialect};
 use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
 use std::fmt::Write;
 
@@ -54,13 +54,36 @@ pub struct Between {
     pub high: Box<ExprEnum>,
 }
 
+/// Pattern side of [`Like`]: one expression, or a non-empty ANY list.
+#[derive(Clone, Debug, PartialEq)]
+pub enum LikePattern {
+    /// `col LIKE p`
+    One(Box<ExprEnum>),
+    /// `col LIKE ANY …` — never empty.
+    Any(Vec<ExprEnum>),
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Like {
-    pub kind: LikeKind,
+    pub case_sensitive: bool,
     pub negated: bool,
     pub expr: Box<ExprEnum>,
+    pub pattern: LikePattern,
+    pub escape: Option<char>,
+}
 
-    // TODO: may it's better to keep `Arcstr | list of Arcstr`
+#[derive(Clone, Debug, PartialEq)]
+pub struct SimilarTo {
+    pub negated: bool,
+    pub expr: Box<ExprEnum>,
+    pub pattern: Box<ExprEnum>,
+    pub escape: Option<char>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct RLike {
+    pub negated: bool,
+    pub expr: Box<ExprEnum>,
     pub pattern: Box<ExprEnum>,
     pub escape: Option<char>,
 }
@@ -111,6 +134,8 @@ pub enum ExprEnum {
     /// <expr> [NOT] BETWEEN <low> AND <high>
     Between(Between),
     Like(Like),
+    SimilarTo(SimilarTo),
+    RLike(RLike),
     Cast(Cast),
     Case(Case),
     Custom(Custom),
@@ -196,6 +221,20 @@ impl From<Like> for ExprEnum {
     }
 }
 
+impl From<SimilarTo> for ExprEnum {
+    #[inline]
+    fn from(value: SimilarTo) -> Self {
+        Self::SimilarTo(value)
+    }
+}
+
+impl From<RLike> for ExprEnum {
+    #[inline]
+    fn from(value: RLike) -> Self {
+        Self::RLike(value)
+    }
+}
+
 impl From<Cast> for ExprEnum {
     #[inline]
     fn from(value: Cast) -> Self {
@@ -261,7 +300,9 @@ impl ExprEnum {
             | Self::IsDistinctFrom(_)
             | Self::InList(_)
             | Self::Between(_)
-            | Self::Like(_) => 5,
+            | Self::Like(_)
+            | Self::SimilarTo(_)
+            | Self::RLike(_) => 5,
         }
     }
 
@@ -369,20 +410,64 @@ impl ExprEnum {
                 Ok(buf)
             }
             Self::Like(Like {
-                kind,
+                case_sensitive,
+                negated,
+                expr,
+                pattern,
+                escape,
+            }) => {
+                let mut buf = format!("LikeExpr({}, ", expr.python_repr(py)?);
+                match pattern {
+                    LikePattern::One(p) => buf.push_str(&p.python_repr(py)?),
+                    LikePattern::Any(ps) => {
+                        buf.push('[');
+                        join_reprs(py, &mut buf, ps)?;
+                        buf.push(']');
+                    }
+                }
+                if !*case_sensitive {
+                    buf.push_str(", case_sensitive=False");
+                }
+                if *negated {
+                    buf.push_str(", negated=True");
+                }
+                if let Some(c) = escape {
+                    write!(buf, ", escape={c:?}").unwrap();
+                }
+                buf.push(')');
+                Ok(buf)
+            }
+            Self::SimilarTo(SimilarTo {
                 negated,
                 expr,
                 pattern,
                 escape,
             }) => {
                 let mut buf = format!(
-                    "LikeExpr({}, {}",
+                    "SimilarToExpr({}, {}",
                     expr.python_repr(py)?,
                     pattern.python_repr(py)?
                 );
-                if *kind != LikeKind::Like {
-                    write!(buf, ", kind={:?}", kind.as_sql()).unwrap();
+                if *negated {
+                    buf.push_str(", negated=True");
                 }
+                if let Some(c) = escape {
+                    write!(buf, ", escape={c:?}").unwrap();
+                }
+                buf.push(')');
+                Ok(buf)
+            }
+            Self::RLike(RLike {
+                negated,
+                expr,
+                pattern,
+                escape,
+            }) => {
+                let mut buf = format!(
+                    "RLikeExpr({}, {}",
+                    expr.python_repr(py)?,
+                    pattern.python_repr(py)?
+                );
                 if *negated {
                     buf.push_str(", negated=True");
                 }
@@ -435,6 +520,97 @@ impl ExprEnum {
                 Ok(buf)
             }
         }
+    }
+}
+
+fn write_like_op<W: SqlWriter>(out: &mut W, case_sensitive: bool, negated: bool) {
+    if negated {
+        out.push_str("NOT ");
+    }
+    if case_sensitive {
+        out.push_str("LIKE");
+    } else {
+        out.push_str("ILIKE");
+    }
+}
+
+fn write_escape<W: SqlWriter>(
+    dialect: &SqlDialect,
+    out: &mut W,
+    escape: Option<char>,
+) -> PrepareResult<()> {
+    let Some(c) = escape else {
+        return Ok(());
+    };
+    out.push_str(" ESCAPE ");
+    let mut buf = [0u8; 4];
+    dialect
+        .write_string_literal(out, c.encode_utf8(&mut buf))
+        .map_err(|_| crate::sql::PrepareError::Write)?;
+    Ok(())
+}
+
+fn write_like<W: SqlWriter>(
+    dialect: &SqlDialect,
+    out: &mut W,
+    like: &Like,
+    prec: u8,
+) -> PrepareResult<()> {
+    match &like.pattern {
+        LikePattern::One(pattern) => {
+            like.expr.write_operand(dialect, out, prec, false)?;
+            out.push_char(' ');
+            write_like_op(out, like.case_sensitive, like.negated);
+            out.push_char(' ');
+            pattern.write_operand(dialect, out, prec, true)?;
+            write_escape(dialect, out, like.escape)
+        }
+        LikePattern::Any(patterns) => match dialect.like_any_syntax() {
+            LikeAnySyntax::ArrayConstructor => {
+                // `NOT LIKE ANY` in Postgres is a quantified NOT LIKE
+                // (exists a non-match), not "matches none".
+                if like.negated {
+                    out.push_str("NOT (");
+                }
+                like.expr.write_operand(dialect, out, prec, false)?;
+                out.push_char(' ');
+                write_like_op(out, like.case_sensitive, false);
+                out.push_str(" ANY (ARRAY[");
+                write_separated(dialect, out, patterns, ", ")?;
+                out.push_str("])");
+                write_escape(dialect, out, like.escape)?;
+                if like.negated {
+                    out.push_char(')');
+                }
+                Ok(())
+            }
+            LikeAnySyntax::PatternList => {
+                like.expr.write_operand(dialect, out, prec, false)?;
+                out.push_char(' ');
+                write_like_op(out, like.case_sensitive, like.negated);
+                out.push_str(" ANY (");
+                write_separated(dialect, out, patterns, ", ")?;
+                out.push_char(')');
+                write_escape(dialect, out, like.escape)
+            }
+            LikeAnySyntax::OrExpansion => {
+                out.push_char('(');
+                let sep = if like.negated { " AND " } else { " OR " };
+                for (i, pattern) in patterns.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str(sep);
+                    }
+                    like.expr.write_operand(dialect, out, prec, false)?;
+                    out.push_char(' ');
+                    write_like_op(out, like.case_sensitive, like.negated);
+                    out.push_char(' ');
+                    pattern.write_operand(dialect, out, prec, true)?;
+                    write_escape(dialect, out, like.escape)?;
+                }
+                out.push_char(')');
+                Ok(())
+            }
+        },
     }
 }
 
@@ -530,8 +706,8 @@ impl WriteSql for ExprEnum {
                 out.push_str(" AND ");
                 high.write_operand(dialect, out, prec, true)
             }
-            Self::Like(Like {
-                kind,
+            Self::Like(like) => write_like(dialect, out, like, self.precedence()),
+            Self::SimilarTo(SimilarTo {
                 negated,
                 expr,
                 pattern,
@@ -541,19 +717,31 @@ impl WriteSql for ExprEnum {
                 expr.write_operand(dialect, out, prec, false)?;
                 out.push_char(' ');
                 if *negated {
-                    out.push_str("NOT ");
+                    out.push_str("NOT SIMILAR TO ");
+                } else {
+                    out.push_str("SIMILAR TO ");
                 }
-                out.push_str(kind.as_sql());
-                out.push_char(' ');
+
                 pattern.write_operand(dialect, out, prec, true)?;
-                if let Some(c) = escape {
-                    out.push_str(" ESCAPE ");
-                    let raw = c.encode_utf8(&mut [0; 4]).to_string();
-                    dialect
-                        .write_string_literal(out, &raw)
-                        .map_err(|_| crate::sql::PrepareError::Write)?;
+                write_escape(dialect, out, *escape)
+            }
+            Self::RLike(RLike {
+                negated,
+                expr,
+                pattern,
+                escape,
+            }) => {
+                let prec = self.precedence();
+                expr.write_operand(dialect, out, prec, false)?;
+                out.push_char(' ');
+                if *negated {
+                    out.push_str("NOT RLIKE ");
+                } else {
+                    out.push_str("RLIKE ");
                 }
-                Ok(())
+
+                pattern.write_operand(dialect, out, prec, true)?;
+                write_escape(dialect, out, *escape)
             }
             Self::Cast(Cast { expr, data_type }) => {
                 out.push_str("CAST(");

@@ -68,6 +68,8 @@ impl PyExpr {
             ExprEnum::InList(_) => wrap::<super::nodes::PyInListExpr>(py, self),
             ExprEnum::Between(_) => wrap::<super::nodes::PyBetweenExpr>(py, self),
             ExprEnum::Like(_) => wrap::<super::nodes::PyLikeExpr>(py, self),
+            ExprEnum::SimilarTo(_) => wrap::<super::nodes::PySimilarToExpr>(py, self),
+            ExprEnum::RLike(_) => wrap::<super::nodes::PyRLikeExpr>(py, self),
             ExprEnum::Cast(_) => wrap::<super::nodes::PyCastExpr>(py, self),
             ExprEnum::Case(_) => wrap::<super::nodes::PyCaseExpr>(py, self),
             ExprEnum::Custom(_) => wrap::<super::nodes::PyCustomExpr>(py, self),

@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
-use pyo3::types::PyTupleMethods;
+use pyo3::types::{PyAnyMethods, PyListMethods, PyTupleMethods};
 
-use super::enum_::{ExprEnum, Ident, IdentPart};
+use super::enum_::{ExprEnum, Ident, IdentPart, LikePattern};
 use crate::internal::utils;
 
 /// `true` when `obj` is `Asterisk` or `type[Asterisk]`.
@@ -83,6 +83,46 @@ fn extract_expr(
     Ok(ExprEnum::Value(super::enum_::Value::infer_bound(
         obj.as_any().clone(),
     )))
+}
+
+/// Scalar `LIKE` pattern, or a list/tuple of patterns (`LIKE ANY`).
+///
+/// A Python `str` is never a sequence. An already-built `TupleExpr` is a
+/// single pattern; a raw `tuple`/`list` is ANY.
+pub fn extract_like_pattern(
+    obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::PyAny>,
+) -> pyo3::PyResult<LikePattern> {
+    let ptr = obj.as_ptr();
+    unsafe {
+        if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
+            return Ok(LikePattern::One(Box::new(extract_expr(obj, false)?)));
+        }
+        if pyo3::ffi::PyList_CheckExact(ptr) == 1 {
+            let list = obj.cast_unchecked::<pyo3::types::PyList>();
+            return extract_like_any(list.iter());
+        }
+        if pyo3::ffi::PyTuple_CheckExact(ptr) == 1 {
+            let tuple = obj.cast_unchecked::<pyo3::types::PyTuple>();
+            return extract_like_any(tuple.iter());
+        }
+    }
+    Ok(LikePattern::One(Box::new(extract_expr(obj, false)?)))
+}
+
+fn extract_like_any<'py>(
+    iter: impl IntoIterator<Item = pyo3::Bound<'py, pyo3::PyAny>>,
+) -> pyo3::PyResult<LikePattern> {
+    let mut items = Vec::new();
+    for item in iter {
+        items.push(item.extract::<LiteralExprExtractor>()?.0);
+    }
+    if items.is_empty() {
+        return rapidquery_macros::pyerr!(
+            Err(PyValueError),
+            "LIKE ANY pattern list is empty"
+        );
+    }
+    Ok(LikePattern::Any(items))
 }
 
 pub(super) enum ExtractedIdentArgument {
