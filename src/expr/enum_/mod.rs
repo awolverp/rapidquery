@@ -32,6 +32,14 @@ pub struct Is {
     pub kind: IsKind,
 }
 
+/// `expr IS [NOT] [form] NORMALIZED`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct IsNormalized {
+    pub expr: Box<ExprEnum>,
+    pub negated: bool,
+    pub form: Option<NormalizationForm>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct IsDistinctFrom {
     pub left: Box<ExprEnum>,
@@ -127,6 +135,8 @@ pub enum ExprEnum {
     Function(Function),
     /// IS [NOT] <kind>
     Is(Is),
+    /// IS [NOT] [form] NORMALIZED
+    IsNormalized(IsNormalized),
     /// <left> IS [NOT] DISTINCT FROM <right>
     IsDistinctFrom(IsDistinctFrom),
     /// <expr> [NOT] IN <list>
@@ -190,6 +200,13 @@ impl From<Is> for ExprEnum {
     #[inline]
     fn from(value: Is) -> Self {
         Self::Is(value)
+    }
+}
+
+impl From<IsNormalized> for ExprEnum {
+    #[inline]
+    fn from(value: IsNormalized) -> Self {
+        Self::IsNormalized(value)
     }
 }
 
@@ -297,6 +314,7 @@ impl ExprEnum {
                 BinaryOp::Or => 8,
             },
             Self::Is(_)
+            | Self::IsNormalized(_)
             | Self::IsDistinctFrom(_)
             | Self::InList(_)
             | Self::Between(_)
@@ -355,6 +373,21 @@ impl ExprEnum {
                 kind,
             }) => {
                 let mut buf = format!("IsExpr({}, {:?}", expr.python_repr(py)?, kind.as_sql());
+                if *negated {
+                    buf.push_str(", negated=True");
+                }
+                buf.push(')');
+                Ok(buf)
+            }
+            Self::IsNormalized(IsNormalized {
+                expr,
+                negated,
+                form,
+            }) => {
+                let mut buf = format!("IsNormalizedExpr({}", expr.python_repr(py)?);
+                if let Some(form) = form {
+                    write!(buf, ", {:?}", form.as_sql()).unwrap();
+                }
                 if *negated {
                     buf.push_str(", negated=True");
                 }
@@ -626,17 +659,33 @@ impl WriteSql for ExprEnum {
                 out.push_char(')');
                 Ok(())
             }
-            Self::Unary(Unary { op, expr }) => {
-                match op {
-                    UnaryOp::Not => {
-                        out.push_str("NOT ");
-                    }
-                    UnaryOp::Plus | UnaryOp::Minus | UnaryOp::BitNot => {
-                        out.push_str(op.as_sql());
-                    }
+            Self::Unary(Unary { op, expr }) => match op {
+                UnaryOp::PGPostfixFactorial => {
+                    expr.write_operand(dialect, out, self.precedence(), true)?;
+                    out.push_char('!');
+                    Ok(())
                 }
-                expr.write_operand(dialect, out, self.precedence(), true)
-            }
+                UnaryOp::Not
+                | UnaryOp::Hash
+                | UnaryOp::AtDashAt
+                | UnaryOp::DoubleAt
+                | UnaryOp::QuestionDash
+                | UnaryOp::QuestionPipe => {
+                    out.push_str(op.as_sql());
+                    out.push_char(' ');
+                    expr.write_operand(dialect, out, self.precedence(), true)
+                }
+                UnaryOp::Plus
+                | UnaryOp::Minus
+                | UnaryOp::BitNot
+                | UnaryOp::PGAbs
+                | UnaryOp::PGSquareRoot
+                | UnaryOp::PGCubeRoot
+                | UnaryOp::PGPrefixFactorial => {
+                    out.push_str(op.as_sql());
+                    expr.write_operand(dialect, out, self.precedence(), true)
+                }
+            },
             Self::Binary(Binary { left, op, right }) => {
                 let prec = self.precedence();
                 left.write_operand(dialect, out, prec, false)?;
@@ -658,6 +707,24 @@ impl WriteSql for ExprEnum {
                     out.push_str(" IS ");
                 }
                 out.push_str(kind.as_sql());
+                Ok(())
+            }
+            Self::IsNormalized(IsNormalized {
+                expr,
+                negated,
+                form,
+            }) => {
+                expr.write_operand(dialect, out, self.precedence(), false)?;
+                if *negated {
+                    out.push_str(" IS NOT ");
+                } else {
+                    out.push_str(" IS ");
+                }
+                if let Some(form) = form {
+                    out.push_str(form.as_sql());
+                    out.push_char(' ');
+                }
+                out.push_str("NORMALIZED");
                 Ok(())
             }
             Self::IsDistinctFrom(IsDistinctFrom {

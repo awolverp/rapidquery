@@ -9,10 +9,7 @@ pub mod sql;
 pub mod typeref;
 
 // Tasks until being stable (until this part)
-// - Support `AtDashAt`, `DoubleAt`, `Hash`, `PGAbs`, `PGCubeRoot`, `PGPostfixFactorial`,
-//           `PGPrefixFactorial`, `PGSquareRoot`, `QuestionDash`, and `QuestionPipe` in UnaryExpr
-// - Support IsNormalizedExpr
-// - Support `TryCast`, `SafeCast`, and `DoubleColon` kinds in CastExpr
+// - Support `TryCast`, `SafeCast` kinds in CastExpr
 // - Support `array` and `format` in CastExpr
 // - Support TrimExpr
 // - Support CollateExpr

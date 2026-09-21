@@ -5,6 +5,26 @@ pub enum UnaryOp {
     Plus,
     Minus,
     BitNot,
+    /// `@-@` — PostgreSQL/Redshift geometric length.
+    AtDashAt,
+    /// `@@` — PostgreSQL/Redshift geometric center.
+    DoubleAt,
+    /// `#` — PostgreSQL/Redshift geometric npoints.
+    Hash,
+    /// `@` — PostgreSQL absolute value.
+    PGAbs,
+    /// `||/` — PostgreSQL cube root.
+    PGCubeRoot,
+    /// `!` postfix — PostgreSQL factorial (`9!`).
+    PGPostfixFactorial,
+    /// `!!` — PostgreSQL prefix factorial.
+    PGPrefixFactorial,
+    /// `|/` — PostgreSQL square root.
+    PGSquareRoot,
+    /// `?-` — PostgreSQL/Redshift geometric is-horizontal.
+    QuestionDash,
+    /// `?|` — PostgreSQL/Redshift geometric is-vertical.
+    QuestionPipe,
 }
 
 impl UnaryOp {
@@ -15,6 +35,16 @@ impl UnaryOp {
             "+" => Some(Self::Plus),
             "-" => Some(Self::Minus),
             "~" => Some(Self::BitNot),
+            "@-@" => Some(Self::AtDashAt),
+            "@@" => Some(Self::DoubleAt),
+            "#" => Some(Self::Hash),
+            "@" => Some(Self::PGAbs),
+            "||/" => Some(Self::PGCubeRoot),
+            "!" => Some(Self::PGPostfixFactorial),
+            "!!" => Some(Self::PGPrefixFactorial),
+            "|/" => Some(Self::PGSquareRoot),
+            "?-" => Some(Self::QuestionDash),
+            "?|" => Some(Self::QuestionPipe),
             _ => None,
         }
     }
@@ -26,6 +56,16 @@ impl UnaryOp {
             Self::Plus => "+",
             Self::Minus => "-",
             Self::BitNot => "~",
+            Self::AtDashAt => "@-@",
+            Self::DoubleAt => "@@",
+            Self::Hash => "#",
+            Self::PGAbs => "@",
+            Self::PGCubeRoot => "||/",
+            Self::PGPostfixFactorial => "!",
+            Self::PGPrefixFactorial => "!!",
+            Self::PGSquareRoot => "|/",
+            Self::QuestionDash => "?-",
+            Self::QuestionPipe => "?|",
         }
     }
 }
@@ -143,6 +183,42 @@ impl IsKind {
             Self::True => "TRUE",
             Self::False => "FALSE",
             Self::Unknown => "UNKNOWN",
+        }
+    }
+}
+
+/// Unicode normalization form for [`super::IsNormalized`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NormalizationForm {
+    Nfc,
+    Nfd,
+    Nfkc,
+    Nfkd,
+}
+
+impl NormalizationForm {
+    #[inline]
+    pub fn parse(s: &str) -> Option<Self> {
+        if s.eq_ignore_ascii_case("NFC") {
+            Some(Self::Nfc)
+        } else if s.eq_ignore_ascii_case("NFD") {
+            Some(Self::Nfd)
+        } else if s.eq_ignore_ascii_case("NFKC") {
+            Some(Self::Nfkc)
+        } else if s.eq_ignore_ascii_case("NFKD") {
+            Some(Self::Nfkd)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    pub fn as_sql(self) -> &'static str {
+        match self {
+            Self::Nfc => "NFC",
+            Self::Nfd => "NFD",
+            Self::Nfkc => "NFKC",
+            Self::Nfkd => "NFKD",
         }
     }
 }

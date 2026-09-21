@@ -14,6 +14,7 @@ from rapidquery.expr import (
     InListExpr,
     IsDistinctFromExpr,
     IsExpr,
+    IsNormalizedExpr,
     LikeExpr,
     RLikeExpr,
     SimilarToExpr,
@@ -38,6 +39,7 @@ class TestExpr:
             UnaryExpr("-", 1),
             BinaryExpr(1, "+", 2),
             IsExpr(Ident("id"), "NULL"),
+            IsNormalizedExpr(Ident("s")),
             IsDistinctFromExpr(1, 2),
             InListExpr(Ident("id"), [1]),
             BetweenExpr(Ident("id"), 0, 1),
@@ -281,8 +283,22 @@ class TestUnaryExpr:
         un = UnaryExpr("~", 1)
         assert un.get_operator() == "~"
 
+        for token in (
+            "@-@",
+            "@@",
+            "#",
+            "@",
+            "||/",
+            "!",
+            "!!",
+            "|/",
+            "?-",
+            "?|",
+        ):
+            assert UnaryExpr(token, 1).get_operator() == token
+
         with pytest.raises(ValueError, match="unknown unary operator"):
-            UnaryExpr("!", 1)
+            UnaryExpr("bang", 1)
 
     def test_to_sql(self):
         un = UnaryExpr("-", Function("now").call())
@@ -299,6 +315,25 @@ class TestUnaryExpr:
         sql, params = UnaryExpr("-", 1).prepare(PostgreSQL)
         assert sql == "-:param_0"
         assert params == {"param_0": 1}
+
+        assert UnaryExpr("|/", 9).to_sql(PostgreSQL) == "|/9"
+        assert UnaryExpr("||/", 27).to_sql(PostgreSQL) == "||/27"
+        assert UnaryExpr("!!", 1).to_sql(PostgreSQL) == "!!1"
+        assert UnaryExpr("@", 1).to_sql(PostgreSQL) == "@1"
+        assert UnaryExpr("!", 9).to_sql(PostgreSQL) == "9!"
+        assert UnaryExpr("#", Ident("path")).to_sql(PostgreSQL) == '# "path"'
+        assert UnaryExpr("@-@", Ident("path")).to_sql(PostgreSQL) == '@-@ "path"'
+        assert UnaryExpr("@@", Ident("path")).to_sql(PostgreSQL) == '@@ "path"'
+        assert UnaryExpr("?-", Ident("path")).to_sql(PostgreSQL) == '?- "path"'
+        assert UnaryExpr("?|", Ident("path")).to_sql(PostgreSQL) == '?| "path"'
+
+        assert UnaryExpr("!", UnaryExpr("-", 1)).to_sql(PostgreSQL) == "(-1)!"
+        assert UnaryExpr("-", UnaryExpr("!", 1)).to_sql(PostgreSQL) == "-(1!)"
+        assert UnaryExpr("!", UnaryExpr("!", 1)).to_sql(PostgreSQL) == "(1!)!"
+
+        sql, params = UnaryExpr("|/", 9).prepare(PostgreSQL)
+        assert sql == "|/:param_0"
+        assert params == {"param_0": 9}
 
 
 class TestBinaryExpr:
@@ -402,6 +437,63 @@ class TestIsExpr:
         assert (
             repr(IsExpr(Ident("id"), "NULL", negated=True))
             == 'IsExpr(Ident("id"), "NULL", negated=True)'
+        )
+
+
+class TestIsNormalizedExpr:
+    def test_new(self):
+        norm = IsNormalizedExpr(Ident("s"))
+        assert norm.get_expr() == Ident("s")
+        assert norm.get_form() is None
+        assert norm.get_negated() is False
+
+        norm = IsNormalizedExpr("café", "nfc")
+        assert norm.get_expr() == Value("café")
+        assert norm.get_form() == "NFC"
+        assert norm.get_negated() is False
+
+        norm = IsNormalizedExpr(Ident("s"), "NFKD", negated=True)
+        assert norm.get_expr() == Ident("s")
+        assert norm.get_form() == "NFKD"
+        assert norm.get_negated() is True
+
+        with pytest.raises(ValueError, match="unknown normalization form"):
+            IsNormalizedExpr(Ident("s"), "NFKC2")
+
+    def test_to_sql(self):
+        assert IsNormalizedExpr(Ident("s")).to_sql(PostgreSQL) == (
+            '"s" IS NORMALIZED'
+        )
+        assert IsNormalizedExpr(Ident("s"), negated=True).to_sql(PostgreSQL) == (
+            '"s" IS NOT NORMALIZED'
+        )
+        assert IsNormalizedExpr(Ident("s"), "nFd").to_sql(PostgreSQL) == (
+            '"s" IS NFD NORMALIZED'
+        )
+        assert IsNormalizedExpr(Ident("s"), "NFKC", negated=True).to_sql(
+            PostgreSQL
+        ) == '"s" IS NOT NFKC NORMALIZED'
+
+        sql, params = IsNormalizedExpr(Ident("s"), "NFC").prepare(PostgreSQL)
+        assert sql == '"s" IS NFC NORMALIZED'
+        assert params == {}
+
+        sql, params = IsNormalizedExpr("café", "NFC").prepare(PostgreSQL)
+        assert sql == ":param_0 IS NFC NORMALIZED"
+        assert params == {"param_0": "café"}
+
+        assert repr(IsNormalizedExpr(Ident("s"))) == 'IsNormalizedExpr(Ident("s"))'
+        assert (
+            repr(IsNormalizedExpr(Ident("s"), "NFC"))
+            == 'IsNormalizedExpr(Ident("s"), "NFC")'
+        )
+        assert (
+            repr(IsNormalizedExpr(Ident("s"), negated=True))
+            == 'IsNormalizedExpr(Ident("s"), negated=True)'
+        )
+        assert (
+            repr(IsNormalizedExpr(Ident("s"), "NFC", negated=True))
+            == 'IsNormalizedExpr(Ident("s"), "NFC", negated=True)'
         )
 
 

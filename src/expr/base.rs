@@ -64,6 +64,7 @@ impl PyExpr {
             ExprEnum::Binary(_) => wrap::<super::nodes::PyBinaryExpr>(py, self),
             ExprEnum::Function(_) => wrap::<super::func::PyFunction>(py, self),
             ExprEnum::Is(_) => wrap::<super::nodes::PyIsExpr>(py, self),
+            ExprEnum::IsNormalized(_) => wrap::<super::nodes::PyIsNormalizedExpr>(py, self),
             ExprEnum::IsDistinctFrom(_) => wrap::<super::nodes::PyIsDistinctFromExpr>(py, self),
             ExprEnum::InList(_) => wrap::<super::nodes::PyInListExpr>(py, self),
             ExprEnum::Between(_) => wrap::<super::nodes::PyBetweenExpr>(py, self),

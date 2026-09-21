@@ -47,7 +47,7 @@ empty_node! {
     /// Parenthesized row / tuple expression `(a, b, …)`.
     PyTupleExpr(Tuple([ExprEnum])) => "TupleExpr",
 
-    /// Unary expression (`NOT x`, `-x`, `+x`, `~x`).
+    /// Unary expression (`NOT x`, `-x`, `|/x`, `x!`, …).
     PyUnaryExpr(Unary(super::enum_::Unary)) => "UnaryExpr",
 
     /// Binary expression (`a + b`, `a AND b`, custom operators).
@@ -55,6 +55,9 @@ empty_node! {
 
     /// `expr IS [NOT] {NULL|TRUE|FALSE|UNKNOWN}`.
     PyIsExpr(Is(super::enum_::Is)) => "IsExpr",
+
+    /// `expr IS [NOT] [form] NORMALIZED`.
+    PyIsNormalizedExpr(IsNormalized(super::enum_::IsNormalized)) => "IsNormalizedExpr",
 
     /// `a IS [NOT] DISTINCT FROM b`.
     PyIsDistinctFromExpr(IsDistinctFrom(super::enum_::IsDistinctFrom)) => "IsDistinctFromExpr",
@@ -214,6 +217,53 @@ impl PyIsExpr {
     fn get_kind(slf: pyo3::PyRef<'_, Self>) -> &'static str {
         let inner = Self::inner(&slf);
         inner.kind.as_sql()
+    }
+
+    fn get_negated(slf: pyo3::PyRef<'_, Self>) -> bool {
+        let inner = Self::inner(&slf);
+        inner.negated
+    }
+}
+
+#[pyo3::pymethods]
+impl PyIsNormalizedExpr {
+    #[new]
+    #[pyo3(signature = (expr, form = None, /, *, negated = false))]
+    fn __new__(
+        expr: LiteralExprExtractor,
+        form: Option<&str>,
+        negated: bool,
+    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+        let form = match form {
+            None => None,
+            Some(s) => {
+                let Some(parsed) = super::enum_::NormalizationForm::parse(s) else {
+                    return rapidquery_macros::pyerr!(
+                        Err(PyValueError),
+                        "unknown normalization form {:?}; expected NFC, NFD, NFKC, or NFKD",
+                        s
+                    );
+                };
+                Some(parsed)
+            }
+        };
+
+        let inner = super::enum_::IsNormalized {
+            expr: Box::new(expr.0),
+            negated,
+            form,
+        };
+        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
+    }
+
+    fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+        let inner = Self::inner(&slf);
+        super::base::into_subclasses(slf.py(), (*inner.expr).clone())
+    }
+
+    fn get_form(slf: pyo3::PyRef<'_, Self>) -> Option<&'static str> {
+        let inner = Self::inner(&slf);
+        inner.form.map(super::enum_::NormalizationForm::as_sql)
     }
 
     fn get_negated(slf: pyo3::PyRef<'_, Self>) -> bool {

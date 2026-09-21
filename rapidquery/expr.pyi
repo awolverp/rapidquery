@@ -346,16 +346,38 @@ class TupleExpr(Expr):
 
 @final
 class UnaryExpr(Expr):
-    """Unary expression (``NOT x``, ``-x``, ``+x``, ``~x``)."""
+    """Unary expression (``NOT x``, ``-x``, ``|/x``, ``x!``, …)."""
 
     def __new__(
-        cls, operator: typing.Literal["NOT", "+", "-", "~"] | str, expr: object, /
+        cls,
+        operator: typing.Literal[
+            "NOT",
+            "+",
+            "-",
+            "~",
+            "@-@",
+            "@@",
+            "#",
+            "@",
+            "||/",
+            "!",
+            "!!",
+            "|/",
+            "?-",
+            "?|",
+        ]
+        | str,
+        expr: object,
+        /,
     ) -> Self:
         """
         Create a unary expression.
 
         Args:
-            operator: One of ``NOT``, ``+``, ``-``, or ``~``.
+            operator: A known unary spelling (``NOT``, ``+``, ``-``,
+                ``~``, ``|/``, ``||/``, ``@``, ``!!``, postfix ``!``,
+                ``#``, ``@-@``, ``@@``, ``?-``, ``?|``). ``!`` is
+                postfix factorial, not Hive prefix NOT.
             expr: The operand.
 
         Returns:
@@ -365,12 +387,29 @@ class UnaryExpr(Expr):
             ValueError: If ``operator`` is not a known unary operator.
         """
 
-    def get_operator(self) -> typing.Literal["NOT", "+", "-", "~"]:
+    def get_operator(
+        self,
+    ) -> typing.Literal[
+        "NOT",
+        "+",
+        "-",
+        "~",
+        "@-@",
+        "@@",
+        "#",
+        "@",
+        "||/",
+        "!",
+        "!!",
+        "|/",
+        "?-",
+        "?|",
+    ]:
         """
         Return the unary operator spelling.
 
         Returns:
-            ``NOT``, ``+``, ``-``, or ``~``.
+            The canonical SQL token (``NOT``, ``|/``, ``!``, …).
         """
 
     def get_expr(self) -> Expr:
@@ -504,6 +543,59 @@ class IsExpr(Expr):
     def get_negated(self) -> bool:
         """
         Return whether this is ``IS NOT``.
+
+        Returns:
+            ``True`` if the predicate is negated.
+        """
+
+@final
+class IsNormalizedExpr(Expr):
+    """``expr IS [NOT] [form] NORMALIZED``."""
+
+    def __new__(
+        cls,
+        expr: object,
+        form: typing.Literal["NFC", "NFD", "NFKC", "NFKD"] | str | None = None,
+        /,
+        *,
+        negated: bool = False,
+    ) -> Self:
+        """
+        Create an ``IS [form] NORMALIZED`` predicate.
+
+        Args:
+            expr: The tested expression.
+            form: Optional ``NFC``, ``NFD``, ``NFKC``, or ``NFKD``.
+                Omitted form emits ``IS NORMALIZED`` (PostgreSQL
+                defaults to NFC).
+            negated: If ``True``, emit ``IS NOT``.
+
+        Returns:
+            A new ``IsNormalizedExpr``.
+
+        Raises:
+            ValueError: If ``form`` is not one of the accepted spellings.
+        """
+
+    def get_expr(self) -> Expr:
+        """
+        Return the tested expression.
+
+        Returns:
+            The left-hand expression.
+        """
+
+    def get_form(self) -> typing.Literal["NFC", "NFD", "NFKC", "NFKD"] | None:
+        """
+        Return the normalization form, if any.
+
+        Returns:
+            ``NFC``, ``NFD``, ``NFKC``, ``NFKD``, or ``None``.
+        """
+
+    def get_negated(self) -> bool:
+        """
+        Return whether this is ``IS NOT … NORMALIZED``.
 
         Returns:
             ``True`` if the predicate is negated.
