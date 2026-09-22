@@ -9,22 +9,22 @@ use std::str::FromStr;
 
 use pyo3::types::{PyAnyMethods, PyTzInfoAccess};
 
-use crate::dialect::SqlDialect;
+use crate::dialect::PySqlDialect;
+use crate::dialect::inner::Dialect;
 use crate::internal::alias;
 use crate::internal::utils::{borrow_py_str_buffer, get_type_name};
 
 impl super::serializer_enum::SerializerEnum {
     pub fn write_sql(
         &self,
-        dialect: &SqlDialect,
+        dialect: &PySqlDialect,
         object: &alias::BoundObject<'_>,
         out: &mut String,
     ) -> pyo3::PyResult<()> {
-        if !self.is_supported_by(dialect) {
+        if !self.is_supported_by(&dialect.0) {
             return rapidquery_macros::pyerr!(
                 Err(PyNotImplementedError),
-                "{} does not support {}",
-                dialect.name(),
+                "this dialect does not support {}",
                 super::class_name(self)
             );
         }
@@ -35,17 +35,17 @@ impl super::serializer_enum::SerializerEnum {
             match self {
                 Self::Integer => write_integer(py, ptr, out),
                 Self::Float => write_float(py, ptr, out),
-                Self::Boolean => write_bool(py, ptr, dialect, out),
-                Self::String => write_str(py, ptr, dialect, out),
-                Self::Uuid => write_uuid(py, ptr, dialect, out),
-                Self::Bytes => write_bytes(py, ptr, dialect, out),
-                Self::Bit => write_bit(py, ptr, dialect, out),
-                Self::Json => write_json(py, ptr, dialect, out),
-                Self::Date => write_date(py, ptr, dialect, out),
-                Self::Time => write_time(py, ptr, dialect, out),
-                Self::Datetime => write_datetime(py, ptr, dialect, out),
-                Self::Inet => write_inet(py, ptr, dialect, out),
-                Self::MacAddress => write_mac_address(py, ptr, dialect, out),
+                Self::Boolean => write_bool(py, ptr, &dialect.0, out),
+                Self::String => write_str(py, ptr, &dialect.0, out),
+                Self::Uuid => write_uuid(py, ptr, &dialect.0, out),
+                Self::Bytes => write_bytes(py, ptr, &dialect.0, out),
+                Self::Bit => write_bit(py, ptr, &dialect.0, out),
+                Self::Json => write_json(py, ptr, &dialect.0, out),
+                Self::Date => write_date(py, ptr, &dialect.0, out),
+                Self::Time => write_time(py, ptr, &dialect.0, out),
+                Self::Datetime => write_datetime(py, ptr, &dialect.0, out),
+                Self::Inet => write_inet(py, ptr, &dialect.0, out),
+                Self::MacAddress => write_mac_address(py, ptr, &dialect.0, out),
                 Self::Array(element) => write_array(py, ptr, dialect, element, out),
                 Self::Unspecified => {
                     let text = py_to_string(py, ptr)?;
@@ -83,7 +83,7 @@ unsafe fn py_bytes<'a>(ptr: *mut pyo3::ffi::PyObject) -> &'a [u8] {
 }
 
 #[inline]
-fn write_quoted(dialect: &SqlDialect, out: &mut String, raw: &str) {
+fn write_quoted(dialect: &Dialect, out: &mut String, raw: &str) {
     let _ = dialect.write_string_literal(out, raw);
 }
 
@@ -158,7 +158,7 @@ unsafe fn write_float(
 unsafe fn write_bool(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &SqlDialect,
+    dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     if pyo3::ffi::PyBool_Check(ptr) == 1 {
@@ -182,7 +182,7 @@ unsafe fn write_bool(
 unsafe fn write_str(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &SqlDialect,
+    dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     if pyo3::ffi::PyUnicode_Check(ptr) == 1 {
@@ -203,7 +203,7 @@ unsafe fn write_str(
 unsafe fn write_uuid(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &SqlDialect,
+    dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     if crate::typeref::check_exact(ptr, crate::typeref::STD_UUID_TYPE) {
@@ -232,11 +232,11 @@ unsafe fn write_uuid(
 unsafe fn write_bytes(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &SqlDialect,
+    dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     if pyo3::ffi::PyBytes_CheckExact(ptr) == 1 {
-        let _ = dialect.encode_bytes(out, py_bytes(ptr));
+        let _ = dialect.format_bytes(out, py_bytes(ptr));
         Ok(())
     } else {
         Err(rapidquery_macros::pyerr!(
@@ -253,7 +253,7 @@ unsafe fn write_bytes(
 unsafe fn write_bit(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &SqlDialect,
+    dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
@@ -265,7 +265,7 @@ unsafe fn write_bit(
                 raw
             );
         }
-        let _ = dialect.encode_bits(out, raw);
+        let _ = dialect.format_bits(out, raw);
         Ok(())
     } else {
         rapidquery_macros::pyerr!(
@@ -284,7 +284,7 @@ unsafe fn write_bit(
 unsafe fn write_json(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &SqlDialect,
+    dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     crate::internal::modules::json_dumps(
@@ -302,7 +302,7 @@ unsafe fn write_json(
 unsafe fn write_date(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &SqlDialect,
+    dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     if crate::typeref::check_exact(ptr, crate::typeref::STD_DATE_TYPE) {
@@ -327,7 +327,7 @@ unsafe fn write_date(
 unsafe fn write_time(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &SqlDialect,
+    dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     if crate::typeref::check_exact(ptr, crate::typeref::STD_TIME_TYPE) {
@@ -356,7 +356,7 @@ unsafe fn write_time(
 unsafe fn write_datetime(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &SqlDialect,
+    dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     use chrono::TimeZone;
@@ -429,7 +429,7 @@ unsafe fn write_datetime(
 unsafe fn write_inet(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &SqlDialect,
+    dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     let text = py_to_string(py, ptr)?;
@@ -446,7 +446,7 @@ unsafe fn write_inet(
 unsafe fn write_mac_address(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &SqlDialect,
+    dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     let text = py_to_string(py, ptr)?;
@@ -464,7 +464,7 @@ unsafe fn write_mac_address(
 unsafe fn write_array(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &SqlDialect,
+    dialect: &PySqlDialect,
     element: &super::serializer_enum::SerializerEnum,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
@@ -509,13 +509,14 @@ unsafe fn write_array(
 unsafe fn write_custom(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &SqlDialect,
+    dialect: &PySqlDialect,
     function: &pyo3::Py<pyo3::PyAny>,
     object: &alias::BoundObject<'_>,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     let _ = ptr;
-    let output = function.call1(py, (dialect.name(), object))?;
+
+    let output = function.call1(py, (dialect.clone(), object))?;
     if pyo3::ffi::PyUnicode_CheckExact(output.as_ptr()) != 1 {
         return rapidquery_macros::pyerr!(
             Err(PyTypeError),

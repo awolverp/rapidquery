@@ -17,7 +17,7 @@ from rapidquery.data_type import (
     UnspecifiedSerializer,
     UuidSerializer,
 )
-from rapidquery.dialect import PostgreSQL
+from rapidquery.dialect import PostgreSql
 
 
 class TestDataTypeNameNormalization:
@@ -218,27 +218,23 @@ class TestDataTypeSerializerInference:
     def test_boolean_serializer_correctly_rejects_non_bool_int(self):
         dt = DataType("boolean")
         with pytest.raises(TypeError):
-            dt.serialize(PostgreSQL, 1)
+            dt.serialize(PostgreSql(), 1)
 
 
 class TestDataTypeSerializeDelegation:
     def test_serialize_delegates_to_serializer(self):
         dt = DataType("integer")
-        assert dt.serialize(PostgreSQL, 42) == "42"
+        assert dt.serialize(PostgreSql(), 42) == "42"
 
     def test_serialize_with_explicit_custom_serializer(self):
         dt = DataType("weird_type", StringSerializer())
-        result = dt.serialize(PostgreSQL, "hi")
+        result = dt.serialize(PostgreSql(), "hi")
         assert "hi" in result
 
     def test_serialize_propagates_type_errors_from_serializer(self):
         dt = DataType("integer")
         with pytest.raises(TypeError):
-            dt.serialize(PostgreSQL, "not an int")
-
-    def test_serialize_accepts_dialect_class_or_instance(self):
-        dt = DataType("integer")
-        assert dt.serialize(PostgreSQL, 1) == dt.serialize(PostgreSQL(), 1)
+            dt.serialize(PostgreSql(), "not an int")
 
 
 class TestDataTypeEquality:

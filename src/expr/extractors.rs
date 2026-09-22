@@ -117,10 +117,7 @@ fn extract_like_any<'py>(
         items.push(item.extract::<LiteralExprExtractor>()?.0);
     }
     if items.is_empty() {
-        return rapidquery_macros::pyerr!(
-            Err(PyValueError),
-            "LIKE ANY pattern list is empty"
-        );
+        return rapidquery_macros::pyerr!(Err(PyValueError), "LIKE ANY pattern list is empty");
     }
     Ok(LikePattern::Any(items))
 }

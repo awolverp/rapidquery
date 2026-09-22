@@ -9,7 +9,6 @@ pub mod sql;
 pub mod typeref;
 
 // Tasks until being stable (until this part)
-// - Rewrite dialects and add a new dialect: CustomDialect
 // - Raise error when something is not supported by a dialect
 // - Test and coverage everything and edge cases
 // - Update docstrings, clean code, update Rust docs, add fmt/lint/coding-style rules

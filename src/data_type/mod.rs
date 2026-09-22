@@ -71,7 +71,7 @@ impl crate::sql::WriteSql for PyDataType {
     #[inline]
     fn write_sql<W: crate::sql::SqlWriter>(
         &self,
-        dialect: &crate::dialect::SqlDialect,
+        dialect: &crate::dialect::PySqlDialect,
         out: &mut W,
     ) -> crate::sql::PrepareResult<()> {
         self.name.write_sql(dialect, out)
@@ -139,11 +139,11 @@ impl PyDataType {
     ///             type's serializer (bit strings, `ARRAY[…]`, inet, macaddr).
     fn serialize(
         &self,
-        dialect: crate::dialect::py::PySqlDialect,
+        dialect: crate::dialect::PySqlDialect,
         object: alias::BoundObject<'_>,
     ) -> pyo3::PyResult<String> {
         let mut buf = String::new();
-        self.serializer.write_sql(&dialect.0, &object, &mut buf)?;
+        self.serializer.write_sql(&dialect, &object, &mut buf)?;
         Ok(buf)
     }
 

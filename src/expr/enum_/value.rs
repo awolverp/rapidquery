@@ -3,7 +3,7 @@
 use pyo3::types::{PyAnyMethods, PyStringMethods};
 
 use crate::data_type::{SerializerEnum, serializer_repr};
-use crate::dialect::SqlDialect;
+use crate::dialect::PySqlDialect;
 use crate::internal::alias;
 use crate::sql::{PrepareResult, SqlWriter, WriteSql};
 
@@ -43,7 +43,7 @@ impl Value {
 }
 
 impl WriteSql for Value {
-    fn write_sql<W: SqlWriter>(&self, dialect: &SqlDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
         out.push_value(dialect, &self.serializer, &self.object)
     }
 }

@@ -110,12 +110,12 @@ when building the final SQL statement.
 ```python
 import rapidquery as rp
 
-rp.Expr(25)                         # -> 25  (literal value)
-rp.Expr("Hello")                    # -> 'Hello'  (literal value)
-rp.Expr(rq.Value('World'))          # -> 'World'  (literal value)
+rp.Expr(25)  # -> 25  (literal value)
+rp.Expr("Hello")  # -> 'Hello'  (literal value)
+rp.Expr(rq.Value("World"))  # -> 'World'  (literal value)
 
-rp.Expr.col("id")                             # -> "id" (column reference)
-rp.Expr.col("users.name")                     # -> "users"."name" (column reference)
+rp.Expr.col("id")  # -> "id" (column reference)
+rp.Expr.col("users.name")  # -> "users"."name" (column reference)
 rp.Expr(rq.ColumnRef("name", table="users"))  # -> "users"."name" (column reference)
 ```
 
@@ -123,21 +123,25 @@ rp.Expr(rq.ColumnRef("name", table="users"))  # -> "users"."name" (column refere
 
 ```python
 rq.Expr.col("status") == "active"  # -> "status" == 'active'
-rq.Expr.col("age") > 16           # -> "age" > 16
+rq.Expr.col("age") > 16  # -> "age" > 16
 
 # Note that `rq.all` is different from built-in `all`
 rq.all(
     rq.Expr.col("age") >= 18,
-    rq.Expr.col("subscription").is_null(), # same as rq.Expr.col("subscription").is_(Expr.null())
-    rq.Expr.col("status").in_(["pending", "approved", "active"])
-)    # -> "age" >= 18 AND "subscription" IS NULL AND "status" IN ('pending', 'approved', 'active')
+    rq.Expr.col(
+        "subscription"
+    ).is_null(),  # same as rq.Expr.col("subscription").is_(Expr.null())
+    rq.Expr.col("status").in_(["pending", "approved", "active"]),
+)  # -> "age" >= 18 AND "subscription" IS NULL AND "status" IN ('pending', 'approved', 'active')
 
 # Note that `rq.any` is different from built-in `any`
 rq.any(
     rq.Expr.col("is_admin").is_(True),
-    rq.Expr.col("is_moderator").is_not_null(), # same as rq.Expr.col("subscription").is_not(Expr.null())
-    rq.Expr.col("price").between(10.00, 50.00)
-)    # -> "is_admin" IS TRUE OR "is_moderator" IS NOT NULL OR "price" BETWEEN 10.00 AND 50.00
+    rq.Expr.col(
+        "is_moderator"
+    ).is_not_null(),  # same as rq.Expr.col("subscription").is_not(Expr.null())
+    rq.Expr.col("price").between(10.00, 50.00),
+)  # -> "is_admin" IS TRUE OR "is_moderator" IS NOT NULL OR "price" BETWEEN 10.00 AND 50.00
 ```
 
 **Best Practices**
@@ -149,7 +153,7 @@ rq.any(
 rq.Expr.col("user_name")  # → "user_name"
 
 # String literal (value)
-rq.Expr("user_name")      # → 'user_name'
+rq.Expr("user_name")  # → 'user_name'
 ```
 
 - Use `rapidquery.all()` and `rapidquery.any()` for logical combinations: More readable than chaining `&` and `|` operators
@@ -356,8 +360,12 @@ clause = (
     )
 )
 
-users_count_select = rq.SelectStatement(rq.Func.count(rq.Expr.asterisk())).from_table("users_count")
-teams_count_select = rq.SelectStatement(rq.Func.count(rq.Expr.asterisk())).from_table("teams_count")
+users_count_select = rq.SelectStatement(rq.Func.count(rq.Expr.asterisk())).from_table(
+    "users_count"
+)
+teams_count_select = rq.SelectStatement(rq.Func.count(rq.Expr.asterisk())).from_table(
+    "teams_count"
+)
 
 query: WithQuery = clause.query(
     rq.SelectStatement(
@@ -393,7 +401,7 @@ But for functions not provided by the library, you can define custom functions.
 Custom functions can be defined using the `Func` constructor:
 
 ```python
-stmt = rq.SelectStatement(rq.Func("CUSTOM", 1, 'hello'))
+stmt = rq.SelectStatement(rq.Func("CUSTOM", 1, "hello"))
 stmt.to_sql("postgres")
 # SELECT CUSTOM(1, 'hello')
 ```
@@ -562,8 +570,10 @@ class IdColumnProperty:
         # Can return ColumnRef or str
         return "characters.id"
 
+
 class IdColumnClassVar:
     __column_ref__ = "characters.id"
+
 
 stmt = rq.SelectStatement().columns(IdColumnProperty())
 # SELECT "characters"."id" AS "id"
@@ -636,10 +646,7 @@ stmt = rq.DeleteStatement(UsersClassVar)
 4. Use `Table`: It's possible because `Table` has `__table_name__` property.
 
 ```python
-users = Table(
-    "archive.users",
-    ...
-)
+users = Table("archive.users", ...)
 
 stmt = rq.DeleteStatement(users)
 # DELETE FROM "archive"."users"

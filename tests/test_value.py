@@ -24,7 +24,7 @@ from rapidquery.data_type import (
     UnspecifiedSerializer,
     UuidSerializer,
 )
-from rapidquery.dialect import PostgreSQL
+from rapidquery.dialect import PostgreSql
 from rapidquery.expr import Expr, Value
 from tests.conftest import USING_ORJSON
 
@@ -112,23 +112,19 @@ class TestValueConstruction:
 
 class TestValueToSql:
     def test_integer_literal(self):
-        assert Value(42).to_sql(PostgreSQL) == "42"
+        assert Value(42).to_sql(PostgreSql()) == "42"
 
     def test_string_literal_matches_string_serializer(self):
-        assert Value("hi").to_sql(PostgreSQL) == StringSerializer().serialize(
-            PostgreSQL, "hi"
+        assert Value("hi").to_sql(PostgreSql()) == StringSerializer().serialize(
+            PostgreSql(), "hi"
         )
 
     def test_none_is_null(self):
-        assert Value(None).to_sql(PostgreSQL) == "NULL"
-
-    def test_accepts_dialect_class_or_instance(self):
-        value = Value(1)
-        assert value.to_sql(PostgreSQL) == value.to_sql(PostgreSQL())
+        assert Value(None).to_sql(PostgreSql()) == "NULL"
 
     def test_propagates_serializer_type_error(self):
         with pytest.raises(TypeError):
-            Value("not an int", IntegerSerializer()).to_sql(PostgreSQL)
+            Value("not an int", IntegerSerializer()).to_sql(PostgreSql())
 
 
 class TestValueEquality:

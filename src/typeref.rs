@@ -1,19 +1,7 @@
 //! Interned `PyTypeObject*` cache.
 
 // Dialect types
-pub(crate) static mut BIGQUERY_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut DATABRICKS_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut DUCKDB_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut HIVE_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut MSSQL_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut MYSQL_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut ORACLE_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut POSTGRESQL_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut REDSHIFT_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut SNOWFLAKE_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut SPARK_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut SQLITE_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut TERADATA_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut SQL_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
 // Data-type / serializer types
 pub(crate) static mut DATATYPE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -101,19 +89,7 @@ fn _initialize_typeref(py: pyo3::Python) {
         multiple_get_type_object_for!(
             py,
             // dialects
-            crate::dialect::py::PyBigQuery => BIGQUERY_DIALECT_TYPE,
-            crate::dialect::py::PyDatabricks => DATABRICKS_DIALECT_TYPE,
-            crate::dialect::py::PyDuckDb => DUCKDB_DIALECT_TYPE,
-            crate::dialect::py::PyHive => HIVE_DIALECT_TYPE,
-            crate::dialect::py::PyMsSql => MSSQL_DIALECT_TYPE,
-            crate::dialect::py::PyMySql => MYSQL_DIALECT_TYPE,
-            crate::dialect::py::PyOracle => ORACLE_DIALECT_TYPE,
-            crate::dialect::py::PyPostgreSql => POSTGRESQL_DIALECT_TYPE,
-            crate::dialect::py::PyRedshift => REDSHIFT_DIALECT_TYPE,
-            crate::dialect::py::PySnowflake => SNOWFLAKE_DIALECT_TYPE,
-            crate::dialect::py::PySpark => SPARK_DIALECT_TYPE,
-            crate::dialect::py::PySqlite => SQLITE_DIALECT_TYPE,
-            crate::dialect::py::PyTeradata => TERADATA_DIALECT_TYPE,
+            crate::dialect::PySqlDialect => SQL_DIALECT_TYPE,
             // data types / serializers
             crate::data_type::PyDataType => DATATYPE_TYPE,
             crate::data_type::PySerializer => SERIALIZER_TYPE,

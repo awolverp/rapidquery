@@ -114,11 +114,15 @@ impl Function {
 impl WriteSql for Function {
     fn write_sql<W: SqlWriter>(
         &self,
-        dialect: &crate::dialect::SqlDialect,
+        dialect: &crate::dialect::PySqlDialect,
         out: &mut W,
     ) -> PrepareResult<()> {
         self.name.write_sql(dialect, out)?;
-        let nt_inside = dialect.null_treatment_inside_parens();
+        let nt_inside = matches!(
+            dialect.0.null_treatment_syntax,
+            crate::dialect::inner::NullTreatmentSyntax::InsideParens
+        );
+
         match &self.args {
             FunctionArguments::None => {
                 // No parentheses to put the clause in; always postfix.

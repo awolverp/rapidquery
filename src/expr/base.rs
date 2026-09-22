@@ -86,18 +86,18 @@ impl PyExpr {
     fn prepare(
         slf: pyo3::PyRef<'_, Self>,
         py: pyo3::Python<'_>,
-        dialect: crate::dialect::py::PySqlDialect,
+        dialect: crate::dialect::PySqlDialect,
     ) -> pyo3::PyResult<(String, sql::PrepareParams)> {
-        sql::prepare(py, &slf.0, &dialect.0).map_err(Into::into)
+        sql::prepare(py, &slf.0, &dialect).map_err(Into::into)
     }
 
     /// Render this expression as raw SQL (values inlined as literals).
     fn to_sql(
         slf: pyo3::PyRef<'_, Self>,
         py: pyo3::Python<'_>,
-        dialect: crate::dialect::py::PySqlDialect,
+        dialect: crate::dialect::PySqlDialect,
     ) -> pyo3::PyResult<String> {
-        sql::write_sql(py, &slf.0, &dialect.0).map_err(Into::into)
+        sql::write_sql(py, &slf.0, &dialect).map_err(Into::into)
     }
 
     fn __repr__(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {

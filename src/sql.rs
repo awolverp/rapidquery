@@ -9,7 +9,7 @@ use hashbrown::HashMap;
 use pyo3::types::PyAnyMethods;
 
 use crate::data_type::SerializerEnum;
-use crate::dialect::SqlDialect;
+use crate::dialect::PySqlDialect;
 use crate::internal::alias;
 
 /// Error produced while building SQL.
@@ -92,7 +92,7 @@ pub trait SqlWriter: std::fmt::Write {
     /// unused.
     fn push_value(
         &mut self,
-        dialect: &SqlDialect,
+        dialect: &PySqlDialect,
         serializer: &SerializerEnum,
         object: &alias::PyObject,
     ) -> PrepareResult<()>;
@@ -152,7 +152,7 @@ impl<'py> SqlWriter for BufferedSql<'py> {
 
     fn push_value(
         &mut self,
-        dialect: &SqlDialect,
+        dialect: &PySqlDialect,
         serializer: &SerializerEnum,
         object: &alias::PyObject,
     ) -> PrepareResult<()> {
@@ -236,12 +236,12 @@ impl<'py> ParameterizedSql<'py> {
 impl ParameterizedSql<'_> {
     /// Register `param` and append its placeholder to the SQL in one step.
     #[inline]
-    pub fn push_param(&mut self, dialect: &SqlDialect, param: alias::PyObject) -> &mut Self {
+    pub fn push_param(&mut self, dialect: &PySqlDialect, param: alias::PyObject) -> &mut Self {
         // allocate param name
         let name = format!("param_{}", self.next_id);
         self.next_id += 1;
 
-        self.sql.push(dialect.placeholder_syntax().sigil());
+        self.sql.push(dialect.0.placeholder_sigil);
         self.sql.push_str(&name);
         self.params.insert(name, param);
         self
@@ -264,7 +264,7 @@ impl SqlWriter for ParameterizedSql<'_> {
     #[inline]
     fn push_value(
         &mut self,
-        dialect: &SqlDialect,
+        dialect: &PySqlDialect,
         _serializer: &SerializerEnum,
         object: &alias::PyObject,
     ) -> PrepareResult<()> {
@@ -289,14 +289,22 @@ impl std::fmt::Write for ParameterizedSql<'_> {
 
 /// Render `self` into `out`. The writer chooses literal vs placeholder for values.
 pub trait WriteSql {
-    fn write_sql<W: SqlWriter>(&self, dialect: &SqlDialect, out: &mut W) -> PrepareResult<()>;
+    fn write_sql<W: SqlWriter>(
+        &self,
+        // NOTE FOR ME:
+        // Why `PySqlDialect` instead of Rust `Dialect`?
+        // because we accept custom serializers and custom serializer functions
+        // need to get dialect objects.
+        dialect: &PySqlDialect,
+        out: &mut W,
+    ) -> PrepareResult<()>;
 }
 
 /// Render `stmt` as raw SQL (values inlined as literals).
 pub fn write_sql<'py, T: WriteSql>(
     py: pyo3::Python<'py>,
     stmt: &T,
-    dialect: &SqlDialect,
+    dialect: &PySqlDialect,
 ) -> PrepareResult<String> {
     let mut buf = BufferedSql::new(py);
     stmt.write_sql(dialect, &mut buf)?;
@@ -307,7 +315,7 @@ pub fn write_sql<'py, T: WriteSql>(
 pub fn prepare<'py, T: WriteSql>(
     py: pyo3::Python<'py>,
     stmt: &T,
-    dialect: &SqlDialect,
+    dialect: &PySqlDialect,
 ) -> PrepareResult<(String, PrepareParams)> {
     let mut context = ParameterizedSql::new(py);
     stmt.write_sql(dialect, &mut context)?;
@@ -320,7 +328,7 @@ pub fn prepare<'py, T: WriteSql>(
 /// Use `","` / `", "` for lists and `" AND "` / `" OR "` for predicates.
 #[cfg_attr(feature = "nightly", optimize(speed))]
 pub fn write_separated<'a, T, W>(
-    dialect: &SqlDialect,
+    dialect: &PySqlDialect,
     out: &mut W,
     items: impl IntoIterator<Item = &'a T>,
     separator: &str,

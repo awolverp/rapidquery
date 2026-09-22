@@ -99,12 +99,12 @@ impl SerializerEnum {
 
     /// Whether `dialect` can emit a native literal for this serializer.
     #[inline]
-    pub fn is_supported_by(&self, dialect: &crate::dialect::SqlDialect) -> bool {
+    pub fn is_supported_by(&self, dialect: &crate::dialect::inner::Dialect) -> bool {
         match self {
-            Self::Bit => dialect.supports_bit(),
-            Self::Array(_) => dialect.supports_array(),
-            Self::Inet => dialect.supports_inet(),
-            Self::MacAddress => dialect.supports_mac_address(),
+            Self::Bit => dialect.bit_format.is_some(),
+            Self::Array(_) => dialect.supports_array,
+            Self::Inet => dialect.supports_inet,
+            Self::MacAddress => dialect.supports_mac_address,
             _ => true,
         }
     }

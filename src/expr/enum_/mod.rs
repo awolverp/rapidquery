@@ -8,8 +8,10 @@ pub use ident::*;
 pub use operator::*;
 pub use value::*;
 
-use crate::dialect::{LikeAnySyntax, SqlDialect};
-use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
+use crate::{
+    dialect::{PySqlDialect, inner::LikeAnySyntax},
+    sql::{PrepareResult, SqlWriter, WriteSql, write_separated},
+};
 use std::fmt::Write;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -365,7 +367,7 @@ impl ExprEnum {
     #[inline]
     fn write_operand<W: SqlWriter>(
         &self,
-        dialect: &SqlDialect,
+        dialect: &PySqlDialect,
         out: &mut W,
         parent_prec: u8,
         paren_if_equal: bool,
@@ -651,23 +653,26 @@ fn write_like_op<W: SqlWriter>(out: &mut W, case_sensitive: bool, negated: bool)
 }
 
 fn write_escape<W: SqlWriter>(
-    dialect: &SqlDialect,
+    dialect: &PySqlDialect,
     out: &mut W,
     escape: Option<char>,
 ) -> PrepareResult<()> {
     let Some(c) = escape else {
         return Ok(());
     };
+
     out.push_str(" ESCAPE ");
     let mut buf = [0u8; 4];
     dialect
+        .0
         .write_string_literal(out, c.encode_utf8(&mut buf))
         .map_err(|_| crate::sql::PrepareError::Write)?;
+
     Ok(())
 }
 
 fn write_like<W: SqlWriter>(
-    dialect: &SqlDialect,
+    dialect: &PySqlDialect,
     out: &mut W,
     like: &Like,
     prec: u8,
@@ -681,7 +686,7 @@ fn write_like<W: SqlWriter>(
             pattern.write_operand(dialect, out, prec, true)?;
             write_escape(dialect, out, like.escape)
         }
-        LikePattern::Any(patterns) => match dialect.like_any_syntax() {
+        LikePattern::Any(patterns) => match dialect.0.like_any_syntax {
             LikeAnySyntax::ArrayConstructor => {
                 // `NOT LIKE ANY` in Postgres is a quantified NOT LIKE
                 // (exists a non-match), not "matches none".
@@ -732,7 +737,7 @@ fn write_like<W: SqlWriter>(
 
 impl WriteSql for ExprEnum {
     #[cfg_attr(feature = "nightly", optimize(speed))]
-    fn write_sql<W: SqlWriter>(&self, dialect: &SqlDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
         match self {
             Self::Ident(ident) => ident.write_sql(dialect, out),
             Self::Value(value) => value.write_sql(dialect, out),
@@ -983,7 +988,7 @@ impl WriteSql for ExprEnum {
 fn write_custom<W: SqlWriter>(
     sql: &str,
     args: &[ExprEnum],
-    dialect: &SqlDialect,
+    dialect: &PySqlDialect,
     out: &mut W,
 ) -> PrepareResult<()> {
     let bytes = sql.as_bytes();

@@ -263,7 +263,7 @@ impl std::fmt::Display for DataTypeName {
 impl WriteSql for DataTypeName {
     fn write_sql<W: SqlWriter>(
         &self,
-        _dialect: &crate::dialect::SqlDialect,
+        _dialect: &crate::dialect::PySqlDialect,
         out: &mut W,
     ) -> PrepareResult<()> {
         out.push_str(self.as_str());

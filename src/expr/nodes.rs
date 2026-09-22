@@ -570,10 +570,7 @@ impl PyCastExpr {
             return rapidquery_macros::pyerr!(Err(PyValueError), "unknown cast kind {:?}", kind);
         };
         if format.is_none() && at_time_zone.is_some() {
-            return rapidquery_macros::pyerr!(
-                Err(PyValueError),
-                "AT TIME ZONE requires FORMAT"
-            );
+            return rapidquery_macros::pyerr!(Err(PyValueError), "AT TIME ZONE requires FORMAT");
         }
 
         let inner = super::enum_::Cast {

@@ -14,14 +14,12 @@ class Expr:
     instantiated.
     """
 
-    def to_sql(self, dialect: type[SqlDialect] | SqlDialect) -> str:
+    def to_sql(self, dialect: SqlDialect) -> str:
         """
         Render this expression as raw SQL (values inlined as literals).
         """
 
-    def prepare(
-        self, dialect: type[SqlDialect] | SqlDialect
-    ) -> tuple[str, dict[str, typing.Any]]:
+    def prepare(self, dialect: SqlDialect) -> tuple[str, dict[str, typing.Any]]:
         """
         Render this expression as a parameterized statement.
         """
@@ -980,7 +978,6 @@ class CastExpr(Expr):
         """
 
     def get_kind(self) -> typing.Literal["CAST", "TRY_CAST", "SAFE_CAST"]: ...
-
     def get_format(self) -> Expr | None:
         """
         Return the ``FORMAT`` expression, if any.

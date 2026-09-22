@@ -24,7 +24,7 @@ class Serializer(typing.Generic[_T]):
     identity.
     """
 
-    def serialize(self, dialect: type[SqlDialect] | SqlDialect, object: _T) -> str:
+    def serialize(self, dialect: SqlDialect, object: _T) -> str:
         """
         Renders `object` as a SQL literal for `dialect`.
 
@@ -289,7 +289,7 @@ class CustomSerializer(Serializer[_T]):
     caller's responsibility to produce a safe fragment.
     """
 
-    def __new__(cls, function: Callable[[str, _T], str]) -> typing.Self:
+    def __new__(cls, function: Callable[[SqlDialect, _T], str]) -> typing.Self:
         """
         Creates a serializer backed by a Python callable.
 
@@ -364,7 +364,7 @@ class DataType(typing.Generic[_T]):
             The `Serializer` associated with this data type.
         """
 
-    def serialize(self, dialect: type[SqlDialect] | SqlDialect, object: _T) -> str:
+    def serialize(self, dialect: SqlDialect, object: _T) -> str:
         """
         Renders `object` as a SQL literal for `dialect`.
 
