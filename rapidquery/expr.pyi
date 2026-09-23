@@ -233,14 +233,13 @@ class Function(Expr):
             ValueError: If ``name`` is an empty or invalid identifier.
         """
 
-    def call(self, *args: object, distinct: bool | None = None) -> Self:
+    def call(self, *args: object, distinct: bool = False) -> Self:
         """
         Attach an argument list (including empty parentheses).
 
         Args:
             *args: Positional argument expressions.
-            distinct: ``True`` inserts ``DISTINCT``, ``False`` inserts
-                ``ALL``, omitted inserts neither.
+            distinct: ``True`` inserts ``DISTINCT``.
 
         Returns:
             A new ``Function`` with this argument list.
@@ -291,7 +290,7 @@ class Function(Expr):
             The function name as an ``Ident``.
         """
 
-    def get_distinct(self) -> bool | None: ...
+    def get_distinct(self) -> bool: ...
     def get_args(self) -> tuple[Expr, ...] | None:
         """
         Return the positional arguments.

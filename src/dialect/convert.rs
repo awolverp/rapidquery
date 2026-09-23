@@ -72,10 +72,7 @@ named!(
 named!(
     IdentifierEscape,
     identifier_escape_name,
-    parse_identifier_escape {
-        Delimiters,
-        SameAsString
-    }
+    parse_identifier_escape { Double, Backslash }
 );
 named!(
     StringFormat,

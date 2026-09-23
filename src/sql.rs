@@ -268,6 +268,9 @@ impl SqlWriter for ParameterizedSql<'_> {
         _serializer: &SerializerEnum,
         object: &alias::PyObject,
     ) -> PrepareResult<()> {
+        // TODO: use positional parameters instead of named parameters
+        //       some of dialects and their native clients does not support
+        //       named parameters.
         self.push_param(dialect, object.clone_ref(self.py));
         Ok(())
     }

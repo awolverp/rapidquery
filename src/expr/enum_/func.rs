@@ -3,24 +3,6 @@ use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
 
 use super::ExprEnum;
 
-/// How duplicate values are treated inside function argument lists.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DuplicateTreatment {
-    /// Consider only unique values.
-    Distinct,
-    /// Retain all duplicate values (the default).
-    All,
-}
-
-impl DuplicateTreatment {
-    pub fn as_sql(self) -> &'static str {
-        match self {
-            Self::Distinct => "DISTINCT",
-            Self::All => "ALL",
-        }
-    }
-}
-
 /// How `NULL`s are treated in some window/aggregate functions.
 ///
 /// Placement is dialect-specific: postfix `LAG(x) IGNORE NULLS`, or
@@ -47,11 +29,8 @@ pub enum FunctionArguments {
     /// Used for special functions like `CURRENT_TIMESTAMP` that are invoked
     /// without parentheses.
     None,
-    /// A normal function argument list, including `DISTINCT` / `ALL`.
-    List {
-        duplicate_treatment: Option<DuplicateTreatment>,
-        args: Vec<ExprEnum>,
-    },
+    /// A normal function argument list, including `DISTINCT`.
+    List { distinct: bool, args: Vec<ExprEnum> },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -74,10 +53,7 @@ impl Function {
         let mut buf = format!("Function({})", self.name.python_repr());
         match &self.args {
             FunctionArguments::None => (),
-            FunctionArguments::List {
-                duplicate_treatment,
-                args,
-            } => {
+            FunctionArguments::List { distinct, args } => {
                 buf.push_str(".call(");
                 for (i, arg) in args.iter().enumerate() {
                     if i > 0 {
@@ -85,14 +61,12 @@ impl Function {
                     }
                     buf.push_str(&arg.python_repr(py)?);
                 }
-                if let Some(dt) = duplicate_treatment {
+
+                if *distinct {
                     if !args.is_empty() {
                         buf.push_str(", ");
                     }
-                    match dt {
-                        DuplicateTreatment::Distinct => buf.push_str("distinct=True"),
-                        DuplicateTreatment::All => buf.push_str("distinct=False"),
-                    }
+                    buf.push_str("distinct=True");
                 }
                 buf.push(')');
             }
@@ -117,6 +91,10 @@ impl WriteSql for Function {
         dialect: &crate::dialect::PySqlDialect,
         out: &mut W,
     ) -> PrepareResult<()> {
+        // TODO:
+        // - `DuplicateTreatment::All` is not supported by SQLite/BigQuery, we should skip it
+        // - BigQuery supports `WHERE condition` instead of `FILTER (WHERE condition)`
+
         self.name.write_sql(dialect, out)?;
         let nt_inside = matches!(
             dialect.0.null_treatment_syntax,
@@ -131,18 +109,13 @@ impl WriteSql for Function {
                     out.push_str(nt.as_sql());
                 }
             }
-            FunctionArguments::List {
-                duplicate_treatment,
-                args,
-            } => {
+            FunctionArguments::List { distinct, args } => {
                 out.push_char('(');
 
-                if let Some(dt) = duplicate_treatment
-                    && !args.is_empty()
-                {
-                    out.push_str(dt.as_sql());
-                    out.push_char(' ');
+                if *distinct && !args.is_empty() {
+                    out.push_str("DISTINCT ");
                 }
+
                 write_separated(dialect, out, args, ", ")?;
                 if nt_inside && let Some(nt) = self.null_treatment {
                     if !args.is_empty() {
@@ -150,6 +123,7 @@ impl WriteSql for Function {
                     }
                     out.push_str(nt.as_sql());
                 }
+
                 out.push_char(')');
                 if !nt_inside && let Some(nt) = self.null_treatment {
                     out.push_char(' ');

@@ -58,6 +58,8 @@ pub enum BoolFormat {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IdentifierFormat {
     /// `'name'`
+    ///
+    /// TODO: delete this
     SingleQuote,
     /// `"name"`
     DoubleQuote,
@@ -70,15 +72,10 @@ pub enum IdentifierFormat {
 /// How to escape identifiers
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IdentifierEscape {
-    /// Escape identifier delimiters.
-    ///
-    /// - `IdentifierFormat::SingleQuote`: Escape `'`
-    /// - `IdentifierFormat::DoubleQuote`: Escape `"`
-    /// - `IdentifierFormat::Backtick`: Escape `` ` ``
-    /// - `IdentifierFormat::SquareBracket`: Escape `]`
-    Delimiters,
-    /// Escape same as how we escape string.
-    SameAsString,
+    /// Escape identifier delimiters with doubling.
+    Double,
+    /// Escape identifier delimiters with backslash.
+    Backslash,
 }
 
 /// Delimiters wrapped around a literal string.
@@ -265,7 +262,7 @@ impl Dialect {
         writer.write_char(start)?;
 
         match self.identifier_escape {
-            IdentifierEscape::Delimiters => match self.identifier_format {
+            IdentifierEscape::Double => match self.identifier_format {
                 IdentifierFormat::SingleQuote => {
                     utils::replace_to(ident, '\'', "''", writer)?;
                 }
@@ -279,7 +276,20 @@ impl Dialect {
                     utils::replace_to(ident, ']', "]]", writer)?;
                 }
             },
-            IdentifierEscape::SameAsString => self.escape_string(writer, ident)?,
+            IdentifierEscape::Backslash => match self.identifier_format {
+                IdentifierFormat::SingleQuote => {
+                    utils::replace_to(ident, '\'', "\\'", writer)?;
+                }
+                IdentifierFormat::DoubleQuote => {
+                    utils::replace_to(ident, '"', "\\\"", writer)?;
+                }
+                IdentifierFormat::Backtick => {
+                    utils::replace_to(ident, '`', "\\`", writer)?;
+                }
+                IdentifierFormat::SquareBracket => {
+                    utils::replace_to(ident, ']', "\\]", writer)?;
+                }
+            },
         }
 
         writer.write_char(end)
@@ -474,7 +484,7 @@ mod tests {
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Keyword,
             identifier_format: IdentifierFormat::DoubleQuote,
-            identifier_escape: IdentifierEscape::Delimiters,
+            identifier_escape: IdentifierEscape::Backslash,
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::Quote,
             bytes_format: BytesFormat::PrefixBigX,
@@ -622,18 +632,6 @@ mod tests {
     fn format_bits_panics_when_unsupported() {
         let cfg = base();
         let _ = cfg.format_bits(&mut String::new(), "1");
-    }
-
-    #[test]
-    fn same_as_string_identifier_uses_string_escape() {
-        let mut cfg = base();
-        cfg.identifier_format = IdentifierFormat::Backtick;
-        cfg.identifier_escape = IdentifierEscape::SameAsString;
-        cfg.string_escape = StringEscape::BackslashHex;
-        assert_eq!(
-            collect(|buf| cfg.quote_identifier(buf, "foo'bar\\baz")),
-            "`foo\\'bar\\\\baz`"
-        );
     }
 
     #[test]

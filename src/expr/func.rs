@@ -3,7 +3,7 @@ use pyo3::types::{PyAnyMethods, PyTupleMethods};
 use crate::internal::{alias, utils};
 
 use super::base::PyExpr;
-use super::enum_::{DuplicateTreatment, FunctionArguments, NullTreatment};
+use super::enum_::{FunctionArguments, NullTreatment};
 use super::extractors::{ConditionExtractor, IdentExtractor, LiteralExprExtractor};
 
 /// SQL function call.
@@ -65,11 +65,11 @@ impl PyFunction {
         Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
     }
 
-    #[pyo3(signature = (*args, distinct = None))]
+    #[pyo3(signature = (*args, distinct = false))]
     fn call(
         slf: pyo3::PyRef<'_, Self>,
         args: alias::ArgsType<'_>,
-        distinct: Option<bool>,
+        distinct: bool,
     ) -> pyo3::PyResult<alias::PyObject> {
         let mut inner = Self::inner(&slf).clone();
         let mut extracted = Vec::with_capacity(args.len());
@@ -77,11 +77,7 @@ impl PyFunction {
             extracted.push(item.extract::<LiteralExprExtractor>()?.0);
         }
         inner.args = FunctionArguments::List {
-            duplicate_treatment: match distinct {
-                Some(true) => Some(DuplicateTreatment::Distinct),
-                Some(false) => Some(DuplicateTreatment::All),
-                None => None,
-            },
+            distinct,
             args: extracted,
         };
         Self::wrap(slf.py(), inner)
@@ -113,19 +109,12 @@ impl PyFunction {
         PyExpr(super::enum_::ExprEnum::Ident(inner.name.clone())).into_subclasses(slf.py())
     }
 
-    fn get_distinct(slf: pyo3::PyRef<'_, Self>) -> Option<bool> {
+    fn get_distinct(slf: pyo3::PyRef<'_, Self>) -> bool {
         let inner = Self::inner(&slf);
 
         match inner.args {
-            FunctionArguments::None => None,
-            FunctionArguments::List {
-                duplicate_treatment: None,
-                ..
-            } => None,
-            FunctionArguments::List {
-                duplicate_treatment: Some(x),
-                ..
-            } => Some(matches!(x, DuplicateTreatment::Distinct)),
+            FunctionArguments::None => false,
+            FunctionArguments::List { distinct, .. } => distinct,
         }
     }
 
