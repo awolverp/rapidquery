@@ -1,3 +1,5 @@
+use crate::dialect::convert::parse_positional_parameter;
+
 use super::base::PySqlDialect;
 use super::convert;
 use super::inner::Dialect;
@@ -15,7 +17,7 @@ impl PyGenericDialect {
     #[new]
     #[pyo3(signature = (
         *,
-        placeholder_sigil,
+        positional_paremeter,
         bit_format,
         supports_array,
         supports_inet,
@@ -31,7 +33,7 @@ impl PyGenericDialect {
     ))]
     #[allow(clippy::too_many_arguments)]
     fn __new__(
-        placeholder_sigil: char,
+        positional_paremeter: &str,
         bit_format: Option<&str>,
         supports_array: bool,
         supports_inet: bool,
@@ -54,8 +56,18 @@ impl PyGenericDialect {
                 convert::BIT_FORMATS,
             )?),
         };
+
+        let positional_parameter =
+            parse_positional_parameter(positional_paremeter).ok_or_else(|| {
+                rapidquery_macros::pyerr!(
+                    PyValueError,
+                    "invalid positional_parameter: {:?}. expected \"X\" or \"XNN\" formats which X is placeholder character",
+                    positional_paremeter
+                )
+            })?;
+
         let inner = Dialect {
-            placeholder_sigil,
+            positional_parameter,
             bit_format,
             supports_array,
             supports_inet,
@@ -120,7 +132,7 @@ impl PyGenericDialect {
         };
         format!(
             "GenericDialect(placeholder_sigil={:?}, bit_format={bit}, supports_array={}, supports_inet={}, supports_mac_address={}, null_treatment_syntax={:?}, like_any_syntax={:?}, bool_format={:?}, identifier_format={:?}, identifier_escape={:?}, string_format={:?}, string_escape={:?}, bytes_format={:?})",
-            d.placeholder_sigil,
+            convert::positional_parameter_name(d.positional_parameter),
             py_bool(d.supports_array),
             py_bool(d.supports_inet),
             py_bool(d.supports_mac_address),

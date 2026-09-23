@@ -12,7 +12,7 @@ class SqlDialect:
     """
 
     @property
-    def placeholder_sigil(self) -> str: ...
+    def positional_parameter(self) -> str: ...
     @property
     def bit_format(self) -> str | None: ...
     @property
@@ -51,7 +51,7 @@ class GenericDialect(SqlDialect):
     def __new__(
         cls,
         *,
-        placeholder_sigil: str,
+        positional_parameter: str,
         bit_format: str | None,
         supports_array: bool,
         supports_inet: bool,

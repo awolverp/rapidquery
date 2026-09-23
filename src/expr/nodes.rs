@@ -345,23 +345,15 @@ impl PyInListExpr {
         let py = slf.py();
         let inner = Self::inner(&slf);
 
-        // instead of creating a Vec and then creating a PyTuple, which is `T(n) = 2n`
-        // we can use unsafe tuple to create PyTuple directly, which is `T(n) = n`
-        let tuple = unsafe { pyo3::ffi::PyTuple_New(inner.list.len() as isize) };
-
-        for (ix, arg) in inner.list.iter().enumerate() {
-            match PyExpr(arg.clone()).into_subclasses(py) {
-                Ok(bound) => unsafe {
-                    pyo3::ffi::PyTuple_SetItem(tuple, ix as isize, bound.into_ptr());
-                },
-                Err(err) => unsafe {
-                    pyo3::ffi::Py_DECREF(tuple);
-                    return Err(err);
-                },
-            }
-        }
-
-        Ok(unsafe { pyo3::Bound::from_owned_ptr(py, tuple) })
+        let len = inner.list.len() as isize;
+        utils::iterator_to_tuple(
+            slf.py(),
+            len,
+            inner
+                .list
+                .iter()
+                .map(|x| PyExpr(x.clone()).into_subclasses(py).map(|x| x.as_ptr())),
+        )
     }
 
     fn get_negated(slf: pyo3::PyRef<'_, Self>) -> bool {
@@ -442,19 +434,13 @@ impl PyLikeExpr {
         match &inner.pattern {
             super::enum_::LikePattern::One(p) => super::base::into_subclasses(py, (**p).clone()),
             super::enum_::LikePattern::Any(ps) => {
-                let tuple = unsafe { pyo3::ffi::PyTuple_New(ps.len() as isize) };
-                for (ix, arg) in ps.iter().enumerate() {
-                    match PyExpr(arg.clone()).into_subclasses(py) {
-                        Ok(bound) => unsafe {
-                            pyo3::ffi::PyTuple_SetItem(tuple, ix as isize, bound.into_ptr());
-                        },
-                        Err(err) => unsafe {
-                            pyo3::ffi::Py_DECREF(tuple);
-                            return Err(err);
-                        },
-                    }
-                }
-                Ok(unsafe { pyo3::Bound::from_owned_ptr(py, tuple) })
+                let len = ps.len() as isize;
+                utils::iterator_to_tuple(
+                    slf.py(),
+                    len,
+                    ps.iter()
+                        .map(|x| PyExpr(x.clone()).into_subclasses(py).map(|x| x.as_ptr())),
+                )
             }
         }
     }
@@ -832,22 +818,14 @@ impl PyCustomExpr {
         let py = slf.py();
         let inner = Self::inner(&slf);
 
-        // instead of creating a Vec and then creating a PyTuple, which is `T(n) = 2n`
-        // we can use unsafe tuple to create PyTuple directly, which is `T(n) = n`
-        let tuple = unsafe { pyo3::ffi::PyTuple_New(inner.args.len() as isize) };
-
-        for (ix, arg) in inner.args.iter().enumerate() {
-            match PyExpr(arg.clone()).into_subclasses(py) {
-                Ok(bound) => unsafe {
-                    pyo3::ffi::PyTuple_SetItem(tuple, ix as isize, bound.into_ptr());
-                },
-                Err(err) => unsafe {
-                    pyo3::ffi::Py_DECREF(tuple);
-                    return Err(err);
-                },
-            }
-        }
-
-        Ok(unsafe { pyo3::Bound::from_owned_ptr(py, tuple) })
+        let len = inner.args.len() as isize;
+        utils::iterator_to_tuple(
+            slf.py(),
+            len,
+            inner
+                .args
+                .iter()
+                .map(|x| PyExpr(x.clone()).into_subclasses(py).map(|x| x.as_ptr())),
+        )
     }
 }

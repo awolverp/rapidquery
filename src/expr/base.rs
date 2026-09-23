@@ -8,7 +8,7 @@
 // `between` / `in_` / `is_null` / `is_distinct_from` / `cast`; `case`;
 // `custom`. Prefer named methods over v0 dunders that return `Expr`.
 
-use crate::internal::alias;
+use crate::internal::{alias, utils};
 use crate::sql;
 
 use super::enum_::ExprEnum;
@@ -83,12 +83,19 @@ impl PyExpr {
 #[pyo3::pymethods]
 impl PyExpr {
     /// Render this expression as a parameterized statement.
-    fn prepare(
-        slf: pyo3::PyRef<'_, Self>,
-        py: pyo3::Python<'_>,
+    fn prepare<'py>(
+        slf: pyo3::PyRef<'py, Self>,
+        py: pyo3::Python<'py>,
         dialect: crate::dialect::PySqlDialect,
-    ) -> pyo3::PyResult<(String, sql::PrepareParams)> {
-        sql::prepare(py, &slf.0, &dialect).map_err(Into::into)
+    ) -> pyo3::PyResult<(String, alias::BoundObject<'py>)> {
+        let (sql, params) = sql::prepare(py, &slf.0, &dialect)?;
+
+        let params = utils::iterator_to_tuple(
+            slf.py(),
+            params.len() as isize,
+            params.into_iter().map(|x| Ok(x.as_ptr())),
+        )?;
+        Ok((sql, params))
     }
 
     /// Render this expression as raw SQL (values inlined as literals).

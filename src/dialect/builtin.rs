@@ -35,7 +35,7 @@ impl_builtin_dialects!(
     /// BigQuery SQL dialect.
     PyBigQuery = "BigQuery" {
         Dialect {
-            placeholder_sigil: '@',
+            positional_parameter: PositionalParameter::Simple('?'),
             bit_format: None,
             supports_array: true,
             supports_inet: false,
@@ -54,7 +54,7 @@ impl_builtin_dialects!(
     /// Databricks SQL dialect.
     PyDatabricks = "Databricks" {
         Dialect {
-            placeholder_sigil: ':',
+            positional_parameter: PositionalParameter::Simple('?'),
             bit_format: None,
             supports_array: false,
             supports_inet: false,
@@ -73,7 +73,7 @@ impl_builtin_dialects!(
     /// DuckDB SQL dialect.
     PyDuckDb = "DuckDb" {
         Dialect {
-            placeholder_sigil: '$',
+            positional_parameter: PositionalParameter::Numbered('$'),
             bit_format: Some(BitFormat::PrefixBigB),
             supports_array: true,
             supports_inet: true,
@@ -92,7 +92,7 @@ impl_builtin_dialects!(
     /// Hive SQL dialect.
     PyHive = "Hive" {
         Dialect {
-            placeholder_sigil: ':',
+            positional_parameter: PositionalParameter::Simple('?'),
             bit_format: None,
             supports_array: false,
             supports_inet: false,
@@ -111,7 +111,7 @@ impl_builtin_dialects!(
     /// Microsoft SQL Server dialect.
     PyMsSql = "MsSql" {
         Dialect {
-            placeholder_sigil: '@',
+            positional_parameter: PositionalParameter::Simple('?'),
             bit_format: None,
             supports_array: false,
             supports_inet: false,
@@ -130,7 +130,7 @@ impl_builtin_dialects!(
     /// MySQL dialect.
     PyMySql = "MySql" {
         Dialect {
-            placeholder_sigil: ':',
+            positional_parameter: PositionalParameter::Simple('?'),
             bit_format: Some(BitFormat::PrefixSmallB),
             supports_array: false,
             supports_inet: false,
@@ -149,7 +149,7 @@ impl_builtin_dialects!(
     /// Oracle SQL dialect.
     PyOracle = "Oracle" {
         Dialect {
-            placeholder_sigil: ':',
+            positional_parameter: PositionalParameter::Numbered(':'),
             bit_format: None,
             supports_array: false,
             supports_inet: false,
@@ -168,7 +168,7 @@ impl_builtin_dialects!(
     /// PostgreSQL dialect.
     PyPostgreSql = "PostgreSql" {
         Dialect {
-            placeholder_sigil: ':',
+            positional_parameter: PositionalParameter::Numbered('$'),
             bit_format: Some(BitFormat::PrefixBigB),
             supports_array: true,
             supports_inet: true,
@@ -187,7 +187,7 @@ impl_builtin_dialects!(
     /// Amazon Redshift dialect.
     PyRedshift = "Redshift" {
         Dialect {
-            placeholder_sigil: ':',
+            positional_parameter: PositionalParameter::Numbered('$'),
             bit_format: None,
             supports_array: false,
             supports_inet: false,
@@ -206,7 +206,7 @@ impl_builtin_dialects!(
     /// Snowflake SQL dialect.
     PySnowflake = "Snowflake" {
         Dialect {
-            placeholder_sigil: ':',
+            positional_parameter: PositionalParameter::Numbered(':'),
             bit_format: None,
             supports_array: false,
             supports_inet: false,
@@ -225,7 +225,7 @@ impl_builtin_dialects!(
     /// Apache Spark SQL dialect.
     PySpark = "Spark" {
         Dialect {
-            placeholder_sigil: ':',
+            positional_parameter: PositionalParameter::Simple('?'),
             bit_format: None,
             supports_array: false,
             supports_inet: false,
@@ -244,7 +244,7 @@ impl_builtin_dialects!(
     /// SQLite dialect.
     PySqlite = "Sqlite" {
         Dialect {
-            placeholder_sigil: ':',
+            positional_parameter: PositionalParameter::Numbered('?'),
             bit_format: None,
             supports_array: false,
             supports_inet: false,
@@ -263,7 +263,7 @@ impl_builtin_dialects!(
     /// Teradata SQL dialect.
     PyTeradata = "Teradata" {
         Dialect {
-            placeholder_sigil: ':',
+            positional_parameter: PositionalParameter::Simple('?'),
             bit_format: Some(BitFormat::PostfixBigB),
             supports_array: false,
             supports_inet: false,

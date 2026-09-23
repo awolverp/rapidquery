@@ -92,7 +92,6 @@ impl WriteSql for Function {
         out: &mut W,
     ) -> PrepareResult<()> {
         // TODO:
-        // - `DuplicateTreatment::All` is not supported by SQLite/BigQuery, we should skip it
         // - BigQuery supports `WHERE condition` instead of `FILTER (WHERE condition)`
 
         self.name.write_sql(dialect, out)?;

@@ -2,6 +2,15 @@ use std::fmt::{self, Write};
 
 use crate::internal::utils;
 
+/// Positional parameter syntax
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PositionalParameter {
+    /// e.g. `'?'`
+    Simple(char),
+    /// e.g. `'$'` -> `'$1'`
+    Numbered(char),
+}
+
 /// The way dialect accepts literal bit values
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BitFormat {
@@ -57,10 +66,6 @@ pub enum BoolFormat {
 /// Delimiters wrapped around a quoted identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IdentifierFormat {
-    /// `'name'`
-    ///
-    /// TODO: delete this
-    SingleQuote,
     /// `"name"`
     DoubleQuote,
     /// `` `name` ``
@@ -200,10 +205,8 @@ impl BytesFormat {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Dialect {
-    /// Named-placeholder sigil used when building parameterized SQL.
-    ///
-    /// e.g. `'$'`, `'@'`, `':'`
-    pub placeholder_sigil: char,
+    /// Positional parameter syntax.
+    pub positional_parameter: PositionalParameter,
     /// How the dialect accepts literal bit values if supported.
     ///
     /// Set [`Option::None`] if literal bit isn't supported.
@@ -254,7 +257,6 @@ impl Dialect {
     #[inline]
     pub fn quote_identifier<W: fmt::Write>(&self, writer: &mut W, ident: &str) -> fmt::Result {
         let (start, end) = match self.identifier_format {
-            IdentifierFormat::SingleQuote => ('\'', '\''),
             IdentifierFormat::DoubleQuote => ('"', '"'),
             IdentifierFormat::Backtick => ('`', '`'),
             IdentifierFormat::SquareBracket => ('[', ']'),
@@ -263,9 +265,6 @@ impl Dialect {
 
         match self.identifier_escape {
             IdentifierEscape::Double => match self.identifier_format {
-                IdentifierFormat::SingleQuote => {
-                    utils::replace_to(ident, '\'', "''", writer)?;
-                }
                 IdentifierFormat::DoubleQuote => {
                     utils::replace_to(ident, '"', "\"\"", writer)?;
                 }
@@ -277,9 +276,6 @@ impl Dialect {
                 }
             },
             IdentifierEscape::Backslash => match self.identifier_format {
-                IdentifierFormat::SingleQuote => {
-                    utils::replace_to(ident, '\'', "\\'", writer)?;
-                }
                 IdentifierFormat::DoubleQuote => {
                     utils::replace_to(ident, '"', "\\\"", writer)?;
                 }
@@ -475,7 +471,7 @@ mod tests {
 
     fn base() -> Dialect {
         Dialect {
-            placeholder_sigil: ':',
+            positional_parameter: PositionalParameter::Simple(':'),
             bit_format: None,
             supports_array: false,
             supports_inet: false,

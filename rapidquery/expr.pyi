@@ -19,7 +19,7 @@ class Expr:
         Render this expression as raw SQL (values inlined as literals).
         """
 
-    def prepare(self, dialect: SqlDialect) -> tuple[str, dict[str, typing.Any]]:
+    def prepare(self, dialect: SqlDialect) -> tuple[str, tuple[typing.Any]]:
         """
         Render this expression as a parameterized statement.
         """

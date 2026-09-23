@@ -125,23 +125,13 @@ impl PyFunction {
         match &inner.args {
             FunctionArguments::None => Ok(utils::new_pynone(py)),
             FunctionArguments::List { args, .. } => {
-                // instead of creating a Vec and then creating a PyTuple, which is `T(n) = 2n`
-                // we can use unsafe tuple to create PyTuple directly, which is `T(n) = n`
-                let tuple = unsafe { pyo3::ffi::PyTuple_New(args.len() as isize) };
-
-                for (ix, arg) in args.iter().enumerate() {
-                    match PyExpr(arg.clone()).into_subclasses(py) {
-                        Ok(bound) => unsafe {
-                            pyo3::ffi::PyTuple_SetItem(tuple, ix as isize, bound.into_ptr());
-                        },
-                        Err(err) => unsafe {
-                            pyo3::ffi::Py_DECREF(tuple);
-                            return Err(err);
-                        },
-                    }
-                }
-
-                Ok(unsafe { pyo3::Bound::from_owned_ptr(py, tuple) })
+                let len = args.len() as isize;
+                utils::iterator_to_tuple(
+                    slf.py(),
+                    len,
+                    args.iter()
+                        .map(|x| PyExpr(x.clone()).into_subclasses(py).map(|x| x.as_ptr())),
+                )
             }
         }
     }

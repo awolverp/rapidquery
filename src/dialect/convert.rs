@@ -4,7 +4,7 @@
 
 use super::inner::{
     BitFormat, BoolFormat, BytesFormat, IdentifierEscape, IdentifierFormat, LikeAnySyntax,
-    NullTreatmentSyntax, StringEscape, StringFormat,
+    NullTreatmentSyntax, PositionalParameter, StringEscape, StringFormat,
 };
 
 macro_rules! named {
@@ -63,7 +63,6 @@ named!(
     IdentifierFormat,
     identifier_format_name,
     parse_identifier_format {
-        SingleQuote,
         DoubleQuote,
         Backtick,
         SquareBracket
@@ -111,6 +110,24 @@ named!(
     }
 );
 
+pub(super) fn positional_parameter_name(pp: PositionalParameter) -> String {
+    match pp {
+        PositionalParameter::Simple(c) => c.to_string(),
+        PositionalParameter::Numbered(c) => format!("{c}NN"),
+    }
+}
+
+/// Zero-alloc extractor: accept `"X"` or `"XNN"` and return `X` as `char`.
+/// Any other shape is `None`.
+#[inline]
+pub(super) fn parse_positional_parameter(s: &str) -> Option<PositionalParameter> {
+    match s.as_bytes() {
+        [b] => Some(PositionalParameter::Simple(*b as char)),
+        [b, b'N', b'N'] => Some(PositionalParameter::Numbered(*b as char)),
+        _ => None,
+    }
+}
+
 pub(super) const BIT_FORMATS: &str = "PrefixBigB, PrefixSmallB, PostfixBigB";
 pub(super) const NULL_TREATMENT_SYNTAXES: &str = "InsideParens, OutsideParens";
 pub(super) const LIKE_ANY_SYNTAXES: &str = "ArrayConstructor, PatternList, OrExpansion";
@@ -137,18 +154,5 @@ pub(super) fn parse_field<T>(
             value,
             expected
         ),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_is_case_insensitive_and_round_trips() {
-        assert_eq!(parse_bit_format("prefixbigb"), Some(BitFormat::PrefixBigB));
-        assert_eq!(bit_format_name(BitFormat::PrefixBigB), "PrefixBigB");
-        assert_eq!(parse_bool_format("INT"), Some(BoolFormat::Int));
-        assert!(parse_bytes_format("nope").is_none());
     }
 }

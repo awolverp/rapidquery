@@ -53,8 +53,8 @@ fn collect(write: impl FnOnce(&mut String) -> std::fmt::Result) -> String {
 #[pyo3::pymethods]
 impl PySqlDialect {
     #[getter]
-    fn get_placeholder_sigil(&self) -> char {
-        self.0.placeholder_sigil
+    fn get_positional_parameter(&self) -> String {
+        convert::positional_parameter_name(self.0.positional_parameter)
     }
 
     #[getter]

@@ -60,3 +60,27 @@ pub unsafe fn get_type_name<'a>(py: pyo3::Python<'a>, obj: *mut pyo3::ffi::PyObj
 pub fn new_pynone<'py>(py: pyo3::Python<'py>) -> pyo3::Bound<'py, pyo3::PyAny> {
     unsafe { pyo3::Bound::from_borrowed_ptr(py, pyo3::ffi::Py_None()) }
 }
+
+/// Converts smallvec into PyTuple using pyo3 FFI
+#[inline]
+pub fn iterator_to_tuple<'py, I: Iterator<Item = pyo3::PyResult<*mut pyo3::ffi::PyObject>>>(
+    py: pyo3::Python<'py>,
+    len: isize,
+    iter: I,
+) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::PyAny>> {
+    let tuple = unsafe { pyo3::ffi::PyTuple_New(len) };
+
+    for (ix, item) in iter.enumerate() {
+        match item {
+            Ok(ptr) => unsafe {
+                pyo3::ffi::PyTuple_SetItem(tuple, ix as isize, ptr);
+            },
+            Err(err) => unsafe {
+                pyo3::ffi::Py_DECREF(tuple);
+                return Err(err);
+            },
+        }
+    }
+
+    Ok(unsafe { pyo3::Bound::from_owned_ptr(py, tuple) })
+}

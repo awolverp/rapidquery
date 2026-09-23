@@ -5,11 +5,11 @@
 //! [`SqlWriter::push_value`]: raw inlines a literal, prepared emits a
 //! placeholder.
 
-use hashbrown::HashMap;
 use pyo3::types::PyAnyMethods;
 
 use crate::data_type::SerializerEnum;
 use crate::dialect::PySqlDialect;
+use crate::dialect::inner::PositionalParameter;
 use crate::internal::alias;
 
 /// Error produced while building SQL.
@@ -77,7 +77,7 @@ impl From<PrepareError> for pyo3::PyErr {
 }
 
 pub type PrepareResult<T> = Result<T, PrepareError>;
-pub type PrepareParams = HashMap<String, alias::PyObject>;
+pub type PrepareParams = smallvec::SmallVec<[alias::PyObject; 1]>;
 
 /// Output target for [`WriteSql`].
 ///
@@ -197,8 +197,8 @@ impl<'py> ParameterizedSql<'py> {
         Self {
             py,
             sql: String::new(),
-            params: HashMap::new(),
-            next_id: 0,
+            params: PrepareParams::new(),
+            next_id: 1,
         }
     }
 
@@ -207,8 +207,8 @@ impl<'py> ParameterizedSql<'py> {
         Self {
             py,
             sql: String::with_capacity(capacity),
-            params: HashMap::new(),
-            next_id: 0,
+            params: PrepareParams::new(),
+            next_id: 1,
         }
     }
 
@@ -237,13 +237,18 @@ impl ParameterizedSql<'_> {
     /// Register `param` and append its placeholder to the SQL in one step.
     #[inline]
     pub fn push_param(&mut self, dialect: &PySqlDialect, param: alias::PyObject) -> &mut Self {
-        // allocate param name
-        let name = format!("param_{}", self.next_id);
-        self.next_id += 1;
+        match dialect.0.positional_parameter {
+            PositionalParameter::Simple(c) => {
+                self.sql.push(c);
+            }
+            PositionalParameter::Numbered(c) => {
+                let p = format!("{}{}", c, self.next_id);
+                self.sql.push_str(p.as_str());
+                self.next_id += 1;
+            }
+        }
 
-        self.sql.push(dialect.0.placeholder_sigil);
-        self.sql.push_str(&name);
-        self.params.insert(name, param);
+        self.params.push(param);
         self
     }
 }
@@ -268,9 +273,6 @@ impl SqlWriter for ParameterizedSql<'_> {
         _serializer: &SerializerEnum,
         object: &alias::PyObject,
     ) -> PrepareResult<()> {
-        // TODO: use positional parameters instead of named parameters
-        //       some of dialects and their native clients does not support
-        //       named parameters.
         self.push_param(dialect, object.clone_ref(self.py));
         Ok(())
     }
