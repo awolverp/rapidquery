@@ -40,7 +40,7 @@ impl_builtin_dialects!(
             supports_array: true,
             supports_inet: false,
             supports_mac_address: false,
-            null_treatment_syntax: NullTreatmentSyntax::InsideParens,
+            null_treatment_syntax: Some(NullTreatmentSyntax::InsideParens),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Keyword,
             identifier_format: IdentifierFormat::Backtick,
@@ -48,6 +48,7 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::BackslashHex,
             bytes_format: BytesFormat::PrefixBigBSlashX,
+            function_filter_syntax: Some(FunctionFilterSyntax::InsideWhere),
         }
     }
 
@@ -59,7 +60,7 @@ impl_builtin_dialects!(
             supports_array: false,
             supports_inet: false,
             supports_mac_address: false,
-            null_treatment_syntax: NullTreatmentSyntax::OutsideParens,
+            null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::PatternList,
             bool_format: BoolFormat::Keyword,
             identifier_format: IdentifierFormat::Backtick,
@@ -67,6 +68,7 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::BackslashUnicodeQuote,
             bytes_format: BytesFormat::PrefixBigX,
+            function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
         }
     }
 
@@ -78,7 +80,7 @@ impl_builtin_dialects!(
             supports_array: true,
             supports_inet: true,
             supports_mac_address: false,
-            null_treatment_syntax: NullTreatmentSyntax::InsideParens,
+            null_treatment_syntax: Some(NullTreatmentSyntax::InsideParens),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Keyword,
             identifier_format: IdentifierFormat::DoubleQuote,
@@ -86,6 +88,7 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::Quote,
             bytes_format: BytesFormat::PrefixBigX,
+            function_filter_syntax: Some(FunctionFilterSyntax::Filter),
         }
     }
 
@@ -97,7 +100,7 @@ impl_builtin_dialects!(
             supports_array: false,
             supports_inet: false,
             supports_mac_address: false,
-            null_treatment_syntax: NullTreatmentSyntax::OutsideParens,
+            null_treatment_syntax: None,
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Keyword,
             identifier_format: IdentifierFormat::Backtick,
@@ -105,6 +108,7 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::BackslashUnicode,
             bytes_format: BytesFormat::Unhex,
+            function_filter_syntax: None,
         }
     }
 
@@ -116,7 +120,7 @@ impl_builtin_dialects!(
             supports_array: false,
             supports_inet: false,
             supports_mac_address: false,
-            null_treatment_syntax: NullTreatmentSyntax::OutsideParens,
+            null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Int,
             identifier_format: IdentifierFormat::SquareBracket,
@@ -124,6 +128,7 @@ impl_builtin_dialects!(
             string_format: StringFormat::PrefixBigN,
             string_escape: StringEscape::QuoteStripNul,
             bytes_format: BytesFormat::PrefixZeroX,
+            function_filter_syntax: None,
         }
     }
 
@@ -135,7 +140,7 @@ impl_builtin_dialects!(
             supports_array: false,
             supports_inet: false,
             supports_mac_address: false,
-            null_treatment_syntax: NullTreatmentSyntax::OutsideParens,
+            null_treatment_syntax: None,
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Int,
             identifier_format: IdentifierFormat::Backtick,
@@ -143,6 +148,7 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::BackslashMysql,
             bytes_format: BytesFormat::PrefixBigX,
+            function_filter_syntax: None,
         }
     }
 
@@ -154,7 +160,7 @@ impl_builtin_dialects!(
             supports_array: false,
             supports_inet: false,
             supports_mac_address: false,
-            null_treatment_syntax: NullTreatmentSyntax::OutsideParens,
+            null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Int,
             identifier_format: IdentifierFormat::DoubleQuote,
@@ -162,6 +168,7 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::QuoteStripNul,
             bytes_format: BytesFormat::HexToRaw,
+            function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
         }
     }
 
@@ -173,7 +180,7 @@ impl_builtin_dialects!(
             supports_array: true,
             supports_inet: true,
             supports_mac_address: true,
-            null_treatment_syntax: NullTreatmentSyntax::OutsideParens,
+            null_treatment_syntax: None,
             like_any_syntax: LikeAnySyntax::ArrayConstructor,
             bool_format: BoolFormat::Keyword,
             identifier_format: IdentifierFormat::DoubleQuote,
@@ -181,6 +188,7 @@ impl_builtin_dialects!(
             string_format: StringFormat::PrefixBigE,
             string_escape: StringEscape::BackslashHex,
             bytes_format: BytesFormat::SlashXBytea,
+            function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
         }
     }
 
@@ -192,7 +200,7 @@ impl_builtin_dialects!(
             supports_array: false,
             supports_inet: false,
             supports_mac_address: false,
-            null_treatment_syntax: NullTreatmentSyntax::OutsideParens,
+            null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Keyword,
             identifier_format: IdentifierFormat::DoubleQuote,
@@ -200,6 +208,7 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::QuoteStripNul,
             bytes_format: BytesFormat::ToVarbyte,
+            function_filter_syntax: None,
         }
     }
 
@@ -211,7 +220,7 @@ impl_builtin_dialects!(
             supports_array: false,
             supports_inet: false,
             supports_mac_address: false,
-            null_treatment_syntax: NullTreatmentSyntax::OutsideParens,
+            null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::PatternList,
             bool_format: BoolFormat::Keyword,
             identifier_format: IdentifierFormat::DoubleQuote,
@@ -219,6 +228,7 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::BackslashHexZero,
             bytes_format: BytesFormat::PrefixBigX,
+            function_filter_syntax: None,
         }
     }
 
@@ -230,7 +240,7 @@ impl_builtin_dialects!(
             supports_array: false,
             supports_inet: false,
             supports_mac_address: false,
-            null_treatment_syntax: NullTreatmentSyntax::OutsideParens,
+            null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::PatternList,
             bool_format: BoolFormat::Keyword,
             identifier_format: IdentifierFormat::Backtick,
@@ -238,6 +248,7 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::BackslashUnicodeQuote,
             bytes_format: BytesFormat::PrefixBigX,
+            function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
         }
     }
 
@@ -249,7 +260,7 @@ impl_builtin_dialects!(
             supports_array: false,
             supports_inet: false,
             supports_mac_address: false,
-            null_treatment_syntax: NullTreatmentSyntax::OutsideParens,
+            null_treatment_syntax: None,
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Int,
             identifier_format: IdentifierFormat::DoubleQuote,
@@ -257,6 +268,7 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::QuoteStripNul,
             bytes_format: BytesFormat::PrefixBigX,
+            function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
         }
     }
 
@@ -268,7 +280,7 @@ impl_builtin_dialects!(
             supports_array: false,
             supports_inet: false,
             supports_mac_address: false,
-            null_treatment_syntax: NullTreatmentSyntax::OutsideParens,
+            null_treatment_syntax: Some(NullTreatmentSyntax::InsideParens),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Keyword,
             identifier_format: IdentifierFormat::DoubleQuote,
@@ -276,6 +288,7 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::QuoteStripNul,
             bytes_format: BytesFormat::PostfixXbv,
+            function_filter_syntax: None,
         }
     }
 );

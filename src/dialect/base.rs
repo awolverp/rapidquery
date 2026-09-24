@@ -78,8 +78,10 @@ impl PySqlDialect {
     }
 
     #[getter]
-    fn get_null_treatment_syntax(&self) -> &'static str {
-        convert::null_treatment_syntax_name(self.0.null_treatment_syntax)
+    fn get_null_treatment_syntax(&self) -> Option<&'static str> {
+        self.0
+            .null_treatment_syntax
+            .map(convert::null_treatment_syntax_name)
     }
 
     #[getter]

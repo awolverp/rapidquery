@@ -3,7 +3,7 @@ use pyo3::types::{PyAnyMethods, PyTupleMethods};
 use crate::internal::{alias, utils};
 
 use super::base::PyExpr;
-use super::enum_::{FunctionArguments, NullTreatment};
+use super::enum_::NullTreatment;
 use super::extractors::{ConditionExtractor, IdentExtractor, LiteralExprExtractor};
 
 /// SQL function call.
@@ -54,33 +54,25 @@ impl PyFunction {
 #[pyo3::pymethods]
 impl PyFunction {
     #[new]
-    #[pyo3(signature = (name, /))]
-    fn __new__(name: IdentExtractor) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
-        let inner = super::enum_::Function {
-            name: name.0,
-            args: FunctionArguments::None,
-            filter: None,
-            null_treatment: None,
-        };
-        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
-    }
-
-    #[pyo3(signature = (*args, distinct = false))]
-    fn call(
-        slf: pyo3::PyRef<'_, Self>,
+    #[pyo3(signature = (name, /, *args, distinct = false))]
+    fn __new__(
+        name: IdentExtractor,
         args: alias::ArgsType<'_>,
         distinct: bool,
-    ) -> pyo3::PyResult<alias::PyObject> {
-        let mut inner = Self::inner(&slf).clone();
+    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
         let mut extracted = Vec::with_capacity(args.len());
         for item in args.iter() {
             extracted.push(item.extract::<LiteralExprExtractor>()?.0);
         }
-        inner.args = FunctionArguments::List {
-            distinct,
+
+        let inner = super::enum_::Function {
+            name: name.0,
             args: extracted,
+            distinct,
+            filter: None,
+            null_treatment: None,
         };
-        Self::wrap(slf.py(), inner)
+        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
     }
 
     fn filter(
@@ -111,29 +103,22 @@ impl PyFunction {
 
     fn get_distinct(slf: pyo3::PyRef<'_, Self>) -> bool {
         let inner = Self::inner(&slf);
-
-        match inner.args {
-            FunctionArguments::None => false,
-            FunctionArguments::List { distinct, .. } => distinct,
-        }
+        inner.distinct
     }
 
     fn get_args(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
         let py = slf.py();
         let inner = Self::inner(&slf);
 
-        match &inner.args {
-            FunctionArguments::None => Ok(utils::new_pynone(py)),
-            FunctionArguments::List { args, .. } => {
-                let len = args.len() as isize;
-                utils::iterator_to_tuple(
-                    slf.py(),
-                    len,
-                    args.iter()
-                        .map(|x| PyExpr(x.clone()).into_subclasses(py).map(|x| x.as_ptr())),
-                )
-            }
-        }
+        let len = inner.args.len() as isize;
+        utils::iterator_to_tuple(
+            slf.py(),
+            len,
+            inner
+                .args
+                .iter()
+                .map(|x| PyExpr(x.clone()).into_subclasses(py).map(|x| x.as_ptr())),
+        )
     }
 
     fn get_filter(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {

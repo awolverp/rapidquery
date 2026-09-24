@@ -47,26 +47,6 @@ class SqlDialect:
     def __hash__(self) -> int: ...
 
 @final
-class GenericDialect(SqlDialect):
-    def __new__(
-        cls,
-        *,
-        positional_parameter: str,
-        bit_format: str | None,
-        supports_array: bool,
-        supports_inet: bool,
-        supports_mac_address: bool,
-        null_treatment_syntax: str,
-        like_any_syntax: str,
-        bool_format: str,
-        identifier_format: str,
-        identifier_escape: str,
-        string_format: str,
-        string_escape: str,
-        bytes_format: str,
-    ) -> Self: ...
-
-@final
 class BigQuery(SqlDialect):
     def __new__(cls) -> Self: ...
 

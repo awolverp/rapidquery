@@ -218,7 +218,9 @@ class Function(Expr):
     Each method returns a new frozen instance.
     """
 
-    def __new__(cls, name: str | Ident | Unquote, /) -> Self:
+    def __new__(
+        cls, name: str | Ident | Unquote, /, *args: object, distinct: bool = False
+    ) -> Self:
         """
         Create a function name with no argument list.
 
@@ -231,18 +233,6 @@ class Function(Expr):
         Raises:
             TypeError: If ``name`` is not an identifier.
             ValueError: If ``name`` is an empty or invalid identifier.
-        """
-
-    def call(self, *args: object, distinct: bool = False) -> Self:
-        """
-        Attach an argument list (including empty parentheses).
-
-        Args:
-            *args: Positional argument expressions.
-            distinct: ``True`` inserts ``DISTINCT``.
-
-        Returns:
-            A new ``Function`` with this argument list.
         """
 
     def filter(self, predicate: Expr, /) -> Self:
@@ -291,7 +281,7 @@ class Function(Expr):
         """
 
     def get_distinct(self) -> bool: ...
-    def get_args(self) -> tuple[Expr, ...] | None:
+    def get_args(self) -> tuple[Expr, ...]:
         """
         Return the positional arguments.
 

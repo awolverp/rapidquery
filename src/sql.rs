@@ -85,7 +85,18 @@ pub type PrepareParams = smallvec::SmallVec<[alias::PyObject; 1]>;
 /// named placeholders. Everything else is `push_str` / `push_char`.
 pub trait SqlWriter: std::fmt::Write {
     fn push_str(&mut self, s: &str) -> &mut Self;
+
+    #[inline]
+    fn push_str_if(&mut self, cond: bool, s: &str) -> &mut Self {
+        if cond { self.push_str(s) } else { self }
+    }
+
     fn push_char(&mut self, c: char) -> &mut Self;
+
+    #[inline]
+    fn push_char_if(&mut self, cond: bool, c: char) -> &mut Self {
+        if cond { self.push_char(c) } else { self }
+    }
 
     /// Raw (`SqlBuf`): `None` → `NULL`, else `serializer.write_sql` into the
     /// SQL buffer. Prepared: bind `object` as a placeholder; `serializer` is
@@ -311,7 +322,7 @@ pub fn write_sql<'py, T: WriteSql>(
     stmt: &T,
     dialect: &PySqlDialect,
 ) -> PrepareResult<String> {
-    let mut buf = BufferedSql::new(py);
+    let mut buf = BufferedSql::with_capacity(py, 256);
     stmt.write_sql(dialect, &mut buf)?;
     Ok(buf.into_string())
 }
@@ -322,7 +333,7 @@ pub fn prepare<'py, T: WriteSql>(
     stmt: &T,
     dialect: &PySqlDialect,
 ) -> PrepareResult<(String, PrepareParams)> {
-    let mut context = ParameterizedSql::new(py);
+    let mut context = ParameterizedSql::with_capacity(py, 256);
     stmt.write_sql(dialect, &mut context)?;
     Ok(context.into_parts())
 }

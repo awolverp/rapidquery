@@ -42,7 +42,7 @@ named!(
     null_treatment_syntax_name,
     parse_null_treatment_syntax {
         InsideParens,
-        OutsideParens
+        Postfix
     }
 );
 named!(

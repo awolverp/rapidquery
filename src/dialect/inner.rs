@@ -40,7 +40,7 @@ pub enum NullTreatmentSyntax {
     /// e.g. `FIRST_VALUE(x IGNORE NULLS)`
     InsideParens,
     /// e.g. `FIRST_VALUE(x) IGNORE NULLS`
-    OutsideParens,
+    Postfix,
 }
 
 /// How `LIKE ANY` / `ILIKE ANY` is rendered.
@@ -203,6 +203,17 @@ impl BytesFormat {
     }
 }
 
+/// Function `FILTER` syntax
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FunctionFilterSyntax {
+    /// e.g. FIRST_VALUE(x) FILTER (id > 10)
+    Filter,
+    /// e.g. FIRST_VALUE(x) FILTER (WHERE id > 10)
+    FilterWhere,
+    /// e.g. FIRST_VALUE(x WHERE id > 10)
+    InsideWhere,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Dialect {
     /// Positional parameter syntax.
@@ -217,15 +228,15 @@ pub struct Dialect {
     pub supports_inet: bool,
     /// Whether the dialect supports `MACADDR` data type.
     pub supports_mac_address: bool,
-    /// How the dialect supports `{IGNORE|RESPECT} NULLS` expressions in `Function`s.
-    pub null_treatment_syntax: NullTreatmentSyntax,
+    /// How the dialect supports `{IGNORE|RESPECT} NULLS` expressions in `Function`s if supported.
+    pub null_treatment_syntax: Option<NullTreatmentSyntax>,
     /// How `LIKE ANY` / `ILIKE ANY` is rendered.
     pub like_any_syntax: LikeAnySyntax,
     /// How the dialect accepts literal boolean values.
     pub bool_format: BoolFormat,
     /// Specifies how delimiters should wrap around a quoted identifier.
     pub identifier_format: IdentifierFormat,
-    /// Specifies how to escape identifiers
+    /// Specifies how to escape identifiers.
     pub identifier_escape: IdentifierEscape,
     /// Specifies how delimiters should wrap around a literal string value.
     pub string_format: StringFormat,
@@ -233,6 +244,8 @@ pub struct Dialect {
     pub string_escape: StringEscape,
     /// How the dialect accepts literal bytes values.
     pub bytes_format: BytesFormat,
+    /// How function calling `FILTER` keyword rendered if supported.
+    pub function_filter_syntax: Option<FunctionFilterSyntax>,
 }
 
 impl Dialect {
@@ -476,7 +489,7 @@ mod tests {
             supports_array: false,
             supports_inet: false,
             supports_mac_address: false,
-            null_treatment_syntax: NullTreatmentSyntax::OutsideParens,
+            null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Keyword,
             identifier_format: IdentifierFormat::DoubleQuote,
@@ -484,6 +497,7 @@ mod tests {
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::Quote,
             bytes_format: BytesFormat::PrefixBigX,
+            function_filter_syntax: None,
         }
     }
 

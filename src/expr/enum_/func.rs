@@ -1,7 +1,8 @@
-use super::ident::Ident;
-use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
-
 use super::ExprEnum;
+use super::ident::Ident;
+
+use crate::dialect::inner::{FunctionFilterSyntax, NullTreatmentSyntax};
+use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
 
 /// How `NULL`s are treated in some window/aggregate functions.
 ///
@@ -25,21 +26,14 @@ impl NullTreatment {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum FunctionArguments {
-    /// Used for special functions like `CURRENT_TIMESTAMP` that are invoked
-    /// without parentheses.
-    None,
-    /// A normal function argument list, including `DISTINCT`.
-    List { distinct: bool, args: Vec<ExprEnum> },
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub struct Function {
     /// The function name
     pub name: Ident,
+    /// `DISTINCT` keyword
+    pub distinct: bool,
     /// The arguments to the function, including any options specified within the
     /// delimiting parentheses.
-    pub args: FunctionArguments,
+    pub args: Vec<ExprEnum>,
     /// e.g. `x > 5` in `COUNT(x) FILTER (WHERE x > 5)`
     pub filter: Option<Box<ExprEnum>>,
     /// `IGNORE NULLS` / `RESPECT NULLS`. Inside the parens on BigQuery
@@ -50,27 +44,21 @@ pub struct Function {
 
 impl Function {
     pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        let mut buf = format!("Function({})", self.name.python_repr());
-        match &self.args {
-            FunctionArguments::None => (),
-            FunctionArguments::List { distinct, args } => {
-                buf.push_str(".call(");
-                for (i, arg) in args.iter().enumerate() {
-                    if i > 0 {
-                        buf.push_str(", ");
-                    }
-                    buf.push_str(&arg.python_repr(py)?);
-                }
+        let mut buf = format!("Function({}", self.name.python_repr());
 
-                if *distinct {
-                    if !args.is_empty() {
-                        buf.push_str(", ");
-                    }
-                    buf.push_str("distinct=True");
-                }
-                buf.push(')');
-            }
+        for arg in self.args.iter() {
+            buf.push_str(", ");
+            buf.push_str(&arg.python_repr(py)?);
         }
+
+        if self.distinct {
+            if !self.args.is_empty() {
+                buf.push_str(", ");
+            }
+            buf.push_str("distinct=True");
+        }
+        buf.push(')');
+
         match self.null_treatment {
             Some(NullTreatment::IgnoreNulls) => buf.push_str(".ignore_nulls()"),
             Some(NullTreatment::RespectNulls) => buf.push_str(".respect_nulls()"),
@@ -91,50 +79,86 @@ impl WriteSql for Function {
         dialect: &crate::dialect::PySqlDialect,
         out: &mut W,
     ) -> PrepareResult<()> {
-        // TODO:
-        // - BigQuery supports `WHERE condition` instead of `FILTER (WHERE condition)`
-
+        // "name"([DISTINCT] args [IGNORE|RESPECT NULLS] [WHERE expr] ) [IGNORE|RESPECT NULLS] [FILTER ([WHERE] expr)]
         self.name.write_sql(dialect, out)?;
-        let nt_inside = matches!(
-            dialect.0.null_treatment_syntax,
-            crate::dialect::inner::NullTreatmentSyntax::InsideParens
-        );
 
-        match &self.args {
-            FunctionArguments::None => {
-                // No parentheses to put the clause in; always postfix.
-                if let Some(nt) = self.null_treatment {
+        let args_available = !self.args.is_empty();
+
+        out.push_char('(');
+        out.push_str_if(self.distinct && args_available, "DISTINCT ");
+
+        write_separated(dialect, out, &self.args, ", ")?;
+
+        if self.null_treatment.is_some() && dialect.0.null_treatment_syntax.is_none() {
+            return Err(rapidquery_macros::pyerr!(
+                PyRuntimeError,
+                "null_treatment is not supported by this dialect",
+            )
+            .into());
+        }
+        if self.filter.is_some() && dialect.0.function_filter_syntax.is_none() {
+            return Err(rapidquery_macros::pyerr!(
+                PyRuntimeError,
+                "function filter is not supported by this dialect",
+            )
+            .into());
+        }
+
+        // Inside parens IGNORE/RESPECT NULLS
+        if let Some(x) = self.null_treatment
+            && matches!(
+                dialect.0.null_treatment_syntax,
+                Some(NullTreatmentSyntax::InsideParens)
+            )
+        {
+            out.push_char_if(args_available, ' ');
+            out.push_str(x.as_sql());
+        }
+
+        // Inside parens WHERE filter
+        if let Some(x) = &self.filter
+            && matches!(
+                dialect.0.function_filter_syntax,
+                Some(FunctionFilterSyntax::InsideWhere)
+            )
+        {
+            out.push_char_if(args_available, ' ');
+            out.push_str("WHERE ");
+            x.write_sql(dialect, out)?;
+        }
+
+        out.push_char(')');
+
+        // Postfix IGNORE/RESPECT NULLS
+        if let Some(x) = self.null_treatment
+            && matches!(
+                dialect.0.null_treatment_syntax,
+                Some(NullTreatmentSyntax::Postfix)
+            )
+        {
+            out.push_char(' ');
+            out.push_str(x.as_sql());
+        }
+
+        // Postfix WHERE filter
+        if let Some(x) = &self.filter {
+            match dialect.0.function_filter_syntax {
+                Some(FunctionFilterSyntax::FilterWhere) => {
                     out.push_char(' ');
-                    out.push_str(nt.as_sql());
+                    out.push_str("FILTER (WHERE ");
+                    x.write_sql(dialect, out)?;
+                    out.push_char(')');
                 }
-            }
-            FunctionArguments::List { distinct, args } => {
-                out.push_char('(');
-
-                if *distinct && !args.is_empty() {
-                    out.push_str("DISTINCT ");
-                }
-
-                write_separated(dialect, out, args, ", ")?;
-                if nt_inside && let Some(nt) = self.null_treatment {
-                    if !args.is_empty() {
-                        out.push_char(' ');
-                    }
-                    out.push_str(nt.as_sql());
-                }
-
-                out.push_char(')');
-                if !nt_inside && let Some(nt) = self.null_treatment {
+                Some(FunctionFilterSyntax::Filter) => {
                     out.push_char(' ');
-                    out.push_str(nt.as_sql());
+                    out.push_str("FILTER (");
+                    x.write_sql(dialect, out)?;
+                    out.push_char(')');
                 }
+                _ => {}
             }
         }
-        if let Some(filter) = &self.filter {
-            out.push_str(" FILTER (WHERE ");
-            filter.write_sql(dialect, out)?;
-            out.push_char(')');
-        }
+
         Ok(())
     }
 }
