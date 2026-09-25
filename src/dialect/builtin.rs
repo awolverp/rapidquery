@@ -49,6 +49,7 @@ impl_builtin_dialects!(
             string_escape: StringEscape::BackslashHex,
             bytes_format: BytesFormat::PrefixBigBSlashX,
             function_filter_syntax: Some(FunctionFilterSyntax::InsideWhere),
+            ilike_expression_options: ILikeExpressionOptions::UseLikeLower,
         }
     }
 
@@ -69,6 +70,7 @@ impl_builtin_dialects!(
             string_escape: StringEscape::BackslashUnicodeQuote,
             bytes_format: BytesFormat::PrefixBigX,
             function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
+            ilike_expression_options: ILikeExpressionOptions::Supported,
         }
     }
 
@@ -89,6 +91,7 @@ impl_builtin_dialects!(
             string_escape: StringEscape::Quote,
             bytes_format: BytesFormat::PrefixBigX,
             function_filter_syntax: Some(FunctionFilterSyntax::Filter),
+            ilike_expression_options: ILikeExpressionOptions::Supported,
         }
     }
 
@@ -109,6 +112,7 @@ impl_builtin_dialects!(
             string_escape: StringEscape::BackslashUnicode,
             bytes_format: BytesFormat::Unhex,
             function_filter_syntax: None,
+            ilike_expression_options: ILikeExpressionOptions::UseLikeLower,
         }
     }
 
@@ -129,6 +133,7 @@ impl_builtin_dialects!(
             string_escape: StringEscape::QuoteStripNul,
             bytes_format: BytesFormat::PrefixZeroX,
             function_filter_syntax: None,
+            ilike_expression_options: ILikeExpressionOptions::UseLike,
         }
     }
 
@@ -149,6 +154,7 @@ impl_builtin_dialects!(
             string_escape: StringEscape::BackslashMysql,
             bytes_format: BytesFormat::PrefixBigX,
             function_filter_syntax: None,
+            ilike_expression_options: ILikeExpressionOptions::UseLike,
         }
     }
 
@@ -169,6 +175,7 @@ impl_builtin_dialects!(
             string_escape: StringEscape::QuoteStripNul,
             bytes_format: BytesFormat::HexToRaw,
             function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
+            ilike_expression_options: ILikeExpressionOptions::UseLikeLower,
         }
     }
 
@@ -189,6 +196,7 @@ impl_builtin_dialects!(
             string_escape: StringEscape::BackslashHex,
             bytes_format: BytesFormat::SlashXBytea,
             function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
+            ilike_expression_options: ILikeExpressionOptions::Supported,
         }
     }
 
@@ -209,6 +217,7 @@ impl_builtin_dialects!(
             string_escape: StringEscape::QuoteStripNul,
             bytes_format: BytesFormat::ToVarbyte,
             function_filter_syntax: None,
+            ilike_expression_options: ILikeExpressionOptions::Supported,
         }
     }
 
@@ -229,6 +238,7 @@ impl_builtin_dialects!(
             string_escape: StringEscape::BackslashHexZero,
             bytes_format: BytesFormat::PrefixBigX,
             function_filter_syntax: None,
+            ilike_expression_options: ILikeExpressionOptions::Supported,
         }
     }
 
@@ -249,6 +259,7 @@ impl_builtin_dialects!(
             string_escape: StringEscape::BackslashUnicodeQuote,
             bytes_format: BytesFormat::PrefixBigX,
             function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
+            ilike_expression_options: ILikeExpressionOptions::Supported,
         }
     }
 
@@ -269,6 +280,7 @@ impl_builtin_dialects!(
             string_escape: StringEscape::QuoteStripNul,
             bytes_format: BytesFormat::PrefixBigX,
             function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
+            ilike_expression_options: ILikeExpressionOptions::UseLike,
         }
     }
 
@@ -289,6 +301,7 @@ impl_builtin_dialects!(
             string_escape: StringEscape::QuoteStripNul,
             bytes_format: BytesFormat::PostfixXbv,
             function_filter_syntax: None,
+            ilike_expression_options: ILikeExpressionOptions::UseLikeLower,
         }
     }
 );

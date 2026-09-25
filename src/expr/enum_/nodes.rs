@@ -2,7 +2,7 @@ use super::{
     BinaryOp, CastKind, ExprInner, Ident, IsKind, NormalizationForm, TrimWhere, UnaryOp,
     UnarySpacing,
 };
-use crate::dialect::{PySqlDialect, inner::LikeAnySyntax};
+use crate::dialect::PySqlDialect;
 use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
 use std::fmt::Write;
 
@@ -16,7 +16,7 @@ fn join_reprs(py: pyo3::Python<'_>, buf: &mut String, items: &[ExprInner]) -> py
     Ok(())
 }
 
-fn write_escape<W: SqlWriter>(
+pub(super) fn write_escape<W: SqlWriter>(
     dialect: &PySqlDialect,
     out: &mut W,
     escape: Option<char>,
@@ -349,144 +349,6 @@ impl WriteSql for Between {
         out.push_str(" AND ");
         self.high
             .write_operand(dialect, out, Self::PRECEDENCE, true)
-    }
-}
-
-/// Pattern side of [`Like`]: one expression, or a non-empty ANY list.
-#[derive(Clone, Debug, PartialEq)]
-pub enum LikePattern {
-    /// `col LIKE p`
-    One(Box<ExprInner>),
-    /// `col LIKE ANY …` — never empty.
-    Any(Vec<ExprInner>),
-}
-
-impl LikePattern {
-    fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        match self {
-            Self::One(p) => p.python_repr(py),
-            Self::Any(ps) => {
-                let mut buf = String::from("[");
-                join_reprs(py, &mut buf, ps)?;
-                buf.push(']');
-                Ok(buf)
-            }
-        }
-    }
-}
-
-/// `expr [NOT] LIKE / ILIKE [ANY] pattern [ESCAPE char]`.
-///
-/// `case_sensitive == false` emits `ILIKE`. `ESCAPE` is a single inlined
-/// character (never a bind).
-///
-/// LIKE ANY follows [`LikeAnySyntax`]: Postgres `ANY (ARRAY[…])` wraps
-/// negation as `NOT (x LIKE ANY …)` because `NOT LIKE ANY` is a quantified
-/// NOT LIKE; Snowflake/Spark/Databricks use `LIKE ANY (p, …)`; everyone else
-/// expands to parenthesized `OR` of scalar `LIKE`s (`AND` of `NOT LIKE` when
-/// negated).
-#[derive(Clone, Debug, PartialEq)]
-pub struct Like {
-    pub case_sensitive: bool,
-    pub negated: bool,
-    pub expr: Box<ExprInner>,
-    pub pattern: LikePattern,
-    pub escape: Option<char>,
-}
-
-impl Like {
-    pub(crate) const PRECEDENCE: u8 = 5;
-
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        let mut buf = format!(
-            "LikeExpr({}, {}",
-            self.expr.python_repr(py)?,
-            self.pattern.python_repr(py)?
-        );
-        if !self.case_sensitive {
-            buf.push_str(", case_sensitive=False");
-        }
-        if self.negated {
-            buf.push_str(", negated=True");
-        }
-        if let Some(c) = self.escape {
-            write!(buf, ", escape={c:?}").unwrap();
-        }
-        buf.push(')');
-        Ok(buf)
-    }
-}
-
-fn write_like_op<W: SqlWriter>(out: &mut W, case_sensitive: bool, negated: bool) {
-    if negated {
-        out.push_str("NOT ");
-    }
-    if case_sensitive {
-        out.push_str("LIKE");
-    } else {
-        out.push_str("ILIKE");
-    }
-}
-
-impl WriteSql for Like {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
-        let prec = Self::PRECEDENCE;
-        match &self.pattern {
-            LikePattern::One(pattern) => {
-                self.expr.write_operand(dialect, out, prec, false)?;
-                out.push_char(' ');
-                write_like_op(out, self.case_sensitive, self.negated);
-                out.push_char(' ');
-                pattern.write_operand(dialect, out, prec, true)?;
-                write_escape(dialect, out, self.escape)
-            }
-            LikePattern::Any(patterns) => match dialect.0.like_any_syntax {
-                LikeAnySyntax::ArrayConstructor => {
-                    // `NOT LIKE ANY` in Postgres is a quantified NOT LIKE
-                    // (exists a non-match), not "matches none".
-                    if self.negated {
-                        out.push_str("NOT (");
-                    }
-                    self.expr.write_operand(dialect, out, prec, false)?;
-                    out.push_char(' ');
-                    write_like_op(out, self.case_sensitive, false);
-                    out.push_str(" ANY (ARRAY[");
-                    write_separated(dialect, out, patterns, ", ")?;
-                    out.push_str("])");
-                    write_escape(dialect, out, self.escape)?;
-                    if self.negated {
-                        out.push_char(')');
-                    }
-                    Ok(())
-                }
-                LikeAnySyntax::PatternList => {
-                    self.expr.write_operand(dialect, out, prec, false)?;
-                    out.push_char(' ');
-                    write_like_op(out, self.case_sensitive, self.negated);
-                    out.push_str(" ANY (");
-                    write_separated(dialect, out, patterns, ", ")?;
-                    out.push_char(')');
-                    write_escape(dialect, out, self.escape)
-                }
-                LikeAnySyntax::OrExpansion => {
-                    out.push_char('(');
-                    let sep = if self.negated { " AND " } else { " OR " };
-                    for (i, pattern) in patterns.iter().enumerate() {
-                        if i > 0 {
-                            out.push_str(sep);
-                        }
-                        self.expr.write_operand(dialect, out, prec, false)?;
-                        out.push_char(' ');
-                        write_like_op(out, self.case_sensitive, self.negated);
-                        out.push_char(' ');
-                        pattern.write_operand(dialect, out, prec, true)?;
-                        write_escape(dialect, out, self.escape)?;
-                    }
-                    out.push_char(')');
-                    Ok(())
-                }
-            },
-        }
     }
 }
 

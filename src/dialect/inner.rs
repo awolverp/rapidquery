@@ -54,6 +54,29 @@ pub enum LikeAnySyntax {
     OrExpansion,
 }
 
+/// Does dialect support `ILIKE` expression or we should fallback to another options?
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ILikeExpressionOptions {
+    /// `ILIKE` is supported
+    Supported,
+    /// Use `LIKE` expression and `LOWER()` function
+    UseLikeLower,
+    /// Fallback to `LIKE` expression
+    UseLike,
+}
+
+impl ILikeExpressionOptions {
+    /// `(use_ilike, wrap_lower)` when the LIKE is case-insensitive.
+    #[inline]
+    pub fn case_insensitive_sql(self) -> (bool, bool) {
+        match self {
+            Self::Supported => (true, false),
+            Self::UseLike => (false, false),
+            Self::UseLikeLower => (false, true),
+        }
+    }
+}
+
 /// How a boolean literal is spelled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BoolFormat {
@@ -246,6 +269,8 @@ pub struct Dialect {
     pub bytes_format: BytesFormat,
     /// How function calling `FILTER` keyword rendered if supported.
     pub function_filter_syntax: Option<FunctionFilterSyntax>,
+    /// How case-insensitive `LIKE` is spelled (`ILIKE`, `LIKE`, or `LOWER` + `LIKE`).
+    pub ilike_expression_options: ILikeExpressionOptions,
 }
 
 impl Dialect {
@@ -498,6 +523,7 @@ mod tests {
             string_escape: StringEscape::Quote,
             bytes_format: BytesFormat::PrefixBigX,
             function_filter_syntax: None,
+            ilike_expression_options: ILikeExpressionOptions::UseLike,
         }
     }
 
