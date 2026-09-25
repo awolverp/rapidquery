@@ -68,6 +68,38 @@ impl UnaryOp {
             Self::QuestionPipe => "?|",
         }
     }
+
+    /// How this operator is written relative to its operand.
+    #[inline]
+    pub(crate) fn spacing(self) -> UnarySpacing {
+        match self {
+            Self::PGPostfixFactorial => UnarySpacing::Postfix,
+            Self::Not
+            | Self::Hash
+            | Self::AtDashAt
+            | Self::DoubleAt
+            | Self::QuestionDash
+            | Self::QuestionPipe => UnarySpacing::SpacedPrefix,
+            Self::Plus
+            | Self::Minus
+            | Self::BitNot
+            | Self::PGAbs
+            | Self::PGSquareRoot
+            | Self::PGCubeRoot
+            | Self::PGPrefixFactorial => UnarySpacing::GluedPrefix,
+        }
+    }
+}
+
+/// How a [`UnaryOp`] is written relative to its operand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum UnarySpacing {
+    /// Operand then operator, no space (`9!`).
+    Postfix,
+    /// Operator, space, operand (`NOT x`, `# path`).
+    SpacedPrefix,
+    /// Operator glued to the operand (`-1`, `|/9`).
+    GluedPrefix,
 }
 
 /// Binary operator. Unknown spellings become [`BinaryOp::Custom`].
@@ -148,6 +180,31 @@ impl BinaryOp {
             Self::RShift => ">>",
             Self::StringConcat => "||",
             Self::Custom(s) => s.as_str(),
+        }
+    }
+
+    /// Lower is tighter binding. Used by [`super::Binary`] and parenthesization.
+    #[inline]
+    pub fn precedence(&self) -> u8 {
+        match self {
+            Self::Mul | Self::Div | Self::Mod => 2,
+            Self::Add | Self::Sub => 3,
+            Self::BitAnd
+            | Self::BitOr
+            | Self::BitXor
+            | Self::LShift
+            | Self::RShift
+            | Self::StringConcat => 4,
+            Self::Eq
+            | Self::NotEq
+            | Self::Lt
+            | Self::LtEq
+            | Self::Gt
+            | Self::GtEq
+            | Self::Custom(_) => 5,
+            Self::And => 6,
+            Self::Xor => 7,
+            Self::Or => 8,
         }
     }
 }

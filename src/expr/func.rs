@@ -29,12 +29,12 @@ impl PyFunction {
     #[inline(always)]
     fn inner<'a>(slf: &'a pyo3::PyRef<'a, PyFunction>) -> &'a super::enum_::Function {
         debug_assert!(
-            matches!(&slf.as_super().0, super::enum_::ExprEnum::Function(..)),
-            "PyFunction instance always holds ExprEnum::Function"
+            matches!(&slf.as_super().0, super::enum_::ExprInner::Function(..)),
+            "PyFunction instance always holds ExprInner::Function"
         );
 
         match &slf.as_super().0 {
-            super::enum_::ExprEnum::Function(v) => v,
+            super::enum_::ExprInner::Function(v) => v,
             _ => unsafe { std::hint::unreachable_unchecked() },
         }
     }
@@ -98,7 +98,7 @@ impl PyFunction {
 
     fn get_name(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
         let inner = Self::inner(&slf);
-        PyExpr(super::enum_::ExprEnum::Ident(inner.name.clone())).into_subclasses(slf.py())
+        PyExpr(super::enum_::ExprInner::Ident(inner.name.clone())).into_subclasses(slf.py())
     }
 
     fn get_distinct(slf: pyo3::PyRef<'_, Self>) -> bool {

@@ -29,12 +29,12 @@ impl PyValue {
     #[inline(always)]
     fn inner<'a>(slf: &'a pyo3::PyRef<'a, PyValue>) -> &'a Value {
         debug_assert!(
-            matches!(&slf.as_super().0, super::enum_::ExprEnum::Value(..)),
-            "PyValue instance always holds ExprEnum::Value"
+            matches!(&slf.as_super().0, super::enum_::ExprInner::Value(..)),
+            "PyValue instance always holds ExprInner::Value"
         );
 
         match &slf.as_super().0 {
-            super::enum_::ExprEnum::Value(v) => v,
+            super::enum_::ExprInner::Value(v) => v,
             _ => unsafe { std::hint::unreachable_unchecked() },
         }
     }
@@ -66,12 +66,12 @@ impl PyValue {
             let expr_inner = expr.get().0.clone();
 
             debug_assert!(
-                matches!(expr_inner, super::enum_::ExprEnum::Value(..)),
-                "PyValue instance always holds ExprEnum::Value"
+                matches!(expr_inner, super::enum_::ExprInner::Value(..)),
+                "PyValue instance always holds ExprInner::Value"
             );
 
             let inner = match expr_inner {
-                super::enum_::ExprEnum::Value(v) => v,
+                super::enum_::ExprInner::Value(v) => v,
                 _ => unsafe { std::hint::unreachable_unchecked() },
             };
 
@@ -80,7 +80,7 @@ impl PyValue {
                 None => inner,
             };
 
-            let new_expr = super::base::PyExpr(super::enum_::ExprEnum::Value(value));
+            let new_expr = super::base::PyExpr(super::enum_::ExprInner::Value(value));
             return pyo3::PyClassInitializer::from(new_expr).add_subclass(PyValue);
         }
 
@@ -89,7 +89,7 @@ impl PyValue {
             None => Value::infer_bound(object),
         };
 
-        let expr = super::base::PyExpr(super::enum_::ExprEnum::Value(value));
+        let expr = super::base::PyExpr(super::enum_::ExprInner::Value(value));
         pyo3::PyClassInitializer::from(expr).add_subclass(PyValue)
     }
 

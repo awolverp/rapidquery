@@ -1,7 +1,7 @@
 use pyo3::types::{PyAnyMethods, PyTupleMethods};
 
 use super::base::PyExpr;
-use super::enum_::ExprEnum;
+use super::enum_::ExprInner;
 use super::extractors::{
     ConditionExtractor, IdentExtractor, LiteralExprExtractor, extract_like_pattern,
     extract_trim_characters,
@@ -31,13 +31,13 @@ macro_rules! empty_node {
                 #[inline]
                 fn inner<'a>(slf: &'a pyo3::PyRef<'a, $name>) -> &'a $inner {
                     debug_assert!(
-                        matches!(&slf.as_super().0, ExprEnum::$variant(..)),
-                        concat!(stringify!($name), " instance always holds ExprEnum::", stringify!($variant))
+                        matches!(&slf.as_super().0, ExprInner::$variant(..)),
+                        concat!(stringify!($name), " instance always holds ExprInner::", stringify!($variant))
 
                     );
 
                     match &slf.as_super().0 {
-                        ExprEnum::$variant(v) => v,
+                        ExprInner::$variant(v) => v,
                         _ => unsafe { std::hint::unreachable_unchecked() },
                     }
                 }
@@ -48,7 +48,7 @@ macro_rules! empty_node {
 
 empty_node! {
     /// Parenthesized row / tuple expression `(a, b, …)`.
-    PyTupleExpr(Tuple([ExprEnum])) => "TupleExpr",
+    PyTupleExpr(Tuple(super::enum_::Tuple)) => "TupleExpr",
 
     /// Unary expression (`NOT x`, `-x`, `|/x`, `x!`, …).
     PyUnaryExpr(Unary(super::enum_::Unary)) => "UnaryExpr",
@@ -65,10 +65,10 @@ empty_node! {
     /// `a IS [NOT] DISTINCT FROM b`.
     PyIsDistinctFromExpr(IsDistinctFrom(super::enum_::IsDistinctFrom)) => "IsDistinctFromExpr",
 
-    // /// `expr [NOT] IN (… )`.
+    /// `expr [NOT] IN (… )`.
     PyInListExpr(InList(super::enum_::InList)) => "InListExpr",
 
-    // /// `expr [NOT] BETWEEN low AND high`.
+    /// `expr [NOT] BETWEEN low AND high`.
     PyBetweenExpr(Between(super::enum_::Between)) => "BetweenExpr",
 
     /// `expr [NOT] LIKE / ILIKE [ANY] pattern`.
@@ -109,14 +109,17 @@ impl PyTupleExpr {
             exprs.push(item.extract::<LiteralExprExtractor>()?.0);
         }
 
-        Ok(pyo3::PyClassInitializer::from(PyExpr(ExprEnum::Tuple(exprs))).add_subclass(Self))
+        Ok(
+            pyo3::PyClassInitializer::from(PyExpr(super::enum_::Tuple { items: exprs }.into()))
+                .add_subclass(Self),
+        )
     }
 
     fn get_items(
         slf: pyo3::PyRef<'_, Self>,
     ) -> pyo3::PyResult<pyo3::Bound<'_, pyo3::types::PyTuple>> {
         let py = slf.py();
-        let items = Self::inner(&slf);
+        let items = &Self::inner(&slf).items;
         let mut out = Vec::with_capacity(items.len());
 
         for item in items {

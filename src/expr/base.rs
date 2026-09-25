@@ -1,6 +1,6 @@
 //! SQL expressions.
 //!
-//! [`PyExpr`] holds [`ExprEnum`]. Concrete nodes (`Ident`, `Binary`, …) are
+//! [`PyExpr`] holds [`ExprInner`]. Concrete nodes (`Ident`, `Binary`, …) are
 //! empty frozen subclasses. Shared methods live on the base.
 //!
 // TODO: `to_sql` / `prepare`; `eq` / `ne` / `lt` / `le` / `gt` / `ge`; `add` / `sub` / `mul` / `div` / `mod`;
@@ -11,7 +11,7 @@
 use crate::internal::{alias, utils};
 use crate::sql;
 
-use super::enum_::ExprEnum;
+use super::enum_::ExprInner;
 
 /// Abstract SQL expression.
 ///
@@ -24,7 +24,7 @@ use super::enum_::ExprEnum;
     module = "rapidquery._core.expr"
 )]
 #[derive(Debug, Clone)]
-pub struct PyExpr(pub ExprEnum);
+pub struct PyExpr(pub ExprInner);
 
 #[inline(always)]
 fn wrap<'py, T>(py: pyo3::Python<'py>, base: PyExpr) -> pyo3::PyResult<alias::BoundObject<'py>>
@@ -44,7 +44,7 @@ where
 #[inline]
 pub(super) fn into_subclasses<'py>(
     py: pyo3::Python<'py>,
-    expr: ExprEnum,
+    expr: ExprInner,
 ) -> pyo3::PyResult<alias::BoundObject<'py>> {
     PyExpr(expr).into_subclasses(py)
 }
@@ -57,25 +57,25 @@ impl PyExpr {
         py: pyo3::Python<'py>,
     ) -> pyo3::PyResult<alias::BoundObject<'py>> {
         match &self.0 {
-            ExprEnum::Ident(_) => wrap::<super::ident::PyIdent>(py, self),
-            ExprEnum::Value(_) => wrap::<super::value::PyValue>(py, self),
-            ExprEnum::Tuple(_) => wrap::<super::nodes::PyTupleExpr>(py, self),
-            ExprEnum::Unary(_) => wrap::<super::nodes::PyUnaryExpr>(py, self),
-            ExprEnum::Binary(_) => wrap::<super::nodes::PyBinaryExpr>(py, self),
-            ExprEnum::Function(_) => wrap::<super::func::PyFunction>(py, self),
-            ExprEnum::Is(_) => wrap::<super::nodes::PyIsExpr>(py, self),
-            ExprEnum::IsNormalized(_) => wrap::<super::nodes::PyIsNormalizedExpr>(py, self),
-            ExprEnum::IsDistinctFrom(_) => wrap::<super::nodes::PyIsDistinctFromExpr>(py, self),
-            ExprEnum::InList(_) => wrap::<super::nodes::PyInListExpr>(py, self),
-            ExprEnum::Between(_) => wrap::<super::nodes::PyBetweenExpr>(py, self),
-            ExprEnum::Like(_) => wrap::<super::nodes::PyLikeExpr>(py, self),
-            ExprEnum::SimilarTo(_) => wrap::<super::nodes::PySimilarToExpr>(py, self),
-            ExprEnum::RLike(_) => wrap::<super::nodes::PyRLikeExpr>(py, self),
-            ExprEnum::Cast(_) => wrap::<super::nodes::PyCastExpr>(py, self),
-            ExprEnum::Trim(_) => wrap::<super::nodes::PyTrimExpr>(py, self),
-            ExprEnum::Collate(_) => wrap::<super::nodes::PyCollateExpr>(py, self),
-            ExprEnum::Case(_) => wrap::<super::nodes::PyCaseExpr>(py, self),
-            ExprEnum::Custom(_) => wrap::<super::nodes::PyCustomExpr>(py, self),
+            ExprInner::Ident(_) => wrap::<super::ident::PyIdent>(py, self),
+            ExprInner::Value(_) => wrap::<super::value::PyValue>(py, self),
+            ExprInner::Tuple(_) => wrap::<super::nodes::PyTupleExpr>(py, self),
+            ExprInner::Unary(_) => wrap::<super::nodes::PyUnaryExpr>(py, self),
+            ExprInner::Binary(_) => wrap::<super::nodes::PyBinaryExpr>(py, self),
+            ExprInner::Function(_) => wrap::<super::func::PyFunction>(py, self),
+            ExprInner::Is(_) => wrap::<super::nodes::PyIsExpr>(py, self),
+            ExprInner::IsNormalized(_) => wrap::<super::nodes::PyIsNormalizedExpr>(py, self),
+            ExprInner::IsDistinctFrom(_) => wrap::<super::nodes::PyIsDistinctFromExpr>(py, self),
+            ExprInner::InList(_) => wrap::<super::nodes::PyInListExpr>(py, self),
+            ExprInner::Between(_) => wrap::<super::nodes::PyBetweenExpr>(py, self),
+            ExprInner::Like(_) => wrap::<super::nodes::PyLikeExpr>(py, self),
+            ExprInner::SimilarTo(_) => wrap::<super::nodes::PySimilarToExpr>(py, self),
+            ExprInner::RLike(_) => wrap::<super::nodes::PyRLikeExpr>(py, self),
+            ExprInner::Cast(_) => wrap::<super::nodes::PyCastExpr>(py, self),
+            ExprInner::Trim(_) => wrap::<super::nodes::PyTrimExpr>(py, self),
+            ExprInner::Collate(_) => wrap::<super::nodes::PyCollateExpr>(py, self),
+            ExprInner::Case(_) => wrap::<super::nodes::PyCaseExpr>(py, self),
+            ExprInner::Custom(_) => wrap::<super::nodes::PyCustomExpr>(py, self),
         }
     }
 }

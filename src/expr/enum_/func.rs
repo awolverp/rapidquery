@@ -1,4 +1,4 @@
-use super::ExprEnum;
+use super::ExprInner;
 use super::ident::Ident;
 
 use crate::dialect::inner::{FunctionFilterSyntax, NullTreatmentSyntax};
@@ -33,9 +33,9 @@ pub struct Function {
     pub distinct: bool,
     /// The arguments to the function, including any options specified within the
     /// delimiting parentheses.
-    pub args: Vec<ExprEnum>,
+    pub args: Vec<ExprInner>,
     /// e.g. `x > 5` in `COUNT(x) FILTER (WHERE x > 5)`
-    pub filter: Option<Box<ExprEnum>>,
+    pub filter: Option<Box<ExprInner>>,
     /// `IGNORE NULLS` / `RESPECT NULLS`. Inside the parens on BigQuery
     /// and DuckDB; after the call on other dialects.
     pub null_treatment: Option<NullTreatment>,

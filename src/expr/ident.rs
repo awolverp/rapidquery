@@ -54,12 +54,12 @@ impl PyIdent {
     #[inline(always)]
     fn inner<'a>(slf: &'a pyo3::PyRef<'a, PyIdent>) -> &'a Ident {
         debug_assert!(
-            matches!(&slf.as_super().0, super::enum_::ExprEnum::Ident(..)),
-            "PyIdent instance always holds ExprEnum::Ident"
+            matches!(&slf.as_super().0, super::enum_::ExprInner::Ident(..)),
+            "PyIdent instance always holds ExprInner::Ident"
         );
 
         match &slf.as_super().0 {
-            super::enum_::ExprEnum::Ident(ident) => ident,
+            super::enum_::ExprInner::Ident(ident) => ident,
             _ => unsafe { std::hint::unreachable_unchecked() },
         }
     }
@@ -91,7 +91,7 @@ impl PyIdent {
         };
 
         Ok(
-            pyo3::PyClassInitializer::from(super::base::PyExpr(super::enum_::ExprEnum::Ident(
+            pyo3::PyClassInitializer::from(super::base::PyExpr(super::enum_::ExprInner::Ident(
                 ident,
             )))
             .add_subclass(PyIdent),

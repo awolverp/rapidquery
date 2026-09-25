@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use pyo3::types::{PyAnyMethods, PyListMethods, PyTupleMethods};
 
-use super::enum_::{ExprEnum, Ident, IdentPart, LikePattern};
+use super::enum_::{ExprInner, Ident, IdentPart, LikePattern, Tuple};
 use crate::internal::utils;
 
 /// `true` when `obj` is `Asterisk` or `type[Asterisk]`.
@@ -16,8 +16,8 @@ unsafe fn is_asterisk(obj: *mut pyo3::ffi::PyObject) -> bool {
     type_ptr == crate::typeref::ASTERISK_TYPE
 }
 
-/// Literal-priority extractor: a bare `str` becomes [`ExprEnum::Value`].
-pub struct LiteralExprExtractor(pub ExprEnum);
+/// Literal-priority extractor: a bare `str` becomes [`ExprInner::Value`].
+pub struct LiteralExprExtractor(pub ExprInner);
 
 /// Extracts a native [`Ident`](crate::Ident) from a Python object.
 ///
@@ -26,12 +26,12 @@ pub struct LiteralExprExtractor(pub ExprEnum);
 pub struct IdentExtractor(pub Ident);
 
 /// Accepts `PyExpr` only when it is a condition, not a value or ident.
-pub struct ConditionExtractor(pub ExprEnum);
+pub struct ConditionExtractor(pub ExprInner);
 
 fn extract_expr(
     obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::PyAny>,
     str_as_ident: bool,
-) -> pyo3::PyResult<ExprEnum> {
+) -> pyo3::PyResult<ExprInner> {
     let ptr = obj.as_ptr();
     unsafe {
         if crate::typeref::check(ptr, crate::typeref::EXPR_TYPE) {
@@ -44,25 +44,25 @@ fn extract_expr(
             let part = IdentPart::unquoted(unquote.get().0.as_str())
                 .map_err(|err| rapidquery_macros::pyerr!(PyValueError, "{}", err))?;
 
-            return Ok(ExprEnum::Ident(Ident::from_one(part)));
+            return Ok(ExprInner::Ident(Ident::from_one(part)));
         }
 
         if is_asterisk(ptr) {
-            return Ok(ExprEnum::Ident(Ident::from_one(IdentPart::Asterisk)));
+            return Ok(ExprInner::Ident(Ident::from_one(IdentPart::Asterisk)));
         }
 
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
             let s = utils::borrow_py_str_buffer(obj.py(), ptr)?;
 
-            // a bare `str` becomes [`ExprEnum::Ident`] if `str_as_ident`
+            // a bare `str` becomes [`ExprInner::Ident`] if `str_as_ident`
             if str_as_ident {
                 let inner = Ident::from_str(s)
                     .map_err(|err| rapidquery_macros::pyerr!(PyValueError, "{}", err))?;
 
-                return Ok(ExprEnum::Ident(inner));
+                return Ok(ExprInner::Ident(inner));
             }
 
-            return Ok(ExprEnum::Value(super::enum_::Value::new(
+            return Ok(ExprInner::Value(super::enum_::Value::new(
                 obj.as_any().clone().unbind(),
                 crate::data_type::SerializerEnum::String,
             )));
@@ -76,11 +76,11 @@ fn extract_expr(
                 items.push(extract_expr(item.as_borrowed(), str_as_ident)?);
             }
 
-            return Ok(ExprEnum::Tuple(items));
+            return Ok(Tuple { items }.into());
         }
     }
 
-    Ok(ExprEnum::Value(super::enum_::Value::infer_bound(
+    Ok(ExprInner::Value(super::enum_::Value::infer_bound(
         obj.as_any().clone(),
     )))
 }
@@ -125,7 +125,7 @@ fn extract_like_any<'py>(
 /// Comma-list `TRIM(expr, c1, c2)` characters: exact `list`/`tuple`, never empty.
 pub fn extract_trim_characters(
     obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::PyAny>,
-) -> pyo3::PyResult<Vec<ExprEnum>> {
+) -> pyo3::PyResult<Vec<ExprInner>> {
     let ptr = obj.as_ptr();
     unsafe {
         if pyo3::ffi::PyList_CheckExact(ptr) == 1 {
@@ -146,7 +146,7 @@ pub fn extract_trim_characters(
 
 fn collect_trim_characters<'py>(
     iter: impl IntoIterator<Item = pyo3::Bound<'py, pyo3::PyAny>>,
-) -> pyo3::PyResult<Vec<ExprEnum>> {
+) -> pyo3::PyResult<Vec<ExprInner>> {
     let mut items = Vec::new();
     for item in iter {
         items.push(item.extract::<LiteralExprExtractor>()?.0);
@@ -183,10 +183,10 @@ pub(super) fn extract_ident_argument(
             let expr = obj.cast_unchecked::<super::base::PyExpr>();
 
             match &expr.get().0 {
-                ExprEnum::Ident(ident) => {
+                ExprInner::Ident(ident) => {
                     return Ok(ExtractedIdentArgument::Ident(ident.clone()));
                 }
-                _ => unreachable!("Ident instance always holds ExprEnum::Ident"),
+                _ => unreachable!("Ident instance always holds ExprInner::Ident"),
             }
         }
 

@@ -1,6 +1,5 @@
 mod base;
 mod builtin;
-mod convert;
 pub mod inner;
 
 // TODO: rewrite GenericDialect again
