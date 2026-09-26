@@ -50,6 +50,8 @@ impl_builtin_dialects!(
             bytes_format: BytesFormat::PrefixBigBSlashX,
             function_filter_syntax: Some(FunctionFilterSyntax::InsideWhere),
             ilike_expression_options: ILikeExpressionOptions::UseLikeLower,
+            supports_similar_to: false,
+            rlike_expression_options: Some(RLikeExpressionOptions::RegexpContains),
         }
     }
 
@@ -71,6 +73,8 @@ impl_builtin_dialects!(
             bytes_format: BytesFormat::PrefixBigX,
             function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
             ilike_expression_options: ILikeExpressionOptions::Supported,
+            supports_similar_to: false,
+            rlike_expression_options: Some(RLikeExpressionOptions::InfixRLike),
         }
     }
 
@@ -92,6 +96,8 @@ impl_builtin_dialects!(
             bytes_format: BytesFormat::PrefixBigX,
             function_filter_syntax: Some(FunctionFilterSyntax::Filter),
             ilike_expression_options: ILikeExpressionOptions::Supported,
+            supports_similar_to: true,
+            rlike_expression_options: Some(RLikeExpressionOptions::RegexpMatches),
         }
     }
 
@@ -113,6 +119,8 @@ impl_builtin_dialects!(
             bytes_format: BytesFormat::Unhex,
             function_filter_syntax: None,
             ilike_expression_options: ILikeExpressionOptions::UseLikeLower,
+            supports_similar_to: false,
+            rlike_expression_options: Some(RLikeExpressionOptions::InfixRLike),
         }
     }
 
@@ -134,6 +142,8 @@ impl_builtin_dialects!(
             bytes_format: BytesFormat::PrefixZeroX,
             function_filter_syntax: None,
             ilike_expression_options: ILikeExpressionOptions::UseLike,
+            supports_similar_to: false,
+            rlike_expression_options: None,
         }
     }
 
@@ -155,6 +165,8 @@ impl_builtin_dialects!(
             bytes_format: BytesFormat::PrefixBigX,
             function_filter_syntax: None,
             ilike_expression_options: ILikeExpressionOptions::UseLike,
+            supports_similar_to: false,
+            rlike_expression_options: Some(RLikeExpressionOptions::InfixRLike),
         }
     }
 
@@ -176,6 +188,8 @@ impl_builtin_dialects!(
             bytes_format: BytesFormat::HexToRaw,
             function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
             ilike_expression_options: ILikeExpressionOptions::UseLikeLower,
+            supports_similar_to: false,
+            rlike_expression_options: Some(RLikeExpressionOptions::RegexpLike),
         }
     }
 
@@ -197,6 +211,8 @@ impl_builtin_dialects!(
             bytes_format: BytesFormat::SlashXBytea,
             function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
             ilike_expression_options: ILikeExpressionOptions::Supported,
+            supports_similar_to: true,
+            rlike_expression_options: Some(RLikeExpressionOptions::Tilde),
         }
     }
 
@@ -218,6 +234,8 @@ impl_builtin_dialects!(
             bytes_format: BytesFormat::ToVarbyte,
             function_filter_syntax: None,
             ilike_expression_options: ILikeExpressionOptions::Supported,
+            supports_similar_to: true,
+            rlike_expression_options: Some(RLikeExpressionOptions::Tilde),
         }
     }
 
@@ -239,6 +257,8 @@ impl_builtin_dialects!(
             bytes_format: BytesFormat::PrefixBigX,
             function_filter_syntax: None,
             ilike_expression_options: ILikeExpressionOptions::Supported,
+            supports_similar_to: false,
+            rlike_expression_options: Some(RLikeExpressionOptions::InfixRLike),
         }
     }
 
@@ -260,6 +280,8 @@ impl_builtin_dialects!(
             bytes_format: BytesFormat::PrefixBigX,
             function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
             ilike_expression_options: ILikeExpressionOptions::Supported,
+            supports_similar_to: false,
+            rlike_expression_options: Some(RLikeExpressionOptions::InfixRLike),
         }
     }
 
@@ -281,6 +303,8 @@ impl_builtin_dialects!(
             bytes_format: BytesFormat::PrefixBigX,
             function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
             ilike_expression_options: ILikeExpressionOptions::UseLike,
+            supports_similar_to: false,
+            rlike_expression_options: None,
         }
     }
 
@@ -302,6 +326,8 @@ impl_builtin_dialects!(
             bytes_format: BytesFormat::PostfixXbv,
             function_filter_syntax: None,
             ilike_expression_options: ILikeExpressionOptions::UseLikeLower,
+            supports_similar_to: false,
+            rlike_expression_options: None,
         }
     }
 );

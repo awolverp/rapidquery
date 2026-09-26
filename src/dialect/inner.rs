@@ -77,6 +77,23 @@ impl ILikeExpressionOptions {
     }
 }
 
+/// How regex `RLike` is spelled.
+///
+/// [`None`] on [`Dialect::rlike_expression_options`] means unsupported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RLikeExpressionOptions {
+    /// `expr [NOT] RLIKE pattern` — MySQL, Hive, Spark, Databricks, Snowflake.
+    InfixRLike,
+    /// `expr ~ pattern` / `expr !~ pattern` — PostgreSQL, Redshift.
+    Tilde,
+    /// `REGEXP_LIKE(expr, pattern)` — Oracle.
+    RegexpLike,
+    /// `REGEXP_CONTAINS(expr, pattern)` — BigQuery.
+    RegexpContains,
+    /// `regexp_matches(expr, pattern)` — DuckDB (substring; DuckDB `~` is full match).
+    RegexpMatches,
+}
+
 /// How a boolean literal is spelled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BoolFormat {
@@ -271,6 +288,10 @@ pub struct Dialect {
     pub function_filter_syntax: Option<FunctionFilterSyntax>,
     /// How case-insensitive `LIKE` is spelled (`ILIKE`, `LIKE`, or `LOWER` + `LIKE`).
     pub ilike_expression_options: ILikeExpressionOptions,
+    /// Whether `SIMILAR TO` is documented.
+    pub supports_similar_to: bool,
+    /// How regex `RLike` is spelled. [`None`] means unsupported.
+    pub rlike_expression_options: Option<RLikeExpressionOptions>,
 }
 
 impl Dialect {
@@ -524,6 +545,8 @@ mod tests {
             bytes_format: BytesFormat::PrefixBigX,
             function_filter_syntax: None,
             ilike_expression_options: ILikeExpressionOptions::UseLike,
+            supports_similar_to: false,
+            rlike_expression_options: None,
         }
     }
 

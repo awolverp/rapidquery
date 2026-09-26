@@ -4,8 +4,13 @@ from rapidquery.data_type import DataType
 from rapidquery.dialect import (
     BigQuery,
     DuckDb,
+    MsSql,
+    MySql,
+    Oracle,
     PostgreSql,
+    Redshift,
     Snowflake,
+    Spark,
     SqlDialect,
     Sqlite,
 )
@@ -721,47 +726,40 @@ class TestSimilarToExpr:
         assert sim.get_expr() == Ident("name")
         assert sim.get_pattern() == Value("%a%")
         assert sim.get_negated() is False
-        assert sim.get_escape() is None
 
-        sim = SimilarToExpr(
-            Ident("name"),
-            Ident("pattern"),
-            negated=True,
-            escape="!",
-        )
+        sim = SimilarToExpr(Ident("name"), Ident("pattern"), negated=True)
         assert sim.get_expr() == Ident("name")
         assert sim.get_pattern() == Ident("pattern")
         assert sim.get_negated() is True
-        assert sim.get_escape() == "!"
-
-        with pytest.raises((TypeError, ValueError)):
-            SimilarToExpr(Ident("n"), "p", escape="ab")  # pyright: ignore
 
     def test_to_sql(self):
         sim = SimilarToExpr(Ident("name"), "%a%")
         assert sim.to_sql(PostgreSql()) == "\"name\" SIMILAR TO E'%a%'"
+        assert sim.to_sql(Redshift()) == "\"name\" SIMILAR TO '%a%'"
+        assert sim.to_sql(DuckDb()) == "\"name\" SIMILAR TO '%a%'"
 
         assert (
             SimilarToExpr(Ident("name"), "%a%", negated=True).to_sql(PostgreSql())
             == "\"name\" NOT SIMILAR TO E'%a%'"
         )
-        assert (
-            SimilarToExpr(Ident("name"), "%a%", escape="!").to_sql(PostgreSql())
-            == "\"name\" SIMILAR TO E'%a%' ESCAPE E'!'"
-        )
 
-        sql, params = SimilarToExpr(Ident("name"), "%a%").prepare(PostgreSql())
+        sql, params = sim.prepare(PostgreSql())
         assert sql == '"name" SIMILAR TO :param_0'
         assert params == {"param_0": "%a%"}
 
+        with pytest.raises(RuntimeError, match="SIMILAR TO is not supported"):
+            sim.to_sql(MySql())
+        with pytest.raises(RuntimeError, match="SIMILAR TO is not supported"):
+            sim.to_sql(Sqlite())
+
         assert (
-            repr(SimilarToExpr(Ident("name"), "%a%"))
+            repr(sim)
             == "SimilarToExpr(Ident(\"name\"), Value('%a%', StringSerializer()))"
         )
         assert (
-            repr(SimilarToExpr(Ident("name"), "%a%", negated=True, escape="!"))
+            repr(SimilarToExpr(Ident("name"), "%a%", negated=True))
             == "SimilarToExpr(Ident(\"name\"), Value('%a%', StringSerializer()), "
-            "negated=True, escape='!')"
+            "negated=True)"
         )
 
 
@@ -771,47 +769,48 @@ class TestRLikeExpr:
         assert rlike.get_expr() == Ident("name")
         assert rlike.get_pattern() == Value("%a%")
         assert rlike.get_negated() is False
-        assert rlike.get_escape() is None
 
-        rlike = RLikeExpr(
-            Ident("name"),
-            Ident("pattern"),
-            negated=True,
-            escape="!",
-        )
+        rlike = RLikeExpr(Ident("name"), Ident("pattern"), negated=True)
         assert rlike.get_expr() == Ident("name")
         assert rlike.get_pattern() == Ident("pattern")
         assert rlike.get_negated() is True
-        assert rlike.get_escape() == "!"
-
-        with pytest.raises((TypeError, ValueError)):
-            RLikeExpr(Ident("n"), "p", escape="ab")  # pyright: ignore
 
     def test_to_sql(self):
         rlike = RLikeExpr(Ident("name"), "%a%")
-        assert rlike.to_sql(PostgreSql()) == "\"name\" RLIKE E'%a%'"
+        assert rlike.to_sql(PostgreSql()) == "\"name\" ~ E'%a%'"
+        assert rlike.to_sql(MySql()) == "`name` RLIKE '%a%'"
+        assert rlike.to_sql(Spark()) == "`name` RLIKE '%a%'"
+        assert rlike.to_sql(Snowflake()) == "\"name\" RLIKE '%a%'"
+        assert rlike.to_sql(Oracle()) == 'REGEXP_LIKE("name", \'%a%\')'
+        assert rlike.to_sql(BigQuery()) == "REGEXP_CONTAINS(`name`, '%a%')"
+        assert rlike.to_sql(DuckDb()) == 'regexp_matches("name", \'%a%\')'
 
         assert (
             RLikeExpr(Ident("name"), "%a%", negated=True).to_sql(PostgreSql())
-            == "\"name\" NOT RLIKE E'%a%'"
+            == "\"name\" !~ E'%a%'"
         )
         assert (
-            RLikeExpr(Ident("name"), "%a%", escape="!").to_sql(PostgreSql())
-            == "\"name\" RLIKE E'%a%' ESCAPE E'!'"
+            RLikeExpr(Ident("name"), "%a%", negated=True).to_sql(Oracle())
+            == 'NOT REGEXP_LIKE("name", \'%a%\')'
         )
 
-        sql, params = RLikeExpr(Ident("name"), "%a%").prepare(PostgreSql())
-        assert sql == '"name" RLIKE :param_0'
+        sql, params = rlike.prepare(PostgreSql())
+        assert sql == '"name" ~ :param_0'
         assert params == {"param_0": "%a%"}
 
+        with pytest.raises(RuntimeError, match="RLIKE is not supported"):
+            rlike.to_sql(Sqlite())
+        with pytest.raises(RuntimeError, match="RLIKE is not supported"):
+            rlike.to_sql(MsSql())
+
         assert (
-            repr(RLikeExpr(Ident("name"), "%a%"))
+            repr(rlike)
             == "RLikeExpr(Ident(\"name\"), Value('%a%', StringSerializer()))"
         )
         assert (
-            repr(RLikeExpr(Ident("name"), "%a%", negated=True, escape="!"))
+            repr(RLikeExpr(Ident("name"), "%a%", negated=True))
             == "RLikeExpr(Ident(\"name\"), Value('%a%', StringSerializer()), "
-            "negated=True, escape='!')"
+            "negated=True)"
         )
 
 

@@ -809,7 +809,6 @@ class SimilarToExpr(Expr):
         /,
         *,
         negated: bool = False,
-        escape: str | None = None,
     ) -> Self:
         """
         Create a ``SIMILAR TO`` predicate.
@@ -818,7 +817,6 @@ class SimilarToExpr(Expr):
             expr: The tested expression.
             pattern: The pattern.
             negated: If ``True``, emit ``NOT``.
-            escape: Optional single-character ``ESCAPE`` clause.
 
         Returns:
             A new ``SimilarToExpr``.
@@ -848,17 +846,9 @@ class SimilarToExpr(Expr):
             ``True`` if the predicate is negated.
         """
 
-    def get_escape(self) -> str | None:
-        """
-        Return the ``ESCAPE`` character, if any.
-
-        Returns:
-            A single character, or ``None``.
-        """
-
 @final
 class RLikeExpr(Expr):
-    """``expr [NOT] RLIKE pattern``."""
+    """Regex match (``RLIKE``, ``~``, ``REGEXP_LIKE``, …)."""
 
     def __new__(
         cls,
@@ -867,16 +857,14 @@ class RLikeExpr(Expr):
         /,
         *,
         negated: bool = False,
-        escape: str | None = None,
     ) -> Self:
         """
-        Create a ``RLIKE`` predicate.
+        Create a regex-match predicate.
 
         Args:
             expr: The tested expression.
             pattern: The pattern.
-            negated: If ``True``, emit ``NOT``.
-            escape: Optional single-character ``ESCAPE`` clause.
+            negated: If ``True``, emit ``NOT`` / ``!~``.
 
         Returns:
             A new ``RLikeExpr``.
@@ -904,14 +892,6 @@ class RLikeExpr(Expr):
 
         Returns:
             ``True`` if the predicate is negated.
-        """
-
-    def get_escape(self) -> str | None:
-        """
-        Return the ``ESCAPE`` character, if any.
-
-        Returns:
-            A single character, or ``None``.
         """
 
 @final

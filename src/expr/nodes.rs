@@ -77,7 +77,7 @@ empty_node! {
     /// `expr [NOT] SIMILAR TO pattern`.
     PySimilarToExpr(SimilarTo(super::enum_::SimilarTo)) => "SimilarToExpr",
 
-    /// `expr [NOT] RLIKE pattern`.
+    /// Regex match (`RLIKE`, `~`, `REGEXP_LIKE`, …).
     PyRLikeExpr(RLike(super::enum_::RLike)) => "RLikeExpr",
 
     /// `CAST(expr AS type [FORMAT …])`.
@@ -467,18 +467,16 @@ impl PyLikeExpr {
 #[pyo3::pymethods]
 impl PySimilarToExpr {
     #[new]
-    #[pyo3(signature = (expr, pattern, /, *, negated = false, escape = None))]
+    #[pyo3(signature = (expr, pattern, /, *, negated = false))]
     fn __new__(
         expr: LiteralExprExtractor,
         pattern: LiteralExprExtractor,
         negated: bool,
-        escape: Option<char>,
     ) -> pyo3::PyClassInitializer<Self> {
         let inner = super::enum_::SimilarTo {
             negated,
             expr: Box::new(expr.0),
             pattern: Box::new(pattern.0),
-            escape,
         };
         pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self)
     }
@@ -496,29 +494,22 @@ impl PySimilarToExpr {
     fn get_negated(slf: pyo3::PyRef<'_, Self>) -> bool {
         let inner = Self::inner(&slf);
         inner.negated
-    }
-
-    fn get_escape(slf: pyo3::PyRef<'_, Self>) -> Option<char> {
-        let inner = Self::inner(&slf);
-        inner.escape
     }
 }
 
 #[pyo3::pymethods]
 impl PyRLikeExpr {
     #[new]
-    #[pyo3(signature = (expr, pattern, /, *, negated = false, escape = None))]
+    #[pyo3(signature = (expr, pattern, /, *, negated = false))]
     fn __new__(
         expr: LiteralExprExtractor,
         pattern: LiteralExprExtractor,
         negated: bool,
-        escape: Option<char>,
     ) -> pyo3::PyClassInitializer<Self> {
         let inner = super::enum_::RLike {
             negated,
             expr: Box::new(expr.0),
             pattern: Box::new(pattern.0),
-            escape,
         };
         pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self)
     }
@@ -536,11 +527,6 @@ impl PyRLikeExpr {
     fn get_negated(slf: pyo3::PyRef<'_, Self>) -> bool {
         let inner = Self::inner(&slf);
         inner.negated
-    }
-
-    fn get_escape(slf: pyo3::PyRef<'_, Self>) -> Option<char> {
-        let inner = Self::inner(&slf);
-        inner.escape
     }
 }
 
