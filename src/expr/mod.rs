@@ -23,7 +23,7 @@ pub mod expr_mod {
     #[pymodule_export]
     use super::nodes::{
         PyBetweenExpr, PyBinaryExpr, PyCaseExpr, PyCastExpr, PyCollateExpr, PyCustomExpr,
-        PyInListExpr, PyIsDistinctFromExpr, PyIsExpr, PyIsNormalizedExpr, PyLikeExpr, PyRLikeExpr,
-        PySimilarToExpr, PyTrimExpr, PyTupleExpr, PyUnaryExpr,
+        PyInListExpr, PyIsDistinctFromExpr, PyIsExpr, PyLikeExpr, PyRLikeExpr, PySimilarToExpr,
+        PyTrimExpr, PyTupleExpr, PyUnaryExpr,
     };
 }

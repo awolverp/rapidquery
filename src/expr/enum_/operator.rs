@@ -5,46 +5,28 @@ pub enum UnaryOp {
     Plus,
     Minus,
     BitNot,
-    /// `@-@` — PostgreSQL/Redshift geometric length.
-    AtDashAt,
-    /// `@@` — PostgreSQL/Redshift geometric center.
-    DoubleAt,
-    /// `#` — PostgreSQL/Redshift geometric npoints.
-    Hash,
-    /// `@` — PostgreSQL absolute value.
-    PGAbs,
-    /// `||/` — PostgreSQL cube root.
-    PGCubeRoot,
-    /// `!` postfix — PostgreSQL factorial (`9!`).
-    PGPostfixFactorial,
-    /// `!!` — PostgreSQL prefix factorial.
-    PGPrefixFactorial,
-    /// `|/` — PostgreSQL square root.
-    PGSquareRoot,
-    /// `?-` — PostgreSQL/Redshift geometric is-horizontal.
-    QuestionDash,
-    /// `?|` — PostgreSQL/Redshift geometric is-vertical.
-    QuestionPipe,
+}
+
+/// How a [`UnaryOp`] is written relative to its operand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum UnarySpacing {
+    /// Operator, space, operand (`NOT x`, `# path`).
+    SpacedPrefix,
+    /// Operator glued to the operand (`-1`, `|/9`).
+    GluedPrefix,
 }
 
 impl UnaryOp {
     #[inline]
     pub fn parse(s: &str) -> Option<Self> {
+        if s.eq_ignore_ascii_case("not") {
+            return Some(Self::Not);
+        }
+
         match s {
-            "NOT" | "not" | "Not" => Some(Self::Not),
             "+" => Some(Self::Plus),
             "-" => Some(Self::Minus),
             "~" => Some(Self::BitNot),
-            "@-@" => Some(Self::AtDashAt),
-            "@@" => Some(Self::DoubleAt),
-            "#" => Some(Self::Hash),
-            "@" => Some(Self::PGAbs),
-            "||/" => Some(Self::PGCubeRoot),
-            "!" => Some(Self::PGPostfixFactorial),
-            "!!" => Some(Self::PGPrefixFactorial),
-            "|/" => Some(Self::PGSquareRoot),
-            "?-" => Some(Self::QuestionDash),
-            "?|" => Some(Self::QuestionPipe),
             _ => None,
         }
     }
@@ -56,16 +38,6 @@ impl UnaryOp {
             Self::Plus => "+",
             Self::Minus => "-",
             Self::BitNot => "~",
-            Self::AtDashAt => "@-@",
-            Self::DoubleAt => "@@",
-            Self::Hash => "#",
-            Self::PGAbs => "@",
-            Self::PGCubeRoot => "||/",
-            Self::PGPostfixFactorial => "!",
-            Self::PGPrefixFactorial => "!!",
-            Self::PGSquareRoot => "|/",
-            Self::QuestionDash => "?-",
-            Self::QuestionPipe => "?|",
         }
     }
 
@@ -73,33 +45,10 @@ impl UnaryOp {
     #[inline]
     pub(crate) fn spacing(self) -> UnarySpacing {
         match self {
-            Self::PGPostfixFactorial => UnarySpacing::Postfix,
-            Self::Not
-            | Self::Hash
-            | Self::AtDashAt
-            | Self::DoubleAt
-            | Self::QuestionDash
-            | Self::QuestionPipe => UnarySpacing::SpacedPrefix,
-            Self::Plus
-            | Self::Minus
-            | Self::BitNot
-            | Self::PGAbs
-            | Self::PGSquareRoot
-            | Self::PGCubeRoot
-            | Self::PGPrefixFactorial => UnarySpacing::GluedPrefix,
+            Self::Not => UnarySpacing::SpacedPrefix,
+            Self::Plus | Self::Minus | Self::BitNot => UnarySpacing::GluedPrefix,
         }
     }
-}
-
-/// How a [`UnaryOp`] is written relative to its operand.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum UnarySpacing {
-    /// Operand then operator, no space (`9!`).
-    Postfix,
-    /// Operator, space, operand (`NOT x`, `# path`).
-    SpacedPrefix,
-    /// Operator glued to the operand (`-1`, `|/9`).
-    GluedPrefix,
 }
 
 /// Binary operator. Unknown spellings become [`BinaryOp::Custom`].
@@ -118,7 +67,6 @@ pub enum BinaryOp {
     GtEq,
     And,
     Or,
-    Xor,
     BitAnd,
     BitOr,
     BitXor,
@@ -131,6 +79,13 @@ pub enum BinaryOp {
 impl BinaryOp {
     #[inline]
     pub fn parse(s: &str) -> Self {
+        if s.eq_ignore_ascii_case("and") {
+            return Self::And;
+        }
+        if s.eq_ignore_ascii_case("or") {
+            return Self::Or;
+        }
+
         match s {
             "+" => Self::Add,
             "-" => Self::Sub,
@@ -143,9 +98,6 @@ impl BinaryOp {
             "<=" => Self::LtEq,
             ">" => Self::Gt,
             ">=" => Self::GtEq,
-            "AND" | "and" | "And" => Self::And,
-            "OR" | "or" | "Or" => Self::Or,
-            "XOR" | "xor" | "Xor" => Self::Xor,
             "&" => Self::BitAnd,
             "|" => Self::BitOr,
             "^" => Self::BitXor,
@@ -172,7 +124,6 @@ impl BinaryOp {
             Self::GtEq => ">=",
             Self::And => "AND",
             Self::Or => "OR",
-            Self::Xor => "XOR",
             Self::BitAnd => "&",
             Self::BitOr => "|",
             Self::BitXor => "^",
@@ -203,7 +154,6 @@ impl BinaryOp {
             | Self::GtEq
             | Self::Custom(_) => 5,
             Self::And => 6,
-            Self::Xor => 7,
             Self::Or => 8,
         }
     }
@@ -240,42 +190,6 @@ impl IsKind {
             Self::True => "TRUE",
             Self::False => "FALSE",
             Self::Unknown => "UNKNOWN",
-        }
-    }
-}
-
-/// Unicode normalization form for [`super::IsNormalized`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum NormalizationForm {
-    Nfc,
-    Nfd,
-    Nfkc,
-    Nfkd,
-}
-
-impl NormalizationForm {
-    #[inline]
-    pub fn parse(s: &str) -> Option<Self> {
-        if s.eq_ignore_ascii_case("NFC") {
-            Some(Self::Nfc)
-        } else if s.eq_ignore_ascii_case("NFD") {
-            Some(Self::Nfd)
-        } else if s.eq_ignore_ascii_case("NFKC") {
-            Some(Self::Nfkc)
-        } else if s.eq_ignore_ascii_case("NFKD") {
-            Some(Self::Nfkd)
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    pub fn as_sql(self) -> &'static str {
-        match self {
-            Self::Nfc => "NFC",
-            Self::Nfd => "NFD",
-            Self::Nfkc => "NFKC",
-            Self::Nfkd => "NFKD",
         }
     }
 }

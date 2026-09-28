@@ -41,8 +41,6 @@ pub enum ExprInner {
     Function(Function),
     /// `expr IS [NOT] {NULL|TRUE|FALSE|UNKNOWN}`.
     Is(Is),
-    /// `expr IS [NOT] [form] NORMALIZED`.
-    IsNormalized(IsNormalized),
     /// `left IS [NOT] DISTINCT FROM right`.
     IsDistinctFrom(IsDistinctFrom),
     /// `expr [NOT] IN (list…)`.
@@ -80,7 +78,6 @@ impl_from_expr_inner! {
     Binary => Binary,
     Function => Function,
     Is => Is,
-    IsNormalized => IsNormalized,
     IsDistinctFrom => IsDistinctFrom,
     InList => InList,
     Between => Between,
@@ -111,7 +108,6 @@ impl ExprInner {
             Self::Unary(_) => Unary::PRECEDENCE,
             Self::Binary(b) => b.precedence(),
             Self::Is(_) => Is::PRECEDENCE,
-            Self::IsNormalized(_) => IsNormalized::PRECEDENCE,
             Self::InList(_) => InList::PRECEDENCE,
             Self::IsDistinctFrom(_) => IsDistinctFrom::PRECEDENCE,
             Self::Between(_) => Between::PRECEDENCE,
@@ -161,7 +157,6 @@ impl ExprInner {
             Self::Binary(x) => x.python_repr(py),
             Self::Function(x) => x.python_repr(py),
             Self::Is(x) => x.python_repr(py),
-            Self::IsNormalized(x) => x.python_repr(py),
             Self::IsDistinctFrom(x) => x.python_repr(py),
             Self::InList(x) => x.python_repr(py),
             Self::Between(x) => x.python_repr(py),
@@ -188,7 +183,6 @@ impl WriteSql for ExprInner {
             Self::Binary(x) => x.write_sql(dialect, out),
             Self::Function(x) => x.write_sql(dialect, out),
             Self::Is(x) => x.write_sql(dialect, out),
-            Self::IsNormalized(x) => x.write_sql(dialect, out),
             Self::IsDistinctFrom(x) => x.write_sql(dialect, out),
             Self::InList(x) => x.write_sql(dialect, out),
             Self::Between(x) => x.write_sql(dialect, out),

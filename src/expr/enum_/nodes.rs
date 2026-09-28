@@ -1,7 +1,4 @@
-use super::{
-    BinaryOp, CastKind, ExprInner, Ident, IsKind, NormalizationForm, TrimWhere, UnaryOp,
-    UnarySpacing,
-};
+use super::{BinaryOp, CastKind, ExprInner, Ident, IsKind, TrimWhere, UnaryOp, UnarySpacing};
 use crate::dialect::PySqlDialect;
 use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
 use std::fmt::Write;
@@ -85,12 +82,6 @@ impl Unary {
 impl WriteSql for Unary {
     fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
         match self.op.spacing() {
-            UnarySpacing::Postfix => {
-                self.expr
-                    .write_operand(dialect, out, Self::PRECEDENCE, true)?;
-                out.push_char('!');
-                Ok(())
-            }
             UnarySpacing::SpacedPrefix => {
                 out.push_str(self.op.as_sql());
                 out.push_char(' ');
@@ -179,50 +170,6 @@ impl WriteSql for Is {
             out.push_str(" IS ");
         }
         out.push_str(self.kind.as_sql());
-        Ok(())
-    }
-}
-
-/// `expr IS [NOT] [form] NORMALIZED`.
-///
-/// When [`form`](Self::form) is `None`, the form token is omitted (`IS NORMALIZED`).
-#[derive(Clone, Debug, PartialEq)]
-pub struct IsNormalized {
-    pub expr: Box<ExprInner>,
-    pub negated: bool,
-    pub form: Option<NormalizationForm>,
-}
-
-impl IsNormalized {
-    pub(crate) const PRECEDENCE: u8 = 5;
-
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        let mut buf = format!("IsNormalizedExpr({}", self.expr.python_repr(py)?);
-        if let Some(form) = self.form {
-            write!(buf, ", {:?}", form.as_sql()).unwrap();
-        }
-        if self.negated {
-            buf.push_str(", negated=True");
-        }
-        buf.push(')');
-        Ok(buf)
-    }
-}
-
-impl WriteSql for IsNormalized {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
-        self.expr
-            .write_operand(dialect, out, Self::PRECEDENCE, false)?;
-        if self.negated {
-            out.push_str(" IS NOT ");
-        } else {
-            out.push_str(" IS ");
-        }
-        if let Some(form) = self.form {
-            out.push_str(form.as_sql());
-            out.push_char(' ');
-        }
-        out.push_str("NORMALIZED");
         Ok(())
     }
 }
