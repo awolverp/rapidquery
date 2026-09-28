@@ -1,7 +1,14 @@
 use super::{BinaryOp, CastKind, ExprInner, Ident, IsKind, TrimWhere, UnaryOp, UnarySpacing};
 use crate::dialect::PySqlDialect;
+use crate::dialect::inner::{
+    BitXorSyntax, IsDistinctFromSyntax, ModuloSyntax, StringConcatSyntax, TupleSyntax,
+};
 use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
 use std::fmt::Write;
+
+fn unsupported(message: &'static str) -> crate::sql::PrepareError {
+    rapidquery_macros::pyerr!(PyRuntimeError, message).into()
+}
 
 fn join_reprs(py: pyo3::Python<'_>, buf: &mut String, items: &[ExprInner]) -> pyo3::PyResult<()> {
     for (i, item) in items.iter().enumerate() {
@@ -32,7 +39,7 @@ pub(super) fn write_escape<W: SqlWriter>(
     Ok(())
 }
 
-/// Parenthesized row `(a, b, …)`. No trailing comma on a singleton.
+/// Row value. SQL spelling depends on [`TupleSyntax`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct Tuple {
     pub items: Vec<ExprInner>,
@@ -51,7 +58,35 @@ impl Tuple {
 
 impl WriteSql for Tuple {
     fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
-        out.push_char('(');
+        let Some(syntax) = dialect.0.tuple_syntax else {
+            return Err(unsupported(
+                "tuple values are not supported by this dialect",
+            ));
+        };
+
+        let arity = self.items.len();
+        match syntax {
+            TupleSyntax::Row { empty_ok } => {
+                if arity == 0 && !empty_ok {
+                    return Err(unsupported("empty tuple is not supported by this dialect"));
+                }
+                out.push_str("ROW(");
+            }
+            TupleSyntax::Struct => {
+                if arity == 0 {
+                    return Err(unsupported("empty tuple is not supported by this dialect"));
+                }
+                out.push_str("struct(");
+            }
+            TupleSyntax::Parentheses => {
+                if arity < 2 {
+                    return Err(unsupported(
+                        "a tuple needs at least two elements on this dialect",
+                    ));
+                }
+                out.push_char('(');
+            }
+        }
         write_separated(dialect, out, &self.items, ", ")?;
         out.push_char(')');
         Ok(())
@@ -124,14 +159,116 @@ impl Binary {
     }
 }
 
+fn is_arithmetic(op: &BinaryOp) -> bool {
+    matches!(
+        op,
+        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod
+    )
+}
+
+/// `name(left, right)` with an unquoted function name.
+fn write_binary_call<W: SqlWriter>(
+    dialect: &PySqlDialect,
+    out: &mut W,
+    name: &str,
+    left: &ExprInner,
+    right: &ExprInner,
+) -> PrepareResult<()> {
+    out.push_str(name);
+    out.push_char('(');
+    left.write_sql(dialect, out)?;
+    out.push_str(", ");
+    right.write_sql(dialect, out)?;
+    out.push_char(')');
+    Ok(())
+}
+
+/// Infix `left SPELLING right`.
+///
+/// `paren_arithmetic` parenthesizes a `+ - * / %` side. Infix `||` (and MsSql
+/// `+` used as concat) needs that because dialect precedence disagrees with
+/// the tree: SQLite binds `||` tighter than arithmetic, and MsSql `+` is the
+/// same token as addition.
+fn write_infix<W: SqlWriter>(
+    bin: &Binary,
+    dialect: &PySqlDialect,
+    out: &mut W,
+    spelling: &str,
+    paren_arithmetic: bool,
+) -> PrepareResult<()> {
+    let prec = bin.precedence();
+    write_infix_side(dialect, out, &bin.left, prec, false, paren_arithmetic)?;
+    out.push_char(' ');
+    out.push_str(spelling);
+    out.push_char(' ');
+    write_infix_side(dialect, out, &bin.right, prec, true, paren_arithmetic)
+}
+
+fn write_infix_side<W: SqlWriter>(
+    dialect: &PySqlDialect,
+    out: &mut W,
+    expr: &ExprInner,
+    prec: u8,
+    paren_if_equal: bool,
+    paren_arithmetic: bool,
+) -> PrepareResult<()> {
+    if paren_arithmetic && matches!(expr, ExprInner::Binary(b) if is_arithmetic(&b.op)) {
+        out.push_char('(');
+        expr.write_sql(dialect, out)?;
+        out.push_char(')');
+        return Ok(());
+    }
+    expr.write_operand(dialect, out, prec, paren_if_equal)
+}
+
+fn write_concat<W: SqlWriter>(
+    bin: &Binary,
+    dialect: &PySqlDialect,
+    out: &mut W,
+) -> PrepareResult<()> {
+    match dialect.0.string_concat_syntax {
+        StringConcatSyntax::Concat => {
+            write_binary_call(dialect, out, "CONCAT", &bin.left, &bin.right)
+        }
+        StringConcatSyntax::Pipes => write_infix(bin, dialect, out, "||", true),
+        StringConcatSyntax::Plus => write_infix(bin, dialect, out, "+", true),
+    }
+}
+
+fn write_bitxor<W: SqlWriter>(
+    bin: &Binary,
+    dialect: &PySqlDialect,
+    out: &mut W,
+) -> PrepareResult<()> {
+    match dialect.0.bit_xor_syntax {
+        None => Err(unsupported("bitwise XOR is not supported by this dialect")),
+        Some(BitXorSyntax::Caret) => write_infix(bin, dialect, out, "^", false),
+        Some(BitXorSyntax::Hash) => write_infix(bin, dialect, out, "#", false),
+        Some(BitXorSyntax::XorCall) => {
+            write_binary_call(dialect, out, "xor", &bin.left, &bin.right)
+        }
+        Some(BitXorSyntax::BitXorCall) => {
+            write_binary_call(dialect, out, "BITXOR", &bin.left, &bin.right)
+        }
+    }
+}
+
+fn write_mod<W: SqlWriter>(bin: &Binary, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
+    match dialect.0.modulo_syntax {
+        ModuloSyntax::Percent => write_infix(bin, dialect, out, "%", false),
+        ModuloSyntax::Call => write_binary_call(dialect, out, "MOD", &bin.left, &bin.right),
+        ModuloSyntax::Infix => write_infix(bin, dialect, out, "MOD", false),
+    }
+}
+
 impl WriteSql for Binary {
     fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
-        let prec = self.precedence();
-        self.left.write_operand(dialect, out, prec, false)?;
-        out.push_char(' ');
-        out.push_str(self.op.as_sql());
-        out.push_char(' ');
-        self.right.write_operand(dialect, out, prec, true)
+        match &self.op {
+            BinaryOp::StringConcat => write_concat(self, dialect, out),
+            BinaryOp::BitXor => write_bitxor(self, dialect, out),
+            BinaryOp::Mod => write_mod(self, dialect, out),
+            _ => write_infix(self, dialect, out, self.op.as_sql(), false),
+        }
     }
 }
 
@@ -201,21 +338,44 @@ impl IsDistinctFrom {
 
 impl WriteSql for IsDistinctFrom {
     fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
-        self.left
-            .write_operand(dialect, out, Self::PRECEDENCE, false)?;
-        if self.negated {
-            out.push_str(" IS NOT DISTINCT FROM ");
-        } else {
-            out.push_str(" IS DISTINCT FROM ");
+        match dialect.0.is_distinct_from_syntax {
+            None => Err(unsupported(
+                "IS DISTINCT FROM is not supported by this dialect",
+            )),
+            Some(IsDistinctFromSyntax::Standard) => {
+                self.left
+                    .write_operand(dialect, out, Self::PRECEDENCE, false)?;
+                if self.negated {
+                    out.push_str(" IS NOT DISTINCT FROM ");
+                } else {
+                    out.push_str(" IS DISTINCT FROM ");
+                }
+                self.right
+                    .write_operand(dialect, out, Self::PRECEDENCE, true)
+            }
+            Some(IsDistinctFromSyntax::NullSafeEqual) => {
+                // `<=>` is null-safe equal, i.e. `IS NOT DISTINCT FROM`.
+                if !self.negated {
+                    out.push_str("NOT (");
+                }
+                self.left
+                    .write_operand(dialect, out, Self::PRECEDENCE, false)?;
+                out.push_str(" <=> ");
+                self.right
+                    .write_operand(dialect, out, Self::PRECEDENCE, true)?;
+                if !self.negated {
+                    out.push_char(')');
+                }
+                Ok(())
+            }
         }
-        self.right
-            .write_operand(dialect, out, Self::PRECEDENCE, true)
     }
 }
 
 /// `expr [NOT] IN (list…)`.
 ///
-/// An empty list emits `IN ()`.
+/// An empty list is `FALSE` (`NOT IN` is `TRUE`), spelled with the dialect's
+/// boolean literal. The tested expression is not written.
 #[derive(Clone, Debug, PartialEq)]
 pub struct InList {
     pub expr: Box<ExprInner>,
@@ -240,6 +400,15 @@ impl InList {
 
 impl WriteSql for InList {
     fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
+        if self.list.is_empty() {
+            // `x IN ()` is false and `x NOT IN ()` is true, including when `x` is NULL.
+            dialect.0.format_boolean(out, self.negated)?;
+            return Ok(());
+        }
+
+        if dialect.0.parenthesize_in_between {
+            out.push_char('(');
+        }
         self.expr
             .write_operand(dialect, out, Self::PRECEDENCE, false)?;
         if self.negated {
@@ -249,6 +418,9 @@ impl WriteSql for InList {
         }
         write_separated(dialect, out, &self.list, ", ")?;
         out.push_char(')');
+        if dialect.0.parenthesize_in_between {
+            out.push_char(')');
+        }
         Ok(())
     }
 }
@@ -284,6 +456,9 @@ impl Between {
 
 impl WriteSql for Between {
     fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
+        if dialect.0.parenthesize_in_between {
+            out.push_char('(');
+        }
         self.expr
             .write_operand(dialect, out, Self::PRECEDENCE, false)?;
         if self.negated {
@@ -295,7 +470,11 @@ impl WriteSql for Between {
             .write_operand(dialect, out, Self::PRECEDENCE, true)?;
         out.push_str(" AND ");
         self.high
-            .write_operand(dialect, out, Self::PRECEDENCE, true)
+            .write_operand(dialect, out, Self::PRECEDENCE, true)?;
+        if dialect.0.parenthesize_in_between {
+            out.push_char(')');
+        }
+        Ok(())
     }
 }
 
@@ -529,62 +708,53 @@ impl Custom {
 }
 
 impl WriteSql for Custom {
+    #[cfg_attr(feature = "nightly", optimize(speed))]
     fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
-        write_custom(&self.sql, &self.args, dialect, out)
-    }
-}
+        let bytes = self.sql.as_bytes();
+        let mut i = 0;
+        let mut start = 0;
+        let mut used = 0usize;
 
-#[cfg_attr(feature = "nightly", optimize(speed))]
-fn write_custom<W: SqlWriter>(
-    sql: &str,
-    args: &[ExprInner],
-    dialect: &PySqlDialect,
-    out: &mut W,
-) -> PrepareResult<()> {
-    let bytes = sql.as_bytes();
-    let mut i = 0;
-    let mut start = 0;
-    let mut used = 0usize;
-
-    while i < bytes.len() {
-        if bytes[i] == b'{' {
-            if i + 1 < bytes.len() && bytes[i + 1] == b'{' {
-                out.push_str(&sql[start..i]);
-                out.push_char('{');
-                i += 2;
-                start = i;
-                continue;
-            }
-            if i + 1 < bytes.len() && bytes[i + 1] == b'}' {
-                out.push_str(&sql[start..i]);
-                if used >= args.len() {
-                    return Err(crate::sql::PrepareError::CustomPlaceholders {
-                        expected: used + 1,
-                        got: args.len(),
-                    });
+        while i < bytes.len() {
+            if bytes[i] == b'{' {
+                if i + 1 < bytes.len() && bytes[i + 1] == b'{' {
+                    out.push_str(&self.sql[start..i]);
+                    out.push_char('{');
+                    i += 2;
+                    start = i;
+                    continue;
                 }
-                args[used].write_sql(dialect, out)?;
-                used += 1;
+                if i + 1 < bytes.len() && bytes[i + 1] == b'}' {
+                    out.push_str(&self.sql[start..i]);
+                    if used >= self.args.len() {
+                        return Err(crate::sql::PrepareError::CustomPlaceholders {
+                            expected: used + 1,
+                            got: self.args.len(),
+                        });
+                    }
+                    self.args[used].write_sql(dialect, out)?;
+                    used += 1;
+                    i += 2;
+                    start = i;
+                    continue;
+                }
+            } else if bytes[i] == b'}' && i + 1 < bytes.len() && bytes[i + 1] == b'}' {
+                out.push_str(&self.sql[start..i]);
+                out.push_char('}');
                 i += 2;
                 start = i;
                 continue;
             }
-        } else if bytes[i] == b'}' && i + 1 < bytes.len() && bytes[i + 1] == b'}' {
-            out.push_str(&sql[start..i]);
-            out.push_char('}');
-            i += 2;
-            start = i;
-            continue;
+            i += 1;
         }
-        i += 1;
-    }
-    out.push_str(&sql[start..]);
+        out.push_str(&self.sql[start..]);
 
-    if used != args.len() {
-        return Err(crate::sql::PrepareError::CustomPlaceholders {
-            expected: used,
-            got: args.len(),
-        });
+        if used != self.args.len() {
+            return Err(crate::sql::PrepareError::CustomPlaceholders {
+                expected: used,
+                got: self.args.len(),
+            });
+        }
+        Ok(())
     }
-    Ok(())
 }

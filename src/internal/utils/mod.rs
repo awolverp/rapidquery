@@ -63,24 +63,27 @@ pub fn new_pynone<'py>(py: pyo3::Python<'py>) -> pyo3::Bound<'py, pyo3::PyAny> {
 
 /// Converts smallvec into PyTuple using pyo3 FFI
 #[inline]
-pub fn iterator_to_tuple<'py, I: Iterator<Item = pyo3::PyResult<*mut pyo3::ffi::PyObject>>>(
+pub unsafe fn iterator_to_tuple<
+    'py,
+    I: Iterator<Item = pyo3::PyResult<*mut pyo3::ffi::PyObject>>,
+>(
     py: pyo3::Python<'py>,
     len: isize,
     iter: I,
 ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::PyAny>> {
-    let tuple = unsafe { pyo3::ffi::PyTuple_New(len) };
+    let tuple = pyo3::ffi::PyTuple_New(len);
 
     for (ix, item) in iter.enumerate() {
         match item {
-            Ok(ptr) => unsafe {
+            Ok(ptr) => {
                 pyo3::ffi::PyTuple_SetItem(tuple, ix as isize, ptr);
-            },
-            Err(err) => unsafe {
+            }
+            Err(err) => {
                 pyo3::ffi::Py_DECREF(tuple);
                 return Err(err);
-            },
+            }
         }
     }
 
-    Ok(unsafe { pyo3::Bound::from_owned_ptr(py, tuple) })
+    Ok(pyo3::Bound::from_owned_ptr(py, tuple))
 }

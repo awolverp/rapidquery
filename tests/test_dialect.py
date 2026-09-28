@@ -11,7 +11,6 @@ from rapidquery.dialect import (
     BigQuery,
     Databricks,
     DuckDb,
-    GenericDialect,
     Hive,
     MsSql,
     MySql,
@@ -25,7 +24,7 @@ from rapidquery.dialect import (
     Teradata,
 )
 
-from .conftest import ALL_DIALECT_CLASSES, ALL_DIALECT_NAMES, generic_dialect
+from .conftest import ALL_DIALECT_CLASSES, ALL_DIALECT_NAMES
 
 # Expected DialectConfig for each builtin (src/dialect/builtin.rs).
 BUILTIN_CONFIG = {

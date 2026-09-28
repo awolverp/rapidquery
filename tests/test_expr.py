@@ -13,6 +13,7 @@ from rapidquery.dialect import (
     Spark,
     SqlDialect,
     Sqlite,
+    Teradata,
 )
 from rapidquery.expr import (
     Asterisk,
@@ -28,7 +29,6 @@ from rapidquery.expr import (
     InListExpr,
     IsDistinctFromExpr,
     IsExpr,
-    IsNormalizedExpr,
     LikeExpr,
     RLikeExpr,
     SimilarToExpr,
@@ -265,15 +265,24 @@ class TestTupleExpr:
 
     def test_to_sql(self):
         tpl = TupleExpr(1, 2, "A")
-        assert tpl.to_sql(PostgreSql()) == "(1, 2, E'A')"
+        assert tpl.to_sql(PostgreSql()) == "ROW(1, 2, E'A')"
 
         sql, params = tpl.prepare(PostgreSql())
-        assert sql == "(:param_0, :param_1, :param_2)"
+        assert sql == "ROW(:param_0, :param_1, :param_2)"
         assert params == {"param_0": 1, "param_1": 2, "param_2": "A"}
 
-        assert TupleExpr().to_sql(PostgreSql()) == "()"
-        assert TupleExpr(1).to_sql(PostgreSql()) == "(1)"
-        assert TupleExpr((1, 2), Ident("A")).to_sql(PostgreSql()) == '((1, 2), "A")'
+        assert TupleExpr().to_sql(PostgreSql()) == "ROW()"
+        assert TupleExpr(1).to_sql(PostgreSql()) == "ROW(1)"
+        assert (
+            TupleExpr((1, 2), Ident("A")).to_sql(PostgreSql()) == 'ROW(ROW(1, 2), "A")'
+        )
+
+        assert TupleExpr(1, 2).to_sql(Sqlite()) == "(1, 2)"
+        with pytest.raises(RuntimeError, match="at least two elements"):
+            TupleExpr(1).to_sql(Sqlite())
+        assert TupleExpr(1, 2).to_sql(Spark()) == "struct(1, 2)"
+        with pytest.raises(RuntimeError, match="tuple values are not supported"):
+            TupleExpr(1, 2).to_sql(BigQuery())
 
 
 class TestUnaryExpr:
@@ -403,6 +412,27 @@ class TestBinaryExpr:
         assert sql == '"id" > :param_0'
         assert params == {"param_0": 10}
 
+        concat = BinaryExpr(1, "||", BinaryExpr(2, "+", 3))
+        assert concat.to_sql(PostgreSql()) == "1 || (2 + 3)"
+        assert concat.to_sql(Sqlite()) == "1 || (2 + 3)"
+        assert concat.to_sql(MsSql()) == "1 + (2 + 3)"
+        assert concat.to_sql(MySql()) == "CONCAT(1, 2 + 3)"
+        assert (
+            BinaryExpr(BinaryExpr(1, "||", 2), "||", 3).to_sql(MySql())
+            == "CONCAT(CONCAT(1, 2), 3)"
+        )
+
+        assert BinaryExpr(1, "^", 2).to_sql(PostgreSql()) == "1 # 2"
+        assert BinaryExpr(1, "^", 2).to_sql(DuckDb()) == "xor(1, 2)"
+        assert BinaryExpr(1, "^", 2).to_sql(Snowflake()) == "BITXOR(1, 2)"
+        assert BinaryExpr(1, "^", 2).to_sql(MySql()) == "1 ^ 2"
+        with pytest.raises(RuntimeError, match="bitwise XOR is not supported"):
+            BinaryExpr(1, "^", 2).to_sql(Sqlite())
+
+        assert BinaryExpr(5, "%", 2).to_sql(Oracle()) == "MOD(5, 2)"
+        assert BinaryExpr(5, "%", 2).to_sql(Teradata()) == "5 MOD 2"
+        assert BinaryExpr(5, "%", 2).to_sql(PostgreSql()) == "5 % 2"
+
     def test_repr(self):
         assert (
             repr(BinaryExpr(Ident("id"), ">", 10))
@@ -454,64 +484,6 @@ class TestIsExpr:
         )
 
 
-class TestIsNormalizedExpr:
-    def test_new(self):
-        norm = IsNormalizedExpr(Ident("s"))
-        assert norm.get_expr() == Ident("s")
-        assert norm.get_form() is None
-        assert norm.get_negated() is False
-
-        norm = IsNormalizedExpr("café", "nfc")
-        assert norm.get_expr() == Value("café")
-        assert norm.get_form() == "NFC"
-        assert norm.get_negated() is False
-
-        norm = IsNormalizedExpr(Ident("s"), "NFKD", negated=True)
-        assert norm.get_expr() == Ident("s")
-        assert norm.get_form() == "NFKD"
-        assert norm.get_negated() is True
-
-        with pytest.raises(ValueError, match="unknown normalization form"):
-            IsNormalizedExpr(Ident("s"), "NFKC2")
-
-    def test_to_sql(self):
-        assert IsNormalizedExpr(Ident("s")).to_sql(PostgreSql()) == (
-            '"s" IS NORMALIZED'
-        )
-        assert IsNormalizedExpr(Ident("s"), negated=True).to_sql(PostgreSql()) == (
-            '"s" IS NOT NORMALIZED'
-        )
-        assert IsNormalizedExpr(Ident("s"), "nFd").to_sql(PostgreSql()) == (
-            '"s" IS NFD NORMALIZED'
-        )
-        assert (
-            IsNormalizedExpr(Ident("s"), "NFKC", negated=True).to_sql(PostgreSql())
-            == '"s" IS NOT NFKC NORMALIZED'
-        )
-
-        sql, params = IsNormalizedExpr(Ident("s"), "NFC").prepare(PostgreSql())
-        assert sql == '"s" IS NFC NORMALIZED'
-        assert params == {}
-
-        sql, params = IsNormalizedExpr("café", "NFC").prepare(PostgreSql())
-        assert sql == ":param_0 IS NFC NORMALIZED"
-        assert params == {"param_0": "café"}
-
-        assert repr(IsNormalizedExpr(Ident("s"))) == 'IsNormalizedExpr(Ident("s"))'
-        assert (
-            repr(IsNormalizedExpr(Ident("s"), "NFC"))
-            == 'IsNormalizedExpr(Ident("s"), "NFC")'
-        )
-        assert (
-            repr(IsNormalizedExpr(Ident("s"), negated=True))
-            == 'IsNormalizedExpr(Ident("s"), negated=True)'
-        )
-        assert (
-            repr(IsNormalizedExpr(Ident("s"), "NFC", negated=True))
-            == 'IsNormalizedExpr(Ident("s"), "NFC", negated=True)'
-        )
-
-
 class TestIsDistinctFromExpr:
     def test_new(self):
         idf = IsDistinctFromExpr(2, 3)
@@ -549,6 +521,11 @@ class TestIsDistinctFromExpr:
             == '"a" IS DISTINCT FROM "b"'
         )
 
+        assert IsDistinctFromExpr(1, 2).to_sql(MySql()) == "NOT (1 <=> 2)"
+        assert IsDistinctFromExpr(1, 2, negated=True).to_sql(MySql()) == "1 <=> 2"
+        with pytest.raises(RuntimeError, match="IS DISTINCT FROM is not supported"):
+            IsDistinctFromExpr(1, 2).to_sql(Oracle())
+
 
 class TestInListExpr:
     def test_new(self):
@@ -576,11 +553,20 @@ class TestInListExpr:
         assert sql == '"id" IN (:param_0, :param_1, :param_2)'
         assert params == {"param_0": 1, "param_1": 2, "param_2": 3}
 
-        assert InListExpr(Ident("id"), [], negated=True).to_sql(PostgreSql()) == (
-            '"id" NOT IN ()'
-        )
+        assert InListExpr(Ident("id"), []).to_sql(PostgreSql()) == "FALSE"
+        assert InListExpr(Ident("id"), [], negated=True).to_sql(PostgreSql()) == "TRUE"
+        assert InListExpr(Ident("id"), [], negated=True).to_sql(MySql()) == "1"
         assert InListExpr(Ident("id"), [1], negated=True).to_sql(PostgreSql()) == (
             '"id" NOT IN (1)'
+        )
+        assert InListExpr(Ident("id"), [1, 2]).to_sql(MsSql()) == "([id] IN (1, 2))"
+        assert (
+            BinaryExpr(
+                InListExpr(Ident("id"), [1]),
+                "OR",
+                InListExpr(Ident("id"), [2]),
+            ).to_sql(MsSql())
+            == "([id] IN (1)) OR ([id] IN (2))"
         )
 
 
@@ -607,6 +593,9 @@ class TestBetweenExpr:
         assert bw.to_sql(PostgreSql()) == '"id" NOT BETWEEN "old" | 0 AND 10'
 
         bw = BetweenExpr(Ident("id"), 1, 10)
+        assert BetweenExpr(Ident("id"), 1, 10, negated=True).to_sql(MsSql()) == (
+            "([id] NOT BETWEEN 1 AND 10)"
+        )
         assert bw.to_sql(PostgreSql()) == '"id" BETWEEN 1 AND 10'
 
         bw = BetweenExpr(Ident("id"), BinaryExpr(1, "AND", 2), 10)
@@ -781,9 +770,9 @@ class TestRLikeExpr:
         assert rlike.to_sql(MySql()) == "`name` RLIKE '%a%'"
         assert rlike.to_sql(Spark()) == "`name` RLIKE '%a%'"
         assert rlike.to_sql(Snowflake()) == "\"name\" RLIKE '%a%'"
-        assert rlike.to_sql(Oracle()) == 'REGEXP_LIKE("name", \'%a%\')'
+        assert rlike.to_sql(Oracle()) == "REGEXP_LIKE(\"name\", '%a%')"
         assert rlike.to_sql(BigQuery()) == "REGEXP_CONTAINS(`name`, '%a%')"
-        assert rlike.to_sql(DuckDb()) == 'regexp_matches("name", \'%a%\')'
+        assert rlike.to_sql(DuckDb()) == "regexp_matches(\"name\", '%a%')"
 
         assert (
             RLikeExpr(Ident("name"), "%a%", negated=True).to_sql(PostgreSql())
@@ -791,7 +780,7 @@ class TestRLikeExpr:
         )
         assert (
             RLikeExpr(Ident("name"), "%a%", negated=True).to_sql(Oracle())
-            == 'NOT REGEXP_LIKE("name", \'%a%\')'
+            == "NOT REGEXP_LIKE(\"name\", '%a%')"
         )
 
         sql, params = rlike.prepare(PostgreSql())

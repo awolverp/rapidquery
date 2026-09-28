@@ -52,6 +52,12 @@ impl_builtin_dialects!(
             ilike_expression_options: ILikeExpressionOptions::UseLikeLower,
             supports_similar_to: false,
             rlike_expression_options: Some(RLikeExpressionOptions::RegexpContains),
+            string_concat_syntax: StringConcatSyntax::Pipes,
+            bit_xor_syntax: Some(BitXorSyntax::Caret),
+            modulo_syntax: ModuloSyntax::Percent,
+            is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
+            tuple_syntax: None,
+            parenthesize_in_between: false,
         }
     }
 
@@ -75,6 +81,12 @@ impl_builtin_dialects!(
             ilike_expression_options: ILikeExpressionOptions::Supported,
             supports_similar_to: false,
             rlike_expression_options: Some(RLikeExpressionOptions::InfixRLike),
+            string_concat_syntax: StringConcatSyntax::Pipes,
+            bit_xor_syntax: Some(BitXorSyntax::Caret),
+            modulo_syntax: ModuloSyntax::Percent,
+            is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
+            tuple_syntax: Some(TupleSyntax::Struct),
+            parenthesize_in_between: false,
         }
     }
 
@@ -98,6 +110,12 @@ impl_builtin_dialects!(
             ilike_expression_options: ILikeExpressionOptions::Supported,
             supports_similar_to: true,
             rlike_expression_options: Some(RLikeExpressionOptions::RegexpMatches),
+            string_concat_syntax: StringConcatSyntax::Pipes,
+            bit_xor_syntax: Some(BitXorSyntax::XorCall),
+            modulo_syntax: ModuloSyntax::Percent,
+            is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
+            tuple_syntax: Some(TupleSyntax::Row { empty_ok: true }),
+            parenthesize_in_between: false,
         }
     }
 
@@ -121,6 +139,12 @@ impl_builtin_dialects!(
             ilike_expression_options: ILikeExpressionOptions::UseLikeLower,
             supports_similar_to: false,
             rlike_expression_options: Some(RLikeExpressionOptions::InfixRLike),
+            string_concat_syntax: StringConcatSyntax::Pipes,
+            bit_xor_syntax: Some(BitXorSyntax::Caret),
+            modulo_syntax: ModuloSyntax::Percent,
+            is_distinct_from_syntax: Some(IsDistinctFromSyntax::NullSafeEqual),
+            tuple_syntax: Some(TupleSyntax::Struct),
+            parenthesize_in_between: false,
         }
     }
 
@@ -144,6 +168,12 @@ impl_builtin_dialects!(
             ilike_expression_options: ILikeExpressionOptions::UseLike,
             supports_similar_to: false,
             rlike_expression_options: None,
+            string_concat_syntax: StringConcatSyntax::Plus,
+            bit_xor_syntax: Some(BitXorSyntax::Caret),
+            modulo_syntax: ModuloSyntax::Percent,
+            is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
+            tuple_syntax: None,
+            parenthesize_in_between: true,
         }
     }
 
@@ -167,6 +197,12 @@ impl_builtin_dialects!(
             ilike_expression_options: ILikeExpressionOptions::UseLike,
             supports_similar_to: false,
             rlike_expression_options: Some(RLikeExpressionOptions::InfixRLike),
+            string_concat_syntax: StringConcatSyntax::Concat,
+            bit_xor_syntax: Some(BitXorSyntax::Caret),
+            modulo_syntax: ModuloSyntax::Percent,
+            is_distinct_from_syntax: Some(IsDistinctFromSyntax::NullSafeEqual),
+            tuple_syntax: Some(TupleSyntax::Row { empty_ok: false }),
+            parenthesize_in_between: false,
         }
     }
 
@@ -190,6 +226,12 @@ impl_builtin_dialects!(
             ilike_expression_options: ILikeExpressionOptions::UseLikeLower,
             supports_similar_to: false,
             rlike_expression_options: Some(RLikeExpressionOptions::RegexpLike),
+            string_concat_syntax: StringConcatSyntax::Pipes,
+            bit_xor_syntax: None,
+            modulo_syntax: ModuloSyntax::Call,
+            is_distinct_from_syntax: None,
+            tuple_syntax: None,
+            parenthesize_in_between: false,
         }
     }
 
@@ -213,6 +255,12 @@ impl_builtin_dialects!(
             ilike_expression_options: ILikeExpressionOptions::Supported,
             supports_similar_to: true,
             rlike_expression_options: Some(RLikeExpressionOptions::Tilde),
+            string_concat_syntax: StringConcatSyntax::Pipes,
+            bit_xor_syntax: Some(BitXorSyntax::Hash),
+            modulo_syntax: ModuloSyntax::Percent,
+            is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
+            tuple_syntax: Some(TupleSyntax::Row { empty_ok: true }),
+            parenthesize_in_between: false,
         }
     }
 
@@ -236,6 +284,12 @@ impl_builtin_dialects!(
             ilike_expression_options: ILikeExpressionOptions::Supported,
             supports_similar_to: true,
             rlike_expression_options: Some(RLikeExpressionOptions::Tilde),
+            string_concat_syntax: StringConcatSyntax::Pipes,
+            bit_xor_syntax: None,
+            modulo_syntax: ModuloSyntax::Percent,
+            is_distinct_from_syntax: None,
+            tuple_syntax: None,
+            parenthesize_in_between: false,
         }
     }
 
@@ -259,6 +313,12 @@ impl_builtin_dialects!(
             ilike_expression_options: ILikeExpressionOptions::Supported,
             supports_similar_to: false,
             rlike_expression_options: Some(RLikeExpressionOptions::InfixRLike),
+            string_concat_syntax: StringConcatSyntax::Pipes,
+            bit_xor_syntax: Some(BitXorSyntax::BitXorCall),
+            modulo_syntax: ModuloSyntax::Percent,
+            is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
+            tuple_syntax: None,
+            parenthesize_in_between: false,
         }
     }
 
@@ -282,6 +342,12 @@ impl_builtin_dialects!(
             ilike_expression_options: ILikeExpressionOptions::Supported,
             supports_similar_to: false,
             rlike_expression_options: Some(RLikeExpressionOptions::InfixRLike),
+            string_concat_syntax: StringConcatSyntax::Pipes,
+            bit_xor_syntax: Some(BitXorSyntax::Caret),
+            modulo_syntax: ModuloSyntax::Percent,
+            is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
+            tuple_syntax: Some(TupleSyntax::Struct),
+            parenthesize_in_between: false,
         }
     }
 
@@ -305,6 +371,12 @@ impl_builtin_dialects!(
             ilike_expression_options: ILikeExpressionOptions::UseLike,
             supports_similar_to: false,
             rlike_expression_options: None,
+            string_concat_syntax: StringConcatSyntax::Pipes,
+            bit_xor_syntax: None,
+            modulo_syntax: ModuloSyntax::Percent,
+            is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
+            tuple_syntax: Some(TupleSyntax::Parentheses),
+            parenthesize_in_between: false,
         }
     }
 
@@ -328,6 +400,145 @@ impl_builtin_dialects!(
             ilike_expression_options: ILikeExpressionOptions::UseLikeLower,
             supports_similar_to: false,
             rlike_expression_options: None,
+            string_concat_syntax: StringConcatSyntax::Pipes,
+            bit_xor_syntax: Some(BitXorSyntax::BitXorCall),
+            modulo_syntax: ModuloSyntax::Infix,
+            is_distinct_from_syntax: None,
+            tuple_syntax: None,
+            parenthesize_in_between: false,
         }
     }
 );
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn expect(
+        dialect: Dialect,
+        concat: StringConcatSyntax,
+        xor: Option<BitXorSyntax>,
+        modulo: ModuloSyntax,
+        distinct: Option<IsDistinctFromSyntax>,
+        tuple: Option<TupleSyntax>,
+        parenthesize_in_between: bool,
+    ) {
+        assert_eq!(dialect.string_concat_syntax, concat);
+        assert_eq!(dialect.bit_xor_syntax, xor);
+        assert_eq!(dialect.modulo_syntax, modulo);
+        assert_eq!(dialect.is_distinct_from_syntax, distinct);
+        assert_eq!(dialect.tuple_syntax, tuple);
+        assert_eq!(dialect.parenthesize_in_between, parenthesize_in_between);
+    }
+
+    #[test]
+    fn operator_syntax_matrix() {
+        use BitXorSyntax::*;
+        use IsDistinctFromSyntax::*;
+        use ModuloSyntax::*;
+        use StringConcatSyntax::*;
+        use TupleSyntax::*;
+
+        expect(
+            PyBigQuery::CONFIG,
+            Pipes,
+            Some(Caret),
+            Percent,
+            Some(Standard),
+            None,
+            false,
+        );
+        expect(
+            PyDatabricks::CONFIG,
+            Pipes,
+            Some(Caret),
+            Percent,
+            Some(Standard),
+            Some(Struct),
+            false,
+        );
+        expect(
+            PyDuckDb::CONFIG,
+            Pipes,
+            Some(XorCall),
+            Percent,
+            Some(Standard),
+            Some(Row { empty_ok: true }),
+            false,
+        );
+        expect(
+            PyHive::CONFIG,
+            Pipes,
+            Some(Caret),
+            Percent,
+            Some(NullSafeEqual),
+            Some(Struct),
+            false,
+        );
+        expect(
+            PyMsSql::CONFIG,
+            Plus,
+            Some(Caret),
+            Percent,
+            Some(Standard),
+            None,
+            true,
+        );
+        expect(
+            PyMySql::CONFIG,
+            Concat,
+            Some(Caret),
+            Percent,
+            Some(NullSafeEqual),
+            Some(Row { empty_ok: false }),
+            false,
+        );
+        expect(PyOracle::CONFIG, Pipes, None, Call, None, None, false);
+        expect(
+            PyPostgreSql::CONFIG,
+            Pipes,
+            Some(Hash),
+            Percent,
+            Some(Standard),
+            Some(Row { empty_ok: true }),
+            false,
+        );
+        expect(PyRedshift::CONFIG, Pipes, None, Percent, None, None, false);
+        expect(
+            PySnowflake::CONFIG,
+            Pipes,
+            Some(BitXorCall),
+            Percent,
+            Some(Standard),
+            None,
+            false,
+        );
+        expect(
+            PySpark::CONFIG,
+            Pipes,
+            Some(Caret),
+            Percent,
+            Some(Standard),
+            Some(Struct),
+            false,
+        );
+        expect(
+            PySqlite::CONFIG,
+            Pipes,
+            None,
+            Percent,
+            Some(Standard),
+            Some(Parentheses),
+            false,
+        );
+        expect(
+            PyTeradata::CONFIG,
+            Pipes,
+            Some(BitXorCall),
+            Infix,
+            None,
+            None,
+            false,
+        );
+    }
+}

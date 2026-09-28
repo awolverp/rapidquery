@@ -112,17 +112,19 @@ impl PyTupleExpr {
         )
     }
 
-    fn get_items(
-        slf: pyo3::PyRef<'_, Self>,
-    ) -> pyo3::PyResult<pyo3::Bound<'_, pyo3::types::PyTuple>> {
+    fn get_items(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<pyo3::Bound<'_, pyo3::PyAny>> {
         let py = slf.py();
         let items = &Self::inner(&slf).items;
-        let mut out = Vec::with_capacity(items.len());
 
-        for item in items {
-            out.push(super::base::into_subclasses(py, item.clone())?);
+        unsafe {
+            utils::iterator_to_tuple(
+                py,
+                items.len() as isize,
+                items
+                    .iter()
+                    .map(|x| super::base::into_subclasses(py, x.clone()).map(|x| x.into_ptr())),
+            )
         }
-        pyo3::types::PyTuple::new(py, out)
     }
 }
 
@@ -298,15 +300,16 @@ impl PyInListExpr {
         let py = slf.py();
         let inner = Self::inner(&slf);
 
-        let len = inner.list.len() as isize;
-        utils::iterator_to_tuple(
-            slf.py(),
-            len,
-            inner
-                .list
-                .iter()
-                .map(|x| PyExpr(x.clone()).into_subclasses(py).map(|x| x.as_ptr())),
-        )
+        unsafe {
+            utils::iterator_to_tuple(
+                slf.py(),
+                inner.list.len() as isize,
+                inner
+                    .list
+                    .iter()
+                    .map(|x| PyExpr(x.clone()).into_subclasses(py).map(|x| x.into_ptr())),
+            )
+        }
     }
 
     fn get_negated(slf: pyo3::PyRef<'_, Self>) -> bool {
@@ -386,15 +389,14 @@ impl PyLikeExpr {
         let inner = Self::inner(&slf);
         match &inner.pattern {
             super::enum_::LikePattern::One(p) => super::base::into_subclasses(py, (**p).clone()),
-            super::enum_::LikePattern::Any(ps) => {
-                let len = ps.len() as isize;
+            super::enum_::LikePattern::Any(ps) => unsafe {
                 utils::iterator_to_tuple(
                     slf.py(),
-                    len,
+                    ps.len() as isize,
                     ps.iter()
-                        .map(|x| PyExpr(x.clone()).into_subclasses(py).map(|x| x.as_ptr())),
+                        .map(|x| PyExpr(x.clone()).into_subclasses(py).map(|x| x.into_ptr())),
                 )
-            }
+            },
         }
     }
 
@@ -608,13 +610,15 @@ impl PyTrimExpr {
         let inner = Self::inner(&slf);
         match inner.characters.as_ref() {
             None => Ok(utils::new_pynone(py)),
-            Some(chars) => {
-                let mut out = Vec::with_capacity(chars.len());
-                for c in chars {
-                    out.push(super::base::into_subclasses(py, c.clone())?);
-                }
-                Ok(pyo3::types::PyTuple::new(py, out)?.into_any())
-            }
+            Some(chars) => unsafe {
+                utils::iterator_to_tuple(
+                    py,
+                    chars.len() as isize,
+                    chars
+                        .iter()
+                        .map(|x| super::base::into_subclasses(py, x.clone()).map(|y| y.into_ptr())),
+                )
+            },
         }
     }
 }
@@ -757,14 +761,15 @@ impl PyCustomExpr {
         let py = slf.py();
         let inner = Self::inner(&slf);
 
-        let len = inner.args.len() as isize;
-        utils::iterator_to_tuple(
-            slf.py(),
-            len,
-            inner
-                .args
-                .iter()
-                .map(|x| PyExpr(x.clone()).into_subclasses(py).map(|x| x.as_ptr())),
-        )
+        unsafe {
+            utils::iterator_to_tuple(
+                slf.py(),
+                inner.args.len() as isize,
+                inner
+                    .args
+                    .iter()
+                    .map(|x| PyExpr(x.clone()).into_subclasses(py).map(|x| x.into_ptr())),
+            )
+        }
     }
 }

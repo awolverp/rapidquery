@@ -89,11 +89,13 @@ impl PyExpr {
     ) -> pyo3::PyResult<(String, alias::BoundObject<'py>)> {
         let (sql, params) = sql::prepare(py, &slf.0, &dialect)?;
 
-        let params = utils::iterator_to_tuple(
-            slf.py(),
-            params.len() as isize,
-            params.into_iter().map(|x| Ok(x.as_ptr())),
-        )?;
+        let params = unsafe {
+            utils::iterator_to_tuple(
+                slf.py(),
+                params.len() as isize,
+                params.into_iter().map(|x| Ok(x.into_ptr())),
+            )?
+        };
         Ok((sql, params))
     }
 

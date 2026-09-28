@@ -94,6 +94,68 @@ pub enum RLikeExpressionOptions {
     RegexpMatches,
 }
 
+/// How [`crate::expr::enum_::BinaryOp::StringConcat`] (`||`) is spelled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StringConcatSyntax {
+    /// `left || right`.
+    Pipes,
+    /// `left + right`. SQL Server `||` is 2025+; classic concat is `+`.
+    Plus,
+    /// `CONCAT(left, right)`. MySQL `||` is logical OR unless `PIPES_AS_CONCAT`.
+    Concat,
+}
+
+/// How [`crate::expr::enum_::BinaryOp::BitXor`] (`^`) is spelled.
+///
+/// [`None`] on [`Dialect::bit_xor_syntax`] means unsupported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BitXorSyntax {
+    /// `left ^ right`.
+    Caret,
+    /// `left # right`. PostgreSQL `^` is exponent.
+    Hash,
+    /// `xor(left, right)`.
+    XorCall,
+    /// `BITXOR(left, right)`.
+    BitXorCall,
+}
+
+/// How [`crate::expr::enum_::BinaryOp::Mod`] (`%`) is spelled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ModuloSyntax {
+    /// `left % right`.
+    Percent,
+    /// `MOD(left, right)`.
+    Call,
+    /// `left MOD right`. Teradata's arithmetic operator; `MOD()` is an ODBC extension.
+    Infix,
+}
+
+/// How `IS [NOT] DISTINCT FROM` is spelled.
+///
+/// [`None`] on [`Dialect::is_distinct_from_syntax`] means unsupported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IsDistinctFromSyntax {
+    /// `left IS [NOT] DISTINCT FROM right`.
+    Standard,
+    /// `<=>` is null-safe equal (`IS NOT DISTINCT FROM`).
+    /// `IS DISTINCT FROM` is `NOT (left <=> right)`.
+    NullSafeEqual,
+}
+
+/// How a tuple / row value is spelled.
+///
+/// [`None`] on [`Dialect::tuple_syntax`] means unsupported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TupleSyntax {
+    /// `ROW(...)`. `empty_ok` allows arity 0 (`ROW()`).
+    Row { empty_ok: bool },
+    /// `struct(...)`. Arity 0 is unsupported.
+    Struct,
+    /// `(a, b, ...)`. Arity 0 and 1 are unsupported.
+    Parentheses,
+}
+
 /// How a boolean literal is spelled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BoolFormat {
@@ -292,6 +354,22 @@ pub struct Dialect {
     pub supports_similar_to: bool,
     /// How regex `RLike` is spelled. [`None`] means unsupported.
     pub rlike_expression_options: Option<RLikeExpressionOptions>,
+    /// How `||` (string concat) is spelled.
+    pub string_concat_syntax: StringConcatSyntax,
+    /// How bitwise XOR (`^` in the AST) is spelled. [`None`] means unsupported.
+    pub bit_xor_syntax: Option<BitXorSyntax>,
+    /// How modulo (`%` in the AST) is spelled.
+    pub modulo_syntax: ModuloSyntax,
+    /// How `IS [NOT] DISTINCT FROM` is spelled. [`None`] means unsupported.
+    pub is_distinct_from_syntax: Option<IsDistinctFromSyntax>,
+    /// How a tuple value is spelled. [`None`] means unsupported.
+    pub tuple_syntax: Option<TupleSyntax>,
+    /// Wrap `IN` / `BETWEEN` in parentheses.
+    ///
+    /// SQL Server ranks `AND` above `IN`/`BETWEEN`/`OR`, and those four share
+    /// a level evaluated left to right. The parentheses keep the predicate
+    /// from being parsed as part of the left operand.
+    pub parenthesize_in_between: bool,
 }
 
 impl Dialect {
@@ -547,6 +625,12 @@ mod tests {
             ilike_expression_options: ILikeExpressionOptions::UseLike,
             supports_similar_to: false,
             rlike_expression_options: None,
+            string_concat_syntax: StringConcatSyntax::Pipes,
+            bit_xor_syntax: None,
+            modulo_syntax: ModuloSyntax::Percent,
+            is_distinct_from_syntax: None,
+            tuple_syntax: None,
+            parenthesize_in_between: false,
         }
     }
 

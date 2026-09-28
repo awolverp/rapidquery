@@ -110,15 +110,16 @@ impl PyFunction {
         let py = slf.py();
         let inner = Self::inner(&slf);
 
-        let len = inner.args.len() as isize;
-        utils::iterator_to_tuple(
-            slf.py(),
-            len,
-            inner
-                .args
-                .iter()
-                .map(|x| PyExpr(x.clone()).into_subclasses(py).map(|x| x.as_ptr())),
-        )
+        unsafe {
+            utils::iterator_to_tuple(
+                slf.py(),
+                inner.args.len() as isize,
+                inner
+                    .args
+                    .iter()
+                    .map(|x| PyExpr(x.clone()).into_subclasses(py).map(|x| x.into_ptr())),
+            )
+        }
     }
 
     fn get_filter(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
