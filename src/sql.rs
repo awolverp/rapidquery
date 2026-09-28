@@ -9,7 +9,7 @@ use pyo3::types::PyAnyMethods;
 
 use crate::data_type::SerializerEnum;
 use crate::dialect::PySqlDialect;
-use crate::dialect::inner::PositionalParameter;
+use crate::dialect::inner::{FormatError, PositionalParameter};
 use crate::internal::alias;
 
 /// Error produced while building SQL.
@@ -48,6 +48,35 @@ impl std::error::Error for PrepareError {
 impl From<std::fmt::Error> for PrepareError {
     fn from(_: std::fmt::Error) -> Self {
         Self::Write
+    }
+}
+
+impl From<FormatError> for PrepareError {
+    fn from(err: FormatError) -> Self {
+        match err {
+            FormatError::Write => Self::Write,
+            other => Self::Python(other.into()),
+        }
+    }
+}
+
+impl From<FormatError> for pyo3::PyErr {
+    fn from(err: FormatError) -> Self {
+        match err {
+            FormatError::Write => {
+                rapidquery_macros::pyerr!(PyRuntimeError, "failed to write SQL")
+            }
+            FormatError::NulInString => {
+                rapidquery_macros::pyerr!(PyValueError, "NUL is not allowed in a string literal")
+            }
+            FormatError::Unsupported(name) => {
+                rapidquery_macros::pyerr!(
+                    PyNotImplementedError,
+                    "this dialect does not support {}",
+                    name
+                )
+            }
+        }
     }
 }
 

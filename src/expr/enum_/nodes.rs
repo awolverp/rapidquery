@@ -33,8 +33,7 @@ pub(super) fn write_escape<W: SqlWriter>(
     let mut buf = [0u8; 4];
     dialect
         .0
-        .write_string_literal(out, c.encode_utf8(&mut buf))
-        .map_err(|_| crate::sql::PrepareError::Write)?;
+        .write_string_literal(out, c.encode_utf8(&mut buf))?;
 
     Ok(())
 }

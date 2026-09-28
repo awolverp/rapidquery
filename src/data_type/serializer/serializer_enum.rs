@@ -102,9 +102,14 @@ impl SerializerEnum {
     pub fn is_supported_by(&self, dialect: &crate::dialect::inner::Dialect) -> bool {
         match self {
             Self::Bit => dialect.bit_format.is_some(),
-            Self::Array(_) => dialect.supports_array,
-            Self::Inet => dialect.supports_inet,
-            Self::MacAddress => dialect.supports_mac_address,
+            Self::Array(_) => !matches!(
+                dialect.array_format,
+                crate::dialect::inner::ArrayFormat::None
+            ),
+            Self::Inet => !matches!(dialect.inet_format, crate::dialect::inner::InetFormat::None),
+            Self::MacAddress => {
+                !matches!(dialect.mac_format, crate::dialect::inner::MacFormat::None)
+            }
             _ => true,
         }
     }

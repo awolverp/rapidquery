@@ -213,7 +213,7 @@ class TestFunction:
 
         fn = Function("f").call("id")
         assert fn.get_args() == (Value("id"),)
-        assert fn.to_sql(PostgreSql()) == "\"f\"(E'id')"
+        assert fn.to_sql(PostgreSql()) == "\"f\"('id')"
 
         fn = Function(Ident("schema.fn")).call()
         assert fn.get_name() == Ident("schema.fn")
@@ -265,7 +265,7 @@ class TestTupleExpr:
 
     def test_to_sql(self):
         tpl = TupleExpr(1, 2, "A")
-        assert tpl.to_sql(PostgreSql()) == "ROW(1, 2, E'A')"
+        assert tpl.to_sql(PostgreSql()) == "ROW(1, 2, 'A')"
 
         sql, params = tpl.prepare(PostgreSql())
         assert sql == "ROW(:param_0, :param_1, :param_2)"
@@ -386,7 +386,7 @@ class TestBinaryExpr:
         assert bin.to_sql(PostgreSql()) == '"id" > 10'
 
         bin = BinaryExpr("str", "-custom-", 10)
-        assert bin.to_sql(PostgreSql()) == "E'str' -custom- 10"
+        assert bin.to_sql(PostgreSql()) == "'str' -custom- 10"
 
         bin = BinaryExpr(Ident("id"), ">", BinaryExpr(456, "&", 10))
         assert bin.to_sql(PostgreSql()) == '"id" > 456 & 10'
@@ -645,19 +645,19 @@ class TestLikeExpr:
 
     def test_to_sql(self):
         like = LikeExpr(Ident("name"), "%a%")
-        assert like.to_sql(PostgreSql()) == "\"name\" LIKE E'%a%'"
+        assert like.to_sql(PostgreSql()) == "\"name\" LIKE '%a%'"
 
         assert (
             LikeExpr(Ident("name"), "%a%", case_sensitive=False).to_sql(PostgreSql())
-            == "\"name\" ILIKE E'%a%'"
+            == "\"name\" ILIKE '%a%'"
         )
         assert (
             LikeExpr(Ident("name"), "%a%", negated=True).to_sql(PostgreSql())
-            == "\"name\" NOT LIKE E'%a%'"
+            == "\"name\" NOT LIKE '%a%'"
         )
         assert (
             LikeExpr(Ident("name"), "%a%", escape="!").to_sql(PostgreSql())
-            == "\"name\" LIKE E'%a%' ESCAPE E'!'"
+            == "\"name\" LIKE '%a%' ESCAPE '!'"
         )
 
         sql, params = LikeExpr(Ident("name"), "%a%").prepare(PostgreSql())
@@ -666,7 +666,7 @@ class TestLikeExpr:
 
         any_like = LikeExpr(Ident("name"), ["%a%", "%b%"])
         assert (
-            any_like.to_sql(PostgreSql()) == "\"name\" LIKE ANY (ARRAY[E'%a%', E'%b%'])"
+            any_like.to_sql(PostgreSql()) == "\"name\" LIKE ANY (ARRAY['%a%', '%b%'])"
         )
         assert any_like.to_sql(Snowflake()) == "\"name\" LIKE ANY ('%a%', '%b%')"
         assert any_like.to_sql(Sqlite()) == (
@@ -680,7 +680,7 @@ class TestLikeExpr:
         negated = LikeExpr(Ident("name"), ["%a%", "%b%"], negated=True)
         assert (
             negated.to_sql(PostgreSql())
-            == "NOT (\"name\" LIKE ANY (ARRAY[E'%a%', E'%b%']))"
+            == "NOT (\"name\" LIKE ANY (ARRAY['%a%', '%b%']))"
         )
         assert negated.to_sql(Snowflake()) == "\"name\" NOT LIKE ANY ('%a%', '%b%')"
         assert negated.to_sql(Sqlite()) == (
@@ -690,13 +690,13 @@ class TestLikeExpr:
         ilike_any = LikeExpr(Ident("name"), ["%a%", "%b%"], case_sensitive=False)
         assert (
             ilike_any.to_sql(PostgreSql())
-            == "\"name\" ILIKE ANY (ARRAY[E'%a%', E'%b%'])"
+            == "\"name\" ILIKE ANY (ARRAY['%a%', '%b%'])"
         )
 
         escaped = LikeExpr(Ident("name"), ["%a%", "%b%"], escape="!")
         assert (
             escaped.to_sql(PostgreSql())
-            == "\"name\" LIKE ANY (ARRAY[E'%a%', E'%b%']) ESCAPE E'!'"
+            == "\"name\" LIKE ANY (ARRAY['%a%', '%b%']) ESCAPE '!'"
         )
         assert escaped.to_sql(Sqlite()) == (
             "(\"name\" LIKE '%a%' ESCAPE '!' OR \"name\" LIKE '%b%' ESCAPE '!')"
@@ -723,13 +723,13 @@ class TestSimilarToExpr:
 
     def test_to_sql(self):
         sim = SimilarToExpr(Ident("name"), "%a%")
-        assert sim.to_sql(PostgreSql()) == "\"name\" SIMILAR TO E'%a%'"
+        assert sim.to_sql(PostgreSql()) == "\"name\" SIMILAR TO '%a%'"
         assert sim.to_sql(Redshift()) == "\"name\" SIMILAR TO '%a%'"
         assert sim.to_sql(DuckDb()) == "\"name\" SIMILAR TO '%a%'"
 
         assert (
             SimilarToExpr(Ident("name"), "%a%", negated=True).to_sql(PostgreSql())
-            == "\"name\" NOT SIMILAR TO E'%a%'"
+            == "\"name\" NOT SIMILAR TO '%a%'"
         )
 
         sql, params = sim.prepare(PostgreSql())
@@ -766,7 +766,7 @@ class TestRLikeExpr:
 
     def test_to_sql(self):
         rlike = RLikeExpr(Ident("name"), "%a%")
-        assert rlike.to_sql(PostgreSql()) == "\"name\" ~ E'%a%'"
+        assert rlike.to_sql(PostgreSql()) == "\"name\" ~ '%a%'"
         assert rlike.to_sql(MySql()) == "`name` RLIKE '%a%'"
         assert rlike.to_sql(Spark()) == "`name` RLIKE '%a%'"
         assert rlike.to_sql(Snowflake()) == "\"name\" RLIKE '%a%'"
@@ -776,7 +776,7 @@ class TestRLikeExpr:
 
         assert (
             RLikeExpr(Ident("name"), "%a%", negated=True).to_sql(PostgreSql())
-            == "\"name\" !~ E'%a%'"
+            == "\"name\" !~ '%a%'"
         )
         assert (
             RLikeExpr(Ident("name"), "%a%", negated=True).to_sql(Oracle())
@@ -854,7 +854,7 @@ class TestCastExpr:
         )
         assert (
             CastExpr(Ident("s"), "DATE", format="%Y-%m-%d").to_sql(PostgreSql())
-            == "CAST(\"s\" AS DATE FORMAT E'%Y-%m-%d')"
+            == "CAST(\"s\" AS DATE FORMAT '%Y-%m-%d')"
         )
         assert (
             CastExpr(
@@ -864,7 +864,7 @@ class TestCastExpr:
                 format="%Y-%m-%d",
                 at_time_zone="UTC",
             ).to_sql(PostgreSql())
-            == "SAFE_CAST(\"s\" AS TIMESTAMP FORMAT E'%Y-%m-%d' AT TIME ZONE E'UTC')"
+            == "SAFE_CAST(\"s\" AS TIMESTAMP FORMAT '%Y-%m-%d' AT TIME ZONE 'UTC')"
         )
 
         sql, params = CastExpr(1, "INT").prepare(PostgreSql())
@@ -918,13 +918,13 @@ class TestTrimExpr:
             'TRIM(LEADING FROM "s")'
         )
         assert TrimExpr(Ident("s"), what="x").to_sql(PostgreSql()) == (
-            "TRIM(E'x' FROM \"s\")"
+            "TRIM('x' FROM \"s\")"
         )
         assert TrimExpr(Ident("s"), where="BOTH", what="x").to_sql(PostgreSql()) == (
-            "TRIM(BOTH E'x' FROM \"s\")"
+            "TRIM(BOTH 'x' FROM \"s\")"
         )
         assert TrimExpr(Ident("s"), characters=["a", "b"]).to_sql(PostgreSql()) == (
-            "TRIM(\"s\", E'a', E'b')"
+            "TRIM(\"s\", 'a', 'b')"
         )
 
         sql, params = TrimExpr(Ident("s"), what="x").prepare(PostgreSql())
@@ -1031,7 +1031,7 @@ class TestCaseExpr:
         searched = CaseExpr().when(BinaryExpr(Ident("id"), ">", 0), "yes").else_("no")
         assert (
             searched.to_sql(PostgreSql())
-            == "CASE WHEN \"id\" > 0 THEN E'yes' ELSE E'no' END"
+            == "CASE WHEN \"id\" > 0 THEN 'yes' ELSE 'no' END"
         )
 
         simple = (

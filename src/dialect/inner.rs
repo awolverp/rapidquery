@@ -2,6 +2,32 @@ use std::fmt::{self, Write};
 
 use crate::internal::utils;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FormatError {
+    Write,
+    NulInString,
+    Unsupported(&'static str),
+}
+
+impl From<fmt::Error> for FormatError {
+    #[inline]
+    fn from(_: fmt::Error) -> Self {
+        Self::Write
+    }
+}
+
+impl fmt::Display for FormatError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Write => f.write_str("failed to write SQL"),
+            Self::NulInString => f.write_str("NUL is not allowed in a string literal"),
+            Self::Unsupported(name) => write!(f, "this dialect does not support {name}"),
+        }
+    }
+}
+
+impl std::error::Error for FormatError {}
+
 /// Positional parameter syntax
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PositionalParameter {
@@ -199,17 +225,15 @@ pub enum StringFormat {
 /// How to escape literal strings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StringEscape {
-    /// `'` → `''`. Other characters, including NUL, are unchanged.
+    /// `'` → `''`. Other characters are unchanged.
     Quote,
-    /// `'` → `''`. NUL is deleted.
-    QuoteStripNul,
-    /// `\\`, `\'`, `\n`, `\r`, `\t`; NUL and other C0/DEL as `\xNN`.
+    /// `\\`, `\'`, `\n`, `\r`, `\t`; other C0/DEL as `\xNN`.
     BackslashHex,
-    /// MySQL: also `\"` and `\Z` for 0x1A; NUL as `\0`; tab and other controls pass through.
+    /// MySQL: also `\"` and `\Z` for 0x1A; tab and other controls pass through.
     BackslashMysql,
-    /// Hive: `\0` for NUL; other C0/DEL as `\uNNNN`. No `\"`.
+    /// Hive: other C0/DEL as `\uNNNN`. No `\"`.
     BackslashUnicode,
-    /// Snowflake: `\0` for NUL; other C0/DEL as `\xNN`.
+    /// Snowflake: other C0/DEL as `\xNN`.
     BackslashHexZero,
     /// Spark/Databricks: [`Self::BackslashUnicode`] plus `\"`.
     BackslashUnicodeQuote,
@@ -221,10 +245,6 @@ impl StringEscape {
     fn write<W: fmt::Write>(self, writer: &mut W, string: &str) -> fmt::Result {
         match self {
             Self::Quote => utils::replace_to(string, '\'', "''", writer),
-            Self::QuoteStripNul => {
-                const REPLACEMENTS: [(u8, &str); 2] = [(b'\'', "''"), (b'\0', "")];
-                utils::replace_ascii_to(string, &REPLACEMENTS, writer)
-            }
             Self::BackslashHex => write_backslash_hex(writer, string),
             Self::BackslashMysql => write_backslash_mysql(writer, string),
             Self::BackslashUnicode => write_backslash_unicode(writer, string, false),
@@ -253,6 +273,10 @@ pub enum BytesFormat {
     ToVarbyte,
     /// `'DEADBEEF'XBV`
     PostfixXbv,
+    /// `TO_BINARY('DEADBEEF', 'HEX')`
+    ToBinary,
+    /// `'\xHH…'::BLOB`; empty is `''::BLOB`
+    SlashXBlob,
 }
 
 impl BytesFormat {
@@ -301,6 +325,22 @@ impl BytesFormat {
                 bytes_to_hex(writer, bytes)?;
                 writer.write_str("'XBV")
             }
+            Self::ToBinary => {
+                writer.write_str("TO_BINARY('")?;
+                bytes_to_hex(writer, bytes)?;
+                writer.write_str("', 'HEX')")
+            }
+            Self::SlashXBlob => {
+                if bytes.is_empty() {
+                    writer.write_str("''::BLOB")
+                } else {
+                    writer.write_char('\'')?;
+                    for &b in bytes {
+                        write_byte_hex_escape(writer, b)?;
+                    }
+                    writer.write_str("'::BLOB")
+                }
+            }
         }
     }
 }
@@ -317,6 +357,62 @@ pub enum FunctionFilterSyntax {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ArrayFormat {
+    None,
+    /// `ARRAY[…]`
+    Constructor,
+    /// `[…]`
+    List,
+    /// `array(…)`
+    Function,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum InetFormat {
+    None,
+    Quoted,
+    /// `'…'::inet`
+    Cast,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MacFormat {
+    None,
+    Quoted,
+    /// `'…'::macaddr`
+    Cast,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TemporalLiteral {
+    Quoted,
+    /// `DATE` / `TIME` / `TIMESTAMP` then a string literal.
+    TypedKeyword,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum JsonFormat {
+    Quoted,
+    /// `JSON '…'`
+    JsonKeyword,
+    /// `PARSE_JSON('…')`
+    ParseJson,
+    /// `'…'::json`
+    CastJson,
+    /// `'…'::jsonb`
+    CastJsonb,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum UuidFormat {
+    Quoted,
+    /// `UUID '…'`
+    UuidKeyword,
+    /// `'…'::uuid`
+    CastUuid,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Dialect {
     /// Positional parameter syntax.
     pub positional_parameter: PositionalParameter,
@@ -324,12 +420,9 @@ pub struct Dialect {
     ///
     /// Set [`Option::None`] if literal bit isn't supported.
     pub bit_format: Option<BitFormat>,
-    /// Whether the dialect supports `ARRAY[...]` data type.
-    pub supports_array: bool,
-    /// Whether the dialect supports `INET`/`CIDR` data types.
-    pub supports_inet: bool,
-    /// Whether the dialect supports `MACADDR` data type.
-    pub supports_mac_address: bool,
+    pub array_format: ArrayFormat,
+    pub inet_format: InetFormat,
+    pub mac_format: MacFormat,
     /// How the dialect supports `{IGNORE|RESPECT} NULLS` expressions in `Function`s if supported.
     pub null_treatment_syntax: Option<NullTreatmentSyntax>,
     /// How `LIKE ANY` / `ILIKE ANY` is rendered.
@@ -346,6 +439,11 @@ pub struct Dialect {
     pub string_escape: StringEscape,
     /// How the dialect accepts literal bytes values.
     pub bytes_format: BytesFormat,
+    pub date_format: TemporalLiteral,
+    pub time_format: TemporalLiteral,
+    pub timestamp_format: TemporalLiteral,
+    pub json_format: JsonFormat,
+    pub uuid_format: UuidFormat,
     /// How function calling `FILTER` keyword rendered if supported.
     pub function_filter_syntax: Option<FunctionFilterSyntax>,
     /// How case-insensitive `LIKE` is spelled (`ILIKE`, `LIKE`, or `LOWER` + `LIKE`).
@@ -375,19 +473,28 @@ pub struct Dialect {
 impl Dialect {
     /// Write a boolean literal (`TRUE`/`FALSE` or `1`/`0`).
     #[inline]
-    pub fn format_boolean<W: fmt::Write>(&self, writer: &mut W, value: bool) -> fmt::Result {
+    pub fn format_boolean<W: fmt::Write>(
+        &self,
+        writer: &mut W,
+        value: bool,
+    ) -> Result<(), FormatError> {
         match (self.bool_format, value) {
-            (BoolFormat::Int, false) => write!(writer, "0"),
-            (BoolFormat::Int, true) => write!(writer, "1"),
-            (BoolFormat::Keyword, false) => write!(writer, "FALSE"),
-            (BoolFormat::Keyword, true) => write!(writer, "TRUE"),
+            (BoolFormat::Int, false) => writer.write_str("0")?,
+            (BoolFormat::Int, true) => writer.write_str("1")?,
+            (BoolFormat::Keyword, false) => writer.write_str("FALSE")?,
+            (BoolFormat::Keyword, true) => writer.write_str("TRUE")?,
         }
+        Ok(())
     }
 
     /// Write `string` with special characters neutralized, without wrapping it.
     #[inline]
-    pub fn escape_string<W: fmt::Write>(&self, writer: &mut W, string: &str) -> fmt::Result {
-        self.string_escape.write(writer, string)
+    pub fn escape_string<W: fmt::Write>(
+        &self,
+        writer: &mut W,
+        string: &str,
+    ) -> Result<(), FormatError> {
+        self.string_escape.write(writer, string).map_err(Into::into)
     }
 
     /// Escape `ident` and wrap it in this dialect's identifier delimiters.
@@ -430,45 +537,67 @@ impl Dialect {
 
     /// Escape `raw` and wrap it as a complete string literal.
     #[inline]
-    pub fn write_string_literal<W: fmt::Write>(&self, writer: &mut W, raw: &str) -> fmt::Result {
+    pub fn write_string_literal<W: fmt::Write>(
+        &self,
+        writer: &mut W,
+        raw: &str,
+    ) -> Result<(), FormatError> {
+        if raw.contains('\0') {
+            return Err(FormatError::NulInString);
+        }
+
+        if matches!(self.string_format, StringFormat::PrefixBigE) && !needs_c_escape(raw) {
+            writer.write_char('\'')?;
+            StringEscape::Quote.write(writer, raw)?;
+            writer.write_char('\'')?;
+            return Ok(());
+        }
+
         match self.string_format {
             StringFormat::PrefixBigE => writer.write_str("E'")?,
             StringFormat::PrefixBigN => writer.write_str("N'")?,
             StringFormat::SingleQuote => writer.write_char('\'')?,
         }
         self.escape_string(writer, raw)?;
-        writer.write_char('\'')
+        writer.write_char('\'')?;
+        Ok(())
     }
 
     /// Write a bit-string (`'0'`/`'1'` characters) as a native literal.
     ///
     /// Native formats embed `bits` as-is. Callers must pass only `'0'` and `'1'`;
     /// that is checked with `debug_assert!`.
-    ///
-    /// # Panics
-    ///
-    /// Panics when the dialect does not support literal bit values and
-    /// [`Self::bit_format`] is [`None`]. Callers should check
-    /// [`Option::is_some`] on [`Self::bit_format`] before calling this method.
     #[inline]
-    pub fn format_bits<W: fmt::Write>(&self, writer: &mut W, bits: &str) -> fmt::Result {
+    pub fn format_bits<W: fmt::Write>(
+        &self,
+        writer: &mut W,
+        bits: &str,
+    ) -> Result<(), FormatError> {
         debug_assert!(
             bits.chars().all(|c| c == '0' || c == '1'),
             "format_bits: invalid input: {bits}"
         );
         match self.bit_format {
-            Some(format) => format.write(writer, bits),
-            None => panic!(
-                "format_bits: dialect does not support literal bit values (bit_format is None)"
-            ),
+            Some(format) => format.write(writer, bits).map_err(Into::into),
+            None => Err(FormatError::Unsupported("BitSerializer")),
         }
     }
 
     /// Write `bytes` as a native blob/bytea/varbyte literal.
     #[inline]
-    pub fn format_bytes<W: fmt::Write>(&self, writer: &mut W, bytes: &[u8]) -> fmt::Result {
-        self.bytes_format.write(writer, bytes)
+    pub fn format_bytes<W: fmt::Write>(
+        &self,
+        writer: &mut W,
+        bytes: &[u8],
+    ) -> Result<(), FormatError> {
+        self.bytes_format.write(writer, bytes).map_err(Into::into)
     }
+}
+
+#[inline]
+fn needs_c_escape(s: &str) -> bool {
+    s.chars()
+        .any(|c| matches!(c, '\\' | '\n' | '\r' | '\t') || (c as u32) < 32 || c as u32 == 127)
 }
 
 const HEX_DIGITS: &[u8; 16] = b"0123456789ABCDEF";
@@ -592,27 +721,33 @@ fn write_backslash_hex_zero<W: Write>(writer: &mut W, string: &str) -> fmt::Resu
 mod tests {
     use super::*;
 
-    fn collect(write: impl FnOnce(&mut String) -> fmt::Result) -> String {
+    fn collect_fmt(write: impl FnOnce(&mut String) -> fmt::Result) -> String {
+        let mut buf = String::new();
+        write(&mut buf).unwrap();
+        buf
+    }
+
+    fn collect(write: impl FnOnce(&mut String) -> Result<(), FormatError>) -> String {
         let mut buf = String::new();
         write(&mut buf).unwrap();
         buf
     }
 
     fn escape(kind: StringEscape, string: &str) -> String {
-        collect(|buf| kind.write(buf, string))
+        collect_fmt(|buf| kind.write(buf, string))
     }
 
     fn bytes(kind: BytesFormat, bytes: &[u8]) -> String {
-        collect(|buf| kind.write(buf, bytes))
+        collect_fmt(|buf| kind.write(buf, bytes))
     }
 
     fn base() -> Dialect {
         Dialect {
             positional_parameter: PositionalParameter::Simple(':'),
             bit_format: None,
-            supports_array: false,
-            supports_inet: false,
-            supports_mac_address: false,
+            array_format: ArrayFormat::None,
+            inet_format: InetFormat::None,
+            mac_format: MacFormat::None,
             null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Keyword,
@@ -621,6 +756,11 @@ mod tests {
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::Quote,
             bytes_format: BytesFormat::PrefixBigX,
+            date_format: TemporalLiteral::Quoted,
+            time_format: TemporalLiteral::Quoted,
+            timestamp_format: TemporalLiteral::Quoted,
+            json_format: JsonFormat::Quoted,
+            uuid_format: UuidFormat::Quoted,
             function_filter_syntax: None,
             ilike_expression_options: ILikeExpressionOptions::UseLike,
             supports_similar_to: false,
@@ -635,13 +775,10 @@ mod tests {
     }
 
     #[test]
-    fn quote_vs_quote_strip_nul() {
-        for kind in [StringEscape::Quote, StringEscape::QuoteStripNul] {
-            assert_eq!(escape(kind, "O'Brien"), "O''Brien");
-            assert_eq!(escape(kind, "'"), "''");
-        }
+    fn quote_doubles_apostrophe() {
+        assert_eq!(escape(StringEscape::Quote, "O'Brien"), "O''Brien");
+        assert_eq!(escape(StringEscape::Quote, "'"), "''");
         assert_eq!(escape(StringEscape::Quote, "a\0b"), "a\0b");
-        assert_eq!(escape(StringEscape::QuoteStripNul, "a\0b"), "ab");
     }
 
     #[test]
@@ -743,21 +880,32 @@ mod tests {
         assert_eq!(bytes(BytesFormat::PostfixXbv, empty), "''XBV");
         assert_eq!(bytes(BytesFormat::PostfixXbv, zero), "'00'XBV");
         assert_eq!(bytes(BytesFormat::PostfixXbv, dead), "'DEAD'XBV");
+
+        assert_eq!(bytes(BytesFormat::ToBinary, empty), "TO_BINARY('', 'HEX')");
+        assert_eq!(bytes(BytesFormat::ToBinary, zero), "TO_BINARY('00', 'HEX')");
+        assert_eq!(
+            bytes(BytesFormat::ToBinary, dead),
+            "TO_BINARY('DEAD', 'HEX')"
+        );
+
+        assert_eq!(bytes(BytesFormat::SlashXBlob, empty), "''::BLOB");
+        assert_eq!(bytes(BytesFormat::SlashXBlob, zero), "'\\x00'::BLOB");
+        assert_eq!(bytes(BytesFormat::SlashXBlob, dead), "'\\xDE\\xAD'::BLOB");
     }
 
     #[test]
     fn bit_format_literals() {
         let bits = "10110101";
         assert_eq!(
-            collect(|buf| BitFormat::PrefixBigB.write(buf, bits)),
+            collect_fmt(|buf| BitFormat::PrefixBigB.write(buf, bits)),
             "B'10110101'"
         );
         assert_eq!(
-            collect(|buf| BitFormat::PrefixSmallB.write(buf, bits)),
+            collect_fmt(|buf| BitFormat::PrefixSmallB.write(buf, bits)),
             "b'10110101'"
         );
         assert_eq!(
-            collect(|buf| BitFormat::PostfixBigB.write(buf, bits)),
+            collect_fmt(|buf| BitFormat::PostfixBigB.write(buf, bits)),
             "'10110101'B"
         );
 
@@ -771,17 +919,36 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "bit_format is None")]
-    fn format_bits_panics_when_unsupported() {
+    fn format_bits_errors_when_unsupported() {
         let cfg = base();
-        let _ = cfg.format_bits(&mut String::new(), "1");
+        assert_eq!(
+            cfg.format_bits(&mut String::new(), "1"),
+            Err(FormatError::Unsupported("BitSerializer"))
+        );
     }
 
     #[test]
-    fn write_string_literal_prefix_big_e_backslash_hex() {
+    fn write_string_literal_rejects_nul() {
+        let cfg = base();
+        assert_eq!(
+            cfg.write_string_literal(&mut String::new(), "a\0b"),
+            Err(FormatError::NulInString)
+        );
+    }
+
+    #[test]
+    fn write_string_literal_prefix_big_e_when_needed() {
         let mut cfg = base();
         cfg.string_format = StringFormat::PrefixBigE;
         cfg.string_escape = StringEscape::BackslashHex;
+        assert_eq!(
+            collect(|buf| cfg.write_string_literal(buf, "hello")),
+            "'hello'"
+        );
+        assert_eq!(
+            collect(|buf| cfg.write_string_literal(buf, "O'Brien")),
+            "'O''Brien'"
+        );
         assert_eq!(
             collect(|buf| cfg.write_string_literal(buf, "hello'world\n")),
             "E'hello\\'world\\n'"
