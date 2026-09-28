@@ -2,7 +2,6 @@
 /target
 __pycache__/
 *.so
-backup/
-backup-py/
 /.vscode
 /*_cache
+/.zed
