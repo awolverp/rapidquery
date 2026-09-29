@@ -97,23 +97,6 @@ impl SerializerEnum {
         }
     }
 
-    /// Whether `dialect` can emit a native literal for this serializer.
-    #[inline]
-    pub fn is_supported_by(&self, dialect: &crate::dialect::inner::Dialect) -> bool {
-        match self {
-            Self::Bit => dialect.bit_format.is_some(),
-            Self::Array(_) => !matches!(
-                dialect.array_format,
-                crate::dialect::inner::ArrayFormat::None
-            ),
-            Self::Inet => !matches!(dialect.inet_format, crate::dialect::inner::InetFormat::None),
-            Self::MacAddress => {
-                !matches!(dialect.mac_format, crate::dialect::inner::MacFormat::None)
-            }
-            _ => true,
-        }
-    }
-
     pub fn infer_bound(bound: &alias::BoundObject) -> Self {
         unsafe {
             let object_ptr = bound.as_ptr();

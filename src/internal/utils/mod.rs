@@ -62,6 +62,9 @@ pub fn new_pynone<'py>(py: pyo3::Python<'py>) -> pyo3::Bound<'py, pyo3::PyAny> {
 }
 
 /// Converts smallvec into PyTuple using pyo3 FFI
+///
+/// # Safety
+/// The items returned by the iterator must be owned, not borrowed.
 #[inline]
 pub unsafe fn iterator_to_tuple<
     'py,

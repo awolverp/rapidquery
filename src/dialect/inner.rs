@@ -128,7 +128,7 @@ pub enum StringConcatSyntax {
     /// `left + right`. SQL Server `||` is 2025+; classic concat is `+`.
     Plus,
     /// `CONCAT(left, right)`. MySQL `||` is logical OR unless `PIPES_AS_CONCAT`.
-    Concat,
+    ConcatFunction,
 }
 
 /// How [`crate::expr::enum_::BinaryOp::BitXor`] (`^`) is spelled.
@@ -141,9 +141,9 @@ pub enum BitXorSyntax {
     /// `left # right`. PostgreSQL `^` is exponent.
     Hash,
     /// `xor(left, right)`.
-    XorCall,
+    XORFunction,
     /// `BITXOR(left, right)`.
-    BitXorCall,
+    BitXORFunction,
 }
 
 /// How [`crate::expr::enum_::BinaryOp::Mod`] (`%`) is spelled.
@@ -152,7 +152,7 @@ pub enum ModuloSyntax {
     /// `left % right`.
     Percent,
     /// `MOD(left, right)`.
-    Call,
+    Function,
     /// `left MOD right`. Teradata's arithmetic operator; `MOD()` is an ODBC extension.
     Infix,
 }
@@ -175,7 +175,9 @@ pub enum IsDistinctFromSyntax {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TupleSyntax {
     /// `ROW(...)`. `empty_ok` allows arity 0 (`ROW()`).
-    Row { empty_ok: bool },
+    Row,
+    /// `ROW(...)`. Rejects empty (`ROW()`).
+    RowRejectEmpty,
     /// `struct(...)`. Arity 0 is unsupported.
     Struct,
     /// `(a, b, ...)`. Arity 0 and 1 are unsupported.
@@ -358,7 +360,6 @@ pub enum FunctionFilterSyntax {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ArrayFormat {
-    None,
     /// `ARRAY[…]`
     Constructor,
     /// `[…]`
@@ -369,7 +370,6 @@ pub enum ArrayFormat {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum InetFormat {
-    None,
     Quoted,
     /// `'…'::inet`
     Cast,
@@ -377,7 +377,6 @@ pub enum InetFormat {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MacFormat {
-    None,
     Quoted,
     /// `'…'::macaddr`
     Cast,
@@ -420,9 +419,9 @@ pub struct Dialect {
     ///
     /// Set [`Option::None`] if literal bit isn't supported.
     pub bit_format: Option<BitFormat>,
-    pub array_format: ArrayFormat,
-    pub inet_format: InetFormat,
-    pub mac_format: MacFormat,
+    pub array_format: Option<ArrayFormat>,
+    pub inet_format: Option<InetFormat>,
+    pub mac_format: Option<MacFormat>,
     /// How the dialect supports `{IGNORE|RESPECT} NULLS` expressions in `Function`s if supported.
     pub null_treatment_syntax: Option<NullTreatmentSyntax>,
     /// How `LIKE ANY` / `ILIKE ANY` is rendered.
@@ -745,9 +744,9 @@ mod tests {
         Dialect {
             positional_parameter: PositionalParameter::Simple(':'),
             bit_format: None,
-            array_format: ArrayFormat::None,
-            inet_format: InetFormat::None,
-            mac_format: MacFormat::None,
+            array_format: None,
+            inet_format: None,
+            mac_format: None,
             null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Keyword,

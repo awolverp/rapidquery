@@ -6,6 +6,7 @@ use crate::dialect::inner::{
 use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
 use std::fmt::Write;
 
+#[inline]
 fn unsupported(message: &'static str) -> crate::sql::PrepareError {
     rapidquery_macros::pyerr!(PyRuntimeError, message).into()
 }
@@ -17,24 +18,6 @@ fn join_reprs(py: pyo3::Python<'_>, buf: &mut String, items: &[ExprInner]) -> py
         }
         buf.push_str(&item.python_repr(py)?);
     }
-    Ok(())
-}
-
-pub(super) fn write_escape<W: SqlWriter>(
-    dialect: &PySqlDialect,
-    out: &mut W,
-    escape: Option<char>,
-) -> PrepareResult<()> {
-    let Some(c) = escape else {
-        return Ok(());
-    };
-
-    out.push_str(" ESCAPE ");
-    let mut buf = [0u8; 4];
-    dialect
-        .0
-        .write_string_literal(out, c.encode_utf8(&mut buf))?;
-
     Ok(())
 }
 
@@ -65,8 +48,11 @@ impl WriteSql for Tuple {
 
         let arity = self.items.len();
         match syntax {
-            TupleSyntax::Row { empty_ok } => {
-                if arity == 0 && !empty_ok {
+            TupleSyntax::Row => {
+                out.push_str("ROW(");
+            }
+            TupleSyntax::RowRejectEmpty => {
+                if arity == 0 {
                     return Err(unsupported("empty tuple is not supported by this dialect"));
                 }
                 out.push_str("ROW(");
@@ -158,7 +144,8 @@ impl Binary {
     }
 }
 
-fn is_arithmetic(op: &BinaryOp) -> bool {
+#[inline]
+fn is_arithmetic_binary_op(op: &BinaryOp) -> bool {
     matches!(
         op,
         BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod
@@ -166,6 +153,7 @@ fn is_arithmetic(op: &BinaryOp) -> bool {
 }
 
 /// `name(left, right)` with an unquoted function name.
+#[inline]
 fn write_binary_call<W: SqlWriter>(
     dialect: &PySqlDialect,
     out: &mut W,
@@ -188,6 +176,7 @@ fn write_binary_call<W: SqlWriter>(
 /// `+` used as concat) needs that because dialect precedence disagrees with
 /// the tree: SQLite binds `||` tighter than arithmetic, and MsSql `+` is the
 /// same token as addition.
+#[inline]
 fn write_infix<W: SqlWriter>(
     bin: &Binary,
     dialect: &PySqlDialect,
@@ -203,6 +192,7 @@ fn write_infix<W: SqlWriter>(
     write_infix_side(dialect, out, &bin.right, prec, true, paren_arithmetic)
 }
 
+#[inline]
 fn write_infix_side<W: SqlWriter>(
     dialect: &PySqlDialect,
     out: &mut W,
@@ -211,7 +201,7 @@ fn write_infix_side<W: SqlWriter>(
     paren_if_equal: bool,
     paren_arithmetic: bool,
 ) -> PrepareResult<()> {
-    if paren_arithmetic && matches!(expr, ExprInner::Binary(b) if is_arithmetic(&b.op)) {
+    if paren_arithmetic && matches!(expr, ExprInner::Binary(b) if is_arithmetic_binary_op(&b.op)) {
         out.push_char('(');
         expr.write_sql(dialect, out)?;
         out.push_char(')');
@@ -220,52 +210,34 @@ fn write_infix_side<W: SqlWriter>(
     expr.write_operand(dialect, out, prec, paren_if_equal)
 }
 
-fn write_concat<W: SqlWriter>(
-    bin: &Binary,
-    dialect: &PySqlDialect,
-    out: &mut W,
-) -> PrepareResult<()> {
-    match dialect.0.string_concat_syntax {
-        StringConcatSyntax::Concat => {
-            write_binary_call(dialect, out, "CONCAT", &bin.left, &bin.right)
-        }
-        StringConcatSyntax::Pipes => write_infix(bin, dialect, out, "||", true),
-        StringConcatSyntax::Plus => write_infix(bin, dialect, out, "+", true),
-    }
-}
-
-fn write_bitxor<W: SqlWriter>(
-    bin: &Binary,
-    dialect: &PySqlDialect,
-    out: &mut W,
-) -> PrepareResult<()> {
-    match dialect.0.bit_xor_syntax {
-        None => Err(unsupported("bitwise XOR is not supported by this dialect")),
-        Some(BitXorSyntax::Caret) => write_infix(bin, dialect, out, "^", false),
-        Some(BitXorSyntax::Hash) => write_infix(bin, dialect, out, "#", false),
-        Some(BitXorSyntax::XorCall) => {
-            write_binary_call(dialect, out, "xor", &bin.left, &bin.right)
-        }
-        Some(BitXorSyntax::BitXorCall) => {
-            write_binary_call(dialect, out, "BITXOR", &bin.left, &bin.right)
-        }
-    }
-}
-
-fn write_mod<W: SqlWriter>(bin: &Binary, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
-    match dialect.0.modulo_syntax {
-        ModuloSyntax::Percent => write_infix(bin, dialect, out, "%", false),
-        ModuloSyntax::Call => write_binary_call(dialect, out, "MOD", &bin.left, &bin.right),
-        ModuloSyntax::Infix => write_infix(bin, dialect, out, "MOD", false),
-    }
-}
-
 impl WriteSql for Binary {
     fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
         match &self.op {
-            BinaryOp::StringConcat => write_concat(self, dialect, out),
-            BinaryOp::BitXor => write_bitxor(self, dialect, out),
-            BinaryOp::Mod => write_mod(self, dialect, out),
+            BinaryOp::StringConcat => match dialect.0.string_concat_syntax {
+                StringConcatSyntax::ConcatFunction => {
+                    write_binary_call(dialect, out, "CONCAT", &self.left, &self.right)
+                }
+                StringConcatSyntax::Pipes => write_infix(self, dialect, out, "||", true),
+                StringConcatSyntax::Plus => write_infix(self, dialect, out, "+", true),
+            },
+            BinaryOp::BitXor => match dialect.0.bit_xor_syntax {
+                None => Err(unsupported("bitwise XOR is not supported by this dialect")),
+                Some(BitXorSyntax::Caret) => write_infix(self, dialect, out, "^", false),
+                Some(BitXorSyntax::Hash) => write_infix(self, dialect, out, "#", false),
+                Some(BitXorSyntax::XORFunction) => {
+                    write_binary_call(dialect, out, "xor", &self.left, &self.right)
+                }
+                Some(BitXorSyntax::BitXORFunction) => {
+                    write_binary_call(dialect, out, "BITXOR", &self.left, &self.right)
+                }
+            },
+            BinaryOp::Mod => match dialect.0.modulo_syntax {
+                ModuloSyntax::Percent => write_infix(self, dialect, out, "%", false),
+                ModuloSyntax::Function => {
+                    write_binary_call(dialect, out, "MOD", &self.left, &self.right)
+                }
+                ModuloSyntax::Infix => write_infix(self, dialect, out, "MOD", false),
+            },
             _ => write_infix(self, dialect, out, self.op.as_sql(), false),
         }
     }

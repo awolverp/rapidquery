@@ -1,12 +1,30 @@
 //! `LIKE` / `ILIKE` / `LIKE ANY` / `SIMILAR TO` / `RLIKE` AST nodes.
 
-use super::{ExprInner, nodes::write_escape};
+use super::ExprInner;
 use crate::dialect::{
     PySqlDialect,
     inner::{LikeAnySyntax, RLikeExpressionOptions},
 };
 use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
 use std::fmt::Write;
+
+pub(super) fn write_escape<W: SqlWriter>(
+    dialect: &PySqlDialect,
+    out: &mut W,
+    escape: Option<char>,
+) -> PrepareResult<()> {
+    let Some(c) = escape else {
+        return Ok(());
+    };
+
+    out.push_str(" ESCAPE ");
+    let mut buf = [0u8; 4];
+    dialect
+        .0
+        .write_string_literal(out, c.encode_utf8(&mut buf))?;
+
+    Ok(())
+}
 
 /// Pattern side of [`Like`]: one expression, or a non-empty ANY list.
 #[derive(Clone, Debug, PartialEq)]

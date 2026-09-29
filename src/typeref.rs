@@ -6,24 +6,6 @@ pub(crate) static mut SQL_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr:
 // Data-type / serializer types
 pub(crate) static mut DATATYPE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut INTEGER_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut FLOAT_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut BOOLEAN_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut STRING_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut UUID_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut BYTES_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut BIT_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut JSON_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut DATE_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut TIME_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut DATETIME_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut INET_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut MACADDRESS_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject =
-    std::ptr::null_mut();
-pub(crate) static mut UNSPECIFIED_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject =
-    std::ptr::null_mut();
-pub(crate) static mut ARRAY_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut CUSTOM_SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
 // Ident types
 pub(crate) static mut IDENT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -42,7 +24,6 @@ pub(crate) static mut STD_UUID_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::nu
 pub(crate) static mut STD_DATETIME_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut STD_DATE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut STD_TIME_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-// pub(crate) static mut STD_ENUM_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
 unsafe fn get_type_object_for<T: pyo3::PyTypeInfo>(
     py: pyo3::Python,
@@ -93,22 +74,6 @@ fn _initialize_typeref(py: pyo3::Python) {
             // data types / serializers
             crate::data_type::PyDataType => DATATYPE_TYPE,
             crate::data_type::PySerializer => SERIALIZER_TYPE,
-            crate::data_type::PyIntegerSerializer => INTEGER_SERIALIZER_TYPE,
-            crate::data_type::PyFloatSerializer => FLOAT_SERIALIZER_TYPE,
-            crate::data_type::PyBooleanSerializer => BOOLEAN_SERIALIZER_TYPE,
-            crate::data_type::PyStringSerializer => STRING_SERIALIZER_TYPE,
-            crate::data_type::PyUuidSerializer => UUID_SERIALIZER_TYPE,
-            crate::data_type::PyBytesSerializer => BYTES_SERIALIZER_TYPE,
-            crate::data_type::PyBitSerializer => BIT_SERIALIZER_TYPE,
-            crate::data_type::PyJSONSerializer => JSON_SERIALIZER_TYPE,
-            crate::data_type::PyDateSerializer => DATE_SERIALIZER_TYPE,
-            crate::data_type::PyTimeSerializer => TIME_SERIALIZER_TYPE,
-            crate::data_type::PyDatetimeSerializer => DATETIME_SERIALIZER_TYPE,
-            crate::data_type::PyInetSerializer => INET_SERIALIZER_TYPE,
-            crate::data_type::PyMacAddressSerializer => MACADDRESS_SERIALIZER_TYPE,
-            crate::data_type::PyUnspecifiedSerializer => UNSPECIFIED_SERIALIZER_TYPE,
-            crate::data_type::PyArraySerializer => ARRAY_SERIALIZER_TYPE,
-            crate::data_type::PyCustomSerializer => CUSTOM_SERIALIZER_TYPE,
             crate::expr::base::PyExpr => EXPR_TYPE,
             crate::expr::ident::PyIdent => IDENT_TYPE,
             crate::expr::ident::PyUnquote => UNQUOTE_TYPE,
@@ -118,7 +83,6 @@ fn _initialize_typeref(py: pyo3::Python) {
 
         STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");
         STD_UUID_TYPE = look_up_type_object(c"uuid", c"UUID");
-        // STD_ENUM_TYPE = look_up_type_object(c"enum", c"EnumMeta");
 
         pyo3::ffi::PyDateTime_IMPORT();
         let datetime_capsule = pyo3::ffi::PyCapsule_Import(c"datetime.datetime_CAPI".as_ptr(), 1)

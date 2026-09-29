@@ -97,75 +97,6 @@ fn write_temporal(
     write_quoted(dialect, out, raw)
 }
 
-#[inline]
-fn write_uuid_text(dialect: &Dialect, out: &mut String, raw: &str) -> pyo3::PyResult<()> {
-    match dialect.uuid_format {
-        UuidFormat::Quoted => write_quoted(dialect, out, raw),
-        UuidFormat::UuidKeyword => {
-            out.push_str("UUID ");
-            write_quoted(dialect, out, raw)
-        }
-        UuidFormat::CastUuid => {
-            write_quoted(dialect, out, raw)?;
-            out.push_str("::uuid");
-            Ok(())
-        }
-    }
-}
-
-#[inline]
-fn write_json_text(dialect: &Dialect, out: &mut String, raw: &str) -> pyo3::PyResult<()> {
-    match dialect.json_format {
-        JsonFormat::Quoted => write_quoted(dialect, out, raw),
-        JsonFormat::JsonKeyword => {
-            out.push_str("JSON ");
-            write_quoted(dialect, out, raw)
-        }
-        JsonFormat::ParseJson => {
-            out.push_str("PARSE_JSON(");
-            write_quoted(dialect, out, raw)?;
-            out.push(')');
-            Ok(())
-        }
-        JsonFormat::CastJson => {
-            write_quoted(dialect, out, raw)?;
-            out.push_str("::json");
-            Ok(())
-        }
-        JsonFormat::CastJsonb => {
-            write_quoted(dialect, out, raw)?;
-            out.push_str("::jsonb");
-            Ok(())
-        }
-    }
-}
-
-#[inline]
-fn write_inet_text(dialect: &Dialect, out: &mut String, raw: &str) -> pyo3::PyResult<()> {
-    match dialect.inet_format {
-        InetFormat::None => Err(FormatError::Unsupported("InetSerializer").into()),
-        InetFormat::Quoted => write_quoted(dialect, out, raw),
-        InetFormat::Cast => {
-            write_quoted(dialect, out, raw)?;
-            out.push_str("::inet");
-            Ok(())
-        }
-    }
-}
-
-#[inline]
-fn write_mac_text(dialect: &Dialect, out: &mut String, raw: &str) -> pyo3::PyResult<()> {
-    match dialect.mac_format {
-        MacFormat::None => Err(FormatError::Unsupported("MacAddressSerializer").into()),
-        MacFormat::Quoted => write_quoted(dialect, out, raw),
-        MacFormat::Cast => {
-            write_quoted(dialect, out, raw)?;
-            out.push_str("::macaddr");
-            Ok(())
-        }
-    }
-}
-
 /// Serializes any Python `int` as a bare decimal literal (`str(int)`),
 /// including values beyond i64/u64. `bool` is rejected (`PyLong_CheckExact`).
 ///
@@ -275,6 +206,22 @@ unsafe fn write_str(
     )
 }
 
+#[inline]
+fn write_uuid_text(dialect: &Dialect, out: &mut String, raw: &str) -> pyo3::PyResult<()> {
+    match dialect.uuid_format {
+        UuidFormat::Quoted => write_quoted(dialect, out, raw),
+        UuidFormat::UuidKeyword => {
+            out.push_str("UUID ");
+            write_quoted(dialect, out, raw)
+        }
+        UuidFormat::CastUuid => {
+            write_quoted(dialect, out, raw)?;
+            out.push_str("::uuid");
+            Ok(())
+        }
+    }
+}
+
 /// # Safety
 /// `ptr` must be *borrowed*, non-null, and a valid Python object.
 #[inline]
@@ -349,6 +296,33 @@ unsafe fn write_bit(
             "expected str of bits for bit serialization, got {}",
             get_type_name(py, ptr)
         )
+    }
+}
+
+#[inline]
+fn write_json_text(dialect: &Dialect, out: &mut String, raw: &str) -> pyo3::PyResult<()> {
+    match dialect.json_format {
+        JsonFormat::Quoted => write_quoted(dialect, out, raw),
+        JsonFormat::JsonKeyword => {
+            out.push_str("JSON ");
+            write_quoted(dialect, out, raw)
+        }
+        JsonFormat::ParseJson => {
+            out.push_str("PARSE_JSON(");
+            write_quoted(dialect, out, raw)?;
+            out.push(')');
+            Ok(())
+        }
+        JsonFormat::CastJson => {
+            write_quoted(dialect, out, raw)?;
+            out.push_str("::json");
+            Ok(())
+        }
+        JsonFormat::CastJsonb => {
+            write_quoted(dialect, out, raw)?;
+            out.push_str("::jsonb");
+            Ok(())
+        }
     }
 }
 
@@ -503,7 +477,16 @@ unsafe fn write_inet(
     let net = ipnetwork::IpNetwork::from_str(&text)
         .map(|net| net.to_string())
         .map_err(|e| rapidquery_macros::pyerr!(PyValueError, e.to_string()))?;
-    write_inet_text(dialect, out, &net)
+
+    match dialect.inet_format {
+        None => Err(FormatError::Unsupported("InetSerializer").into()),
+        Some(InetFormat::Quoted) => write_quoted(dialect, out, &net),
+        Some(InetFormat::Cast) => {
+            write_quoted(dialect, out, &net)?;
+            out.push_str("::inet");
+            Ok(())
+        }
+    }
 }
 
 /// # Safety
@@ -520,7 +503,15 @@ unsafe fn write_mac_address(
         .map(|mac| mac.to_string())
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
 
-    write_mac_text(dialect, out, &addr)
+    match dialect.mac_format {
+        None => Err(FormatError::Unsupported("MacAddressSerializer").into()),
+        Some(MacFormat::Quoted) => write_quoted(dialect, out, &addr),
+        Some(MacFormat::Cast) => {
+            write_quoted(dialect, out, &addr)?;
+            out.push_str("::macaddr");
+            Ok(())
+        }
+    }
 }
 
 /// # Safety
@@ -553,18 +544,18 @@ unsafe fn write_array(
     };
 
     let close = match dialect.0.array_format {
-        ArrayFormat::None => {
+        None => {
             return Err(FormatError::Unsupported("ArraySerializer").into());
         }
-        ArrayFormat::Constructor => {
+        Some(ArrayFormat::Constructor) => {
             out.push_str("ARRAY[");
             ']'
         }
-        ArrayFormat::List => {
+        Some(ArrayFormat::List) => {
             out.push('[');
             ']'
         }
-        ArrayFormat::Function => {
+        Some(ArrayFormat::Function) => {
             out.push_str("array(");
             ')'
         }

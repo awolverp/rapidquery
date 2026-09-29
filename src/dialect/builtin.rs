@@ -32,15 +32,14 @@ macro_rules! impl_builtin_dialects {
 }
 
 impl_builtin_dialects!(
-
     /// BigQuery SQL dialect.
     PyBigQuery = "BigQuery" {
         Dialect {
             positional_parameter: PositionalParameter::Simple('?'),
             bit_format: None,
-            array_format: ArrayFormat::Constructor,
-            inet_format: InetFormat::None,
-            mac_format: MacFormat::None,
+            array_format: Some(ArrayFormat::Constructor),
+            inet_format: None,
+            mac_format: None,
             null_treatment_syntax: Some(NullTreatmentSyntax::InsideParens),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Keyword,
@@ -72,9 +71,9 @@ impl_builtin_dialects!(
         Dialect {
             positional_parameter: PositionalParameter::Simple('?'),
             bit_format: None,
-            array_format: ArrayFormat::None,
-            inet_format: InetFormat::None,
-            mac_format: MacFormat::None,
+            array_format: None,
+            inet_format: None,
+            mac_format: None,
             null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::PatternList,
             bool_format: BoolFormat::Keyword,
@@ -106,9 +105,9 @@ impl_builtin_dialects!(
         Dialect {
             positional_parameter: PositionalParameter::Numbered('$'),
             bit_format: Some(BitFormat::PrefixBigB),
-            array_format: ArrayFormat::List,
-            inet_format: InetFormat::Cast,
-            mac_format: MacFormat::None,
+            array_format: Some(ArrayFormat::List),
+            inet_format: Some(InetFormat::Cast),
+            mac_format: None,
             null_treatment_syntax: Some(NullTreatmentSyntax::InsideParens),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Keyword,
@@ -127,10 +126,10 @@ impl_builtin_dialects!(
             supports_similar_to: true,
             rlike_expression_options: Some(RLikeExpressionOptions::RegexpMatches),
             string_concat_syntax: StringConcatSyntax::Pipes,
-            bit_xor_syntax: Some(BitXorSyntax::XorCall),
+            bit_xor_syntax: Some(BitXorSyntax::XORFunction),
             modulo_syntax: ModuloSyntax::Percent,
             is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
-            tuple_syntax: Some(TupleSyntax::Row { empty_ok: true }),
+            tuple_syntax: Some(TupleSyntax::Row),
             parenthesize_in_between: false,
         }
     }
@@ -140,9 +139,9 @@ impl_builtin_dialects!(
         Dialect {
             positional_parameter: PositionalParameter::Simple('?'),
             bit_format: None,
-            array_format: ArrayFormat::Function,
-            inet_format: InetFormat::None,
-            mac_format: MacFormat::None,
+            array_format: Some(ArrayFormat::Function),
+            inet_format: None,
+            mac_format: None,
             null_treatment_syntax: None,
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Keyword,
@@ -174,9 +173,9 @@ impl_builtin_dialects!(
         Dialect {
             positional_parameter: PositionalParameter::Simple('?'),
             bit_format: None,
-            array_format: ArrayFormat::None,
-            inet_format: InetFormat::None,
-            mac_format: MacFormat::None,
+            array_format: None,
+            inet_format: None,
+            mac_format: None,
             null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Int,
@@ -208,9 +207,9 @@ impl_builtin_dialects!(
         Dialect {
             positional_parameter: PositionalParameter::Simple('?'),
             bit_format: Some(BitFormat::PrefixSmallB),
-            array_format: ArrayFormat::None,
-            inet_format: InetFormat::None,
-            mac_format: MacFormat::None,
+            array_format: None,
+            inet_format: None,
+            mac_format: None,
             null_treatment_syntax: None,
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Int,
@@ -228,11 +227,11 @@ impl_builtin_dialects!(
             ilike_expression_options: ILikeExpressionOptions::UseLike,
             supports_similar_to: false,
             rlike_expression_options: Some(RLikeExpressionOptions::InfixRLike),
-            string_concat_syntax: StringConcatSyntax::Concat,
+            string_concat_syntax: StringConcatSyntax::ConcatFunction,
             bit_xor_syntax: Some(BitXorSyntax::Caret),
             modulo_syntax: ModuloSyntax::Percent,
             is_distinct_from_syntax: Some(IsDistinctFromSyntax::NullSafeEqual),
-            tuple_syntax: Some(TupleSyntax::Row { empty_ok: false }),
+            tuple_syntax: Some(TupleSyntax::RowRejectEmpty),
             parenthesize_in_between: false,
         }
     }
@@ -242,9 +241,9 @@ impl_builtin_dialects!(
         Dialect {
             positional_parameter: PositionalParameter::Numbered(':'),
             bit_format: None,
-            array_format: ArrayFormat::None,
-            inet_format: InetFormat::None,
-            mac_format: MacFormat::None,
+            array_format: None,
+            inet_format: None,
+            mac_format: None,
             null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Int,
@@ -264,7 +263,7 @@ impl_builtin_dialects!(
             rlike_expression_options: Some(RLikeExpressionOptions::RegexpLike),
             string_concat_syntax: StringConcatSyntax::Pipes,
             bit_xor_syntax: None,
-            modulo_syntax: ModuloSyntax::Call,
+            modulo_syntax: ModuloSyntax::Function,
             is_distinct_from_syntax: None,
             tuple_syntax: None,
             parenthesize_in_between: false,
@@ -276,9 +275,9 @@ impl_builtin_dialects!(
         Dialect {
             positional_parameter: PositionalParameter::Numbered('$'),
             bit_format: Some(BitFormat::PrefixBigB),
-            array_format: ArrayFormat::Constructor,
-            inet_format: InetFormat::Cast,
-            mac_format: MacFormat::Cast,
+            array_format: Some(ArrayFormat::Constructor),
+            inet_format: Some(InetFormat::Cast),
+            mac_format: Some(MacFormat::Cast),
             null_treatment_syntax: None,
             like_any_syntax: LikeAnySyntax::ArrayConstructor,
             bool_format: BoolFormat::Keyword,
@@ -300,7 +299,7 @@ impl_builtin_dialects!(
             bit_xor_syntax: Some(BitXorSyntax::Hash),
             modulo_syntax: ModuloSyntax::Percent,
             is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
-            tuple_syntax: Some(TupleSyntax::Row { empty_ok: true }),
+            tuple_syntax: Some(TupleSyntax::Row),
             parenthesize_in_between: false,
         }
     }
@@ -310,9 +309,9 @@ impl_builtin_dialects!(
         Dialect {
             positional_parameter: PositionalParameter::Numbered('$'),
             bit_format: None,
-            array_format: ArrayFormat::None,
-            inet_format: InetFormat::None,
-            mac_format: MacFormat::None,
+            array_format: None,
+            inet_format: None,
+            mac_format: None,
             null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Keyword,
@@ -344,9 +343,9 @@ impl_builtin_dialects!(
         Dialect {
             positional_parameter: PositionalParameter::Numbered(':'),
             bit_format: None,
-            array_format: ArrayFormat::None,
-            inet_format: InetFormat::None,
-            mac_format: MacFormat::None,
+            array_format: None,
+            inet_format: None,
+            mac_format: None,
             null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::PatternList,
             bool_format: BoolFormat::Keyword,
@@ -365,7 +364,7 @@ impl_builtin_dialects!(
             supports_similar_to: false,
             rlike_expression_options: Some(RLikeExpressionOptions::InfixRLike),
             string_concat_syntax: StringConcatSyntax::Pipes,
-            bit_xor_syntax: Some(BitXorSyntax::BitXorCall),
+            bit_xor_syntax: Some(BitXorSyntax::BitXORFunction),
             modulo_syntax: ModuloSyntax::Percent,
             is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
             tuple_syntax: None,
@@ -378,9 +377,9 @@ impl_builtin_dialects!(
         Dialect {
             positional_parameter: PositionalParameter::Simple('?'),
             bit_format: None,
-            array_format: ArrayFormat::Function,
-            inet_format: InetFormat::None,
-            mac_format: MacFormat::None,
+            array_format: Some(ArrayFormat::Function),
+            inet_format: None,
+            mac_format: None,
             null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::PatternList,
             bool_format: BoolFormat::Keyword,
@@ -412,9 +411,9 @@ impl_builtin_dialects!(
         Dialect {
             positional_parameter: PositionalParameter::Numbered('?'),
             bit_format: None,
-            array_format: ArrayFormat::None,
-            inet_format: InetFormat::None,
-            mac_format: MacFormat::None,
+            array_format: None,
+            inet_format: None,
+            mac_format: None,
             null_treatment_syntax: None,
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Int,
@@ -446,9 +445,9 @@ impl_builtin_dialects!(
         Dialect {
             positional_parameter: PositionalParameter::Simple('?'),
             bit_format: Some(BitFormat::PostfixBigB),
-            array_format: ArrayFormat::None,
-            inet_format: InetFormat::None,
-            mac_format: MacFormat::None,
+            array_format: None,
+            inet_format: None,
+            mac_format: None,
             null_treatment_syntax: Some(NullTreatmentSyntax::InsideParens),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Keyword,
@@ -467,7 +466,7 @@ impl_builtin_dialects!(
             supports_similar_to: false,
             rlike_expression_options: None,
             string_concat_syntax: StringConcatSyntax::Pipes,
-            bit_xor_syntax: Some(BitXorSyntax::BitXorCall),
+            bit_xor_syntax: Some(BitXorSyntax::BitXORFunction),
             modulo_syntax: ModuloSyntax::Infix,
             is_distinct_from_syntax: None,
             tuple_syntax: None,
@@ -527,10 +526,10 @@ mod tests {
         expect(
             PyDuckDb::CONFIG,
             Pipes,
-            Some(XorCall),
+            Some(XORFunction),
             Percent,
             Some(Standard),
-            Some(Row { empty_ok: true }),
+            Some(Row),
             false,
         );
         expect(
@@ -553,28 +552,28 @@ mod tests {
         );
         expect(
             PyMySql::CONFIG,
-            Concat,
+            ConcatFunction,
             Some(Caret),
             Percent,
             Some(NullSafeEqual),
-            Some(Row { empty_ok: false }),
+            Some(RowRejectEmpty),
             false,
         );
-        expect(PyOracle::CONFIG, Pipes, None, Call, None, None, false);
+        expect(PyOracle::CONFIG, Pipes, None, Function, None, None, false);
         expect(
             PyPostgreSql::CONFIG,
             Pipes,
             Some(Hash),
             Percent,
             Some(Standard),
-            Some(Row { empty_ok: true }),
+            Some(Row),
             false,
         );
         expect(PyRedshift::CONFIG, Pipes, None, Percent, None, None, false);
         expect(
             PySnowflake::CONFIG,
             Pipes,
-            Some(BitXorCall),
+            Some(BitXORFunction),
             Percent,
             Some(Standard),
             None,
@@ -601,7 +600,7 @@ mod tests {
         expect(
             PyTeradata::CONFIG,
             Pipes,
-            Some(BitXorCall),
+            Some(BitXORFunction),
             Infix,
             None,
             None,
