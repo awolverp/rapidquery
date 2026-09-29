@@ -194,12 +194,13 @@ impl IsKind {
     }
 }
 
-/// Unary operator.
+/// `CAST` / `TRY_CAST` / `::`. Dialect spelling of `TRY_CAST` is chosen at render time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CastKind {
     Cast,
     TryCast,
-    SafeCast,
+    /// `expr::type`. Opt-in; a plain `CAST` is never rewritten to this.
+    DoubleColon,
 }
 
 impl CastKind {
@@ -209,8 +210,8 @@ impl CastKind {
             Some(Self::Cast)
         } else if s.eq_ignore_ascii_case("TRY_CAST") {
             Some(Self::TryCast)
-        } else if s.eq_ignore_ascii_case("SAFE_CAST") {
-            Some(Self::SafeCast)
+        } else if s == "::" {
+            Some(Self::DoubleColon)
         } else {
             None
         }
@@ -221,7 +222,7 @@ impl CastKind {
         match self {
             Self::Cast => "CAST",
             Self::TryCast => "TRY_CAST",
-            Self::SafeCast => "SAFE_CAST",
+            Self::DoubleColon => "::",
         }
     }
 }

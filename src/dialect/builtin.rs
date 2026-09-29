@@ -63,6 +63,10 @@ impl_builtin_dialects!(
             is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
             tuple_syntax: None,
             parenthesize_in_between: false,
+            try_cast_syntax: Some(TryCastSyntax::SafeCast),
+            supports_double_colon: false,
+            trim_syntax: TrimSyntax::Function,
+            collate_syntax: Some(CollateSyntax::FunctionString),
         }
     }
 
@@ -97,6 +101,10 @@ impl_builtin_dialects!(
             is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
             tuple_syntax: Some(TupleSyntax::Struct),
             parenthesize_in_between: false,
+            try_cast_syntax: Some(TryCastSyntax::TryCast),
+            supports_double_colon: true,
+            trim_syntax: TrimSyntax::SqlFrom,
+            collate_syntax: Some(CollateSyntax::InfixIdent),
         }
     }
 
@@ -131,6 +139,10 @@ impl_builtin_dialects!(
             is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
             tuple_syntax: Some(TupleSyntax::Row),
             parenthesize_in_between: false,
+            try_cast_syntax: Some(TryCastSyntax::TryCast),
+            supports_double_colon: true,
+            trim_syntax: TrimSyntax::Function,
+            collate_syntax: Some(CollateSyntax::InfixIdent),
         }
     }
 
@@ -165,6 +177,10 @@ impl_builtin_dialects!(
             is_distinct_from_syntax: Some(IsDistinctFromSyntax::NullSafeEqual),
             tuple_syntax: Some(TupleSyntax::Struct),
             parenthesize_in_between: false,
+            try_cast_syntax: None,
+            supports_double_colon: false,
+            trim_syntax: TrimSyntax::SpacesOnly,
+            collate_syntax: None,
         }
     }
 
@@ -199,6 +215,10 @@ impl_builtin_dialects!(
             is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
             tuple_syntax: None,
             parenthesize_in_between: true,
+            try_cast_syntax: Some(TryCastSyntax::TryCast),
+            supports_double_colon: false,
+            trim_syntax: TrimSyntax::SqlFrom,
+            collate_syntax: Some(CollateSyntax::InfixIdent),
         }
     }
 
@@ -233,6 +253,10 @@ impl_builtin_dialects!(
             is_distinct_from_syntax: Some(IsDistinctFromSyntax::NullSafeEqual),
             tuple_syntax: Some(TupleSyntax::RowRejectEmpty),
             parenthesize_in_between: false,
+            try_cast_syntax: None,
+            supports_double_colon: false,
+            trim_syntax: TrimSyntax::SqlFrom,
+            collate_syntax: Some(CollateSyntax::InfixIdent),
         }
     }
 
@@ -267,6 +291,10 @@ impl_builtin_dialects!(
             is_distinct_from_syntax: None,
             tuple_syntax: None,
             parenthesize_in_between: false,
+            try_cast_syntax: None,
+            supports_double_colon: false,
+            trim_syntax: TrimSyntax::SqlFrom,
+            collate_syntax: Some(CollateSyntax::InfixIdent),
         }
     }
 
@@ -301,6 +329,10 @@ impl_builtin_dialects!(
             is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
             tuple_syntax: Some(TupleSyntax::Row),
             parenthesize_in_between: false,
+            try_cast_syntax: None,
+            supports_double_colon: true,
+            trim_syntax: TrimSyntax::SqlFrom,
+            collate_syntax: Some(CollateSyntax::InfixIdent),
         }
     }
 
@@ -335,6 +367,10 @@ impl_builtin_dialects!(
             is_distinct_from_syntax: None,
             tuple_syntax: None,
             parenthesize_in_between: false,
+            try_cast_syntax: Some(TryCastSyntax::TryCast),
+            supports_double_colon: true,
+            trim_syntax: TrimSyntax::SqlFrom,
+            collate_syntax: Some(CollateSyntax::FunctionString),
         }
     }
 
@@ -369,6 +405,10 @@ impl_builtin_dialects!(
             is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
             tuple_syntax: None,
             parenthesize_in_between: false,
+            try_cast_syntax: Some(TryCastSyntax::TryCast),
+            supports_double_colon: true,
+            trim_syntax: TrimSyntax::Function,
+            collate_syntax: Some(CollateSyntax::FunctionString),
         }
     }
 
@@ -403,6 +443,10 @@ impl_builtin_dialects!(
             is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
             tuple_syntax: Some(TupleSyntax::Struct),
             parenthesize_in_between: false,
+            try_cast_syntax: Some(TryCastSyntax::TryCast),
+            supports_double_colon: true,
+            trim_syntax: TrimSyntax::SqlFrom,
+            collate_syntax: None,
         }
     }
 
@@ -437,6 +481,10 @@ impl_builtin_dialects!(
             is_distinct_from_syntax: Some(IsDistinctFromSyntax::Standard),
             tuple_syntax: Some(TupleSyntax::Parentheses),
             parenthesize_in_between: false,
+            try_cast_syntax: None,
+            supports_double_colon: false,
+            trim_syntax: TrimSyntax::Function,
+            collate_syntax: Some(CollateSyntax::InfixIdent),
         }
     }
 
@@ -471,6 +519,10 @@ impl_builtin_dialects!(
             is_distinct_from_syntax: None,
             tuple_syntax: None,
             parenthesize_in_between: false,
+            try_cast_syntax: Some(TryCastSyntax::TryCastWord),
+            supports_double_colon: false,
+            trim_syntax: TrimSyntax::SqlFrom,
+            collate_syntax: None,
         }
     }
 
@@ -606,5 +658,75 @@ mod tests {
             None,
             false,
         );
+    }
+
+    #[test]
+    fn cast_trim_collate_matrix() {
+        use CollateSyntax::*;
+        use TrimSyntax::*;
+        use TryCastSyntax::*;
+
+        fn expect(
+            dialect: Dialect,
+            try_cast: Option<TryCastSyntax>,
+            double_colon: bool,
+            trim: TrimSyntax,
+            collate: Option<CollateSyntax>,
+        ) {
+            assert_eq!(dialect.try_cast_syntax, try_cast);
+            assert_eq!(dialect.supports_double_colon, double_colon);
+            assert_eq!(dialect.trim_syntax, trim);
+            assert_eq!(dialect.collate_syntax, collate);
+        }
+
+        expect(
+            PyBigQuery::CONFIG,
+            Some(SafeCast),
+            false,
+            Function,
+            Some(FunctionString),
+        );
+        expect(
+            PyDatabricks::CONFIG,
+            Some(TryCast),
+            true,
+            SqlFrom,
+            Some(InfixIdent),
+        );
+        expect(
+            PyDuckDb::CONFIG,
+            Some(TryCast),
+            true,
+            Function,
+            Some(InfixIdent),
+        );
+        expect(PyHive::CONFIG, None, false, SpacesOnly, None);
+        expect(
+            PyMsSql::CONFIG,
+            Some(TryCast),
+            false,
+            SqlFrom,
+            Some(InfixIdent),
+        );
+        expect(PyMySql::CONFIG, None, false, SqlFrom, Some(InfixIdent));
+        expect(PyOracle::CONFIG, None, false, SqlFrom, Some(InfixIdent));
+        expect(PyPostgreSql::CONFIG, None, true, SqlFrom, Some(InfixIdent));
+        expect(
+            PyRedshift::CONFIG,
+            Some(TryCast),
+            true,
+            SqlFrom,
+            Some(FunctionString),
+        );
+        expect(
+            PySnowflake::CONFIG,
+            Some(TryCast),
+            true,
+            Function,
+            Some(FunctionString),
+        );
+        expect(PySpark::CONFIG, Some(TryCast), true, SqlFrom, None);
+        expect(PySqlite::CONFIG, None, false, Function, Some(InfixIdent));
+        expect(PyTeradata::CONFIG, Some(TryCastWord), false, SqlFrom, None);
     }
 }

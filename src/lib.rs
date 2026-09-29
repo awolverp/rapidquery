@@ -18,6 +18,7 @@ pub mod typeref;
 // - Test `Expr` methods
 // - Benchmark and compare with old version
 // - Open PR
+// - Restore GenericDialect
 // - Start writing query ASTs.
 
 /// RapidQuery native extension.

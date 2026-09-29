@@ -1,7 +1,8 @@
 use super::{BinaryOp, CastKind, ExprInner, Ident, IsKind, TrimWhere, UnaryOp, UnarySpacing};
 use crate::dialect::PySqlDialect;
 use crate::dialect::inner::{
-    BitXorSyntax, IsDistinctFromSyntax, ModuloSyntax, StringConcatSyntax, TupleSyntax,
+    BitXorSyntax, CollateSyntax, IsDistinctFromSyntax, ModuloSyntax, StringConcatSyntax,
+    TrimSyntax, TupleSyntax,
 };
 use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
 use std::fmt::Write;
@@ -449,17 +450,15 @@ impl WriteSql for Between {
     }
 }
 
-/// `KIND(expr AS type [FORMAT format [AT TIME ZONE tz]])`.
+/// `CAST(expr AS type)`, `TRY_CAST(expr AS type)`, or `(expr)::type`.
 ///
-/// [`kind`](Self::kind) is `CAST` / `TRY_CAST` / `SAFE_CAST`. `FORMAT` and
-/// `AT TIME ZONE` are omitted when unset; timezone requires format.
+/// [`kind`](Self::kind) stays `CAST` / `TRY_CAST` / `::`. BigQuery spells
+/// `TRY_CAST` as `SAFE_CAST`; Teradata spells it as `TRYCAST`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Cast {
     pub kind: CastKind,
     pub expr: Box<ExprInner>,
     pub data_type_name: crate::data_type::DataTypeName,
-    pub format: Option<Box<ExprInner>>,
-    pub at_time_zone: Option<Box<ExprInner>>,
 }
 
 impl Cast {
@@ -474,48 +473,60 @@ impl Cast {
         if self.kind != CastKind::Cast {
             write!(buf, ", kind={:?}", self.kind.as_sql()).unwrap();
         }
-        if let Some(format) = &self.format {
-            write!(buf, ", format={}", format.python_repr(py)?).unwrap();
-        }
-        if let Some(tz) = &self.at_time_zone {
-            write!(buf, ", at_time_zone={}", tz.python_repr(py)?).unwrap();
-        }
         buf.push(')');
         Ok(buf)
     }
-}
 
-impl WriteSql for Cast {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
-        out.push_str(self.kind.as_sql());
+    fn write_call<W: SqlWriter>(
+        &self,
+        dialect: &PySqlDialect,
+        out: &mut W,
+        name: &str,
+    ) -> PrepareResult<()> {
+        out.push_str(name);
         out.push_char('(');
         self.expr.write_sql(dialect, out)?;
         out.push_str(" AS ");
         self.data_type_name.write_sql(dialect, out)?;
-        if let Some(format) = &self.format {
-            out.push_str(" FORMAT ");
-            format.write_sql(dialect, out)?;
-            if let Some(tz) = &self.at_time_zone {
-                out.push_str(" AT TIME ZONE ");
-                tz.write_sql(dialect, out)?;
-            }
-        }
         out.push_char(')');
         Ok(())
     }
 }
 
-/// `TRIM([BOTH|LEADING|TRAILING] [<what> FROM] <expr>[, chars…])`.
+impl WriteSql for Cast {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
+        match self.kind {
+            CastKind::Cast => self.write_call(dialect, out, "CAST"),
+            CastKind::TryCast => match dialect.0.try_cast_syntax {
+                Some(syntax) => self.write_call(dialect, out, syntax.as_sql()),
+                None => Err(unsupported("try cast is not supported by this dialect")),
+            },
+            CastKind::DoubleColon => {
+                if !dialect.0.supports_double_colon {
+                    return Err(unsupported(
+                        "double-colon cast is not supported by this dialect",
+                    ));
+                }
+                out.push_char('(');
+                self.expr.write_sql(dialect, out)?;
+                out.push_str(")::");
+                self.data_type_name.write_sql(dialect, out)?;
+                Ok(())
+            }
+        }
+    }
+}
+
+/// `TRIM` of [`expr`](Self::expr), optionally from one side, optionally of
+/// [`characters`](Self::characters).
 ///
-/// [`what`](Self::what) and [`characters`](Self::characters) are mutually
-/// exclusive. `characters` is never empty when `Some`.
+/// [`where_`](Self::where_) defaults to both ends. The SQL spelling is
+/// `TRIM([LEADING|TRAILING] [chars FROM] expr)` or `TRIM` / `LTRIM` / `RTRIM`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Trim {
     pub expr: Box<ExprInner>,
-    pub where_: Option<TrimWhere>,
-    pub what: Option<Box<ExprInner>>,
-    /// Comma-list form `TRIM(expr, c1, c2)`. Never empty when `Some`.
-    pub characters: Option<Vec<ExprInner>>,
+    pub where_: TrimWhere,
+    pub characters: Option<Box<ExprInner>>,
 }
 
 impl Trim {
@@ -523,47 +534,77 @@ impl Trim {
 
     pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
         let mut buf = format!("TrimExpr({}", self.expr.python_repr(py)?);
-        if let Some(where_) = self.where_ {
-            write!(buf, ", where={:?}", where_.as_sql()).unwrap();
-        }
-        if let Some(what) = &self.what {
-            write!(buf, ", what={}", what.python_repr(py)?).unwrap();
+        if self.where_ != TrimWhere::Both {
+            write!(buf, ", where={:?}", self.where_.as_sql()).unwrap();
         }
         if let Some(characters) = &self.characters {
-            buf.push_str(", characters=[");
-            join_reprs(py, &mut buf, characters)?;
-            buf.push(']');
+            write!(buf, ", characters={}", characters.python_repr(py)?).unwrap();
         }
         buf.push(')');
         Ok(buf)
     }
 }
 
+#[inline]
+fn write_trim_function<W: SqlWriter>(
+    trim: &Trim,
+    dialect: &PySqlDialect,
+    out: &mut W,
+) -> PrepareResult<()> {
+    let name = match trim.where_ {
+        TrimWhere::Both => "TRIM",
+        TrimWhere::Leading => "LTRIM",
+        TrimWhere::Trailing => "RTRIM",
+    };
+    out.push_str(name);
+    out.push_char('(');
+    trim.expr.write_sql(dialect, out)?;
+    if let Some(characters) = &trim.characters {
+        out.push_str(", ");
+        characters.write_sql(dialect, out)?;
+    }
+    out.push_char(')');
+    Ok(())
+}
+
 impl WriteSql for Trim {
     fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
-        out.push_str("TRIM(");
-        if let Some(where_) = self.where_ {
-            out.push_str(where_.as_sql());
-            out.push_char(' ');
-        }
-        if let Some(what) = &self.what {
-            what.write_sql(dialect, out)?;
-            out.push_str(" FROM ");
-            self.expr.write_sql(dialect, out)?;
-        } else if self.where_.is_some() {
-            out.push_str("FROM ");
-            self.expr.write_sql(dialect, out)?;
-        } else {
-            self.expr.write_sql(dialect, out)?;
-        }
-        if let Some(characters) = &self.characters {
-            for c in characters {
-                out.push_str(", ");
-                c.write_sql(dialect, out)?;
+        match dialect.0.trim_syntax {
+            TrimSyntax::SqlFrom => {
+                out.push_str("TRIM(");
+                match (&self.where_, &self.characters) {
+                    (TrimWhere::Both, None) => self.expr.write_sql(dialect, out)?,
+                    (TrimWhere::Both, Some(characters)) => {
+                        characters.write_sql(dialect, out)?;
+                        out.push_str(" FROM ");
+                        self.expr.write_sql(dialect, out)?;
+                    }
+                    (side, None) => {
+                        out.push_str(side.as_sql());
+                        out.push_str(" FROM ");
+                        self.expr.write_sql(dialect, out)?;
+                    }
+                    (side, Some(characters)) => {
+                        out.push_str(side.as_sql());
+                        out.push_char(' ');
+                        characters.write_sql(dialect, out)?;
+                        out.push_str(" FROM ");
+                        self.expr.write_sql(dialect, out)?;
+                    }
+                }
+                out.push_char(')');
+                Ok(())
+            }
+            TrimSyntax::Function => write_trim_function(self, dialect, out),
+            TrimSyntax::SpacesOnly => {
+                if self.characters.is_some() {
+                    return Err(unsupported(
+                        "trim characters are not supported by this dialect",
+                    ));
+                }
+                write_trim_function(self, dialect, out)
             }
         }
-        out.push_char(')');
-        Ok(())
     }
 }
 
@@ -590,10 +631,33 @@ impl Collate {
 
 impl WriteSql for Collate {
     fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
-        self.expr
-            .write_operand(dialect, out, Self::PRECEDENCE, false)?;
-        out.push_str(" COLLATE ");
-        self.collation.write_sql(dialect, out)
+        match dialect.0.collate_syntax {
+            None => Err(unsupported("COLLATE is not supported by this dialect")),
+            Some(CollateSyntax::InfixIdent) => {
+                self.expr
+                    .write_operand(dialect, out, Self::PRECEDENCE, false)?;
+                out.push_str(" COLLATE ");
+                self.collation.write_sql(dialect, out)
+            }
+            Some(CollateSyntax::FunctionString) => {
+                let body = match self.collation.parts() {
+                    [super::IdentPart::Quote(body) | super::IdentPart::Unquote(body)]
+                        if !body.is_empty() =>
+                    {
+                        body.as_str()
+                    }
+                    _ => {
+                        return Err(unsupported("collation must be a single name"));
+                    }
+                };
+                out.push_str("COLLATE(");
+                self.expr.write_sql(dialect, out)?;
+                out.push_str(", ");
+                dialect.0.write_string_literal(out, body)?;
+                out.push_char(')');
+                Ok(())
+            }
+        }
     }
 }
 

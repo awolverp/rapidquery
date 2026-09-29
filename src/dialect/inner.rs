@@ -169,6 +169,50 @@ pub enum IsDistinctFromSyntax {
     NullSafeEqual,
 }
 
+/// How `TRY_CAST` is spelled. [`None`] on [`Dialect::try_cast_syntax`] means unsupported.
+///
+/// Callers ask for `TRY_CAST`. BigQuery emits `SAFE_CAST`; Teradata emits `TRYCAST`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TryCastSyntax {
+    /// `TRY_CAST(expr AS type)`.
+    TryCast,
+    /// `TRYCAST(expr AS type)`.
+    TryCastWord,
+    /// `SAFE_CAST(expr AS type)`. BigQuery's spelling of a null-on-failure cast.
+    SafeCast,
+}
+
+impl TryCastSyntax {
+    #[inline]
+    pub fn as_sql(self) -> &'static str {
+        match self {
+            Self::TryCast => "TRY_CAST",
+            Self::TryCastWord => "TRYCAST",
+            Self::SafeCast => "SAFE_CAST",
+        }
+    }
+}
+
+/// How `TRIM` is spelled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TrimSyntax {
+    /// `TRIM([LEADING|TRAILING] [chars FROM] expr)`.
+    SqlFrom,
+    /// `TRIM` / `LTRIM` / `RTRIM` `(expr[, chars])`.
+    Function,
+    /// `TRIM` / `LTRIM` / `RTRIM` `(expr)`. A character set raises.
+    SpacesOnly,
+}
+
+/// How `COLLATE` is spelled. [`None`] on [`Dialect::collate_syntax`] means unsupported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CollateSyntax {
+    /// `expr COLLATE ident`.
+    InfixIdent,
+    /// `COLLATE(expr, 'body')`. The identifier body is a string literal.
+    FunctionString,
+}
+
 /// How a tuple / row value is spelled.
 ///
 /// [`None`] on [`Dialect::tuple_syntax`] means unsupported.
@@ -467,6 +511,14 @@ pub struct Dialect {
     /// a level evaluated left to right. The parentheses keep the predicate
     /// from being parsed as part of the left operand.
     pub parenthesize_in_between: bool,
+    /// How `TRY_CAST` is spelled. [`None`] means unsupported.
+    pub try_cast_syntax: Option<TryCastSyntax>,
+    /// Whether `expr::type` is documented.
+    pub supports_double_colon: bool,
+    /// How `TRIM` / `LTRIM` / `RTRIM` is spelled.
+    pub trim_syntax: TrimSyntax,
+    /// How `COLLATE` is spelled. [`None`] means unsupported.
+    pub collate_syntax: Option<CollateSyntax>,
 }
 
 impl Dialect {
@@ -770,6 +822,10 @@ mod tests {
             is_distinct_from_syntax: None,
             tuple_syntax: None,
             parenthesize_in_between: false,
+            try_cast_syntax: None,
+            supports_double_colon: false,
+            trim_syntax: TrimSyntax::SqlFrom,
+            collate_syntax: None,
         }
     }
 

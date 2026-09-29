@@ -122,41 +122,6 @@ fn extract_like_any<'py>(
     Ok(LikePattern::Any(items))
 }
 
-/// Comma-list `TRIM(expr, c1, c2)` characters: exact `list`/`tuple`, never empty.
-pub fn extract_trim_characters(
-    obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::PyAny>,
-) -> pyo3::PyResult<Vec<ExprInner>> {
-    let ptr = obj.as_ptr();
-    unsafe {
-        if pyo3::ffi::PyList_CheckExact(ptr) == 1 {
-            let list = obj.cast_unchecked::<pyo3::types::PyList>();
-            return collect_trim_characters(list.iter());
-        }
-        if pyo3::ffi::PyTuple_CheckExact(ptr) == 1 {
-            let tuple = obj.cast_unchecked::<pyo3::types::PyTuple>();
-            return collect_trim_characters(tuple.iter());
-        }
-    }
-    rapidquery_macros::pyerr!(
-        Err(PyTypeError),
-        "TRIM characters must be a list or tuple, got {}",
-        unsafe { crate::internal::utils::get_type_name(obj.py(), obj.as_ptr()) }
-    )
-}
-
-fn collect_trim_characters<'py>(
-    iter: impl IntoIterator<Item = pyo3::Bound<'py, pyo3::PyAny>>,
-) -> pyo3::PyResult<Vec<ExprInner>> {
-    let mut items = Vec::new();
-    for item in iter {
-        items.push(item.extract::<LiteralExprExtractor>()?.0);
-    }
-    if items.is_empty() {
-        return rapidquery_macros::pyerr!(Err(PyValueError), "TRIM character list is empty");
-    }
-    Ok(items)
-}
-
 pub(super) enum ExtractedIdentArgument {
     Ident(Ident),
     Part(IdentPart),
