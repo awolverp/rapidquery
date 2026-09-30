@@ -5,6 +5,8 @@
 //! [`SqlWriter::push_value`]: raw inlines a literal, prepared emits a
 //! placeholder.
 
+use std::fmt::Write;
+
 use pyo3::types::PyAnyMethods;
 
 use crate::data_type::SerializerEnum;
@@ -282,8 +284,8 @@ impl ParameterizedSql<'_> {
                 self.sql.push(c);
             }
             PositionalParameter::Numbered(c) => {
-                let p = format!("{}{}", c, self.next_id);
-                self.sql.push_str(p.as_str());
+                self.sql.push(c);
+                let _ = write!(self.sql, "{}", self.next_id);
                 self.next_id += 1;
             }
         }

@@ -3,7 +3,7 @@
 use super::ExprInner;
 use crate::dialect::{
     PySqlDialect,
-    inner::{LikeAnySyntax, RLikeExpressionOptions},
+    inner::{LikeAnySyntax, LikeEscapeSyntax, RLikeExpressionOptions},
 };
 use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
 use std::fmt::Write;
@@ -58,13 +58,16 @@ impl LikePattern {
 ///
 /// `case_sensitive == false` follows the dialect's `ilike_expression_options`
 /// (`ILIKE`, plain `LIKE`, or `LOWER(expr) LIKE LOWER(pattern)`). `ESCAPE` is
-/// a single inlined character (never a bind).
+/// a single inlined character (never a bind). A set escape character raises
+/// when [`LikeEscapeSyntax`] does not allow it on that form.
 ///
 /// LIKE ANY follows [`LikeAnySyntax`]: Postgres `ANY (ARRAY[…])` wraps
 /// negation as `NOT (x LIKE ANY …)` because `NOT LIKE ANY` is a quantified
 /// NOT LIKE; Snowflake/Spark/Databricks use `LIKE ANY (p, …)`; everyone else
 /// expands to parenthesized `OR` of scalar `LIKE`s (`AND` of `NOT LIKE` when
-/// negated).
+/// negated). Snowflake appends `ESCAPE` after the pattern list, inside that
+/// negation wrap. Postgres, Spark, and Databricks have no `ESCAPE` slot on
+/// native `LIKE ANY`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Like {
     pub case_sensitive: bool,
@@ -146,7 +149,39 @@ fn write_like_pattern_list<W: SqlWriter>(
     }
 }
 
-/// `[NOT] (x LIKE|ILIKE ANY (ARRAY?[…]))`
+/// `ESCAPE` is legal on this form. `native_any` is `LIKE ANY` that is not an
+/// `OR` expansion.
+#[inline]
+fn like_escape_allowed(syntax: LikeEscapeSyntax, native_any: bool) -> bool {
+    match syntax {
+        LikeEscapeSyntax::None => false,
+        LikeEscapeSyntax::Scalar => !native_any,
+        LikeEscapeSyntax::IncludingAny => true,
+    }
+}
+
+#[inline]
+fn ensure_like_escape_is_supported(
+    syntax: LikeEscapeSyntax,
+    escape: Option<char>,
+    native_any: bool,
+) -> PrepareResult<()> {
+    if escape.is_none() || like_escape_allowed(syntax, native_any) {
+        return Ok(());
+    }
+
+    Err(rapidquery_macros::pyerr!(
+        PyRuntimeError,
+        if native_any {
+            "LIKE ANY ESCAPE is not supported by this dialect"
+        } else {
+            "LIKE ESCAPE is not supported by this dialect"
+        }
+    )
+    .into())
+}
+
+/// `[NOT] (x LIKE|ILIKE ANY (ARRAY?[…]) [ESCAPE char])`
 fn write_like_any_native<W: SqlWriter>(
     dialect: &PySqlDialect,
     out: &mut W,
@@ -173,6 +208,7 @@ fn write_like_any_native<W: SqlWriter>(
     } else {
         out.push_char(')');
     }
+    write_escape(dialect, out, like.escape)?;
     if like.negated {
         out.push_char(')');
     }
@@ -186,6 +222,13 @@ impl WriteSql for Like {
         } else {
             dialect.0.ilike_expression_options.case_insensitive_sql()
         };
+
+        ensure_like_escape_is_supported(
+            dialect.0.like_escape_syntax,
+            self.escape,
+            matches!(self.pattern, LikePattern::Any(_))
+                && !matches!(dialect.0.like_any_syntax, LikeAnySyntax::OrExpansion),
+        )?;
 
         match &self.pattern {
             LikePattern::One(pattern) => {

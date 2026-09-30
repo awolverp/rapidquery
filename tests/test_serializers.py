@@ -203,7 +203,7 @@ class TestJSONSerializer:
     def test_dumps_then_json_format(self):
         s = JSONSerializer()
         assert s.serialize(PG, 10) == "'10'::jsonb"
-        assert s.serialize(PG, "10") == '\'"10"\'::jsonb'
+        assert s.serialize(PG, "10") == "'\"10\"'::jsonb"
         assert s.serialize(BigQuery(), {"a": 1}) == "JSON '{\"a\":1}'"
         assert s.serialize(Snowflake(), {"a": 1}) == "PARSE_JSON('{\"a\":1}')"
         assert s.serialize(Sqlite(), {"a": 1}) == "'{\"a\":1}'"
@@ -213,13 +213,13 @@ class TestJSONSerializer:
         extras = [
             (
                 datetime.datetime(2024, 10, 1, tzinfo=datetime.timezone.utc),
-                '\'"2024-10-01T00:00:00+00:00"\'::jsonb',
+                "'\"2024-10-01T00:00:00+00:00\"'::jsonb",
             ),
             (
                 uuid.UUID("103596b1-db75-4ae0-907a-a4a9bc4dab85"),
-                '\'"103596b1-db75-4ae0-907a-a4a9bc4dab85"\'::jsonb',
+                "'\"103596b1-db75-4ae0-907a-a4a9bc4dab85\"'::jsonb",
             ),
-            (ExampleDataclass(x=1), '\'{"x":1}\'::jsonb'),
+            (ExampleDataclass(x=1), "'{\"x\":1}'::jsonb"),
         ]
         for obj, expected in extras:
             if USING_ORJSON:
@@ -245,7 +245,9 @@ class TestDateTimeSerializers:
     def test_time(self):
         s = TimeSerializer()
         assert s.serialize(PG, datetime.time(13, 45, 30)) == "TIME '13:45:30'"
-        assert s.serialize(PG, datetime.time(1, 2, 3, 456789)) == "TIME '01:02:03.456789'"
+        assert (
+            s.serialize(PG, datetime.time(1, 2, 3, 456789)) == "TIME '01:02:03.456789'"
+        )
         assert s.serialize(Oracle(), datetime.time(13, 45, 30)) == "'13:45:30'"
 
     def test_time_rejects_date(self):

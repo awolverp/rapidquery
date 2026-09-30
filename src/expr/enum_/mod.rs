@@ -105,8 +105,8 @@ impl ExprInner {
         match self {
             Self::Ident(_) | Self::Value(_) | Self::Function(_) => 0,
             Self::Tuple(_) => Tuple::PRECEDENCE,
-            Self::Unary(_) => Unary::PRECEDENCE,
-            Self::Binary(b) => b.precedence(),
+            Self::Unary(u) => u.op.precedence(),
+            Self::Binary(b) => b.op.precedence(),
             Self::Is(_) => Is::PRECEDENCE,
             Self::InList(_) => InList::PRECEDENCE,
             Self::IsDistinctFrom(_) => IsDistinctFrom::PRECEDENCE,

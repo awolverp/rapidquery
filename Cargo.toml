@@ -51,6 +51,9 @@ uuid = { version = "1.26.1", default-features = false }
 default = ["extension-module"]
 extension-module = ["pyo3/extension-module"]
 nightly = ["hashbrown/nightly"]
+# Test harness only. `extension-module` does not link libpython, so Rust tests
+# that touch Python use `--no-default-features --features auto-initialize`.
+auto-initialize = ["pyo3/auto-initialize"]
 
 # Testing features
 only-stdlib-json = []

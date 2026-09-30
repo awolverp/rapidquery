@@ -57,7 +57,7 @@ Reference the PR without checking it out as the working tree: `git show origin/m
 ```bash
 uv sync --dev
 maturin develop          # or: uv run maturin develop
-cargo test --workspace --lib --bins --tests
+cargo test --workspace --lib --bins --tests --no-default-features --features auto-initialize
 cargo clippy --workspace --all-targets -- -D warnings   # project lints are warn-level; CI does not run clippy
 cargo fmt                # no rustfmt.toml on this branch; CI does not run rustfmt
 uv run pytest -vv        # CI command; pytest is in [dependency-groups] dev
@@ -65,7 +65,7 @@ uv run pytest -vv        # CI command; pytest is in [dependency-groups] dev
 
 There is no Python linter/typechecker configured. Do not add ruff/mypy/a new test runner unless asked.
 
-After meaningful Rust changes: run `cargo test --workspace --lib --bins --tests`. After Python-facing changes: also `uv run pytest -vv`.
+After meaningful Rust changes: run `cargo test --workspace --lib --bins --tests --no-default-features --features auto-initialize`. After Python-facing changes: also `uv run pytest -vv`.
 
 `cargo test --workspace` (including doctests) currently fails: rustdoc builds `rapidquery-macros` without syn’s `full` feature. `pyerr` examples are marked `rust,no-test`.
 

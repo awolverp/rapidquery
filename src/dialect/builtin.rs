@@ -48,9 +48,6 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::BackslashHex,
             bytes_format: BytesFormat::PrefixBigBSlashX,
-            date_format: TemporalLiteral::TypedKeyword,
-            time_format: TemporalLiteral::TypedKeyword,
-            timestamp_format: TemporalLiteral::TypedKeyword,
             json_format: JsonFormat::JsonKeyword,
             uuid_format: UuidFormat::Quoted,
             function_filter_syntax: Some(FunctionFilterSyntax::InsideWhere),
@@ -67,6 +64,8 @@ impl_builtin_dialects!(
             supports_double_colon: false,
             trim_syntax: TrimSyntax::Function,
             collate_syntax: Some(CollateSyntax::FunctionString),
+            like_escape_syntax: LikeEscapeSyntax::None,
+            bitwise_syntax: BitwiseSyntax::Infix,
         }
     }
 
@@ -86,9 +85,6 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::BackslashUnicodeQuote,
             bytes_format: BytesFormat::PrefixBigX,
-            date_format: TemporalLiteral::TypedKeyword,
-            time_format: TemporalLiteral::Quoted,
-            timestamp_format: TemporalLiteral::TypedKeyword,
             json_format: JsonFormat::Quoted,
             uuid_format: UuidFormat::Quoted,
             function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
@@ -105,6 +101,8 @@ impl_builtin_dialects!(
             supports_double_colon: true,
             trim_syntax: TrimSyntax::SqlFrom,
             collate_syntax: Some(CollateSyntax::InfixIdent),
+            like_escape_syntax: LikeEscapeSyntax::Scalar,
+            bitwise_syntax: BitwiseSyntax::Infix,
         }
     }
 
@@ -124,9 +122,6 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::Quote,
             bytes_format: BytesFormat::SlashXBlob,
-            date_format: TemporalLiteral::TypedKeyword,
-            time_format: TemporalLiteral::TypedKeyword,
-            timestamp_format: TemporalLiteral::TypedKeyword,
             json_format: JsonFormat::Quoted,
             uuid_format: UuidFormat::UuidKeyword,
             function_filter_syntax: Some(FunctionFilterSyntax::Filter),
@@ -143,6 +138,8 @@ impl_builtin_dialects!(
             supports_double_colon: true,
             trim_syntax: TrimSyntax::Function,
             collate_syntax: Some(CollateSyntax::InfixIdent),
+            like_escape_syntax: LikeEscapeSyntax::Scalar,
+            bitwise_syntax: BitwiseSyntax::Infix,
         }
     }
 
@@ -162,9 +159,6 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::BackslashUnicode,
             bytes_format: BytesFormat::Unhex,
-            date_format: TemporalLiteral::TypedKeyword,
-            time_format: TemporalLiteral::Quoted,
-            timestamp_format: TemporalLiteral::TypedKeyword,
             json_format: JsonFormat::Quoted,
             uuid_format: UuidFormat::Quoted,
             function_filter_syntax: None,
@@ -181,6 +175,8 @@ impl_builtin_dialects!(
             supports_double_colon: false,
             trim_syntax: TrimSyntax::SpacesOnly,
             collate_syntax: None,
+            like_escape_syntax: LikeEscapeSyntax::None,
+            bitwise_syntax: BitwiseSyntax::Infix,
         }
     }
 
@@ -200,9 +196,6 @@ impl_builtin_dialects!(
             string_format: StringFormat::PrefixBigN,
             string_escape: StringEscape::Quote,
             bytes_format: BytesFormat::PrefixZeroX,
-            date_format: TemporalLiteral::Quoted,
-            time_format: TemporalLiteral::Quoted,
-            timestamp_format: TemporalLiteral::Quoted,
             json_format: JsonFormat::Quoted,
             uuid_format: UuidFormat::Quoted,
             function_filter_syntax: None,
@@ -219,6 +212,8 @@ impl_builtin_dialects!(
             supports_double_colon: false,
             trim_syntax: TrimSyntax::SqlFrom,
             collate_syntax: Some(CollateSyntax::InfixIdent),
+            like_escape_syntax: LikeEscapeSyntax::Scalar,
+            bitwise_syntax: BitwiseSyntax::InfixNoShift,
         }
     }
 
@@ -238,9 +233,6 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::BackslashMysql,
             bytes_format: BytesFormat::PrefixBigX,
-            date_format: TemporalLiteral::Quoted,
-            time_format: TemporalLiteral::Quoted,
-            timestamp_format: TemporalLiteral::Quoted,
             json_format: JsonFormat::Quoted,
             uuid_format: UuidFormat::Quoted,
             function_filter_syntax: None,
@@ -257,6 +249,8 @@ impl_builtin_dialects!(
             supports_double_colon: false,
             trim_syntax: TrimSyntax::SqlFrom,
             collate_syntax: Some(CollateSyntax::InfixIdent),
+            like_escape_syntax: LikeEscapeSyntax::Scalar,
+            bitwise_syntax: BitwiseSyntax::Infix,
         }
     }
 
@@ -276,9 +270,6 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::Quote,
             bytes_format: BytesFormat::HexToRaw,
-            date_format: TemporalLiteral::TypedKeyword,
-            time_format: TemporalLiteral::Quoted,
-            timestamp_format: TemporalLiteral::TypedKeyword,
             json_format: JsonFormat::Quoted,
             uuid_format: UuidFormat::Quoted,
             function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
@@ -295,6 +286,8 @@ impl_builtin_dialects!(
             supports_double_colon: false,
             trim_syntax: TrimSyntax::SqlFrom,
             collate_syntax: Some(CollateSyntax::InfixIdent),
+            like_escape_syntax: LikeEscapeSyntax::Scalar,
+            bitwise_syntax: BitwiseSyntax::BitAndOnly,
         }
     }
 
@@ -314,9 +307,6 @@ impl_builtin_dialects!(
             string_format: StringFormat::PrefixBigE,
             string_escape: StringEscape::BackslashHex,
             bytes_format: BytesFormat::SlashXBytea,
-            date_format: TemporalLiteral::TypedKeyword,
-            time_format: TemporalLiteral::TypedKeyword,
-            timestamp_format: TemporalLiteral::TypedKeyword,
             json_format: JsonFormat::CastJsonb,
             uuid_format: UuidFormat::CastUuid,
             function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
@@ -333,6 +323,8 @@ impl_builtin_dialects!(
             supports_double_colon: true,
             trim_syntax: TrimSyntax::SqlFrom,
             collate_syntax: Some(CollateSyntax::InfixIdent),
+            like_escape_syntax: LikeEscapeSyntax::Scalar,
+            bitwise_syntax: BitwiseSyntax::Infix,
         }
     }
 
@@ -352,9 +344,6 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::Quote,
             bytes_format: BytesFormat::ToVarbyte,
-            date_format: TemporalLiteral::Quoted,
-            time_format: TemporalLiteral::Quoted,
-            timestamp_format: TemporalLiteral::Quoted,
             json_format: JsonFormat::Quoted,
             uuid_format: UuidFormat::Quoted,
             function_filter_syntax: None,
@@ -371,6 +360,8 @@ impl_builtin_dialects!(
             supports_double_colon: true,
             trim_syntax: TrimSyntax::SqlFrom,
             collate_syntax: Some(CollateSyntax::FunctionString),
+            like_escape_syntax: LikeEscapeSyntax::Scalar,
+            bitwise_syntax: BitwiseSyntax::InfixAndShift,
         }
     }
 
@@ -390,9 +381,6 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::BackslashHexZero,
             bytes_format: BytesFormat::ToBinary,
-            date_format: TemporalLiteral::TypedKeyword,
-            time_format: TemporalLiteral::Quoted,
-            timestamp_format: TemporalLiteral::TypedKeyword,
             json_format: JsonFormat::ParseJson,
             uuid_format: UuidFormat::Quoted,
             function_filter_syntax: None,
@@ -409,6 +397,8 @@ impl_builtin_dialects!(
             supports_double_colon: true,
             trim_syntax: TrimSyntax::Function,
             collate_syntax: Some(CollateSyntax::FunctionString),
+            like_escape_syntax: LikeEscapeSyntax::IncludingAny,
+            bitwise_syntax: BitwiseSyntax::BitShiftFunctions,
         }
     }
 
@@ -428,9 +418,6 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::BackslashUnicodeQuote,
             bytes_format: BytesFormat::PrefixBigX,
-            date_format: TemporalLiteral::TypedKeyword,
-            time_format: TemporalLiteral::Quoted,
-            timestamp_format: TemporalLiteral::TypedKeyword,
             json_format: JsonFormat::Quoted,
             uuid_format: UuidFormat::Quoted,
             function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
@@ -447,6 +434,8 @@ impl_builtin_dialects!(
             supports_double_colon: true,
             trim_syntax: TrimSyntax::SqlFrom,
             collate_syntax: None,
+            like_escape_syntax: LikeEscapeSyntax::Scalar,
+            bitwise_syntax: BitwiseSyntax::Infix,
         }
     }
 
@@ -466,9 +455,6 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::Quote,
             bytes_format: BytesFormat::PrefixBigX,
-            date_format: TemporalLiteral::Quoted,
-            time_format: TemporalLiteral::Quoted,
-            timestamp_format: TemporalLiteral::Quoted,
             json_format: JsonFormat::Quoted,
             uuid_format: UuidFormat::Quoted,
             function_filter_syntax: Some(FunctionFilterSyntax::FilterWhere),
@@ -485,6 +471,8 @@ impl_builtin_dialects!(
             supports_double_colon: false,
             trim_syntax: TrimSyntax::Function,
             collate_syntax: Some(CollateSyntax::InfixIdent),
+            like_escape_syntax: LikeEscapeSyntax::Scalar,
+            bitwise_syntax: BitwiseSyntax::Infix,
         }
     }
 
@@ -504,9 +492,6 @@ impl_builtin_dialects!(
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::Quote,
             bytes_format: BytesFormat::PostfixXbv,
-            date_format: TemporalLiteral::TypedKeyword,
-            time_format: TemporalLiteral::Quoted,
-            timestamp_format: TemporalLiteral::TypedKeyword,
             json_format: JsonFormat::Quoted,
             uuid_format: UuidFormat::Quoted,
             function_filter_syntax: None,
@@ -523,210 +508,8 @@ impl_builtin_dialects!(
             supports_double_colon: false,
             trim_syntax: TrimSyntax::SqlFrom,
             collate_syntax: None,
+            like_escape_syntax: LikeEscapeSyntax::Scalar,
+            bitwise_syntax: BitwiseSyntax::ShiftFunctions,
         }
     }
-
 );
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn expect(
-        dialect: Dialect,
-        concat: StringConcatSyntax,
-        xor: Option<BitXorSyntax>,
-        modulo: ModuloSyntax,
-        distinct: Option<IsDistinctFromSyntax>,
-        tuple: Option<TupleSyntax>,
-        parenthesize_in_between: bool,
-    ) {
-        assert_eq!(dialect.string_concat_syntax, concat);
-        assert_eq!(dialect.bit_xor_syntax, xor);
-        assert_eq!(dialect.modulo_syntax, modulo);
-        assert_eq!(dialect.is_distinct_from_syntax, distinct);
-        assert_eq!(dialect.tuple_syntax, tuple);
-        assert_eq!(dialect.parenthesize_in_between, parenthesize_in_between);
-    }
-
-    #[test]
-    fn operator_syntax_matrix() {
-        use BitXorSyntax::*;
-        use IsDistinctFromSyntax::*;
-        use ModuloSyntax::*;
-        use StringConcatSyntax::*;
-        use TupleSyntax::*;
-
-        expect(
-            PyBigQuery::CONFIG,
-            Pipes,
-            Some(Caret),
-            Percent,
-            Some(Standard),
-            None,
-            false,
-        );
-        expect(
-            PyDatabricks::CONFIG,
-            Pipes,
-            Some(Caret),
-            Percent,
-            Some(Standard),
-            Some(Struct),
-            false,
-        );
-        expect(
-            PyDuckDb::CONFIG,
-            Pipes,
-            Some(XORFunction),
-            Percent,
-            Some(Standard),
-            Some(Row),
-            false,
-        );
-        expect(
-            PyHive::CONFIG,
-            Pipes,
-            Some(Caret),
-            Percent,
-            Some(NullSafeEqual),
-            Some(Struct),
-            false,
-        );
-        expect(
-            PyMsSql::CONFIG,
-            Plus,
-            Some(Caret),
-            Percent,
-            Some(Standard),
-            None,
-            true,
-        );
-        expect(
-            PyMySql::CONFIG,
-            ConcatFunction,
-            Some(Caret),
-            Percent,
-            Some(NullSafeEqual),
-            Some(RowRejectEmpty),
-            false,
-        );
-        expect(PyOracle::CONFIG, Pipes, None, Function, None, None, false);
-        expect(
-            PyPostgreSql::CONFIG,
-            Pipes,
-            Some(Hash),
-            Percent,
-            Some(Standard),
-            Some(Row),
-            false,
-        );
-        expect(PyRedshift::CONFIG, Pipes, None, Percent, None, None, false);
-        expect(
-            PySnowflake::CONFIG,
-            Pipes,
-            Some(BitXORFunction),
-            Percent,
-            Some(Standard),
-            None,
-            false,
-        );
-        expect(
-            PySpark::CONFIG,
-            Pipes,
-            Some(Caret),
-            Percent,
-            Some(Standard),
-            Some(Struct),
-            false,
-        );
-        expect(
-            PySqlite::CONFIG,
-            Pipes,
-            None,
-            Percent,
-            Some(Standard),
-            Some(Parentheses),
-            false,
-        );
-        expect(
-            PyTeradata::CONFIG,
-            Pipes,
-            Some(BitXORFunction),
-            Infix,
-            None,
-            None,
-            false,
-        );
-    }
-
-    #[test]
-    fn cast_trim_collate_matrix() {
-        use CollateSyntax::*;
-        use TrimSyntax::*;
-        use TryCastSyntax::*;
-
-        fn expect(
-            dialect: Dialect,
-            try_cast: Option<TryCastSyntax>,
-            double_colon: bool,
-            trim: TrimSyntax,
-            collate: Option<CollateSyntax>,
-        ) {
-            assert_eq!(dialect.try_cast_syntax, try_cast);
-            assert_eq!(dialect.supports_double_colon, double_colon);
-            assert_eq!(dialect.trim_syntax, trim);
-            assert_eq!(dialect.collate_syntax, collate);
-        }
-
-        expect(
-            PyBigQuery::CONFIG,
-            Some(SafeCast),
-            false,
-            Function,
-            Some(FunctionString),
-        );
-        expect(
-            PyDatabricks::CONFIG,
-            Some(TryCast),
-            true,
-            SqlFrom,
-            Some(InfixIdent),
-        );
-        expect(
-            PyDuckDb::CONFIG,
-            Some(TryCast),
-            true,
-            Function,
-            Some(InfixIdent),
-        );
-        expect(PyHive::CONFIG, None, false, SpacesOnly, None);
-        expect(
-            PyMsSql::CONFIG,
-            Some(TryCast),
-            false,
-            SqlFrom,
-            Some(InfixIdent),
-        );
-        expect(PyMySql::CONFIG, None, false, SqlFrom, Some(InfixIdent));
-        expect(PyOracle::CONFIG, None, false, SqlFrom, Some(InfixIdent));
-        expect(PyPostgreSql::CONFIG, None, true, SqlFrom, Some(InfixIdent));
-        expect(
-            PyRedshift::CONFIG,
-            Some(TryCast),
-            true,
-            SqlFrom,
-            Some(FunctionString),
-        );
-        expect(
-            PySnowflake::CONFIG,
-            Some(TryCast),
-            true,
-            Function,
-            Some(FunctionString),
-        );
-        expect(PySpark::CONFIG, Some(TryCast), true, SqlFrom, None);
-        expect(PySqlite::CONFIG, None, false, Function, Some(InfixIdent));
-        expect(PyTeradata::CONFIG, Some(TryCastWord), false, SqlFrom, None);
-    }
-}

@@ -213,6 +213,44 @@ pub enum CollateSyntax {
     FunctionString,
 }
 
+/// Where an inlined `LIKE` `ESCAPE` clause is legal.
+///
+/// `escape: None` writes nothing. A set escape character on a form this
+/// variant does not allow raises.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum LikeEscapeSyntax {
+    /// No `ESCAPE` clause (BigQuery; Hive, whose operator is `A [NOT] LIKE B`).
+    None,
+    /// Scalar `LIKE` and an `OR` expansion. Native `LIKE ANY` has no slot.
+    Scalar,
+    /// Scalar, `OR` expansion, and `LIKE ANY (p, …) ESCAPE`.
+    IncludingAny,
+}
+
+/// How `&`, `|`, `~`, `<<`, and `>>` are spelled.
+///
+/// [`crate::expr::enum_::BinaryOp::BitXor`] stays on [`BitXorSyntax`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BitwiseSyntax {
+    /// `& | ~ << >>`.
+    Infix,
+    /// `& << >>`. `|` and `~` raise.
+    ///
+    /// Redshift documents those three and not bitwise OR or NOT
+    /// (`^` is exponentiation and stays on [`BitXorSyntax`]).
+    InfixAndShift,
+    /// `& | ~`. Shifts raise (SQL Server).
+    InfixNoShift,
+    /// `BITAND` / `BITOR` / `BITNOT` / `BITSHIFTLEFT` / `BITSHIFTRIGHT`.
+    BitShiftFunctions,
+    /// `BITAND` / `BITOR` / `BITNOT` / `SHIFTLEFT` / `SHIFTRIGHT` (Teradata).
+    ShiftFunctions,
+    /// `BITAND` only. `|`, `~`, `<<`, and `>>` raise (Oracle).
+    BitAndOnly,
+    /// All five raise.
+    None,
+}
+
 /// How a tuple / row value is spelled.
 ///
 /// [`None`] on [`Dialect::tuple_syntax`] means unsupported.
@@ -346,9 +384,7 @@ impl BytesFormat {
             }
             Self::PrefixBigBSlashX => {
                 writer.write_str("B'")?;
-                for &b in bytes {
-                    write_byte_hex_escape(writer, b)?;
-                }
+                write_bytes_slash_x(writer, bytes)?;
                 writer.write_char('\'')
             }
             Self::HexToRaw => {
@@ -381,9 +417,7 @@ impl BytesFormat {
                     writer.write_str("''::BLOB")
                 } else {
                     writer.write_char('\'')?;
-                    for &b in bytes {
-                        write_byte_hex_escape(writer, b)?;
-                    }
+                    write_bytes_slash_x(writer, bytes)?;
                     writer.write_str("'::BLOB")
                 }
             }
@@ -424,13 +458,6 @@ pub enum MacFormat {
     Quoted,
     /// `'…'::macaddr`
     Cast,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum TemporalLiteral {
-    Quoted,
-    /// `DATE` / `TIME` / `TIMESTAMP` then a string literal.
-    TypedKeyword,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -482,9 +509,6 @@ pub struct Dialect {
     pub string_escape: StringEscape,
     /// How the dialect accepts literal bytes values.
     pub bytes_format: BytesFormat,
-    pub date_format: TemporalLiteral,
-    pub time_format: TemporalLiteral,
-    pub timestamp_format: TemporalLiteral,
     pub json_format: JsonFormat,
     pub uuid_format: UuidFormat,
     /// How function calling `FILTER` keyword rendered if supported.
@@ -519,6 +543,10 @@ pub struct Dialect {
     pub trim_syntax: TrimSyntax,
     /// How `COLLATE` is spelled. [`None`] means unsupported.
     pub collate_syntax: Option<CollateSyntax>,
+    /// Where `LIKE` `ESCAPE` may be written.
+    pub like_escape_syntax: LikeEscapeSyntax,
+    /// How `&` `|` `~` `<<` `>>` are spelled. XOR stays on [`Self::bit_xor_syntax`].
+    pub bitwise_syntax: BitwiseSyntax,
 }
 
 impl Dialect {
@@ -575,7 +603,7 @@ impl Dialect {
                     utils::replace_to(ident, '"', "\\\"", writer)?;
                 }
                 IdentifierFormat::Backtick => {
-                    utils::replace_to(ident, '`', "\\`", writer)?;
+                    write_bigquery_ident_body(writer, ident)?;
                 }
                 IdentifierFormat::SquareBracket => {
                     utils::replace_to(ident, ']', "\\]", writer)?;
@@ -595,13 +623,6 @@ impl Dialect {
     ) -> Result<(), FormatError> {
         if raw.contains('\0') {
             return Err(FormatError::NulInString);
-        }
-
-        if matches!(self.string_format, StringFormat::PrefixBigE) && !needs_c_escape(raw) {
-            writer.write_char('\'')?;
-            StringEscape::Quote.write(writer, raw)?;
-            writer.write_char('\'')?;
-            return Ok(());
         }
 
         match self.string_format {
@@ -645,12 +666,6 @@ impl Dialect {
     }
 }
 
-#[inline]
-fn needs_c_escape(s: &str) -> bool {
-    s.chars()
-        .any(|c| matches!(c, '\\' | '\n' | '\r' | '\t') || (c as u32) < 32 || c as u32 == 127)
-}
-
 const HEX_DIGITS: &[u8; 16] = b"0123456789ABCDEF";
 
 /// Write `byte` as two uppercase hex digits.
@@ -665,10 +680,41 @@ fn write_hex2<W: Write>(writer: &mut W, byte: u8) -> fmt::Result {
 }
 
 /// Write `bytes` as a contiguous uppercase hex run (`DEADBEEF`).
+///
+/// 64 raw bytes fill a 128-byte stack buffer and are written once.
 #[inline]
 fn bytes_to_hex<W: Write>(writer: &mut W, bytes: &[u8]) -> fmt::Result {
-    for &b in bytes {
-        write_hex2(writer, b)?;
+    let mut buf = [0u8; 128];
+    for chunk in bytes.chunks(64) {
+        for (i, &byte) in chunk.iter().enumerate() {
+            let o = i * 2;
+            buf[o] = HEX_DIGITS[(byte >> 4) as usize];
+            buf[o + 1] = HEX_DIGITS[(byte & 0x0F) as usize];
+        }
+        let n = chunk.len() * 2;
+        // SAFETY: `buf[..n]` is filled only from `HEX_DIGITS` (ASCII).
+        writer.write_str(unsafe { std::str::from_utf8_unchecked(&buf[..n]) })?;
+    }
+    Ok(())
+}
+
+/// Write each byte as `\xNN` (uppercase hex).
+///
+/// 32 raw bytes fill a 128-byte stack buffer and are written once.
+#[inline]
+fn write_bytes_slash_x<W: Write>(writer: &mut W, bytes: &[u8]) -> fmt::Result {
+    let mut buf = [0u8; 128];
+    for chunk in bytes.chunks(32) {
+        for (i, &byte) in chunk.iter().enumerate() {
+            let o = i * 4;
+            buf[o] = b'\\';
+            buf[o + 1] = b'x';
+            buf[o + 2] = HEX_DIGITS[(byte >> 4) as usize];
+            buf[o + 3] = HEX_DIGITS[(byte & 0x0F) as usize];
+        }
+        let n = chunk.len() * 4;
+        // SAFETY: `buf[..n]` is ASCII (`\`, `x`, and hex digits).
+        writer.write_str(unsafe { std::str::from_utf8_unchecked(&buf[..n]) })?;
     }
     Ok(())
 }
@@ -689,83 +735,133 @@ fn write_unicode4_escape<W: Write>(writer: &mut W, code: u32) -> fmt::Result {
     write_hex2(writer, code as u8)
 }
 
+/// Write `bytes[from..to]` as a string.
+///
+/// # Safety invariant
+/// `bytes` is the raw view of a `&str`. Callers split only on ASCII bytes,
+/// which are char boundaries, or at `bytes.len()`.
+#[inline]
+fn write_byte_span<W: Write>(writer: &mut W, bytes: &[u8], from: usize, to: usize) -> fmt::Result {
+    if from == to {
+        return Ok(());
+    }
+    // SAFETY: see invariant above.
+    let chunk = unsafe { bytes.get_unchecked(from..to) };
+    writer.write_str(unsafe { std::str::from_utf8_unchecked(chunk) })
+}
+
+enum SpanEscape {
+    Keep,
+    Literal(&'static str),
+    HexByte,
+    Unicode4,
+}
+
+/// Copy each plain span with one `write_str`. Special bytes are ASCII.
 #[cfg_attr(feature = "nightly", optimize(speed))]
-fn write_backslash_hex<W: Write>(writer: &mut W, string: &str) -> fmt::Result {
-    for ch in string.chars() {
-        match ch {
-            '\\' => writer.write_str("\\\\")?,
-            '\'' => writer.write_str("\\'")?,
-            '\n' => writer.write_str("\\n")?,
-            '\r' => writer.write_str("\\r")?,
-            '\t' => writer.write_str("\\t")?,
-            '\0' => writer.write_str("\\x00")?,
-            c if (c as u32) < 32 || c as u32 == 127 => {
-                write_byte_hex_escape(writer, c as u8)?;
+fn write_span_escapes<W: Write>(
+    writer: &mut W,
+    string: &str,
+    mut classify: impl FnMut(u8) -> SpanEscape,
+) -> fmt::Result {
+    let bytes = string.as_bytes();
+    let mut start = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        match classify(bytes[i]) {
+            SpanEscape::Keep => i += 1,
+            SpanEscape::Literal(repl) => {
+                write_byte_span(writer, bytes, start, i)?;
+                writer.write_str(repl)?;
+                i += 1;
+                start = i;
             }
-            c => writer.write_char(c)?,
+            SpanEscape::HexByte => {
+                write_byte_span(writer, bytes, start, i)?;
+                write_byte_hex_escape(writer, bytes[i])?;
+                i += 1;
+                start = i;
+            }
+            SpanEscape::Unicode4 => {
+                write_byte_span(writer, bytes, start, i)?;
+                write_unicode4_escape(writer, bytes[i] as u32)?;
+                i += 1;
+                start = i;
+            }
         }
     }
-    Ok(())
+    write_byte_span(writer, bytes, start, bytes.len())
 }
 
-#[cfg_attr(feature = "nightly", optimize(speed))]
+/// BigQuery quoted identifiers use the string escape table, plus `\``.
+///
+/// `'` is left as itself. Only known escapes are emitted.
+fn write_bigquery_ident_body<W: Write>(writer: &mut W, ident: &str) -> fmt::Result {
+    write_span_escapes(writer, ident, |b| match b {
+        b'\\' => SpanEscape::Literal("\\\\"),
+        b'`' => SpanEscape::Literal("\\`"),
+        b'\n' => SpanEscape::Literal("\\n"),
+        b'\r' => SpanEscape::Literal("\\r"),
+        b'\t' => SpanEscape::Literal("\\t"),
+        b if b < 32 || b == 127 => SpanEscape::HexByte,
+        _ => SpanEscape::Keep,
+    })
+}
+
+fn write_backslash_hex<W: Write>(writer: &mut W, string: &str) -> fmt::Result {
+    write_span_escapes(writer, string, |b| match b {
+        b'\\' => SpanEscape::Literal("\\\\"),
+        b'\'' => SpanEscape::Literal("\\'"),
+        b'\n' => SpanEscape::Literal("\\n"),
+        b'\r' => SpanEscape::Literal("\\r"),
+        b'\t' => SpanEscape::Literal("\\t"),
+        b if b < 32 || b == 127 => SpanEscape::HexByte,
+        _ => SpanEscape::Keep,
+    })
+}
+
 fn write_backslash_mysql<W: Write>(writer: &mut W, string: &str) -> fmt::Result {
-    for ch in string.chars() {
-        match ch {
-            '\\' => writer.write_str("\\\\")?,
-            '\'' => writer.write_str("\\'")?,
-            '"' => writer.write_str("\\\"")?,
-            '\0' => writer.write_str("\\0")?,
-            '\n' => writer.write_str("\\n")?,
-            '\r' => writer.write_str("\\r")?,
-            '\x1a' => writer.write_str("\\Z")?,
-            c => writer.write_char(c)?,
-        }
-    }
-    Ok(())
+    write_span_escapes(writer, string, |b| match b {
+        b'\\' => SpanEscape::Literal("\\\\"),
+        b'\'' => SpanEscape::Literal("\\'"),
+        b'"' => SpanEscape::Literal("\\\""),
+        0 => SpanEscape::Literal("\\0"),
+        b'\n' => SpanEscape::Literal("\\n"),
+        b'\r' => SpanEscape::Literal("\\r"),
+        0x1a => SpanEscape::Literal("\\Z"),
+        _ => SpanEscape::Keep,
+    })
 }
 
-#[cfg_attr(feature = "nightly", optimize(speed))]
 fn write_backslash_unicode<W: Write>(
     writer: &mut W,
     string: &str,
     escape_double_quote: bool,
 ) -> fmt::Result {
-    for ch in string.chars() {
-        match ch {
-            '\\' => writer.write_str("\\\\")?,
-            '\'' => writer.write_str("\\'")?,
-            '"' if escape_double_quote => writer.write_str("\\\"")?,
-            '\n' => writer.write_str("\\n")?,
-            '\r' => writer.write_str("\\r")?,
-            '\t' => writer.write_str("\\t")?,
-            '\0' => writer.write_str("\\0")?,
-            c if (c as u32) < 32 || c as u32 == 127 => {
-                write_unicode4_escape(writer, c as u32)?;
-            }
-            c => writer.write_char(c)?,
-        }
-    }
-    Ok(())
+    write_span_escapes(writer, string, |b| match b {
+        b'\\' => SpanEscape::Literal("\\\\"),
+        b'\'' => SpanEscape::Literal("\\'"),
+        b'"' if escape_double_quote => SpanEscape::Literal("\\\""),
+        b'\n' => SpanEscape::Literal("\\n"),
+        b'\r' => SpanEscape::Literal("\\r"),
+        b'\t' => SpanEscape::Literal("\\t"),
+        0 => SpanEscape::Literal("\\0"),
+        b if b < 32 || b == 127 => SpanEscape::Unicode4,
+        _ => SpanEscape::Keep,
+    })
 }
 
-#[cfg_attr(feature = "nightly", optimize(speed))]
 fn write_backslash_hex_zero<W: Write>(writer: &mut W, string: &str) -> fmt::Result {
-    for ch in string.chars() {
-        match ch {
-            '\\' => writer.write_str("\\\\")?,
-            '\'' => writer.write_str("\\'")?,
-            '\n' => writer.write_str("\\n")?,
-            '\r' => writer.write_str("\\r")?,
-            '\t' => writer.write_str("\\t")?,
-            '\0' => writer.write_str("\\0")?,
-            c if (c as u32) < 32 || c as u32 == 127 => {
-                write_byte_hex_escape(writer, c as u8)?;
-            }
-            c => writer.write_char(c)?,
-        }
-    }
-    Ok(())
+    write_span_escapes(writer, string, |b| match b {
+        b'\\' => SpanEscape::Literal("\\\\"),
+        b'\'' => SpanEscape::Literal("\\'"),
+        b'\n' => SpanEscape::Literal("\\n"),
+        b'\r' => SpanEscape::Literal("\\r"),
+        b'\t' => SpanEscape::Literal("\\t"),
+        0 => SpanEscape::Literal("\\0"),
+        b if b < 32 || b == 127 => SpanEscape::HexByte,
+        _ => SpanEscape::Keep,
+    })
 }
 
 #[cfg(test)]
@@ -807,9 +903,6 @@ mod tests {
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::Quote,
             bytes_format: BytesFormat::PrefixBigX,
-            date_format: TemporalLiteral::Quoted,
-            time_format: TemporalLiteral::Quoted,
-            timestamp_format: TemporalLiteral::Quoted,
             json_format: JsonFormat::Quoted,
             uuid_format: UuidFormat::Quoted,
             function_filter_syntax: None,
@@ -826,6 +919,8 @@ mod tests {
             supports_double_colon: false,
             trim_syntax: TrimSyntax::SqlFrom,
             collate_syntax: None,
+            like_escape_syntax: LikeEscapeSyntax::None,
+            bitwise_syntax: BitwiseSyntax::None,
         }
     }
 
@@ -1007,6 +1102,112 @@ mod tests {
         assert_eq!(
             collect(|buf| cfg.write_string_literal(buf, "hello'world\n")),
             "E'hello\\'world\\n'"
+        );
+    }
+
+    struct CountWrites {
+        buf: String,
+        strs: usize,
+        chars: usize,
+    }
+
+    impl fmt::Write for CountWrites {
+        fn write_str(&mut self, s: &str) -> fmt::Result {
+            self.strs += 1;
+            self.buf.push_str(s);
+            Ok(())
+        }
+
+        fn write_char(&mut self, c: char) -> fmt::Result {
+            self.chars += 1;
+            self.buf.push(c);
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn backslash_plain_string_is_one_write_str() {
+        for kind in [
+            StringEscape::BackslashHex,
+            StringEscape::BackslashMysql,
+            StringEscape::BackslashUnicode,
+            StringEscape::BackslashHexZero,
+            StringEscape::BackslashUnicodeQuote,
+        ] {
+            let mut out = CountWrites {
+                buf: String::new(),
+                strs: 0,
+                chars: 0,
+            };
+            kind.write(&mut out, "plain text").unwrap();
+            assert_eq!(out.strs, 1, "{kind:?}");
+            assert_eq!(out.chars, 0, "{kind:?}");
+            assert_eq!(out.buf, "plain text");
+
+            let mut mixed = CountWrites {
+                buf: String::new(),
+                strs: 0,
+                chars: 0,
+            };
+            kind.write(&mut mixed, "a'b\\c").unwrap();
+            assert_eq!(mixed.chars, 0, "{kind:?} wrote a char at a time");
+            assert_eq!(mixed.buf, escape(kind, "a'b\\c"));
+        }
+    }
+
+    fn quote_bigquery(name: &str) -> String {
+        let mut cfg = base();
+        cfg.identifier_format = IdentifierFormat::Backtick;
+        cfg.identifier_escape = IdentifierEscape::Backslash;
+        collect_fmt(|buf| cfg.quote_identifier(buf, name))
+    }
+
+    #[test]
+    fn bigquery_identifier_escapes_backslash() {
+        assert_eq!(quote_bigquery(r"a\b"), r"`a\\b`");
+        assert_eq!(quote_bigquery("a\\`b"), r"`a\\\`b`");
+        assert_eq!(quote_bigquery(r"a\"), r"`a\\`");
+        assert_eq!(quote_bigquery("a\nb"), r"`a\nb`");
+        assert_eq!(quote_bigquery("a\rb"), r"`a\rb`");
+        assert_eq!(quote_bigquery("a\tb"), r"`a\tb`");
+        assert_eq!(quote_bigquery("\u{1}"), r"`\x01`");
+        assert_eq!(quote_bigquery("\0"), r"`\x00`");
+        assert_eq!(quote_bigquery("\u{7f}"), r"`\x7F`");
+        assert_eq!(quote_bigquery("a'b"), "`a'b`");
+        assert_eq!(quote_bigquery("`"), r"`\``");
+
+        let mut out = CountWrites {
+            buf: String::new(),
+            strs: 0,
+            chars: 0,
+        };
+        let mut cfg = base();
+        cfg.identifier_format = IdentifierFormat::Backtick;
+        cfg.identifier_escape = IdentifierEscape::Backslash;
+        cfg.quote_identifier(&mut out, "plain").unwrap();
+        assert_eq!(out.buf, "`plain`");
+        assert_eq!(out.strs, 1);
+        assert_eq!(out.chars, 2);
+    }
+
+    #[test]
+    fn bytes_longer_than_one_chunk() {
+        let long: Vec<u8> = (0..80).map(|i| (i * 3) as u8).collect();
+        let hex: String = long.iter().map(|b| format!("{b:02X}")).collect();
+        let xnn: String = long.iter().map(|b| format!("\\x{b:02X}")).collect();
+        assert_eq!(bytes(BytesFormat::PrefixBigX, &long), format!("X'{hex}'"));
+        assert_eq!(bytes(BytesFormat::PrefixZeroX, &long), format!("0x{hex}"));
+        assert_eq!(
+            bytes(BytesFormat::PrefixBigBSlashX, &long),
+            format!("B'{xnn}'")
+        );
+        assert_eq!(
+            bytes(BytesFormat::SlashXBlob, &long),
+            format!("'{xnn}'::BLOB")
+        );
+        assert_eq!(
+            bytes(BytesFormat::SlashXBytea, &long),
+            format!("'\\x{hex}'::bytea")
         );
     }
 }

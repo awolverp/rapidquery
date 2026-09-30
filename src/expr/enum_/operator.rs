@@ -49,6 +49,15 @@ impl UnaryOp {
             Self::Plus | Self::Minus | Self::BitNot => UnarySpacing::GluedPrefix,
         }
     }
+
+    /// Lower is tighter binding. `NOT` sits between comparisons and `AND`.
+    #[inline]
+    pub(crate) fn precedence(self) -> u8 {
+        match self {
+            Self::Not => 6,
+            Self::Plus | Self::Minus | Self::BitNot => 1,
+        }
+    }
 }
 
 /// Binary operator. Unknown spellings become [`BinaryOp::Custom`].
@@ -153,8 +162,8 @@ impl BinaryOp {
             | Self::Gt
             | Self::GtEq
             | Self::Custom(_) => 5,
-            Self::And => 6,
-            Self::Or => 8,
+            Self::And => 7,
+            Self::Or => 9,
         }
     }
 }

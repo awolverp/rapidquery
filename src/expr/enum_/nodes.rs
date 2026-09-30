@@ -1,8 +1,8 @@
 use super::{BinaryOp, CastKind, ExprInner, Ident, IsKind, TrimWhere, UnaryOp, UnarySpacing};
 use crate::dialect::PySqlDialect;
 use crate::dialect::inner::{
-    BitXorSyntax, CollateSyntax, IsDistinctFromSyntax, ModuloSyntax, StringConcatSyntax,
-    TrimSyntax, TupleSyntax,
+    BitXorSyntax, BitwiseSyntax, CollateSyntax, IsDistinctFromSyntax, ModuloSyntax,
+    StringConcatSyntax, TrimSyntax, TupleSyntax,
 };
 use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
 use std::fmt::Write;
@@ -79,9 +79,11 @@ impl WriteSql for Tuple {
     }
 }
 
-/// Unary operation (`NOT x`, `-x`, `|/x`, postfix `x!`).
+/// Unary operation (`NOT x`, `-x`, `~x`).
 ///
-/// Precedence 1. Nested equal-precedence operands are parenthesized.
+/// `NOT` binds between comparisons and `AND`. `+`, `-`, and `~` bind tighter
+/// than multiplication. Nested equal-precedence operands are parenthesized.
+/// `~` is `BITNOT(expr)` where the dialect's bitwise profile says so.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Unary {
     pub op: UnaryOp,
@@ -89,8 +91,6 @@ pub struct Unary {
 }
 
 impl Unary {
-    pub(crate) const PRECEDENCE: u8 = 1;
-
     pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
         Ok(format!(
             "UnaryExpr({:?}, {})",
@@ -102,17 +102,38 @@ impl Unary {
 
 impl WriteSql for Unary {
     fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
+        if self.op == UnaryOp::BitNot {
+            match dialect.0.bitwise_syntax {
+                BitwiseSyntax::Infix | BitwiseSyntax::InfixNoShift => {
+                    out.push_char('~');
+                    return self.expr.write_operand(
+                        dialect,
+                        out,
+                        UnaryOp::BitNot.precedence(),
+                        true,
+                    );
+                }
+                BitwiseSyntax::BitShiftFunctions | BitwiseSyntax::ShiftFunctions => {
+                    out.push_str("BITNOT(");
+                    self.expr.write_sql(dialect, out)?;
+                    out.push_char(')');
+                    return Ok(());
+                }
+                BitwiseSyntax::BitAndOnly | BitwiseSyntax::None | BitwiseSyntax::InfixAndShift => {
+                    return Err(unsupported("bitwise NOT is not supported by this dialect"));
+                }
+            }
+        }
+        let prec = self.op.precedence();
         match self.op.spacing() {
             UnarySpacing::SpacedPrefix => {
                 out.push_str(self.op.as_sql());
                 out.push_char(' ');
-                self.expr
-                    .write_operand(dialect, out, Self::PRECEDENCE, true)
+                self.expr.write_operand(dialect, out, prec, true)
             }
             UnarySpacing::GluedPrefix => {
                 out.push_str(self.op.as_sql());
-                self.expr
-                    .write_operand(dialect, out, Self::PRECEDENCE, true)
+                self.expr.write_operand(dialect, out, prec, true)
             }
         }
     }
@@ -130,11 +151,6 @@ pub struct Binary {
 }
 
 impl Binary {
-    #[inline]
-    pub(crate) fn precedence(&self) -> u8 {
-        self.op.precedence()
-    }
-
     pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
         Ok(format!(
             "BinaryExpr({}, {:?}, {})",
@@ -185,7 +201,7 @@ fn write_infix<W: SqlWriter>(
     spelling: &str,
     paren_arithmetic: bool,
 ) -> PrepareResult<()> {
-    let prec = bin.precedence();
+    let prec = bin.op.precedence();
     write_infix_side(dialect, out, &bin.left, prec, false, paren_arithmetic)?;
     out.push_char(' ');
     out.push_str(spelling);
@@ -238,6 +254,62 @@ impl WriteSql for Binary {
                     write_binary_call(dialect, out, "MOD", &self.left, &self.right)
                 }
                 ModuloSyntax::Infix => write_infix(self, dialect, out, "MOD", false),
+            },
+            BinaryOp::BitAnd => match dialect.0.bitwise_syntax {
+                BitwiseSyntax::Infix
+                | BitwiseSyntax::InfixNoShift
+                | BitwiseSyntax::InfixAndShift => write_infix(self, dialect, out, "&", false),
+                BitwiseSyntax::BitShiftFunctions
+                | BitwiseSyntax::ShiftFunctions
+                | BitwiseSyntax::BitAndOnly => {
+                    write_binary_call(dialect, out, "BITAND", &self.left, &self.right)
+                }
+                BitwiseSyntax::None => {
+                    Err(unsupported("bitwise AND is not supported by this dialect"))
+                }
+            },
+            BinaryOp::BitOr => match dialect.0.bitwise_syntax {
+                BitwiseSyntax::Infix | BitwiseSyntax::InfixNoShift => {
+                    write_infix(self, dialect, out, "|", false)
+                }
+                BitwiseSyntax::BitShiftFunctions | BitwiseSyntax::ShiftFunctions => {
+                    write_binary_call(dialect, out, "BITOR", &self.left, &self.right)
+                }
+                BitwiseSyntax::BitAndOnly | BitwiseSyntax::None | BitwiseSyntax::InfixAndShift => {
+                    Err(unsupported("bitwise OR is not supported by this dialect"))
+                }
+            },
+            BinaryOp::LShift => match dialect.0.bitwise_syntax {
+                BitwiseSyntax::Infix | BitwiseSyntax::InfixAndShift => {
+                    write_infix(self, dialect, out, "<<", false)
+                }
+                BitwiseSyntax::BitShiftFunctions => {
+                    write_binary_call(dialect, out, "BITSHIFTLEFT", &self.left, &self.right)
+                }
+                BitwiseSyntax::ShiftFunctions => {
+                    write_binary_call(dialect, out, "SHIFTLEFT", &self.left, &self.right)
+                }
+                BitwiseSyntax::InfixNoShift | BitwiseSyntax::BitAndOnly | BitwiseSyntax::None => {
+                    Err(unsupported(
+                        "bitwise shift is not supported by this dialect",
+                    ))
+                }
+            },
+            BinaryOp::RShift => match dialect.0.bitwise_syntax {
+                BitwiseSyntax::Infix | BitwiseSyntax::InfixAndShift => {
+                    write_infix(self, dialect, out, ">>", false)
+                }
+                BitwiseSyntax::BitShiftFunctions => {
+                    write_binary_call(dialect, out, "BITSHIFTRIGHT", &self.left, &self.right)
+                }
+                BitwiseSyntax::ShiftFunctions => {
+                    write_binary_call(dialect, out, "SHIFTRIGHT", &self.left, &self.right)
+                }
+                BitwiseSyntax::InfixNoShift | BitwiseSyntax::BitAndOnly | BitwiseSyntax::None => {
+                    Err(unsupported(
+                        "bitwise shift is not supported by this dialect",
+                    ))
+                }
             },
             _ => write_infix(self, dialect, out, self.op.as_sql(), false),
         }

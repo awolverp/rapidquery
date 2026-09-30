@@ -79,7 +79,8 @@ impl WriteSql for Function {
         dialect: &crate::dialect::PySqlDialect,
         out: &mut W,
     ) -> PrepareResult<()> {
-        // "name"([DISTINCT] args [IGNORE|RESPECT NULLS] [WHERE expr] ) [IGNORE|RESPECT NULLS] [FILTER ([WHERE] expr)]
+        // "name"([DISTINCT] args [IGNORE|RESPECT NULLS] [WHERE expr])
+        // [FILTER ([WHERE] expr)] [IGNORE|RESPECT NULLS]
         self.name.write_sql(dialect, out)?;
 
         let args_available = !self.args.is_empty();
@@ -129,18 +130,7 @@ impl WriteSql for Function {
 
         out.push_char(')');
 
-        // Postfix IGNORE/RESPECT NULLS
-        if let Some(x) = self.null_treatment
-            && matches!(
-                dialect.0.null_treatment_syntax,
-                Some(NullTreatmentSyntax::Postfix)
-            )
-        {
-            out.push_char(' ');
-            out.push_str(x.as_sql());
-        }
-
-        // Postfix WHERE filter
+        // FILTER, then postfix IGNORE/RESPECT NULLS (immediately before OVER).
         if let Some(x) = &self.filter {
             match dialect.0.function_filter_syntax {
                 Some(FunctionFilterSyntax::FilterWhere) => {
@@ -157,6 +147,16 @@ impl WriteSql for Function {
                 }
                 _ => {}
             }
+        }
+
+        if let Some(x) = self.null_treatment
+            && matches!(
+                dialect.0.null_treatment_syntax,
+                Some(NullTreatmentSyntax::Postfix)
+            )
+        {
+            out.push_char(' ');
+            out.push_str(x.as_sql());
         }
 
         Ok(())

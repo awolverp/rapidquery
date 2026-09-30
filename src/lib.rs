@@ -9,16 +9,17 @@ pub mod sql;
 pub mod typeref;
 
 // Tasks until being stable (until this part)
-// - Raise error when something is not supported by a dialect
+// - Clean code
+// - Restore GenericDialect ( very helpful for testing )
 // - Test and coverage everything and edge cases
-// - Update docstrings, clean code, update Rust docs, add fmt/lint/coding-style rules
+// - Update docstrings / doccomments
+// - Add fmt/lint/coding-style rules
 
 // Later tasks:
 // - Complete `Expr` methods
 // - Test `Expr` methods
 // - Benchmark and compare with old version
 // - Open PR
-// - Restore GenericDialect
 // - Start writing query ASTs.
 
 /// RapidQuery native extension.
