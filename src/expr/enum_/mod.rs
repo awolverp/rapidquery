@@ -12,10 +12,10 @@ pub use nodes::*;
 pub use operator::*;
 pub use value::*;
 
-use crate::{
-    dialect::PySqlDialect,
-    sql::{PrepareResult, SqlWriter, WriteSql},
-};
+use crate::dialect::PySqlDialect;
+use crate::sql::PrepareResult;
+use crate::sql::SqlWriter;
+use crate::sql::WriteSql;
 
 /// SQL expression tree.
 ///

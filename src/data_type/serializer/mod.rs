@@ -3,31 +3,18 @@
 mod functions;
 mod inner;
 
-pub use inner::SerializerInner;
 pub use inner::SerializerType;
 
 use crate::internal::alias;
 
-pub fn serializer_repr(serializer: &SerializerInner) -> String {
-    use std::fmt::Write;
-
-    let name = serializer_type_to_pyname(&serializer.r#type);
+pub fn serializer_repr(serializer: &SerializerType) -> String {
+    let name = serializer_type_to_pyname(serializer);
     let mut buf = String::with_capacity(name.len() + 2);
     buf.push_str(name);
     buf.push('(');
 
-    let mut sep = "";
-
-    if let SerializerType::Array(element) = &serializer.r#type {
+    if let SerializerType::Array(element) = serializer {
         buf.push_str(&serializer_repr(element));
-        sep = ", ";
-    }
-    if let Some(x) = &serializer.prefix {
-        let _ = write!(buf, "{sep}prefix={x:?}");
-        sep = ", ";
-    }
-    if let Some(x) = &serializer.suffix {
-        let _ = write!(buf, "{sep}suffix={x:?}");
     }
 
     buf.push(')');
@@ -38,20 +25,10 @@ pub fn serializer_repr(serializer: &SerializerInner) -> String {
 #[rapidquery_macros::pyclass("rapidquery.data_type.Serializer", subclass, from_py_object, generic)]
 #[derive(Debug, Clone)]
 #[repr(transparent)]
-pub struct PySerializer(pub SerializerInner);
+pub struct PySerializer(pub SerializerType);
 
 #[pyo3::pymethods]
 impl PySerializer {
-    #[getter]
-    fn get_prefix(&self) -> Option<String> {
-        self.0.prefix.as_ref().map(arcstr::ArcStr::to_string)
-    }
-
-    #[getter]
-    fn get_suffix(&self) -> Option<String> {
-        self.0.suffix.as_ref().map(arcstr::ArcStr::to_string)
-    }
-
     /// Renders `object` as a SQL literal for `dialect`.
     fn serialize(
         &self,
@@ -59,7 +36,7 @@ impl PySerializer {
         object: alias::BoundObject<'_>,
     ) -> pyo3::PyResult<String> {
         let mut buf = String::new();
-        self.0.write_sql(&dialect, &object, &mut buf)?;
+        self.0.serialize(&dialect, &object, &mut buf)?;
         Ok(buf)
     }
 
@@ -73,7 +50,8 @@ impl PySerializer {
     }
 
     fn __hash__(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
+        use std::hash::Hash;
+        use std::hash::Hasher;
 
         let mut hasher = std::hash::DefaultHasher::new();
         self.0.hash(&mut hasher);
@@ -97,14 +75,9 @@ macro_rules! impl_unit_serializers {
             #[pyo3::pymethods]
             impl $name {
                 #[new]
-                #[pyo3(signature = (prefix=None, suffix=None))]
-                fn __new__(prefix: Option<&str>, suffix: Option<&str>) -> pyo3::PyClassInitializer<Self> {
-                    let inner = SerializerInner::new(
-                        SerializerType::$variant,
-                        prefix.map(arcstr::ArcStr::from),
-                        suffix.map(arcstr::ArcStr::from),
-                    );
-                    pyo3::PyClassInitializer::from(PySerializer(inner)).add_subclass(Self)
+                fn __new__() -> pyo3::PyClassInitializer<Self> {
+                    pyo3::PyClassInitializer::from(PySerializer(SerializerType::$variant))
+                        .add_subclass(Self)
                 }
             }
         )+
@@ -126,7 +99,7 @@ macro_rules! impl_unit_serializers {
                 self,
                 py: pyo3::Python<'py>,
             ) -> pyo3::PyResult<alias::BoundObject<'py>> {
-                match &self.0.r#type {
+                match &self.0 {
                     $(
                         SerializerType::$variant {..} => {
                             pyo3::Bound::new(
@@ -191,8 +164,8 @@ impl_unit_serializers! {
     ///     TypeError: If the value is not a `str` or a string-valued enum member.
     String => PyStringSerializer => "StringSerializer",
 
-    /// Serializes UUIDs as quoted SQL string literals.
-    /// Accepts `uuid.UUID` or `str`.
+    /// Serializes UUIDs using the dialect's `uuid_format`.
+    /// Accepts `uuid.UUID` or `str`. A quoted literal, `UUID '…'`, or `'…'::uuid`.
     /// Raises:
     ///     TypeError: If the value is not a `uuid.UUID` or `str`.
     Uuid => PyUuidSerializer => "UuidSerializer",
@@ -214,7 +187,8 @@ impl_unit_serializers! {
     ///     NotImplementedError: If the dialect has no native bit-string literal.
     Bit => PyBitSerializer => "BitSerializer",
 
-    /// Serializes a JSON-encodable object as a quoted SQL string literal.
+    /// Serializes a JSON-encodable object using the dialect's `json_format`.
+    /// A quoted literal, `JSON '…'`, or `PARSE_JSON('…')`.
     /// Accepts any object that the JSON encoder can dump. Uses `orjson` when it
     /// is installed, otherwise the stdlib `json` module. The JSON text is then
     /// wrapped with the dialect's string quoting. With `orjson`, datetime,
@@ -225,31 +199,36 @@ impl_unit_serializers! {
     ///     TypeError: If the value cannot be JSON-encoded.
     Json => PyJSONSerializer => "JSONSerializer",
 
-    /// Serializes dates as quoted `YYYY-MM-DD` literals.
+    /// Serializes dates as `YYYY-MM-DD` literals.
+    /// `date_format` chooses a quoted literal or `DATE` plus that literal.
     /// Accepts exact `datetime.date` (not `datetime.datetime`).
     ///
     /// Raises:
     ///     TypeError: If the value is not a `datetime.date`.
     Date => PyDateSerializer => "DateSerializer",
 
-    /// Serializes times as quoted `HH:MM:SS[.ffffff]` literals.
+    /// Serializes times as `HH:MM:SS[.ffffff]` literals.
+    /// `time_format` chooses a quoted literal or `TIME` plus that literal.
     /// Accepts `datetime.time`.
     ///
     /// Raises:
     ///     TypeError: If the value is not a `datetime.time`.
     Time => PyTimeSerializer => "TimeSerializer",
 
-    /// Serializes timestamps as quoted SQL timestamp literals.
+    /// Serializes timestamps as SQL timestamp literals.
     /// Accepts naive or aware `datetime.datetime`, or `int`/`float` UTC epoch
     /// seconds. Naive values keep wall time. Aware values keep their original
-    /// offset (they are not converted to UTC).
+    /// offset (they are not converted to UTC). When `timestamp_format` sets a
+    /// keyword, naive values use `TIMESTAMP` and aware values (including epoch
+    /// numbers) use `TIMESTAMPTZ` or `TIMESTAMP WITH TIMEZONE`.
     ///
     /// Raises:
     ///     TypeError: If the value is not a `datetime.datetime`, `int`, or `float`.
     ///     OverflowError: If an epoch value is out of range for a timestamp.
     Datetime => PyDatetimeSerializer => "DatetimeSerializer",
 
-    /// Serializes IP addresses and networks as quoted SQL literals.
+    /// Serializes IP addresses and networks using the dialect's `inet_format`.
+    /// A quoted literal or `'…'::inet`.
     /// Accepts `str` or `ipaddress` objects (`IPv4Address`, `IPv6Address`,
     /// `IPv4Network`, `IPv6Network`, and related types whose `str()` is a valid
     /// address or CIDR). Supported on PostgreSQL and DuckDB.
@@ -259,7 +238,8 @@ impl_unit_serializers! {
     ///     NotImplementedError: If the dialect has no native INET type.
     Inet => PyInetSerializer => "InetSerializer",
 
-    /// Serializes MAC addresses as quoted SQL literals.
+    /// Serializes MAC addresses using the dialect's `macaddr_format`.
+    /// A quoted literal or `'…'::macaddr`.
     /// Accepts a `str` using `:` or `-` as the separator.
     /// Supported on PostgreSQL.
     ///
@@ -296,15 +276,8 @@ impl PyArraySerializer {
     ///             are expressed by passing another `ArraySerializer`.
     #[new]
     #[inline]
-    #[pyo3(signature = (element, prefix=None, suffix=None))]
-    fn __new__(
-        element: PySerializer,
-        prefix: Option<&str>,
-        suffix: Option<&str>,
-    ) -> pyo3::PyClassInitializer<Self> {
-        let type_ = SerializerType::Array(Box::new(element.0));
-        let inner = SerializerInner::new(type_, prefix.map(Into::into), suffix.map(Into::into));
-
+    fn __new__(element: PySerializer) -> pyo3::PyClassInitializer<Self> {
+        let inner = SerializerType::Array(Box::new(element.0));
         pyo3::PyClassInitializer::from(PySerializer(inner)).add_subclass(Self)
     }
 
@@ -315,7 +288,7 @@ impl PyArraySerializer {
     #[getter]
     fn get_element(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
         let base = slf.as_super();
-        match &base.0.r#type {
+        match &base.0 {
             SerializerType::Array(element) => {
                 PySerializer((**element).clone()).into_subclasses(slf.py())
             }
@@ -342,12 +315,7 @@ impl PyCustomSerializer {
     ///             The return value is inserted into SQL as-is (not re-quoted).
     ///             Must return a `str`.
     #[new]
-    #[pyo3(signature = (function, prefix=None, suffix=None))]
-    fn __new__(
-        function: alias::PyObject,
-        prefix: Option<&str>,
-        suffix: Option<&str>,
-    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+    fn __new__(function: alias::PyObject) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
         unsafe {
             if pyo3::ffi::PyCallable_Check(function.as_ptr()) != 1 {
                 return rapidquery_macros::pyerr!(
@@ -356,9 +324,7 @@ impl PyCustomSerializer {
                 );
             }
         }
-        let type_ = SerializerType::Custom(function);
-        let inner = SerializerInner::new(type_, prefix.map(Into::into), suffix.map(Into::into));
-
+        let inner = SerializerType::Custom(function);
         Ok(pyo3::PyClassInitializer::from(PySerializer(inner)).add_subclass(Self))
     }
 
@@ -369,7 +335,7 @@ impl PyCustomSerializer {
     #[getter]
     fn get_function(slf: pyo3::PyRef<'_, Self>) -> alias::PyObject {
         let base = slf.as_super();
-        match &base.0.r#type {
+        match &base.0 {
             SerializerType::Custom(function) => function.clone(),
             _ => unsafe { std::hint::unreachable_unchecked() },
         }
@@ -379,7 +345,7 @@ impl PyCustomSerializer {
 /// `Serializer` instance, or a `DataType` (its serializer only).
 ///
 /// Use [`PySerializer`] itself as an argument if you wanna accept ONLY `PySerializer` types.
-pub struct SerializerExtractor(pub SerializerInner);
+pub struct SerializerExtractor(pub SerializerType);
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for SerializerExtractor {
     type Error = pyo3::PyErr;

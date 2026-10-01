@@ -1,0 +1,2 @@
+imports_granularity = "Item"
+single_line_let_else_max_width = 100

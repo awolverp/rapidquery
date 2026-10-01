@@ -1,8 +1,12 @@
 use super::ExprInner;
 use super::ident::Ident;
 
-use crate::dialect::inner::{FunctionFilterSyntax, NullTreatmentSyntax};
-use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
+use crate::dialect::inner::FunctionFilterSyntax;
+use crate::dialect::inner::NullTreatmentSyntax;
+use crate::sql::PrepareResult;
+use crate::sql::SqlWriter;
+use crate::sql::WriteSql;
+use crate::sql::write_separated;
 
 /// How `NULL`s are treated in some window/aggregate functions.
 ///

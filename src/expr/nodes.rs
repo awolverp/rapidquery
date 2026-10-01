@@ -1,12 +1,15 @@
-use pyo3::types::{PyAnyMethods, PyTupleMethods};
+use pyo3::types::PyAnyMethods;
+use pyo3::types::PyTupleMethods;
 
 use super::base::PyExpr;
 use super::enum_::ExprInner;
-use super::extractors::{
-    ConditionExtractor, IdentExtractor, LiteralExprExtractor, extract_like_pattern,
-};
+use super::extractors::ConditionExtractor;
+use super::extractors::IdentExtractor;
+use super::extractors::LiteralExprExtractor;
+use super::extractors::extract_like_pattern;
 use crate::data_type::DataTypeNameExtractor;
-use crate::internal::{alias, utils};
+use crate::internal::alias;
+use crate::internal::utils;
 
 macro_rules! empty_node {
     (

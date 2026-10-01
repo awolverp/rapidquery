@@ -1,13 +1,21 @@
-use pyo3::types::{PyAnyMethods, PyTzInfoAccess};
+use pyo3::types::PyAnyMethods;
+use pyo3::types::PyTzInfoAccess;
 
-use crate::{
-    dialect::{
-        PySqlDialect,
-        inner::{ArrayFormat, Dialect, FormatError, StringFormat},
-    },
-    internal::{alias, utils},
-};
-use std::{fmt::Write, str::FromStr};
+use crate::dialect::PySqlDialect;
+use crate::dialect::inner::ArrayFormat;
+use crate::dialect::inner::DateFormat;
+use crate::dialect::inner::Dialect;
+use crate::dialect::inner::FormatError;
+use crate::dialect::inner::InetFormat;
+use crate::dialect::inner::JsonFormat;
+use crate::dialect::inner::MacAddrFormat;
+use crate::dialect::inner::TimeFormat;
+use crate::dialect::inner::TimestampFormat;
+use crate::dialect::inner::UuidFormat;
+use crate::internal::alias;
+use crate::internal::utils;
+use std::fmt::Write;
+use std::str::FromStr;
 
 /// `str(obj)` copied into a Rust `String`.
 ///
@@ -27,23 +35,33 @@ pub(super) unsafe fn pyobject_string(
     out
 }
 
-/// Open a string literal and write `body` inside it.
-///
-/// # Note
-/// `body` must be digits, `-`, `:`, `.`, `+`, and space only: no quote, backslash, NUL, or C0.
-#[inline]
-fn write_quoted_body(
+fn write_quoted(dialect: &Dialect, out: &mut String, raw: &str) -> pyo3::PyResult<()> {
+    dialect.write_string_literal(out, raw).map_err(Into::into)
+}
+
+fn write_with_keyword(
     dialect: &Dialect,
     out: &mut String,
-    body_fn: impl FnOnce(&mut String) -> std::fmt::Result,
+    keyword: Option<&str>,
+    raw: &str,
 ) -> pyo3::PyResult<()> {
-    match dialect.string_format {
-        StringFormat::PrefixBigN => out.push_str("N'"),
-        StringFormat::SingleQuote | StringFormat::PrefixBigE => out.push('\''),
+    if let Some(keyword) = keyword {
+        out.push_str(keyword);
+        out.push(' ');
     }
-    body_fn(out).map_err(|_| rapidquery_macros::pyerr!(PyRuntimeError, "failed to write SQL"))?;
-    out.push('\'');
-    Ok(())
+    write_quoted(dialect, out, raw)
+}
+
+fn timestamp_keyword(format: TimestampFormat, aware: bool) -> Option<&'static str> {
+    match format {
+        TimestampFormat::Quoted => None,
+        TimestampFormat::Timestamptz => Some(if aware { "TIMESTAMPTZ" } else { "TIMESTAMP" }),
+        TimestampFormat::WithTimezone => Some(if aware {
+            "TIMESTAMP WITH TIMEZONE"
+        } else {
+            "TIMESTAMP"
+        }),
+    }
 }
 
 #[inline]
@@ -162,24 +180,34 @@ pub(super) unsafe fn write_uuid(
     dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
-    if crate::typeref::check_exact(ptr, crate::typeref::STD_UUID_TYPE) {
-        let rendered = pyobject_string(py, ptr)?;
-        return write_quoted_body(dialect, out, |w| write!(w, "{}", rendered));
-    }
-
-    if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
+    let text = if crate::typeref::check_exact(ptr, crate::typeref::STD_UUID_TYPE) {
+        pyobject_string(py, ptr)?
+    } else if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
         let borrowed = utils::borrow_py_str_buffer(py, ptr)?;
-        let parsed = uuid::Uuid::try_parse(borrowed)
-            .map_err(|e| rapidquery_macros::pyerr!(PyValueError, "invalid uuid str: {}", e))?;
+        uuid::Uuid::try_parse(borrowed)
+            .map_err(|e| rapidquery_macros::pyerr!(PyValueError, "invalid uuid str: {}", e))?
+            .hyphenated()
+            .to_string()
+    } else {
+        return rapidquery_macros::pyerr!(
+            Err(PyTypeError),
+            "expected uuid.UUID/str for UUID serialization, got {}",
+            utils::get_type_name(py, ptr)
+        );
+    };
 
-        return write_quoted_body(dialect, out, |w| write!(w, "{}", parsed.hyphenated()));
+    match dialect.uuid_format {
+        UuidFormat::Quoted => write_quoted(dialect, out, &text),
+        UuidFormat::UuidKeyword => {
+            out.push_str("UUID ");
+            write_quoted(dialect, out, &text)
+        }
+        UuidFormat::CastUuid => {
+            write_quoted(dialect, out, &text)?;
+            out.push_str("::uuid");
+            Ok(())
+        }
     }
-
-    rapidquery_macros::pyerr!(
-        Err(PyTypeError),
-        "expected uuid.UUID/str for UUID serialization, got {}",
-        utils::get_type_name(py, ptr)
-    )
 }
 
 #[inline]
@@ -243,7 +271,19 @@ pub(super) unsafe fn write_json(
 ) -> pyo3::PyResult<()> {
     crate::internal::modules::json_dumps(
         unsafe { pyo3::Bound::from_borrowed_ptr(py, ptr) },
-        |text| dialect.write_string_literal(out, text).map_err(Into::into),
+        |text| match dialect.json_format {
+            JsonFormat::Quoted => write_quoted(dialect, out, text),
+            JsonFormat::JsonKeyword => {
+                out.push_str("JSON ");
+                write_quoted(dialect, out, text)
+            }
+            JsonFormat::ParseJson => {
+                out.push_str("PARSE_JSON(");
+                write_quoted(dialect, out, text)?;
+                out.push(')');
+                Ok(())
+            }
+        },
     )
 }
 
@@ -251,6 +291,7 @@ pub(super) unsafe fn write_json(
 pub(super) unsafe fn write_date(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
+    dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     if crate::typeref::check_exact(ptr, crate::typeref::STD_DATE_TYPE) {
@@ -258,9 +299,13 @@ pub(super) unsafe fn write_date(
             pyo3::Bound::from_borrowed_ptr(py, ptr).cast_into()?;
 
         let date: chrono::NaiveDate = val.extract()?;
-
-        let _ = date.format("%Y-%m-%d").write_to(out);
-        Ok(())
+        let mut body = String::new();
+        let _ = date.format("%Y-%m-%d").write_to(&mut body);
+        let keyword = match dialect.date_format {
+            DateFormat::Quoted => None,
+            DateFormat::Keyword => Some("DATE"),
+        };
+        write_with_keyword(dialect, out, keyword, &body)
     } else {
         rapidquery_macros::pyerr!(
             Err(PyTypeError),
@@ -274,6 +319,7 @@ pub(super) unsafe fn write_date(
 pub(super) unsafe fn write_time(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
+    dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     if crate::typeref::check_exact(ptr, crate::typeref::STD_TIME_TYPE) {
@@ -281,8 +327,13 @@ pub(super) unsafe fn write_time(
             pyo3::Bound::from_borrowed_ptr(py, ptr).cast_into()?;
 
         let time: chrono::NaiveTime = val.extract()?;
-        let _ = time.format("%H:%M:%S%.f").write_to(out);
-        Ok(())
+        let mut body = String::new();
+        let _ = time.format("%H:%M:%S%.f").write_to(&mut body);
+        let keyword = match dialect.time_format {
+            TimeFormat::Quoted => None,
+            TimeFormat::Keyword => Some("TIME"),
+        };
+        write_with_keyword(dialect, out, keyword, &body)
     } else {
         rapidquery_macros::pyerr!(
             Err(PyTypeError),
@@ -296,6 +347,7 @@ pub(super) unsafe fn write_time(
 pub(super) unsafe fn write_datetime(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
+    dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     use chrono::TimeZone;
@@ -306,14 +358,27 @@ pub(super) unsafe fn write_datetime(
 
         if val.get_tzinfo().is_none() {
             let datetime: chrono::NaiveDateTime = val.extract()?;
-
-            let _ = datetime.format("%Y-%m-%d %H:%M:%S%.f").write_to(out);
-            return Ok(());
+            let mut body = String::new();
+            let _ = datetime.format("%Y-%m-%d %H:%M:%S%.f").write_to(&mut body);
+            return write_with_keyword(
+                dialect,
+                out,
+                timestamp_keyword(dialect.timestamp_format, false),
+                &body,
+            );
         }
 
         let datetime: chrono::DateTime<chrono::FixedOffset> = val.extract()?;
-        let _ = datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").write_to(out);
-        return Ok(());
+        let mut body = String::new();
+        let _ = datetime
+            .format("%Y-%m-%d %H:%M:%S%.f%:z")
+            .write_to(&mut body);
+        return write_with_keyword(
+            dialect,
+            out,
+            timestamp_keyword(dialect.timestamp_format, true),
+            &body,
+        );
     }
 
     if pyo3::ffi::PyLong_CheckExact(ptr) == 1 {
@@ -325,8 +390,16 @@ pub(super) unsafe fn write_datetime(
 
         return match chrono::Utc.timestamp_opt(num, 0) {
             chrono::offset::LocalResult::Single(datetime) => {
-                let _ = datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").write_to(out);
-                Ok(())
+                let mut body = String::new();
+                let _ = datetime
+                    .format("%Y-%m-%d %H:%M:%S%.f%:z")
+                    .write_to(&mut body);
+                write_with_keyword(
+                    dialect,
+                    out,
+                    timestamp_keyword(dialect.timestamp_format, true),
+                    &body,
+                )
             }
             _ => rapidquery_macros::pyerr!(
                 Err(PyOverflowError),
@@ -342,8 +415,16 @@ pub(super) unsafe fn write_datetime(
             .timestamp_opt(num.trunc() as i64, (num.fract() * 1_000_000_000.0) as u32)
         {
             chrono::offset::LocalResult::Single(datetime) => {
-                let _ = datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").write_to(out);
-                Ok(())
+                let mut body = String::new();
+                let _ = datetime
+                    .format("%Y-%m-%d %H:%M:%S%.f%:z")
+                    .write_to(&mut body);
+                write_with_keyword(
+                    dialect,
+                    out,
+                    timestamp_keyword(dialect.timestamp_format, true),
+                    &body,
+                )
             }
             _ => rapidquery_macros::pyerr!(
                 Err(PyOverflowError),
@@ -367,15 +448,20 @@ pub(super) unsafe fn write_inet(
     dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
-    if !dialect.supports_inet {
-        return Err(FormatError::Unsupported("INET data type").into());
-    }
-
     let text = pyobject_string(py, ptr)?;
     let net = ipnetwork::IpNetwork::from_str(&text)
         .map_err(|e| rapidquery_macros::pyerr!(PyValueError, e.to_string()))?;
+    let body = net.to_string();
 
-    write_quoted_body(dialect, out, |w| write!(w, "{net}"))
+    match dialect.inet_format {
+        None => Err(FormatError::Unsupported("InetSerializer").into()),
+        Some(InetFormat::Quoted) => write_quoted(dialect, out, &body),
+        Some(InetFormat::Cast) => {
+            write_quoted(dialect, out, &body)?;
+            out.push_str("::inet");
+            Ok(())
+        }
+    }
 }
 
 #[inline]
@@ -385,22 +471,27 @@ pub(super) unsafe fn write_macaddr(
     dialect: &Dialect,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
-    if !dialect.supports_macaddr {
-        return Err(FormatError::Unsupported("MACADDR data type").into());
-    }
-
     let text = pyobject_string(py, ptr)?;
     let addr = mac_address::MacAddress::from_str(&text)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let body = addr.to_string();
 
-    write_quoted_body(dialect, out, |w| write!(w, "{addr}"))
+    match dialect.macaddr_format {
+        None => Err(FormatError::Unsupported("MacAddressSerializer").into()),
+        Some(MacAddrFormat::Quoted) => write_quoted(dialect, out, &body),
+        Some(MacAddrFormat::Cast) => {
+            write_quoted(dialect, out, &body)?;
+            out.push_str("::macaddr");
+            Ok(())
+        }
+    }
 }
 
 pub(super) unsafe fn write_array(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     dialect: &PySqlDialect,
-    element: &super::inner::SerializerInner,
+    element: &super::inner::SerializerType,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     let (len, getter): (
@@ -449,7 +540,7 @@ pub(super) unsafe fn write_array(
             return Err(pyo3::PyErr::fetch(py));
         }
         let borrowed = alias::BoundObject::from_borrowed_ptr(py, item);
-        element.write_sql(dialect, &borrowed, out)?;
+        element.serialize(dialect, &borrowed, out)?;
     }
     out.push(close);
     Ok(())

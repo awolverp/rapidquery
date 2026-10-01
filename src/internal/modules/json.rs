@@ -4,7 +4,9 @@
 //! escape it without an intermediate `String`.
 
 use once_cell::sync::OnceCell;
-use pyo3::types::{PyAnyMethods, PyModule, PyTuple};
+use pyo3::types::PyAnyMethods;
+use pyo3::types::PyModule;
+use pyo3::types::PyTuple;
 
 use crate::internal::utils::borrow_py_str_buffer;
 

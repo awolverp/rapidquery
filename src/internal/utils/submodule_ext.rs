@@ -10,7 +10,9 @@
 //! the dotted path (`rapidquery._core.dialect`) so `repr` and pickling
 //! match the import path.
 
-use pyo3::types::{PyAnyMethods, PyModule, PyModuleMethods};
+use pyo3::types::PyAnyMethods;
+use pyo3::types::PyModule;
+use pyo3::types::PyModuleMethods;
 
 fn _inner_init(module: &pyo3::Bound<'_, PyModule>, path: &str) -> pyo3::PyResult<()> {
     let py = module.py();

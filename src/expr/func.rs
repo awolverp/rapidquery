@@ -1,10 +1,14 @@
-use pyo3::types::{PyAnyMethods, PyTupleMethods};
+use pyo3::types::PyAnyMethods;
+use pyo3::types::PyTupleMethods;
 
-use crate::internal::{alias, utils};
+use crate::internal::alias;
+use crate::internal::utils;
 
 use super::base::PyExpr;
 use super::enum_::NullTreatment;
-use super::extractors::{ConditionExtractor, IdentExtractor, LiteralExprExtractor};
+use super::extractors::ConditionExtractor;
+use super::extractors::IdentExtractor;
+use super::extractors::LiteralExprExtractor;
 
 /// SQL function call.
 ///

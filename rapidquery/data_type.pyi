@@ -106,9 +106,9 @@ class StringSerializer(Serializer[str | enum.Enum]):
 @typing.final
 class UuidSerializer(Serializer[uuid.UUID | str]):
     """
-    Serializes UUIDs as quoted SQL string literals.
+    Serializes UUIDs using the dialect's ``uuid_format``.
 
-    Accepts `uuid.UUID` or `str`.
+    Accepts `uuid.UUID` or `str`. A quoted literal, ``UUID '…'``, or ``'…'::uuid``.
 
     Raises:
         TypeError: If the value is not a `uuid.UUID` or `str`.
@@ -149,9 +149,10 @@ class BitSerializer(Serializer[str]):
 @typing.final
 class JSONSerializer(Serializer[typing.Any]):
     """
-    Serializes a JSON-encodable object as a quoted SQL string literal.
+    Serializes a JSON-encodable object using the dialect's ``json_format``.
 
-    Accepts any object that the JSON encoder can dump. Uses `orjson` when it
+    A quoted literal, ``JSON '…'``, or ``PARSE_JSON('…')``. Accepts any object
+    that the JSON encoder can dump. Uses `orjson` when it
     is installed, otherwise the stdlib `json` module. The JSON text is then
     wrapped with the dialect's string quoting. With `orjson`, datetime, UUID,
     enum.StrEnum, and dataclass are encoded natively; stdlib `json`
@@ -166,7 +167,9 @@ class JSONSerializer(Serializer[typing.Any]):
 @typing.final
 class DateSerializer(Serializer[datetime.date]):
     """
-    Serializes dates as quoted `YYYY-MM-DD` literals.
+    Serializes dates as `YYYY-MM-DD` literals.
+
+    ``date_format`` chooses a quoted literal or ``DATE`` plus that literal.
 
     Accepts exact `datetime.date` (not `datetime.datetime`).
 
@@ -179,7 +182,9 @@ class DateSerializer(Serializer[datetime.date]):
 @typing.final
 class TimeSerializer(Serializer[datetime.time]):
     """
-    Serializes times as quoted `HH:MM:SS[.ffffff]` literals.
+    Serializes times as `HH:MM:SS[.ffffff]` literals.
+
+    ``time_format`` chooses a quoted literal or ``TIME`` plus that literal.
 
     Accepts `datetime.time`.
 
@@ -192,11 +197,13 @@ class TimeSerializer(Serializer[datetime.time]):
 @typing.final
 class DatetimeSerializer(Serializer[datetime.datetime]):
     """
-    Serializes timestamps as quoted SQL timestamp literals.
+    Serializes timestamps as SQL timestamp literals.
 
     Accepts naive or aware `datetime.datetime`, or `int`/`float` UTC epoch
     seconds. Naive values keep wall time. Aware values keep their original
-    offset (they are not converted to UTC).
+    offset (they are not converted to UTC). When ``timestamp_format`` sets a
+    keyword, naive values use ``TIMESTAMP`` and aware values (including epoch
+    numbers) use ``TIMESTAMPTZ`` or ``TIMESTAMP WITH TIMEZONE``.
 
     Raises:
         TypeError: If the value is not a `datetime.datetime`, `int`, or `float`.
@@ -208,7 +215,9 @@ class DatetimeSerializer(Serializer[datetime.datetime]):
 @typing.final
 class InetSerializer(Serializer[typing.Any]):
     """
-    Serializes IP addresses and networks as quoted SQL literals.
+    Serializes IP addresses and networks using the dialect's ``inet_format``.
+
+    A quoted literal or ``'…'::inet``.
 
     Accepts `str` or `ipaddress` objects (`IPv4Address`, `IPv6Address`,
     `IPv4Network`, `IPv6Network`, and related types whose `str()` is a valid
@@ -224,7 +233,9 @@ class InetSerializer(Serializer[typing.Any]):
 @typing.final
 class MacAddressSerializer(Serializer[str]):
     """
-    Serializes MAC addresses as quoted SQL literals.
+    Serializes MAC addresses using the dialect's ``macaddr_format``.
+
+    A quoted literal or ``'…'::macaddr``.
 
     Accepts a `str` using `:` or `-` as the separator.
     Supported on PostgreSQL.

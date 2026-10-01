@@ -1,7 +1,6 @@
-use crate::{
-    data_type::{PySerializer, SerializerExtractor},
-    internal::alias,
-};
+use crate::data_type::PySerializer;
+use crate::data_type::SerializerExtractor;
+use crate::internal::alias;
 
 use super::enum_::Value;
 
@@ -106,7 +105,9 @@ impl PyValue {
 
     fn __hash__(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<u64> {
         use pyo3::types::PyAnyMethods;
-        use std::hash::{DefaultHasher, Hash, Hasher};
+        use std::hash::DefaultHasher;
+        use std::hash::Hash;
+        use std::hash::Hasher;
 
         let inner = Self::inner(&slf);
         let hash_object = inner.object.bind(slf.py()).hash()?;

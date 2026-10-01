@@ -1,7 +1,10 @@
 use pyo3::types::PyTupleMethods;
 
-use super::enum_::{Ident, IdentPart, ParseIdentError};
-use super::extractors::{ExtractedIdentArgument, extract_ident_argument};
+use super::enum_::Ident;
+use super::enum_::IdentPart;
+use super::enum_::ParseIdentError;
+use super::extractors::ExtractedIdentArgument;
+use super::extractors::extract_ident_argument;
 use crate::internal::alias;
 
 /// Convert a native part into the matching Python object (`str`, `Unquote`,
@@ -128,7 +131,9 @@ impl PyIdent {
     }
 
     fn __hash__(slf: pyo3::PyRef<'_, Self>) -> u64 {
-        use std::hash::{DefaultHasher, Hash, Hasher};
+        use std::hash::DefaultHasher;
+        use std::hash::Hash;
+        use std::hash::Hasher;
 
         let mut state = DefaultHasher::default();
         let inner = Self::inner(&slf);

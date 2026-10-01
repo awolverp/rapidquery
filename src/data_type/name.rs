@@ -1,4 +1,6 @@
-use crate::sql::{PrepareResult, SqlWriter, WriteSql};
+use crate::sql::PrepareResult;
+use crate::sql::SqlWriter;
+use crate::sql::WriteSql;
 
 /// Category used to infer a built-in serializer from a type name.
 ///

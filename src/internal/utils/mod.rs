@@ -40,7 +40,8 @@ pub unsafe fn borrow_py_str_buffer<'a>(
 /// pointer is fine). The GIL must be held (`py`).
 #[inline]
 pub unsafe fn get_type_name<'a>(py: pyo3::Python<'a>, obj: *mut pyo3::ffi::PyObject) -> String {
-    use pyo3::types::{PyStringMethods, PyTypeMethods};
+    use pyo3::types::PyStringMethods;
+    use pyo3::types::PyTypeMethods;
 
     let type_ = pyo3::ffi::Py_TYPE(obj);
 

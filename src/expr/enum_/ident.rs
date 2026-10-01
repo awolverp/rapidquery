@@ -1,7 +1,10 @@
 //! SQL identifiers.
 
 use crate::dialect::PySqlDialect;
-use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
+use crate::sql::PrepareResult;
+use crate::sql::SqlWriter;
+use crate::sql::WriteSql;
+use crate::sql::write_separated;
 
 /// One segment of a dotted identifier.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

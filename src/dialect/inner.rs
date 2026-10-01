@@ -1,4 +1,5 @@
-use std::fmt::{self, Write};
+use std::fmt::Write;
+use std::fmt::{self};
 
 use crate::internal::utils;
 
@@ -447,6 +448,79 @@ pub enum ArrayFormat {
     Function,
 }
 
+/// How a date literal is spelled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum DateFormat {
+    /// Quoted string. MSSQL still gets `N'…'` via [`Dialect::string_format`].
+    Quoted,
+    /// `DATE`, a space, then a quoted literal.
+    Keyword,
+}
+
+/// How a time literal is spelled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TimeFormat {
+    /// Quoted string.
+    Quoted,
+    /// `TIME`, a space, then a quoted literal.
+    Keyword,
+}
+
+/// How a timestamp literal is spelled.
+///
+/// Naive values use `TIMESTAMP` when a keyword is configured. Aware values
+/// (`datetime` with a tzinfo, or a UTC epoch number) use the keyword this
+/// variant names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TimestampFormat {
+    /// Both naive and aware values are a quoted string. No keyword.
+    Quoted,
+    /// Naive: `TIMESTAMP '…'`. Aware: `TIMESTAMPTZ '…'`.
+    Timestamptz,
+    /// Naive: `TIMESTAMP '…'`. Aware: `TIMESTAMP WITH TIMEZONE '…'`.
+    WithTimezone,
+}
+
+/// How an inet literal is spelled. [`None`] on [`Dialect::inet_format`] means unsupported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum InetFormat {
+    /// `'192.168.1.1/32'`
+    Quoted,
+    /// `'192.168.1.1/32'::inet`
+    Cast,
+}
+
+/// How a MAC address literal is spelled. [`None`] on [`Dialect::macaddr_format`] means unsupported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MacAddrFormat {
+    /// `'01:23:45:67:89:AB'`
+    Quoted,
+    /// `'01:23:45:67:89:AB'::macaddr`
+    Cast,
+}
+
+/// How a UUID literal is spelled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum UuidFormat {
+    /// Quoted hyphenated text.
+    Quoted,
+    /// `UUID '…'`
+    UuidKeyword,
+    /// `'…'::uuid`
+    CastUuid,
+}
+
+/// How a JSON literal is spelled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum JsonFormat {
+    /// Quoted JSON text.
+    Quoted,
+    /// `JSON '…'`
+    JsonKeyword,
+    /// `PARSE_JSON('…')`
+    ParseJson,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Dialect {
     /// Positional parameter syntax.
@@ -457,10 +531,10 @@ pub struct Dialect {
     pub bit_format: Option<BitFormat>,
     /// How the dialect accepts array values if supported.
     pub array_format: Option<ArrayFormat>,
-    /// Whether INET data type is supported
-    pub supports_inet: bool,
-    /// Whether MACADDR data type is supported
-    pub supports_macaddr: bool,
+    /// How an inet literal is spelled. [`None`] means unsupported.
+    pub inet_format: Option<InetFormat>,
+    /// How a MAC address literal is spelled. [`None`] means unsupported.
+    pub macaddr_format: Option<MacAddrFormat>,
     /// How the dialect supports `{IGNORE|RESPECT} NULLS` expressions in `Function`s if supported.
     pub null_treatment_syntax: Option<NullTreatmentSyntax>,
     /// How `LIKE ANY` / `ILIKE ANY` is rendered.
@@ -477,6 +551,16 @@ pub struct Dialect {
     pub string_escape: StringEscape,
     /// How the dialect accepts literal bytes values.
     pub bytes_format: BytesFormat,
+    /// How a date literal is spelled.
+    pub date_format: DateFormat,
+    /// How a time literal is spelled.
+    pub time_format: TimeFormat,
+    /// How a timestamp literal is spelled.
+    pub timestamp_format: TimestampFormat,
+    /// How a UUID literal is spelled.
+    pub uuid_format: UuidFormat,
+    /// How a JSON literal is spelled.
+    pub json_format: JsonFormat,
     /// How function calling `FILTER` keyword rendered if supported.
     pub function_filter_syntax: Option<FunctionFilterSyntax>,
     /// How case-insensitive `LIKE` is spelled (`ILIKE`, `LIKE`, or `LOWER` + `LIKE`).
@@ -859,8 +943,8 @@ mod tests {
             positional_parameter: PositionalParameter::Simple(':'),
             bit_format: None,
             array_format: None,
-            supports_inet: false,
-            supports_macaddr: false,
+            inet_format: None,
+            macaddr_format: None,
             null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Keyword,
@@ -869,6 +953,11 @@ mod tests {
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::Quote,
             bytes_format: BytesFormat::PrefixBigX,
+            date_format: DateFormat::Quoted,
+            time_format: TimeFormat::Quoted,
+            timestamp_format: TimestampFormat::Quoted,
+            uuid_format: UuidFormat::Quoted,
+            json_format: JsonFormat::Quoted,
             function_filter_syntax: None,
             ilike_expression_options: ILikeExpressionOptions::UseLike,
             supports_similar_to: false,
@@ -1057,11 +1146,11 @@ mod tests {
         cfg.string_escape = StringEscape::BackslashHex;
         assert_eq!(
             collect(|buf| cfg.write_string_literal(buf, "hello")),
-            "'hello'"
+            "E'hello'"
         );
         assert_eq!(
             collect(|buf| cfg.write_string_literal(buf, "O'Brien")),
-            "'O''Brien'"
+            "E'O\\'Brien'"
         );
         assert_eq!(
             collect(|buf| cfg.write_string_literal(buf, "hello'world\n")),

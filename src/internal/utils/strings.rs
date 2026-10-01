@@ -1,7 +1,8 @@
 //! Allocation-conscious string replacement that writes directly to a [`fmt::Write`].
 // Assisted-by: Grok
 
-use std::fmt::{self, Write};
+use std::fmt::Write;
+use std::fmt::{self};
 
 /// A search needle that can be located inside a UTF-8 haystack.
 pub trait ReplacePattern: Copy {

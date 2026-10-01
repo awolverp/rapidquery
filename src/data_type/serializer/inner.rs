@@ -1,7 +1,6 @@
-use crate::{
-    dialect::PySqlDialect,
-    internal::{alias, modules},
-};
+use crate::dialect::PySqlDialect;
+use crate::internal::alias;
+use crate::internal::modules;
 
 /// A thin enum which specifies the serializer type.
 ///
@@ -22,18 +21,8 @@ pub enum SerializerType {
     Inet,
     MacAddress,
     Unspecified,
-    Array(Box<SerializerInner>),
+    Array(Box<SerializerType>),
     Custom(alias::PyObject),
-}
-
-/// How a Python object is written as a SQL literal.
-///
-/// It wraps [`SerializerType`] with additional `prefix` and `suffix` fields.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SerializerInner {
-    pub r#type: SerializerType,
-    pub prefix: Option<arcstr::ArcStr>,
-    pub suffix: Option<arcstr::ArcStr>,
 }
 
 impl PartialEq for SerializerType {
@@ -197,9 +186,9 @@ impl SerializerType {
                 Self::Bytes => super::functions::write_bytes(py, ptr, &dialect.0, out),
                 Self::Bit => super::functions::write_bit(py, ptr, &dialect.0, out),
                 Self::Json => super::functions::write_json(py, ptr, &dialect.0, out),
-                Self::Date => super::functions::write_date(py, ptr, out),
-                Self::Time => super::functions::write_time(py, ptr, out),
-                Self::Datetime => super::functions::write_datetime(py, ptr, out),
+                Self::Date => super::functions::write_date(py, ptr, &dialect.0, out),
+                Self::Time => super::functions::write_time(py, ptr, &dialect.0, out),
+                Self::Datetime => super::functions::write_datetime(py, ptr, &dialect.0, out),
                 Self::Inet => super::functions::write_inet(py, ptr, &dialect.0, out),
                 Self::MacAddress => super::functions::write_macaddr(py, ptr, &dialect.0, out),
                 Self::Array(element) => {
@@ -212,51 +201,6 @@ impl SerializerType {
                 }
                 Self::Custom(s) => super::functions::write_custom(py, ptr, dialect, s, object, out),
             }
-        }
-    }
-}
-
-impl SerializerInner {
-    #[inline(always)]
-    pub fn new(
-        r#type: SerializerType,
-        prefix: Option<arcstr::ArcStr>,
-        suffix: Option<arcstr::ArcStr>,
-    ) -> Self {
-        Self {
-            r#type,
-            prefix,
-            suffix,
-        }
-    }
-
-    /// Serializes the `object` into literal SQL value.
-    pub fn write_sql(
-        &self,
-        dialect: &PySqlDialect,
-        object: &alias::BoundObject<'_>,
-        out: &mut String,
-    ) -> pyo3::PyResult<()> {
-        if let Some(ref x) = self.prefix {
-            out.push_str(x.as_str());
-        }
-
-        self.r#type.serialize(dialect, object, out)?;
-
-        if let Some(ref x) = self.suffix {
-            out.push_str(x.as_str());
-        }
-
-        Ok(())
-    }
-}
-
-impl From<SerializerType> for SerializerInner {
-    fn from(value: SerializerType) -> Self {
-        Self {
-            r#type: value,
-            prefix: None,
-            suffix: None,
         }
     }
 }

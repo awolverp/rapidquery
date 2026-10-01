@@ -1,6 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::parse::{Parse, ParseStream};
+use syn::parse::Parse;
+use syn::parse::ParseStream;
 
 struct PyClassInput {
     name: String,

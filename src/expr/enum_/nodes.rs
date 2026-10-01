@@ -1,10 +1,24 @@
-use super::{BinaryOp, CastKind, ExprInner, Ident, IsKind, TrimWhere, UnaryOp, UnarySpacing};
+use super::BinaryOp;
+use super::CastKind;
+use super::ExprInner;
+use super::Ident;
+use super::IsKind;
+use super::TrimWhere;
+use super::UnaryOp;
+use super::UnarySpacing;
 use crate::dialect::PySqlDialect;
-use crate::dialect::inner::{
-    BitXorSyntax, BitwiseSyntax, CollateSyntax, IsDistinctFromSyntax, ModuloSyntax,
-    StringConcatSyntax, TrimSyntax, TupleSyntax,
-};
-use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
+use crate::dialect::inner::BitXorSyntax;
+use crate::dialect::inner::BitwiseSyntax;
+use crate::dialect::inner::CollateSyntax;
+use crate::dialect::inner::IsDistinctFromSyntax;
+use crate::dialect::inner::ModuloSyntax;
+use crate::dialect::inner::StringConcatSyntax;
+use crate::dialect::inner::TrimSyntax;
+use crate::dialect::inner::TupleSyntax;
+use crate::sql::PrepareResult;
+use crate::sql::SqlWriter;
+use crate::sql::WriteSql;
+use crate::sql::write_separated;
 use std::fmt::Write;
 
 #[inline]

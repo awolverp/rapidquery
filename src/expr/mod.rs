@@ -15,15 +15,43 @@ pub mod expr_mod {
     use super::func::PyFunction;
 
     #[pymodule_export]
-    use super::ident::{PyAsterisk, PyIdent, PyUnquote};
+    use super::ident::PyAsterisk;
+    #[pymodule_export]
+    use super::ident::PyIdent;
+    #[pymodule_export]
+    use super::ident::PyUnquote;
 
     #[pymodule_export]
     use super::value::PyValue;
 
     #[pymodule_export]
-    use super::nodes::{
-        PyBetweenExpr, PyBinaryExpr, PyCaseExpr, PyCastExpr, PyCollateExpr, PyCustomExpr,
-        PyInListExpr, PyIsDistinctFromExpr, PyIsExpr, PyLikeExpr, PyRLikeExpr, PySimilarToExpr,
-        PyTrimExpr, PyTupleExpr, PyUnaryExpr,
-    };
+    use super::nodes::PyBetweenExpr;
+    #[pymodule_export]
+    use super::nodes::PyBinaryExpr;
+    #[pymodule_export]
+    use super::nodes::PyCaseExpr;
+    #[pymodule_export]
+    use super::nodes::PyCastExpr;
+    #[pymodule_export]
+    use super::nodes::PyCollateExpr;
+    #[pymodule_export]
+    use super::nodes::PyCustomExpr;
+    #[pymodule_export]
+    use super::nodes::PyInListExpr;
+    #[pymodule_export]
+    use super::nodes::PyIsDistinctFromExpr;
+    #[pymodule_export]
+    use super::nodes::PyIsExpr;
+    #[pymodule_export]
+    use super::nodes::PyLikeExpr;
+    #[pymodule_export]
+    use super::nodes::PyRLikeExpr;
+    #[pymodule_export]
+    use super::nodes::PySimilarToExpr;
+    #[pymodule_export]
+    use super::nodes::PyTrimExpr;
+    #[pymodule_export]
+    use super::nodes::PyTupleExpr;
+    #[pymodule_export]
+    use super::nodes::PyUnaryExpr;
 }

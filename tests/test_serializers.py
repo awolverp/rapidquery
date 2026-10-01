@@ -146,7 +146,7 @@ class TestUuidSerializer:
 
     def test_uuid_and_str(self):
         s = UuidSerializer()
-        expected = f"'{self._TEXT}'::uuid"
+        expected = f"E'{self._TEXT}'::uuid"
         assert s.serialize(PG, self._TEXT) == expected
         assert s.serialize(PG, uuid.UUID(self._TEXT)) == expected
         assert s.serialize(DuckDb(), self._TEXT) == f"UUID '{self._TEXT}'"
@@ -202,8 +202,8 @@ class TestBitSerializer:
 class TestJSONSerializer:
     def test_dumps_then_json_format(self):
         s = JSONSerializer()
-        assert s.serialize(PG, 10) == "'10'::jsonb"
-        assert s.serialize(PG, "10") == "'\"10\"'::jsonb"
+        assert s.serialize(PG, 10) == "E'10'"
+        assert s.serialize(PG, "10") == "E'\"10\"'"
         assert s.serialize(BigQuery(), {"a": 1}) == "JSON '{\"a\":1}'"
         assert s.serialize(Snowflake(), {"a": 1}) == "PARSE_JSON('{\"a\":1}')"
         assert s.serialize(Sqlite(), {"a": 1}) == "'{\"a\":1}'"
@@ -213,13 +213,13 @@ class TestJSONSerializer:
         extras = [
             (
                 datetime.datetime(2024, 10, 1, tzinfo=datetime.timezone.utc),
-                "'\"2024-10-01T00:00:00+00:00\"'::jsonb",
+                "E'\"2024-10-01T00:00:00+00:00\"'",
             ),
             (
                 uuid.UUID("103596b1-db75-4ae0-907a-a4a9bc4dab85"),
-                "'\"103596b1-db75-4ae0-907a-a4a9bc4dab85\"'::jsonb",
+                "E'\"103596b1-db75-4ae0-907a-a4a9bc4dab85\"'",
             ),
-            (ExampleDataclass(x=1), "'{\"x\":1}'::jsonb"),
+            (ExampleDataclass(x=1), "E'{\"x\":1}'"),
         ]
         for obj, expected in extras:
             if USING_ORJSON:
@@ -232,7 +232,7 @@ class TestJSONSerializer:
 class TestDateTimeSerializers:
     def test_date(self):
         value = datetime.date(2024, 1, 15)
-        assert DateSerializer().serialize(PG, value) == "DATE '2024-01-15'"
+        assert DateSerializer().serialize(PG, value) == "DATE E'2024-01-15'"
         assert DateSerializer().serialize(Oracle(), value) == "DATE '2024-01-15'"
         assert DateSerializer().serialize(Sqlite(), value) == "'2024-01-15'"
 
@@ -244,9 +244,9 @@ class TestDateTimeSerializers:
 
     def test_time(self):
         s = TimeSerializer()
-        assert s.serialize(PG, datetime.time(13, 45, 30)) == "TIME '13:45:30'"
+        assert s.serialize(PG, datetime.time(13, 45, 30)) == "TIME E'13:45:30'"
         assert (
-            s.serialize(PG, datetime.time(1, 2, 3, 456789)) == "TIME '01:02:03.456789'"
+            s.serialize(PG, datetime.time(1, 2, 3, 456789)) == "TIME E'01:02:03.456789'"
         )
         assert s.serialize(Oracle(), datetime.time(13, 45, 30)) == "'13:45:30'"
 
@@ -267,16 +267,21 @@ class TestDateTimeSerializers:
             0,
             tzinfo=datetime.timezone(datetime.timedelta(hours=-5)),
         )
-        assert s.serialize(PG, naive) == "TIMESTAMP '2024-01-15 10:30:00'"
-        assert s.serialize(PG, utc) == "TIMESTAMP '2024-01-15 10:30:00+00:00'"
-        assert s.serialize(PG, offset) == "TIMESTAMP '2024-01-15 10:30:00-05:00'"
+        assert s.serialize(PG, naive) == "TIMESTAMP E'2024-01-15 10:30:00'"
+        assert s.serialize(PG, utc) == "TIMESTAMPTZ E'2024-01-15 10:30:00+00:00'"
+        assert s.serialize(PG, offset) == "TIMESTAMPTZ E'2024-01-15 10:30:00-05:00'"
         assert s.serialize(Oracle(), naive) == "TIMESTAMP '2024-01-15 10:30:00'"
+        assert (
+            s.serialize(Oracle(), offset)
+            == "TIMESTAMP WITH TIMEZONE '2024-01-15 10:30:00-05:00'"
+        )
         assert s.serialize(Sqlite(), naive) == "'2024-01-15 10:30:00'"
+        assert s.serialize(Sqlite(), offset) == "'2024-01-15 10:30:00-05:00'"
 
     def test_datetime_unix_timestamp(self):
         s = DatetimeSerializer()
-        assert s.serialize(PG, 0) == "TIMESTAMP '1970-01-01 00:00:00+00:00'"
-        assert s.serialize(PG, 0.5) == "TIMESTAMP '1970-01-01 00:00:00.500+00:00'"
+        assert s.serialize(PG, 0) == "TIMESTAMPTZ E'1970-01-01 00:00:00+00:00'"
+        assert s.serialize(PG, 0.5) == "TIMESTAMPTZ E'1970-01-01 00:00:00.500+00:00'"
 
     def test_datetime_rejects_date_and_str(self):
         with pytest.raises(TypeError):
@@ -307,7 +312,11 @@ class TestInetSerializer:
             ("2001:db8::/32", "2001:db8::/32"),
         ]
         for obj, inner in cases:
-            assert s.serialize(dialect_instance, obj) == f"'{inner}'::inet"
+            if name == "PostgreSql":
+                expected = f"E'{inner}'::inet"
+            else:
+                expected = f"'{inner}'::inet"
+            assert s.serialize(dialect_instance, obj) == expected
 
     def test_invalid_address(self):
         with pytest.raises(ValueError):
@@ -323,7 +332,7 @@ class TestMacAddressSerializer:
                 MacAddressSerializer().serialize(dialect_instance, "01:23:45:67:89:ab")
             return
         s = MacAddressSerializer()
-        expected = "'01:23:45:67:89:AB'::macaddr"
+        expected = "E'01:23:45:67:89:AB'::macaddr"
         assert s.serialize(dialect_instance, "01:23:45:67:89:ab") == expected
         assert s.serialize(dialect_instance, "01-23-45-67-89-AB") == expected
 
@@ -410,8 +419,8 @@ def test_unsupported_serializer_error_message():
 
 
 class TestLiteralGoldens:
-    def test_pg_plain_string_skips_e_prefix(self):
-        assert StringSerializer().serialize(PG, "hello") == "'hello'"
+    def test_pg_string_uses_e_prefix(self):
+        assert StringSerializer().serialize(PG, "hello") == "E'hello'"
         assert StringSerializer().serialize(PG, "a\nb") == "E'a\\nb'"
 
     def test_mssql_nvarchar_prefix(self):

@@ -9,9 +9,10 @@ use std::fmt::Write;
 
 use pyo3::types::PyAnyMethods;
 
-use crate::data_type::SerializerInner;
+use crate::data_type::SerializerType;
 use crate::dialect::PySqlDialect;
-use crate::dialect::inner::{FormatError, PositionalParameter};
+use crate::dialect::inner::FormatError;
+use crate::dialect::inner::PositionalParameter;
 use crate::internal::alias;
 
 /// Error produced while building SQL.
@@ -129,13 +130,13 @@ pub trait SqlWriter: std::fmt::Write {
         if cond { self.push_char(c) } else { self }
     }
 
-    /// Raw (`SqlBuf`): `None` → `NULL`, else `serializer.write_sql` into the
+    /// Raw (`SqlBuf`): `None` → `NULL`, else `serializer.serialize` into the
     /// SQL buffer. Prepared: bind `object` as a placeholder; `serializer` is
     /// unused.
     fn push_value(
         &mut self,
         dialect: &PySqlDialect,
-        serializer: &SerializerInner,
+        serializer: &SerializerType,
         object: &alias::PyObject,
     ) -> PrepareResult<()>;
 }
@@ -195,7 +196,7 @@ impl<'py> SqlWriter for BufferedSql<'py> {
     fn push_value(
         &mut self,
         dialect: &PySqlDialect,
-        serializer: &SerializerInner,
+        serializer: &SerializerType,
         object: &alias::PyObject,
     ) -> PrepareResult<()> {
         let bound = object.bind(self.py);
@@ -203,7 +204,7 @@ impl<'py> SqlWriter for BufferedSql<'py> {
             self.sql.push_str("NULL");
             return Ok(());
         }
-        serializer.write_sql(dialect, bound, &mut self.sql)?;
+        serializer.serialize(dialect, bound, &mut self.sql)?;
         Ok(())
     }
 }
@@ -312,7 +313,7 @@ impl SqlWriter for ParameterizedSql<'_> {
     fn push_value(
         &mut self,
         dialect: &PySqlDialect,
-        _serializer: &SerializerInner,
+        _serializer: &SerializerType,
         object: &alias::PyObject,
     ) -> PrepareResult<()> {
         self.push_param(dialect, object.clone_ref(self.py));

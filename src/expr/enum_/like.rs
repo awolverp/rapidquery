@@ -1,11 +1,14 @@
 //! `LIKE` / `ILIKE` / `LIKE ANY` / `SIMILAR TO` / `RLIKE` AST nodes.
 
 use super::ExprInner;
-use crate::dialect::{
-    PySqlDialect,
-    inner::{LikeAnySyntax, LikeEscapeSyntax, RLikeExpressionOptions},
-};
-use crate::sql::{PrepareResult, SqlWriter, WriteSql, write_separated};
+use crate::dialect::PySqlDialect;
+use crate::dialect::inner::LikeAnySyntax;
+use crate::dialect::inner::LikeEscapeSyntax;
+use crate::dialect::inner::RLikeExpressionOptions;
+use crate::sql::PrepareResult;
+use crate::sql::SqlWriter;
+use crate::sql::WriteSql;
+use crate::sql::write_separated;
 use std::fmt::Write;
 
 pub(super) fn write_escape<W: SqlWriter>(

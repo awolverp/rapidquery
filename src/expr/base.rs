@@ -8,7 +8,8 @@
 // `between` / `in_` / `is_null` / `is_distinct_from` / `cast`; `case`;
 // `custom`. Prefer named methods over v0 dunders that return `Expr`.
 
-use crate::internal::{alias, utils};
+use crate::internal::alias;
+use crate::internal::utils;
 use crate::sql;
 
 use super::enum_::ExprInner;

@@ -1,8 +1,14 @@
 use std::str::FromStr;
 
-use pyo3::types::{PyAnyMethods, PyListMethods, PyTupleMethods};
+use pyo3::types::PyAnyMethods;
+use pyo3::types::PyListMethods;
+use pyo3::types::PyTupleMethods;
 
-use super::enum_::{ExprInner, Ident, IdentPart, LikePattern, Tuple};
+use super::enum_::ExprInner;
+use super::enum_::Ident;
+use super::enum_::IdentPart;
+use super::enum_::LikePattern;
+use super::enum_::Tuple;
 use crate::internal::utils;
 
 /// `true` when `obj` is `Asterisk` or `type[Asterisk]`.
@@ -64,7 +70,7 @@ fn extract_expr(
 
             return Ok(ExprInner::Value(super::enum_::Value::new(
                 obj.as_any().clone().unbind(),
-                crate::data_type::SerializerType::String.into(),
+                crate::data_type::SerializerType::String,
             )));
         }
 

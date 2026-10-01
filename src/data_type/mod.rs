@@ -12,10 +12,12 @@ mod serializer;
 #[cfg(test)]
 mod tests;
 
-pub use name::{DataTypeKind, DataTypeName};
+pub use name::DataTypeKind;
+pub use name::DataTypeName;
 pub use serializer::*;
 
-use crate::internal::{alias, utils};
+use crate::internal::alias;
+use crate::internal::utils;
 
 /// Represents a SQL data type.
 ///
@@ -40,12 +42,12 @@ use crate::internal::{alias, utils};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PyDataType {
     pub name: DataTypeName,
-    pub serializer: SerializerInner,
+    pub serializer: SerializerType,
 }
 
 impl PyDataType {
     #[inline]
-    pub fn new(name: DataTypeName, serializer: SerializerInner) -> Self {
+    pub fn new(name: DataTypeName, serializer: SerializerType) -> Self {
         Self { name, serializer }
     }
 
@@ -55,7 +57,7 @@ impl PyDataType {
     #[inline]
     pub fn from_name(name: impl Into<DataTypeName>) -> Self {
         let name = name.into();
-        let serializer = SerializerInner::new(SerializerType::from_kind(name.kind()), None, None);
+        let serializer = SerializerType::from_kind(name.kind());
 
         Self { name, serializer }
     }
@@ -137,7 +139,7 @@ impl PyDataType {
         object: alias::BoundObject<'_>,
     ) -> pyo3::PyResult<String> {
         let mut buf = String::new();
-        self.serializer.write_sql(&dialect, &object, &mut buf)?;
+        self.serializer.serialize(&dialect, &object, &mut buf)?;
         Ok(buf)
     }
 
@@ -186,11 +188,39 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for DataTypeNameExtractor {
 #[pyo3::pymodule(name = "data_type", gil_used = false)]
 pub mod data_type_mod {
     #[pymodule_export]
-    use super::{
-        PyArraySerializer, PyBitSerializer, PyBooleanSerializer, PyBytesSerializer,
-        PyCustomSerializer, PyDataType, PyDateSerializer, PyDatetimeSerializer, PyFloatSerializer,
-        PyInetSerializer, PyIntegerSerializer, PyJSONSerializer, PyMacAddressSerializer,
-        PySerializer, PyStringSerializer, PyTimeSerializer, PyUnspecifiedSerializer,
-        PyUuidSerializer,
-    };
+    use super::PyArraySerializer;
+    #[pymodule_export]
+    use super::PyBitSerializer;
+    #[pymodule_export]
+    use super::PyBooleanSerializer;
+    #[pymodule_export]
+    use super::PyBytesSerializer;
+    #[pymodule_export]
+    use super::PyCustomSerializer;
+    #[pymodule_export]
+    use super::PyDataType;
+    #[pymodule_export]
+    use super::PyDateSerializer;
+    #[pymodule_export]
+    use super::PyDatetimeSerializer;
+    #[pymodule_export]
+    use super::PyFloatSerializer;
+    #[pymodule_export]
+    use super::PyInetSerializer;
+    #[pymodule_export]
+    use super::PyIntegerSerializer;
+    #[pymodule_export]
+    use super::PyJSONSerializer;
+    #[pymodule_export]
+    use super::PyMacAddressSerializer;
+    #[pymodule_export]
+    use super::PySerializer;
+    #[pymodule_export]
+    use super::PyStringSerializer;
+    #[pymodule_export]
+    use super::PyTimeSerializer;
+    #[pymodule_export]
+    use super::PyUnspecifiedSerializer;
+    #[pymodule_export]
+    use super::PyUuidSerializer;
 }
