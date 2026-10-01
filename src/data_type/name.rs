@@ -51,7 +51,7 @@ impl DataTypeName {
     }
 }
 
-// Longest interned name is `"timestamp with time zone"` (24 bytes).
+// Longest interned name is `"timestamp without timezone"` (26 bytes).
 const LOOKUP_BUF: usize = 32;
 
 fn interned(value: &str) -> Option<DataTypeName> {
@@ -152,7 +152,7 @@ simple_data_types! {
 
     // --- Datetime ---
     (DATETIME_DATA_TYPE => ("DATETIME", Datetime), "datetime");
-    (TIMESTAMP_DATA_TYPE => ("TIMESTAMP", Datetime), "timestamp");
+    (TIMESTAMP_DATA_TYPE => ("TIMESTAMP", Datetime), "timestamp" | "timestamp without timezone");
     (TIMESTAMP_WITH_TIMEZONE_DATA_TYPE => ("TIMESTAMP WITH TIMEZONE", Datetime), "timestamp with timezone");
     (TIMESTAMP_WITH_TIME_ZONE_DATA_TYPE => ("TIMESTAMP WITH TIME ZONE", Datetime), "timestamp with time zone");
     (TIMESTAMPTZ_DATA_TYPE => ("TIMESTAMPTZ", Datetime), "timestamptz");

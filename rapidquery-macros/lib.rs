@@ -64,6 +64,17 @@ impl Parse for PyClassInput {
     }
 }
 
+/// Defines a pyo3 class with a required module path.
+///
+/// ```ignore
+/// #[pyclass("foo.Bar")]
+/// struct Bar;
+/// ```
+///
+/// ```ignore
+/// #[pyclass("foo" + "Bar", subclass)]
+/// struct Bar;
+/// ```
 #[proc_macro_attribute]
 pub fn pyclass(attr: TokenStream, item: TokenStream) -> TokenStream {
     let PyClassInput {
@@ -148,18 +159,11 @@ impl Parse for PyErrInput {
     }
 }
 
-/// Creates a new [`PyErr`] of the given exception type.
+/// Builds a [`PyErr`], or `Err(PyErr)` when the name is wrapped in `Err`.
 ///
-/// Examples:
-/// ```rust,no-test
-/// pyerr!(PyTypeError)
-/// // => PyTypeError::new_err(())
-///
-/// pyerr!(PyTypeError, "hello")
-/// // => PyTypeError::new_err("hello")
-///
-/// pyerr!(PyTypeError, "hello {}", "world")
-/// // => PyTypeError::new_err(format!("hello {}", "world"))
+/// ```ignore
+/// pyerr!(PyTypeError, "bad {}", x)
+/// pyerr!(Err(PyValueError))
 /// ```
 #[proc_macro]
 pub fn pyerr(item: TokenStream) -> TokenStream {
