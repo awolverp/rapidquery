@@ -2,7 +2,7 @@
 
 use pyo3::types::{PyAnyMethods, PyStringMethods};
 
-use crate::data_type::{SerializerEnum, serializer_repr};
+use crate::data_type::{SerializerInner, serializer_repr};
 use crate::dialect::PySqlDialect;
 use crate::internal::alias;
 use crate::sql::{PrepareResult, SqlWriter, WriteSql};
@@ -17,19 +17,19 @@ use crate::sql::{PrepareResult, SqlWriter, WriteSql};
 #[derive(Debug, Clone)]
 pub struct Value {
     pub object: alias::PyObject,
-    pub serializer: SerializerEnum,
+    pub serializer: SerializerInner,
 }
 
 impl Value {
     #[inline]
-    pub fn new(object: alias::PyObject, serializer: SerializerEnum) -> Self {
+    pub fn new(object: alias::PyObject, serializer: SerializerInner) -> Self {
         Self { object, serializer }
     }
 
     #[inline]
     pub fn infer_bound(bound: alias::BoundObject) -> Self {
-        let serializer = SerializerEnum::infer_bound(&bound);
-        Self::new(bound.unbind(), serializer)
+        let serializer = crate::data_type::SerializerType::infer_bound(&bound);
+        Self::new(bound.unbind(), serializer.into())
     }
 
     pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {

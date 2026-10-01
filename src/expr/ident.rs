@@ -41,18 +41,13 @@ fn ident_part_to_pyobject<'py>(
 ///     ValueError: If there are no parts, a part is empty, `Asterisk` is
 ///             not last, an `Unquote` body is not a simple ASCII name, or
 ///             there are more than 10 parts.
-#[rapidquery_macros::pyclass(
-    "Ident",
-    skip_from_py_object,
-    extends = super::base::PyExpr,
-    module = "rapidquery._core.expr"
-)]
+#[rapidquery_macros::pyclass("rapidquery.expr.Ident", skip_from_py_object, extends = super::base::PyExpr)]
 #[derive(Debug, Default)]
 pub struct PyIdent;
 
 impl PyIdent {
     #[inline(always)]
-    fn inner<'a>(slf: &'a pyo3::PyRef<'a, PyIdent>) -> &'a Ident {
+    fn inner<'a>(slf: &'a pyo3::PyRef<'a, Self>) -> &'a Ident {
         debug_assert!(
             matches!(&slf.as_super().0, super::enum_::ExprInner::Ident(..)),
             "PyIdent instance always holds ExprInner::Ident"
@@ -170,13 +165,7 @@ impl PyIdent {
 /// Raises:
 ///     ValueError: If `name` is empty or not a simple ASCII identifier
 ///             (letters, digits, underscore; first character not a digit).
-#[rapidquery_macros::pyclass(
-    "Unquote",
-    skip_from_py_object,
-    eq,
-    hash,
-    module = "rapidquery._core.expr"
-)]
+#[rapidquery_macros::pyclass("rapidquery.expr.Unquote", skip_from_py_object, eq, hash)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PyUnquote(pub arcstr::ArcStr);
 
@@ -210,13 +199,7 @@ impl PyUnquote {
 /// Pass the class (`Asterisk`) or an instance (`Asterisk()`) as an
 /// identifier part. It must be the last part of an `Ident` (`t.*`).
 /// `Ident("*")` is a quoted column named star, not this wildcard.
-#[rapidquery_macros::pyclass(
-    "Asterisk",
-    skip_from_py_object,
-    eq,
-    hash,
-    module = "rapidquery._core.expr"
-)]
+#[rapidquery_macros::pyclass("rapidquery.expr.Asterisk", skip_from_py_object, eq, hash)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PyAsterisk;
 

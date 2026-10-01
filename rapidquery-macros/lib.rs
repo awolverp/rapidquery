@@ -1,47 +1,61 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{
-    parse::{Parse, ParseStream},
-    spanned::Spanned,
-};
+use syn::parse::{Parse, ParseStream};
 
 struct PyClassInput {
-    name: syn::LitStr,
-    module: syn::LitStr,
+    name: String,
+    module: String,
     meta_args: Vec<syn::Meta>,
 }
 
 impl Parse for PyClassInput {
-    /// Accepts `#name, args...` format.
-    ///
-    /// `module = "..."` overrides the default `rapidquery._core` and is not
-    /// forwarded as a duplicate `#[pyclass]` argument.
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let name: syn::LitStr = input.parse()?;
-        let mut module = syn::LitStr::new("rapidquery._core", name.span());
-        let mut meta_args = Vec::new();
+        let first: syn::LitStr = input.parse()?;
+        let (module, name) = if input.peek(syn::Token![+]) {
+            // Concat syntax
+            //
+            // "module" + "name"
+            input.parse::<syn::Token![+]>()?;
+            let class_name: syn::LitStr = input.parse()?;
+            let module = first.value();
+            let module = module.strip_suffix('.').unwrap_or(&module);
+            if module.is_empty() || class_name.value().is_empty() {
+                return Err(syn::Error::new(
+                    class_name.span(),
+                    "expected \"module\" + \"Class\" with non-empty module and class name",
+                ));
+            }
+            (module.to_owned(), class_name.value())
+        } else {
+            // Literal string syntax
+            //
+            // "module.name"
+            let value = first.value();
+            let Some((module, name)) = value.rsplit_once('.') else {
+                return Err(syn::Error::new(
+                    first.span(),
+                    "expected \"module.Class\" or \"module\" + \"Class\"; module is required",
+                ));
+            };
+            if module.is_empty() || name.is_empty() || module.split('.').any(|s| s.is_empty()) {
+                return Err(syn::Error::new(
+                    first.span(),
+                    "expected \"module.Class\" with non-empty module and class name",
+                ));
+            }
+            (module.to_owned(), name.to_owned())
+        };
 
+        let mut meta_args = Vec::new();
         while input.peek(syn::token::Comma) {
             input.parse::<syn::token::Comma>()?;
-
             if input.is_empty() {
                 break;
             }
-
-            let meta = input.parse::<syn::Meta>()?;
-            match meta {
-                syn::Meta::NameValue(nv) if nv.path.is_ident("module") => match nv.value {
-                    syn::Expr::Lit(syn::ExprLit {
-                        lit: syn::Lit::Str(s),
-                        ..
-                    }) => module = s.clone(),
-                    _ => return Err(syn::Error::new(nv.span(), "module expects literal string")),
-                },
-                _ => meta_args.push(meta),
-            }
+            meta_args.push(input.parse()?);
         }
 
-        Ok(PyClassInput {
+        Ok(Self {
             name,
             module,
             meta_args,
@@ -49,10 +63,6 @@ impl Parse for PyClassInput {
     }
 }
 
-/// Shortcut for `pyo3::pyclass(module=..., name=..., immutable_type, frozen, ...)`.
-///
-/// Default module is `rapidquery._core`. Pass `module = "rapidquery._core.dialect"`
-/// (or another path) to override.
 #[proc_macro_attribute]
 pub fn pyclass(attr: TokenStream, item: TokenStream) -> TokenStream {
     let PyClassInput {
@@ -62,14 +72,20 @@ pub fn pyclass(attr: TokenStream, item: TokenStream) -> TokenStream {
     } = syn::parse_macro_input!(attr as PyClassInput);
     let item = syn::parse_macro_input!(item as syn::ItemStruct);
 
-    let extra_tokens = if meta_args.is_empty() {
+    // Fresh tokens, no input span, so rustc cannot substitute the dotted literal.
+    let args: proc_macro2::TokenStream =
+        format!("module = \"{module}\", name = \"{name}\", immutable_type, frozen")
+            .parse()
+            .expect("pyclass args");
+
+    let extra = if meta_args.is_empty() {
         quote! {}
     } else {
         quote! { , #(#meta_args),* }
     };
 
     quote! {
-        #[pyo3::pyclass(module=#module, name=#name, immutable_type, frozen #extra_tokens)]
+        #[pyo3::pyclass(#args #extra)]
         #item
     }
     .into()

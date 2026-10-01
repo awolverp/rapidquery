@@ -12,7 +12,7 @@ mod serializer;
 #[cfg(test)]
 mod tests;
 
-pub use name::{DataTypeGroup, DataTypeName};
+pub use name::{DataTypeKind, DataTypeName};
 pub use serializer::*;
 
 use crate::internal::{alias, utils};
@@ -36,23 +36,16 @@ use crate::internal::{alias, utils};
 /// type.
 ///
 /// Clone of a [`Serializer::Custom`] value requires the GIL.
-#[rapidquery_macros::pyclass(
-    "DataType",
-    from_py_object,
-    module = "rapidquery._core.data_type",
-    eq,
-    hash,
-    generic
-)]
+#[rapidquery_macros::pyclass("rapidquery.data_type.DataType", from_py_object, eq, hash, generic)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PyDataType {
     pub name: DataTypeName,
-    pub serializer: SerializerEnum,
+    pub serializer: SerializerInner,
 }
 
 impl PyDataType {
     #[inline]
-    pub fn new(name: DataTypeName, serializer: SerializerEnum) -> Self {
+    pub fn new(name: DataTypeName, serializer: SerializerInner) -> Self {
         Self { name, serializer }
     }
 
@@ -62,7 +55,8 @@ impl PyDataType {
     #[inline]
     pub fn from_name(name: impl Into<DataTypeName>) -> Self {
         let name = name.into();
-        let serializer = SerializerEnum::from_group(name.group());
+        let serializer = SerializerInner::new(SerializerType::from_kind(name.kind()), None, None);
+
         Self { name, serializer }
     }
 }

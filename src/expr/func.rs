@@ -16,12 +16,7 @@ use super::extractors::{ConditionExtractor, IdentExtractor, LiteralExprExtractor
 ///
 /// Args:
 ///     name: Function name (`str`, `Ident`, `Unquote`).
-#[rapidquery_macros::pyclass(
-    "Function",
-    skip_from_py_object,
-    extends = super::base::PyExpr,
-    module = "rapidquery._core.expr"
-)]
+#[rapidquery_macros::pyclass("rapidquery.expr.Function", skip_from_py_object, extends = PyExpr)]
 #[derive(Debug, Default)]
 pub struct PyFunction;
 

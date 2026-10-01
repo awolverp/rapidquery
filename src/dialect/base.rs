@@ -11,12 +11,7 @@ use super::inner::Dialect;
 /// This base class cannot be instantiated.
 ///
 /// Instances of the same dialect compare equal and hash together.
-#[rapidquery_macros::pyclass(
-    "SqlDialect",
-    subclass,
-    skip_from_py_object,
-    module = "rapidquery._core.dialect"
-)]
+#[rapidquery_macros::pyclass("rapidquery.dialect.SqlDialect", subclass, skip_from_py_object)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PySqlDialect(pub Dialect);
 

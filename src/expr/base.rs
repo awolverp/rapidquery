@@ -17,12 +17,7 @@ use super::enum_::ExprInner;
 ///
 /// Concrete nodes are frozen subclasses (`Ident`, `Value`, `Func`,
 /// `Binary`, …). This base class cannot be instantiated.
-#[rapidquery_macros::pyclass(
-    "Expr",
-    subclass,
-    skip_from_py_object,
-    module = "rapidquery._core.expr"
-)]
+#[rapidquery_macros::pyclass("rapidquery.expr.Expr", subclass, skip_from_py_object)]
 #[derive(Debug, Clone)]
 pub struct PyExpr(pub ExprInner);
 

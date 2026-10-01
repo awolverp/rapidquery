@@ -15,13 +15,7 @@ use super::enum_::Value;
 /// Passing an existing `Value` keeps its object (and its serializer, unless
 /// a new one is given). A `DataType` as `serializer` contributes only its
 /// serializer; the data type is not stored.
-#[rapidquery_macros::pyclass(
-    "Value",
-    skip_from_py_object,
-    extends = super::base::PyExpr,
-    module = "rapidquery._core.expr",
-    generic
-)]
+#[rapidquery_macros::pyclass("rapidquery.expr.Value", skip_from_py_object, extends = super::base::PyExpr, generic)]
 #[derive(Debug, Default)]
 pub struct PyValue;
 

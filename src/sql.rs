@@ -9,7 +9,7 @@ use std::fmt::Write;
 
 use pyo3::types::PyAnyMethods;
 
-use crate::data_type::SerializerEnum;
+use crate::data_type::SerializerInner;
 use crate::dialect::PySqlDialect;
 use crate::dialect::inner::{FormatError, PositionalParameter};
 use crate::internal::alias;
@@ -135,7 +135,7 @@ pub trait SqlWriter: std::fmt::Write {
     fn push_value(
         &mut self,
         dialect: &PySqlDialect,
-        serializer: &SerializerEnum,
+        serializer: &SerializerInner,
         object: &alias::PyObject,
     ) -> PrepareResult<()>;
 }
@@ -195,7 +195,7 @@ impl<'py> SqlWriter for BufferedSql<'py> {
     fn push_value(
         &mut self,
         dialect: &PySqlDialect,
-        serializer: &SerializerEnum,
+        serializer: &SerializerInner,
         object: &alias::PyObject,
     ) -> PrepareResult<()> {
         let bound = object.bind(self.py);
@@ -312,7 +312,7 @@ impl SqlWriter for ParameterizedSql<'_> {
     fn push_value(
         &mut self,
         dialect: &PySqlDialect,
-        _serializer: &SerializerEnum,
+        _serializer: &SerializerInner,
         object: &alias::PyObject,
     ) -> PrepareResult<()> {
         self.push_param(dialect, object.clone_ref(self.py));

@@ -7,7 +7,7 @@ use crate::sql::{PrepareResult, SqlWriter, WriteSql};
 /// distinct as groups so a later layer can treat storage differently; both
 /// currently infer [`crate::data_type::Serializer::Json`].
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
-pub enum DataTypeGroup {
+pub enum DataTypeKind {
     String,
     Uuid,
     Bytes,
@@ -34,7 +34,7 @@ pub enum DataTypeGroup {
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct DataTypeName {
     name: arcstr::ArcStr,
-    group: DataTypeGroup,
+    kind: DataTypeKind,
 }
 
 impl DataTypeName {
@@ -44,8 +44,8 @@ impl DataTypeName {
     }
 
     #[inline]
-    pub fn group(&self) -> DataTypeGroup {
-        self.group
+    pub fn kind(&self) -> DataTypeKind {
+        self.kind
     }
 }
 
@@ -68,7 +68,7 @@ fn interned(value: &str) -> Option<DataTypeName> {
 fn custom_name<T: Into<arcstr::ArcStr>>(value: T) -> DataTypeName {
     DataTypeName {
         name: value.into(),
-        group: DataTypeGroup::Custom,
+        kind: DataTypeKind::Custom,
     }
 }
 
@@ -77,14 +77,14 @@ macro_rules! simple_data_types {
     (
         $(
             $(#[$docs:meta])*
-            ($upcase:ident => ($realname:literal, $group:ident), $($possible_names:literal)|+);
+            ($upcase:ident => ($realname:literal, $kind:ident), $($possible_names:literal)|+);
         )+
     ) => {
         $(
             $(#[$docs])*
             pub(super) const $upcase: DataTypeName = DataTypeName {
                 name: arcstr::literal!($realname),
-                group: DataTypeGroup::$group,
+                kind: DataTypeKind::$kind,
             };
         )+
 

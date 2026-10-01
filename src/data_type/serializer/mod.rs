@@ -1,126 +1,58 @@
-mod serialize;
-mod serializer_enum;
+//! Serializers
 
-pub use serializer_enum::SerializerEnum;
+mod functions;
+mod inner;
+
+pub use inner::SerializerInner;
+pub use inner::SerializerType;
 
 use crate::internal::alias;
 
-pub(super) fn class_name(serializer: &SerializerEnum) -> &'static str {
-    match serializer {
-        SerializerEnum::Integer => "IntegerSerializer",
-        SerializerEnum::Float => "FloatSerializer",
-        SerializerEnum::Boolean => "BooleanSerializer",
-        SerializerEnum::String => "StringSerializer",
-        SerializerEnum::Uuid => "UuidSerializer",
-        SerializerEnum::Bytes => "BytesSerializer",
-        SerializerEnum::Bit => "BitSerializer",
-        SerializerEnum::Json => "JSONSerializer",
-        SerializerEnum::Date => "DateSerializer",
-        SerializerEnum::Time => "TimeSerializer",
-        SerializerEnum::Datetime => "DatetimeSerializer",
-        SerializerEnum::Inet => "InetSerializer",
-        SerializerEnum::MacAddress => "MacAddressSerializer",
-        SerializerEnum::Unspecified => "UnspecifiedSerializer",
-        SerializerEnum::Array(_) => "ArraySerializer",
-        SerializerEnum::Custom(_) => "CustomSerializer",
-    }
-}
+pub fn serializer_repr(serializer: &SerializerInner) -> String {
+    use std::fmt::Write;
 
-#[inline]
-fn wrap<'py, T>(
-    py: pyo3::Python<'py>,
-    base: PySerializer,
-) -> pyo3::PyResult<alias::BoundObject<'py>>
-where
-    T: pyo3::PyClass<BaseType = PySerializer> + Default,
-{
-    pyo3::Bound::new(
-        py,
-        pyo3::PyClassInitializer::from(base).add_subclass(T::default()),
-    )
-    .map(|x| x.into_any())
-}
+    let name = serializer_type_to_pyname(&serializer.r#type);
+    let mut buf = String::with_capacity(name.len() + 2);
+    buf.push_str(name);
+    buf.push('(');
 
-pub fn serializer_repr(serializer: &SerializerEnum) -> String {
-    match serializer {
-        SerializerEnum::Array(element) => {
-            format!("ArraySerializer({})", serializer_repr(element))
-        }
-        other => {
-            let name = class_name(other);
-            let mut buf = String::with_capacity(name.len() + 2);
-            buf.push_str(name);
-            buf.push_str("()");
-            buf
-        }
+    let mut sep = "";
+
+    if let SerializerType::Array(element) = &serializer.r#type {
+        buf.push_str(&serializer_repr(element));
+        sep = ", ";
     }
+    if let Some(x) = &serializer.prefix {
+        let _ = write!(buf, "{sep}prefix={x:?}");
+        sep = ", ";
+    }
+    if let Some(x) = &serializer.suffix {
+        let _ = write!(buf, "{sep}suffix={x:?}");
+    }
+
+    buf.push(')');
+    buf
 }
 
 /// Converts a Python object into a dialect-specific SQL literal string.
-///
-/// Serializers produce a correctly escaped and formatted SQL value that can
-/// be embedded in queries. Each concrete subclass handles a particular
-/// category of values (integers, strings, dates, arrays, etc.). Use
-/// `CustomSerializer` when the built-in ones are insufficient.
-///
-/// This base class cannot be instantiated. Pass a dialect class or instance
-/// to `serialize()`. Unit serializers compare equal by variant;
-/// `ArraySerializer` by its element tree; `CustomSerializer` by function
-/// identity.
-#[rapidquery_macros::pyclass(
-    "Serializer",
-    subclass,
-    from_py_object,
-    module = "rapidquery._core.data_type",
-    generic
-)]
+#[rapidquery_macros::pyclass("rapidquery.data_type.Serializer", subclass, from_py_object, generic)]
 #[derive(Debug, Clone)]
-pub struct PySerializer(pub SerializerEnum);
-
-impl PySerializer {
-    /// Wrap `self` as the matching Python subclass (`IntegerSerializer()`, …).
-    pub fn into_subclasses<'py>(
-        self,
-        py: pyo3::Python<'py>,
-    ) -> pyo3::PyResult<alias::BoundObject<'py>> {
-        match &self.0 {
-            SerializerEnum::Integer => wrap::<PyIntegerSerializer>(py, self),
-            SerializerEnum::Float => wrap::<PyFloatSerializer>(py, self),
-            SerializerEnum::Boolean => wrap::<PyBooleanSerializer>(py, self),
-            SerializerEnum::String => wrap::<PyStringSerializer>(py, self),
-            SerializerEnum::Uuid => wrap::<PyUuidSerializer>(py, self),
-            SerializerEnum::Bytes => wrap::<PyBytesSerializer>(py, self),
-            SerializerEnum::Bit => wrap::<PyBitSerializer>(py, self),
-            SerializerEnum::Json => wrap::<PyJSONSerializer>(py, self),
-            SerializerEnum::Date => wrap::<PyDateSerializer>(py, self),
-            SerializerEnum::Time => wrap::<PyTimeSerializer>(py, self),
-            SerializerEnum::Datetime => wrap::<PyDatetimeSerializer>(py, self),
-            SerializerEnum::Inet => wrap::<PyInetSerializer>(py, self),
-            SerializerEnum::MacAddress => wrap::<PyMacAddressSerializer>(py, self),
-            SerializerEnum::Unspecified => wrap::<PyUnspecifiedSerializer>(py, self),
-            SerializerEnum::Array(_) => wrap::<PyArraySerializer>(py, self),
-            SerializerEnum::Custom(_) => wrap::<PyCustomSerializer>(py, self),
-        }
-    }
-}
+#[repr(transparent)]
+pub struct PySerializer(pub SerializerInner);
 
 #[pyo3::pymethods]
 impl PySerializer {
+    #[getter]
+    fn get_prefix(&self) -> Option<String> {
+        self.0.prefix.as_ref().map(arcstr::ArcStr::to_string)
+    }
+
+    #[getter]
+    fn get_suffix(&self) -> Option<String> {
+        self.0.suffix.as_ref().map(arcstr::ArcStr::to_string)
+    }
+
     /// Renders `object` as a SQL literal for `dialect`.
-    ///
-    /// Args:
-    ///     dialect: A dialect class (`PostgreSQL`) or instance (`PostgreSQL()`).
-    ///     object: The Python value to convert.
-    ///
-    /// Returns:
-    ///     A SQL fragment suitable for embedding in a statement.
-    ///
-    /// Raises:
-    ///     TypeError: If `object` is not an accepted type for this serializer.
-    ///     ValueError: If `object` is the right type but cannot be represented
-    ///             (for example a non-finite float).
-    ///     NotImplementedError: If `dialect` has no native literal for this
-    ///             serializer (bit strings, `ARRAY[…]`, inet, macaddr).
     fn serialize(
         &self,
         dialect: crate::dialect::PySqlDialect,
@@ -143,7 +75,7 @@ impl PySerializer {
     fn __hash__(&self) -> u64 {
         use std::hash::{Hash, Hasher};
 
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        let mut hasher = std::hash::DefaultHasher::new();
         self.0.hash(&mut hasher);
         hasher.finish()
     }
@@ -158,24 +90,70 @@ macro_rules! impl_unit_serializers {
     ) => {
         $(
             $(#[$outer])*
-            #[rapidquery_macros::pyclass(
-                $pyname,
-                extends = PySerializer,
-                module = "rapidquery._core.data_type"
-            )]
+            #[rapidquery_macros::pyclass("rapidquery.data_type" + $pyname, extends = PySerializer)]
             #[derive(Debug, Default)]
             pub struct $name;
 
             #[pyo3::pymethods]
             impl $name {
                 #[new]
-                #[inline]
-                fn __new__() -> pyo3::PyClassInitializer<Self> {
-                    pyo3::PyClassInitializer::from(PySerializer(SerializerEnum::$variant))
-                        .add_subclass(Self)
+                #[pyo3(signature = (prefix=None, suffix=None))]
+                fn __new__(prefix: Option<&str>, suffix: Option<&str>) -> pyo3::PyClassInitializer<Self> {
+                    let inner = SerializerInner::new(
+                        SerializerType::$variant,
+                        prefix.map(arcstr::ArcStr::from),
+                        suffix.map(arcstr::ArcStr::from),
+                    );
+                    pyo3::PyClassInitializer::from(PySerializer(inner)).add_subclass(Self)
                 }
             }
         )+
+
+        pub(super) fn serializer_type_to_pyname(serializer_type: &SerializerType) -> &'static str {
+            match serializer_type {
+                $(
+                    SerializerType::$variant {..} => $pyname,
+                )+
+
+                SerializerType::Array(_) => "ArraySerializer",
+                SerializerType::Custom(_) => "CustomSerializer",
+            }
+        }
+
+        impl PySerializer {
+            /// Wrap `self` as the matching Python subclass.
+            pub fn into_subclasses<'py>(
+                self,
+                py: pyo3::Python<'py>,
+            ) -> pyo3::PyResult<alias::BoundObject<'py>> {
+                match &self.0.r#type {
+                    $(
+                        SerializerType::$variant {..} => {
+                            pyo3::Bound::new(
+                                py,
+                                pyo3::PyClassInitializer::from(self).add_subclass($name),
+                            )
+                            .map(|x| x.into_any())
+                        }
+                    )+
+
+                    SerializerType::Array(_) => {
+                        pyo3::Bound::new(
+                            py,
+                            pyo3::PyClassInitializer::from(self).add_subclass(PyArraySerializer),
+                        )
+                        .map(|x| x.into_any())
+                    },
+                    SerializerType::Custom(_) => {
+                        pyo3::Bound::new(
+                            py,
+                            pyo3::PyClassInitializer::from(self).add_subclass(PyCustomSerializer),
+                        )
+                        .map(|x| x.into_any())
+                    }
+                }
+            }
+        }
     };
 }
 
@@ -305,11 +283,7 @@ impl_unit_serializers! {
 /// Raises:
 ///     TypeError: If the value is not a `list` or `tuple`.
 ///     NotImplementedError: If the dialect has no `ARRAY[…]` constructor.
-#[rapidquery_macros::pyclass(
-    "ArraySerializer",
-    extends = PySerializer,
-    module = "rapidquery._core.data_type"
-)]
+#[rapidquery_macros::pyclass("rapidquery.data_type.ArraySerializer", extends = PySerializer)]
 #[derive(Debug, Default)]
 pub struct PyArraySerializer;
 
@@ -322,8 +296,15 @@ impl PyArraySerializer {
     ///             are expressed by passing another `ArraySerializer`.
     #[new]
     #[inline]
-    fn __new__(element: PySerializer) -> pyo3::PyClassInitializer<Self> {
-        let inner = SerializerEnum::Array(Box::new(element.0));
+    #[pyo3(signature = (element, prefix=None, suffix=None))]
+    fn __new__(
+        element: PySerializer,
+        prefix: Option<&str>,
+        suffix: Option<&str>,
+    ) -> pyo3::PyClassInitializer<Self> {
+        let type_ = SerializerType::Array(Box::new(element.0));
+        let inner = SerializerInner::new(type_, prefix.map(Into::into), suffix.map(Into::into));
+
         pyo3::PyClassInitializer::from(PySerializer(inner)).add_subclass(Self)
     }
 
@@ -334,11 +315,11 @@ impl PyArraySerializer {
     #[getter]
     fn get_element(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
         let base = slf.as_super();
-        match &base.0 {
-            SerializerEnum::Array(element) => {
+        match &base.0.r#type {
+            SerializerType::Array(element) => {
                 PySerializer((**element).clone()).into_subclasses(slf.py())
             }
-            _ => unreachable!("ArraySerializer base is always Array"),
+            _ => unsafe { std::hint::unreachable_unchecked() },
         }
     }
 }
@@ -348,11 +329,7 @@ impl PyArraySerializer {
 /// `function` has the form `fn(dialect_name: str, obj) -> str`. The return
 /// value is inserted into SQL as-is (not re-quoted or escaped). It is the
 /// caller's responsibility to produce a safe fragment.
-#[rapidquery_macros::pyclass(
-    "CustomSerializer",
-    extends = PySerializer,
-    module = "rapidquery._core.data_type"
-)]
+#[rapidquery_macros::pyclass("rapidquery.data_type.CustomSerializer", extends = PySerializer)]
 #[derive(Debug, Default)]
 pub struct PyCustomSerializer;
 
@@ -365,7 +342,12 @@ impl PyCustomSerializer {
     ///             The return value is inserted into SQL as-is (not re-quoted).
     ///             Must return a `str`.
     #[new]
-    fn __new__(function: alias::PyObject) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+    #[pyo3(signature = (function, prefix=None, suffix=None))]
+    fn __new__(
+        function: alias::PyObject,
+        prefix: Option<&str>,
+        suffix: Option<&str>,
+    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
         unsafe {
             if pyo3::ffi::PyCallable_Check(function.as_ptr()) != 1 {
                 return rapidquery_macros::pyerr!(
@@ -374,7 +356,9 @@ impl PyCustomSerializer {
                 );
             }
         }
-        let inner = SerializerEnum::Custom(function);
+        let type_ = SerializerType::Custom(function);
+        let inner = SerializerInner::new(type_, prefix.map(Into::into), suffix.map(Into::into));
+
         Ok(pyo3::PyClassInitializer::from(PySerializer(inner)).add_subclass(Self))
     }
 
@@ -384,9 +368,10 @@ impl PyCustomSerializer {
     ///     The function given as `function` to `__new__`.
     #[getter]
     fn get_function(slf: pyo3::PyRef<'_, Self>) -> alias::PyObject {
-        match &slf.as_super().0 {
-            SerializerEnum::Custom(function) => function.clone(),
-            _ => unreachable!("CustomSerializer base is always Custom"),
+        let base = slf.as_super();
+        match &base.0.r#type {
+            SerializerType::Custom(function) => function.clone(),
+            _ => unsafe { std::hint::unreachable_unchecked() },
         }
     }
 }
@@ -394,7 +379,7 @@ impl PyCustomSerializer {
 /// `Serializer` instance, or a `DataType` (its serializer only).
 ///
 /// Use [`PySerializer`] itself as an argument if you wanna accept ONLY `PySerializer` types.
-pub struct SerializerExtractor(pub SerializerEnum);
+pub struct SerializerExtractor(pub SerializerInner);
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for SerializerExtractor {
     type Error = pyo3::PyErr;

@@ -436,6 +436,7 @@ pub enum FunctionFilterSyntax {
     InsideWhere,
 }
 
+/// The way dialect accepts array values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ArrayFormat {
     /// `ARRAY[…]`
@@ -447,42 +448,6 @@ pub enum ArrayFormat {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum InetFormat {
-    Quoted,
-    /// `'…'::inet`
-    Cast,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum MacFormat {
-    Quoted,
-    /// `'…'::macaddr`
-    Cast,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum JsonFormat {
-    Quoted,
-    /// `JSON '…'`
-    JsonKeyword,
-    /// `PARSE_JSON('…')`
-    ParseJson,
-    /// `'…'::json`
-    CastJson,
-    /// `'…'::jsonb`
-    CastJsonb,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum UuidFormat {
-    Quoted,
-    /// `UUID '…'`
-    UuidKeyword,
-    /// `'…'::uuid`
-    CastUuid,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Dialect {
     /// Positional parameter syntax.
     pub positional_parameter: PositionalParameter,
@@ -490,9 +455,12 @@ pub struct Dialect {
     ///
     /// Set [`Option::None`] if literal bit isn't supported.
     pub bit_format: Option<BitFormat>,
+    /// How the dialect accepts array values if supported.
     pub array_format: Option<ArrayFormat>,
-    pub inet_format: Option<InetFormat>,
-    pub mac_format: Option<MacFormat>,
+    /// Whether INET data type is supported
+    pub supports_inet: bool,
+    /// Whether MACADDR data type is supported
+    pub supports_macaddr: bool,
     /// How the dialect supports `{IGNORE|RESPECT} NULLS` expressions in `Function`s if supported.
     pub null_treatment_syntax: Option<NullTreatmentSyntax>,
     /// How `LIKE ANY` / `ILIKE ANY` is rendered.
@@ -509,8 +477,6 @@ pub struct Dialect {
     pub string_escape: StringEscape,
     /// How the dialect accepts literal bytes values.
     pub bytes_format: BytesFormat,
-    pub json_format: JsonFormat,
-    pub uuid_format: UuidFormat,
     /// How function calling `FILTER` keyword rendered if supported.
     pub function_filter_syntax: Option<FunctionFilterSyntax>,
     /// How case-insensitive `LIKE` is spelled (`ILIKE`, `LIKE`, or `LOWER` + `LIKE`).
@@ -893,8 +859,8 @@ mod tests {
             positional_parameter: PositionalParameter::Simple(':'),
             bit_format: None,
             array_format: None,
-            inet_format: None,
-            mac_format: None,
+            supports_inet: false,
+            supports_macaddr: false,
             null_treatment_syntax: Some(NullTreatmentSyntax::Postfix),
             like_any_syntax: LikeAnySyntax::OrExpansion,
             bool_format: BoolFormat::Keyword,
@@ -903,8 +869,6 @@ mod tests {
             string_format: StringFormat::SingleQuote,
             string_escape: StringEscape::Quote,
             bytes_format: BytesFormat::PrefixBigX,
-            json_format: JsonFormat::Quoted,
-            uuid_format: UuidFormat::Quoted,
             function_filter_syntax: None,
             ilike_expression_options: ILikeExpressionOptions::UseLike,
             supports_similar_to: false,

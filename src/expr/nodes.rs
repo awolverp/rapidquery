@@ -17,12 +17,7 @@ macro_rules! empty_node {
     ) => {
         $(
             $(#[$meta])*
-            #[rapidquery_macros::pyclass(
-                $pyname,
-                skip_from_py_object,
-                extends = PyExpr,
-                module = "rapidquery._core.expr"
-            )]
+            #[rapidquery_macros::pyclass("rapidquery.expr" + $pyname, skip_from_py_object, extends = PyExpr)]
             #[derive(Debug, Default)]
             pub struct $name;
 
@@ -32,7 +27,6 @@ macro_rules! empty_node {
                     debug_assert!(
                         matches!(&slf.as_super().0, ExprInner::$variant(..)),
                         concat!(stringify!($name), " instance always holds ExprInner::", stringify!($variant))
-
                     );
 
                     match &slf.as_super().0 {

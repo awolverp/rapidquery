@@ -64,7 +64,7 @@ fn extract_expr(
 
             return Ok(ExprInner::Value(super::enum_::Value::new(
                 obj.as_any().clone().unbind(),
-                crate::data_type::SerializerEnum::String,
+                crate::data_type::SerializerType::String.into(),
             )));
         }
 
