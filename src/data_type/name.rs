@@ -51,7 +51,7 @@ impl DataTypeName {
     }
 }
 
-// Longest interned name is `"timestamp without timezone"` (26 bytes).
+// Longest interned name is `"timestamp without time zone"` (27 bytes).
 const LOOKUP_BUF: usize = 32;
 
 fn interned(value: &str) -> Option<DataTypeName> {
@@ -115,6 +115,7 @@ simple_data_types! {
     (UUID_DATA_TYPE => ("UUID", Uuid), "uuid");
 
     // --- Bytes ---
+    (BYTES_DATA_TYPE => ("BYTES", Bytes), "bytes");
     (BINARY_DATA_TYPE => ("BINARY", Bytes), "binary");
     (VARBINARY_DATA_TYPE => ("VARBINARY", Bytes), "varbinary");
     (BLOB_DATA_TYPE => ("BLOB", Bytes), "blob");
@@ -122,12 +123,14 @@ simple_data_types! {
 
     // --- Bit ---
     (BIT_DATA_TYPE => ("BIT", Bit), "bit");
+    (VARBIT_DATA_TYPE => ("VARBIT", Bit), "varbit");
     (BIT_VARYING_DATA_TYPE => ("BIT VARYING", Bit), "bit varying");
 
     // --- Float (includes decimal/numeric) ---
     (NUMERIC_DATA_TYPE => ("NUMERIC", Float), "numeric");
+    (BIGNUMERIC_DATA_TYPE => ("BIGNUMERIC", Float), "bignumeric");
     (DECIMAL_DATA_TYPE => ("DECIMAL", Float), "decimal");
-    (DEC_DATA_TYPE => ("DEC", Float), "dec");
+    (BIGDECIMAL_DATA_TYPE => ("BIGDECIMAL", Float), "bigdecimal");
     (FLOAT_DATA_TYPE => ("FLOAT", Float), "float");
     (REAL_DATA_TYPE => ("REAL", Float), "real");
     (DOUBLE_DATA_TYPE => ("DOUBLE", Float), "double");
@@ -141,18 +144,19 @@ simple_data_types! {
     (BIGINT_DATA_TYPE => ("BIGINT", Integer), "bigint");
 
     // --- Boolean ---
-    (BOOLEAN_DATA_TYPE => ("BOOLEAN", Boolean), "boolean");
+    (BOOLEAN_DATA_TYPE => ("BOOLEAN", Boolean), "boolean" | "bool");
 
     // --- Date ---
     (DATE_DATA_TYPE => ("DATE", Date), "date");
 
     // --- Time ---
-    (TIME_DATA_TYPE => ("TIME", Time), "time");
+    (TIME_DATA_TYPE => ("TIME", Time), "time" | "time without timezone" | "time without time zone");
     (TIME_WITH_TIMEZONE_DATA_TYPE => ("TIME WITH TIMEZONE", Time), "time with timezone");
+    (TIME_WITH_TIME_ZONE_DATA_TYPE => ("TIME WITH TIME ZONE", Time), "time with time zone");
 
     // --- Datetime ---
     (DATETIME_DATA_TYPE => ("DATETIME", Datetime), "datetime");
-    (TIMESTAMP_DATA_TYPE => ("TIMESTAMP", Datetime), "timestamp" | "timestamp without timezone");
+    (TIMESTAMP_DATA_TYPE => ("TIMESTAMP", Datetime), "timestamp" | "timestamp without timezone" | "timestamp without time zone");
     (TIMESTAMP_WITH_TIMEZONE_DATA_TYPE => ("TIMESTAMP WITH TIMEZONE", Datetime), "timestamp with timezone");
     (TIMESTAMP_WITH_TIME_ZONE_DATA_TYPE => ("TIMESTAMP WITH TIME ZONE", Datetime), "timestamp with time zone");
     (TIMESTAMPTZ_DATA_TYPE => ("TIMESTAMPTZ", Datetime), "timestamptz");
