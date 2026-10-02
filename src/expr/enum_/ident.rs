@@ -1,6 +1,6 @@
 //! SQL identifiers.
 
-use crate::dialect::PySqlDialect;
+use crate::dialect::PyDialect;
 use crate::sql::PrepareResult;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
@@ -63,7 +63,7 @@ impl<S: AsRef<str>> From<S> for IdentPart {
 
 impl WriteSql for IdentPart {
     #[inline]
-    fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
         match self {
             Self::Quote(name) => {
                 dialect.0.quote_identifier(out, name.as_str())?;
@@ -251,7 +251,7 @@ impl std::str::FromStr for Ident {
 
 impl WriteSql for Ident {
     #[inline]
-    fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
         write_separated(dialect, out, &self.0, ".")
     }
 }

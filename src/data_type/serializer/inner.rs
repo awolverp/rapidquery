@@ -1,4 +1,4 @@
-use crate::dialect::PySqlDialect;
+use crate::dialect::PyDialect;
 use crate::internal::alias;
 use crate::internal::modules;
 
@@ -169,7 +169,7 @@ impl SerializerType {
 impl SerializerType {
     pub fn serialize(
         &self,
-        dialect: &PySqlDialect,
+        dialect: &PyDialect,
         object: &alias::BoundObject<'_>,
         out: &mut String,
     ) -> pyo3::PyResult<()> {

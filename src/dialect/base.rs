@@ -1,22 +1,15 @@
-use std::hash::Hash;
-use std::hash::Hasher;
-
 use crate::internal::utils;
 
-use super::inner::Dialect;
+use super::flags;
 
-/// Abstract SQL dialect.
-///
-/// Concrete dialects are frozen subclasses (`PostgreSql`, `DuckDb`, ...).
-/// Pass an instance wherever a dialect is required.
-/// This base class cannot be instantiated.
+/// SQL dialect.
 ///
 /// Instances of the same dialect compare equal and hash together.
-#[rapidquery_macros::pyclass("rapidquery.dialect.SqlDialect", subclass, skip_from_py_object)]
+#[rapidquery_macros::pyclass("rapidquery.dialect.Dialect", skip_from_py_object)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct PySqlDialect(pub Dialect);
+pub struct PyDialect(pub flags::DialectFlags);
 
-impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PySqlDialect {
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDialect {
     type Error = pyo3::PyErr;
 
     fn extract(
@@ -25,14 +18,14 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PySqlDialect {
         unsafe {
             // SAFETY: `obj` is a borrowed `&Bound<PyAny>`, so `as_ptr()` is a
             // live `PyObject*`.
-            if crate::typeref::check(obj.as_ptr(), crate::typeref::SQL_DIALECT_TYPE) {
+            if crate::typeref::check_exact(obj.as_ptr(), crate::typeref::DIALECT_TYPE) {
                 let cast = obj.cast_unchecked::<Self>();
                 return Ok(Self(cast.get().0));
             }
 
             rapidquery_macros::pyerr!(
                 Err(PyTypeError),
-                "expected a SqlDialect, got {}",
+                "expected Dialect, got {}",
                 utils::get_type_name(obj.py(), obj.as_ptr())
             )
         }
@@ -40,14 +33,14 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PySqlDialect {
 }
 
 #[pyo3::pymethods]
-impl PySqlDialect {
-    // Bound<Self> so only instances match; the class object is a type.
-    // PostgreSql() == PostgreSql is false; PostgreSql() == PostgreSql() is true.
+impl PyDialect {
     fn __eq__(&self, other: &pyo3::Bound<'_, Self>) -> bool {
         self.0 == other.get().0
     }
 
     fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+
         let mut hasher = std::hash::DefaultHasher::default();
         self.0.hash(&mut hasher);
         hasher.finish()

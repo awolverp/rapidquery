@@ -32,7 +32,7 @@ impl PySerializer {
     /// Renders `object` as a SQL literal for `dialect`.
     fn serialize(
         &self,
-        dialect: crate::dialect::PySqlDialect,
+        dialect: crate::dialect::PyDialect,
         object: alias::BoundObject<'_>,
     ) -> pyo3::PyResult<String> {
         let mut buf = String::new();

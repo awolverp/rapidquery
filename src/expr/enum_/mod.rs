@@ -12,7 +12,7 @@ pub use nodes::*;
 pub use operator::*;
 pub use value::*;
 
-use crate::dialect::PySqlDialect;
+use crate::dialect::PyDialect;
 use crate::sql::PrepareResult;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
@@ -130,7 +130,7 @@ impl ExprInner {
     #[inline]
     pub(crate) fn write_operand<W: SqlWriter>(
         &self,
-        dialect: &PySqlDialect,
+        dialect: &PyDialect,
         out: &mut W,
         parent_prec: u8,
         paren_if_equal: bool,
@@ -174,7 +174,7 @@ impl ExprInner {
 
 impl WriteSql for ExprInner {
     #[cfg_attr(feature = "nightly", optimize(speed))]
-    fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
         match self {
             Self::Ident(x) => x.write_sql(dialect, out),
             Self::Value(x) => x.write_sql(dialect, out),

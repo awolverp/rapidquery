@@ -81,7 +81,7 @@ impl PyExpr {
     fn prepare<'py>(
         slf: pyo3::PyRef<'py, Self>,
         py: pyo3::Python<'py>,
-        dialect: crate::dialect::PySqlDialect,
+        dialect: crate::dialect::PyDialect,
     ) -> pyo3::PyResult<(String, alias::BoundObject<'py>)> {
         let (sql, params) = sql::prepare(py, &slf.0, &dialect)?;
 
@@ -99,7 +99,7 @@ impl PyExpr {
     fn to_sql(
         slf: pyo3::PyRef<'_, Self>,
         py: pyo3::Python<'_>,
-        dialect: crate::dialect::PySqlDialect,
+        dialect: crate::dialect::PyDialect,
     ) -> pyo3::PyResult<String> {
         sql::write_sql(py, &slf.0, &dialect).map_err(Into::into)
     }

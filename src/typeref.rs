@@ -1,7 +1,7 @@
 //! Interned `PyTypeObject*` cache.
 
 // Dialect types
-pub(crate) static mut SQL_DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
 // Data-type / serializer types
 pub(crate) static mut DATATYPE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -70,7 +70,7 @@ fn _initialize_typeref(py: pyo3::Python) {
         multiple_get_type_object_for!(
             py,
             // dialects
-            crate::dialect::PySqlDialect => SQL_DIALECT_TYPE,
+            crate::dialect::PyDialect => DIALECT_TYPE,
             // data types / serializers
             crate::data_type::PyDataType => DATATYPE_TYPE,
             crate::data_type::PySerializer => SERIALIZER_TYPE,

@@ -1,8 +1,7 @@
 use super::ExprInner;
 use super::ident::Ident;
 
-use crate::dialect::inner::FunctionFilterSyntax;
-use crate::dialect::inner::NullTreatmentSyntax;
+use crate::dialect::flags;
 use crate::sql::PrepareResult;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
@@ -80,7 +79,7 @@ impl Function {
 impl WriteSql for Function {
     fn write_sql<W: SqlWriter>(
         &self,
-        dialect: &crate::dialect::PySqlDialect,
+        dialect: &crate::dialect::PyDialect,
         out: &mut W,
     ) -> PrepareResult<()> {
         // "name"([DISTINCT] args [IGNORE|RESPECT NULLS] [WHERE expr])
@@ -94,14 +93,21 @@ impl WriteSql for Function {
 
         write_separated(dialect, out, &self.args, ", ")?;
 
-        if self.null_treatment.is_some() && dialect.0.null_treatment_syntax.is_none() {
+        let null_treatment_syntax = dialect.0.null_treatment();
+        let function_filter_syntax = dialect.0.function_filter();
+
+        if self.null_treatment.is_some()
+            && matches!(null_treatment_syntax, flags::NullTreatment::Unsupported)
+        {
             return Err(rapidquery_macros::pyerr!(
                 PyRuntimeError,
                 "null_treatment is not supported by this dialect",
             )
             .into());
         }
-        if self.filter.is_some() && dialect.0.function_filter_syntax.is_none() {
+        if self.filter.is_some()
+            && matches!(function_filter_syntax, flags::FunctionFilter::Unsupported)
+        {
             return Err(rapidquery_macros::pyerr!(
                 PyRuntimeError,
                 "function filter is not supported by this dialect",
@@ -111,10 +117,7 @@ impl WriteSql for Function {
 
         // Inside parens IGNORE/RESPECT NULLS
         if let Some(x) = self.null_treatment
-            && matches!(
-                dialect.0.null_treatment_syntax,
-                Some(NullTreatmentSyntax::InsideParens)
-            )
+            && matches!(null_treatment_syntax, flags::NullTreatment::InsideParens)
         {
             out.push_char_if(args_available, ' ');
             out.push_str(x.as_sql());
@@ -122,10 +125,7 @@ impl WriteSql for Function {
 
         // Inside parens WHERE filter
         if let Some(x) = &self.filter
-            && matches!(
-                dialect.0.function_filter_syntax,
-                Some(FunctionFilterSyntax::InsideWhere)
-            )
+            && matches!(function_filter_syntax, flags::FunctionFilter::InsideWhere)
         {
             out.push_char_if(args_available, ' ');
             out.push_str("WHERE ");
@@ -136,14 +136,14 @@ impl WriteSql for Function {
 
         // FILTER, then postfix IGNORE/RESPECT NULLS (immediately before OVER).
         if let Some(x) = &self.filter {
-            match dialect.0.function_filter_syntax {
-                Some(FunctionFilterSyntax::FilterWhere) => {
+            match function_filter_syntax {
+                flags::FunctionFilter::FilterWhere => {
                     out.push_char(' ');
                     out.push_str("FILTER (WHERE ");
                     x.write_sql(dialect, out)?;
                     out.push_char(')');
                 }
-                Some(FunctionFilterSyntax::Filter) => {
+                flags::FunctionFilter::Filter => {
                     out.push_char(' ');
                     out.push_str("FILTER (");
                     x.write_sql(dialect, out)?;
@@ -154,10 +154,7 @@ impl WriteSql for Function {
         }
 
         if let Some(x) = self.null_treatment
-            && matches!(
-                dialect.0.null_treatment_syntax,
-                Some(NullTreatmentSyntax::Postfix)
-            )
+            && matches!(null_treatment_syntax, flags::NullTreatment::Postfix)
         {
             out.push_char(' ');
             out.push_str(x.as_sql());

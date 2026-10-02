@@ -1,10 +1,8 @@
 //! `LIKE` / `ILIKE` / `LIKE ANY` / `SIMILAR TO` / `RLIKE` AST nodes.
 
 use super::ExprInner;
-use crate::dialect::PySqlDialect;
-use crate::dialect::inner::LikeAnySyntax;
-use crate::dialect::inner::LikeEscapeSyntax;
-use crate::dialect::inner::RLikeExpressionOptions;
+use crate::dialect::PyDialect;
+use crate::dialect::flags;
 use crate::sql::PrepareResult;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
@@ -12,7 +10,7 @@ use crate::sql::write_separated;
 use std::fmt::Write;
 
 pub(super) fn write_escape<W: SqlWriter>(
-    dialect: &PySqlDialect,
+    dialect: &PyDialect,
     out: &mut W,
     escape: Option<char>,
 ) -> PrepareResult<()> {
@@ -62,9 +60,9 @@ impl LikePattern {
 /// `case_sensitive == false` follows the dialect's `ilike_expression_options`
 /// (`ILIKE`, plain `LIKE`, or `LOWER(expr) LIKE LOWER(pattern)`). `ESCAPE` is
 /// a single inlined character (never a bind). A set escape character raises
-/// when [`LikeEscapeSyntax`] does not allow it on that form.
+/// when [`flags::LikeEscape`] does not allow it on that form.
 ///
-/// LIKE ANY follows [`LikeAnySyntax`]: Postgres `ANY (ARRAY[…])` wraps
+/// LIKE ANY follows [`flags::LikeAny`]: Postgres `ANY (ARRAY[…])` wraps
 /// negation as `NOT (x LIKE ANY …)` because `NOT LIKE ANY` is a quantified
 /// NOT LIKE; Snowflake/Spark/Databricks use `LIKE ANY (p, …)`; everyone else
 /// expands to parenthesized `OR` of scalar `LIKE`s (`AND` of `NOT LIKE` when
@@ -104,7 +102,7 @@ impl Like {
 }
 
 fn write_like_operand<W: SqlWriter>(
-    dialect: &PySqlDialect,
+    dialect: &PyDialect,
     out: &mut W,
     expr: &ExprInner,
     wrap_lower: bool,
@@ -134,7 +132,7 @@ fn write_like_infix<W: SqlWriter>(out: &mut W, negated: bool, ilike: bool) {
 }
 
 fn write_like_pattern_list<W: SqlWriter>(
-    dialect: &PySqlDialect,
+    dialect: &PyDialect,
     out: &mut W,
     patterns: &[ExprInner],
     wrap_lower: bool,
@@ -155,17 +153,17 @@ fn write_like_pattern_list<W: SqlWriter>(
 /// `ESCAPE` is legal on this form. `native_any` is `LIKE ANY` that is not an
 /// `OR` expansion.
 #[inline]
-fn like_escape_allowed(syntax: LikeEscapeSyntax, native_any: bool) -> bool {
+fn like_escape_allowed(syntax: flags::LikeEscape, native_any: bool) -> bool {
     match syntax {
-        LikeEscapeSyntax::None => false,
-        LikeEscapeSyntax::Scalar => !native_any,
-        LikeEscapeSyntax::IncludingAny => true,
+        flags::LikeEscape::Unsupported => false,
+        flags::LikeEscape::Scalar => !native_any,
+        flags::LikeEscape::IncludingAny => true,
     }
 }
 
 #[inline]
 fn ensure_like_escape_is_supported(
-    syntax: LikeEscapeSyntax,
+    syntax: flags::LikeEscape,
     escape: Option<char>,
     native_any: bool,
 ) -> PrepareResult<()> {
@@ -186,7 +184,7 @@ fn ensure_like_escape_is_supported(
 
 /// `[NOT] (x LIKE|ILIKE ANY (ARRAY?[…]) [ESCAPE char])`
 fn write_like_any_native<W: SqlWriter>(
-    dialect: &PySqlDialect,
+    dialect: &PyDialect,
     out: &mut W,
     like: &Like,
     patterns: &[ExprInner],
@@ -219,18 +217,22 @@ fn write_like_any_native<W: SqlWriter>(
 }
 
 impl WriteSql for Like {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
         let (ilike, wrap_lower) = if self.case_sensitive {
             (false, false)
         } else {
-            dialect.0.ilike_expression_options.case_insensitive_sql()
+            match dialect.0.ilike_expression() {
+                flags::ILikeExpression::Standard => (true, false),
+                flags::ILikeExpression::UseLike => (false, false),
+                flags::ILikeExpression::UseLikeLower => (false, true),
+            }
         };
 
         ensure_like_escape_is_supported(
-            dialect.0.like_escape_syntax,
+            dialect.0.like_escape(),
             self.escape,
             matches!(self.pattern, LikePattern::Any(_))
-                && !matches!(dialect.0.like_any_syntax, LikeAnySyntax::OrExpansion),
+                && !matches!(dialect.0.like_any(), flags::LikeAny::OrExpansion),
         )?;
 
         match &self.pattern {
@@ -240,14 +242,14 @@ impl WriteSql for Like {
                 write_like_operand(dialect, out, pattern, wrap_lower, true)?;
                 write_escape(dialect, out, self.escape)
             }
-            LikePattern::Any(patterns) => match dialect.0.like_any_syntax {
-                LikeAnySyntax::ArrayConstructor => {
+            LikePattern::Any(patterns) => match dialect.0.like_any() {
+                flags::LikeAny::ArrayConstructor => {
                     write_like_any_native(dialect, out, self, patterns, ilike, wrap_lower, true)
                 }
-                LikeAnySyntax::PatternList => {
+                flags::LikeAny::PatternList => {
                     write_like_any_native(dialect, out, self, patterns, ilike, wrap_lower, false)
                 }
-                LikeAnySyntax::OrExpansion => {
+                flags::LikeAny::OrExpansion => {
                     let sep = if self.negated { " AND " } else { " OR " };
                     out.push_char('(');
                     for (i, pattern) in patterns.iter().enumerate() {
@@ -301,8 +303,8 @@ impl SimilarTo {
 }
 
 impl WriteSql for SimilarTo {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
-        if !dialect.0.supports_similar_to {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+        if !dialect.0.supports_similar_to() {
             return Err(rapidquery_macros::pyerr!(
                 PyRuntimeError,
                 "SIMILAR TO is not supported by this dialect",
@@ -364,7 +366,7 @@ impl RLike {
 
 /// `NOT? name(expr, pattern)` — unquoted function rewrite.
 fn write_regex_call<W: SqlWriter>(
-    dialect: &PySqlDialect,
+    dialect: &PyDialect,
     out: &mut W,
     name: &str,
     negated: bool,
@@ -384,17 +386,16 @@ fn write_regex_call<W: SqlWriter>(
 }
 
 impl WriteSql for RLike {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PySqlDialect, out: &mut W) -> PrepareResult<()> {
-        let Some(opt) = dialect.0.rlike_expression_options else {
-            return Err(rapidquery_macros::pyerr!(
-                PyRuntimeError,
-                "RLIKE is not supported by this dialect",
-            )
-            .into());
-        };
-
-        match opt {
-            RLikeExpressionOptions::InfixRLike => {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+        match dialect.0.rlike_expression() {
+            flags::RLikeExpression::Unsupported => {
+                return Err(rapidquery_macros::pyerr!(
+                    PyRuntimeError,
+                    "RLIKE is not supported by this dialect",
+                )
+                .into());
+            }
+            flags::RLikeExpression::Standard => {
                 self.expr
                     .write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 if self.negated {
@@ -405,14 +406,14 @@ impl WriteSql for RLike {
                 self.pattern
                     .write_operand(dialect, out, Self::PRECEDENCE, true)
             }
-            RLikeExpressionOptions::Tilde => {
+            flags::RLikeExpression::Tilde => {
                 self.expr
                     .write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 out.push_str(if self.negated { " !~ " } else { " ~ " });
                 self.pattern
                     .write_operand(dialect, out, Self::PRECEDENCE, true)
             }
-            RLikeExpressionOptions::RegexpLike => write_regex_call(
+            flags::RLikeExpression::RegexpLike => write_regex_call(
                 dialect,
                 out,
                 "REGEXP_LIKE",
@@ -420,7 +421,7 @@ impl WriteSql for RLike {
                 &self.expr,
                 &self.pattern,
             ),
-            RLikeExpressionOptions::RegexpContains => write_regex_call(
+            flags::RLikeExpression::RegexpContains => write_regex_call(
                 dialect,
                 out,
                 "REGEXP_CONTAINS",
@@ -428,7 +429,7 @@ impl WriteSql for RLike {
                 &self.expr,
                 &self.pattern,
             ),
-            RLikeExpressionOptions::RegexpMatches => write_regex_call(
+            flags::RLikeExpression::RegexpMatches => write_regex_call(
                 dialect,
                 out,
                 "regexp_matches",
