@@ -82,22 +82,14 @@ impl ReprFormatter {
         self
     }
 
-    pub fn keyword_optional_debug<T: std::fmt::Debug>(
-        &mut self,
-        key: &str,
-        value: Option<T>,
-    ) -> &mut Self {
+    pub fn keyword_optional_debug<T: std::fmt::Debug>(&mut self, key: &str, value: Option<T>) -> &mut Self {
         if let Some(value) = value {
             self.keyword_debug(key, value);
         }
         self
     }
 
-    pub fn keyword_optional_formatter(
-        &mut self,
-        key: &str,
-        value: Option<ReprFormatter>,
-    ) -> &mut Self {
+    pub fn keyword_optional_formatter(&mut self, key: &str, value: Option<ReprFormatter>) -> &mut Self {
         if let Some(child) = value {
             self.keyword_formatter(key, child);
         }

@@ -1,3 +1,66 @@
+[project]
+name = "rapidquery"
+requires-python = ">=3.10"
+authors = [{ name = "Ali Pooralijan", email = "awolverp@gmail.com" }]
+keywords = [
+  "SQL",
+  "dynamic-sql",
+  "orm",
+  "pypika",
+  "rapidorm",
+  "rapidquery",
+  "sql-builder",
+]
+
+classifiers = [
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+  "Programming Language :: Rust",
+  "Topic :: Software Development :: Libraries",
+  "Typing :: Typed",
+]
+
+dynamic = ["description", "license", "readme", "version"]
+
+[project.urls]
+Homepage = "https://github.com/awolverp/rapidquery"
+Issues = "https://github.com/awolverp/rapidquery/issues"
+Repository = "https://github.com/awolverp/rapidquery"
+
+[project.optional-dependencies]
+orjson = [
+  "orjson>=3.0.0",
+]
+
+[dependency-groups]
+dev = [
+  { include-group = "build" },
+  { include-group = "lint" },
+  { include-group = "test" },
+]
+
+build = ["maturin == 1.15.0"]
+lint = [
+  "mypy>=2.3.1",
+  "pre-commit>=4.6.2",
+  "ruff>=0.16.9",
+]
+test = ["hypothesis>=6.0.0", "pytest>=8.0.0"]
+
 [build-system]
 requires = ["maturin == 1.15.0"]
 build-backend = "maturin"
@@ -6,61 +69,22 @@ build-backend = "maturin"
 features = ["pyo3/extension-module"]
 module-name = "rapidquery._core"
 
-[project]
-name = "rapidquery"
-requires-python = ">=3.10"
-keywords = [
-    "SQL",
-    "dynamic-sql",
-    "sql-builder",
-    "rapidorm",
-    "pypika",
-    "orm",
-    "rapidquery",
-]
-authors = [{ name = "Ali Pooralijan", email = "awolverp@gmail.com" }]
+[tool.ruff]
+line-length = 120
+target-version = "py310"
 
-classifiers = [
-    "Programming Language :: Rust",
-    "Programming Language :: Python",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
-    "Programming Language :: Python :: 3.15",
-    "Programming Language :: Python :: Implementation :: PyPy",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: POSIX :: Linux",
-    "Operating System :: Microsoft :: Windows",
-    "Operating System :: MacOS",
-    "Typing :: Typed",
-    "Topic :: Software Development :: Libraries",
-]
+[tool.ruff.lint]
+ignore = ["DTZ00"]
 
-dynamic = [
-    "description",
-    "license",
-    "readme",
-    "version"
-]
-
-[project.urls]
-Homepage = "https://github.com/awolverp/rapidquery"
-Repository = "https://github.com/awolverp/rapidquery"
-Issues = "https://github.com/awolverp/rapidquery/issues"
-
-[project.optional-dependencies]
-orjson = [
-    "orjson>=3.0.0",
-]
-
-[dependency-groups]
-dev = [
-    "maturin == 1.15.0",
-    "pytest>=8.0.0",
+[tool.uv]
+required-version = ">=0.10.0"
+cache-keys = [
+  { file = "pyproject.toml" },
+  { file = "Cargo.toml" },
+  { file = "Cargo.lock" },
+  { dir = ".cargo" },
+  { dir = "src" },
+  { dir = "rapidquery" },
+  { env = "MATURIN_PEP517_ARGS" },
+  { env = "RUSTFLAGS" },
 ]

@@ -17,9 +17,7 @@ fn ident_part_to_pyobject<'py>(
 ) -> pyo3::PyResult<alias::BoundObject<'py>> {
     match ident_part {
         IdentPart::Quote(s) => Ok(pyo3::types::PyString::new(py, s.as_str()).into_any()),
-        IdentPart::Unquote(s) => {
-            Ok(pyo3::Bound::new(py, PyUnquote(arcstr::ArcStr::from(s.as_str())))?.into_any())
-        }
+        IdentPart::Unquote(s) => Ok(pyo3::Bound::new(py, PyUnquote(arcstr::ArcStr::from(s.as_str())))?.into_any()),
         IdentPart::Asterisk => Ok(pyo3::Bound::new(py, PyAsterisk)?.into_any()),
     }
 }
@@ -84,16 +82,13 @@ impl PyIdent {
                     }
                 }
 
-                Ident::from_parts(acc)
-                    .map_err(|e| rapidquery_macros::pyerr!(PyValueError, "{}", e))?
+                Ident::from_parts(acc).map_err(|e| rapidquery_macros::pyerr!(PyValueError, "{}", e))?
             }
         };
 
         Ok(
-            pyo3::PyClassInitializer::from(super::base::PyExpr(super::enum_::ExprInner::Ident(
-                ident,
-            )))
-            .add_subclass(PyIdent),
+            pyo3::PyClassInitializer::from(super::base::PyExpr(super::enum_::ExprInner::Ident(ident)))
+                .add_subclass(PyIdent),
         )
     }
 
@@ -101,10 +96,7 @@ impl PyIdent {
         Self::inner(&slf).len()
     }
 
-    fn __getitem__<'py>(
-        slf: pyo3::PyRef<'py, Self>,
-        index: isize,
-    ) -> pyo3::PyResult<alias::BoundObject<'py>> {
+    fn __getitem__<'py>(slf: pyo3::PyRef<'py, Self>, index: isize) -> pyo3::PyResult<alias::BoundObject<'py>> {
         let inner = Self::inner(&slf);
 
         let x = if index < 0 {
@@ -120,10 +112,7 @@ impl PyIdent {
     }
 
     /// Returns the parts as a list (`str`, `Unquote`, or `Asterisk`).
-    fn to_list(
-        slf: pyo3::PyRef<'_, Self>,
-        py: pyo3::Python<'_>,
-    ) -> pyo3::PyResult<Vec<alias::PyObject>> {
+    fn to_list(slf: pyo3::PyRef<'_, Self>, py: pyo3::Python<'_>) -> pyo3::PyResult<Vec<alias::PyObject>> {
         Self::inner(&slf)
             .parts()
             .iter()

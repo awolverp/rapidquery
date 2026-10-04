@@ -5,6 +5,8 @@ import uuid
 
 import pytest
 
+from rapidquery.dialect import PostgreSql
+from rapidquery.expr import Expr, Value
 from rapidquery.serializers import (
     ArraySerializer,
     BitSerializer,
@@ -23,8 +25,6 @@ from rapidquery.serializers import (
     UnspecifiedSerializer,
     UuidSerializer,
 )
-from rapidquery.dialect import PostgreSql
-from rapidquery.expr import Expr, Value
 from tests.conftest import USING_ORJSON
 
 
@@ -45,8 +45,8 @@ INFER_TEST_CASES: dict[type[Serializer], list[object]] = {
     BytesSerializer: [b"bytes"],
     BitSerializer: [],
     JSONSerializer: [
-        list(),  # ruff: ignore
-        dict(),  # ruff: ignore
+        [],
+        {},
         {"OK": 1},
     ],
     DateSerializer: [datetime.datetime.now(tz=datetime.UTC).date()],
@@ -59,7 +59,7 @@ INFER_TEST_CASES: dict[type[Serializer], list[object]] = {
 }
 
 if USING_ORJSON:
-    INFER_TEST_CASES[JSONSerializer].append({"OK": datetime.datetime.now()})  # ruff: ignore
+    INFER_TEST_CASES[JSONSerializer].append({"OK": datetime.datetime.now()})
     INFER_TEST_CASES[JSONSerializer].append({"OK": uuid.uuid4()})
 
 
@@ -104,28 +104,20 @@ class TestValueConstruction:
         assert isinstance(inner.get_serializer(), InetSerializer)
         assert isinstance(outer.get_serializer(), UnspecifiedSerializer)
 
-    def test_data_type_is_not_a_serializer(self):
-        from rapidquery.data_type import DataType
-
-        with pytest.raises(TypeError):
-            Value("x", DataType("integer"))
-
 
 class TestValueToSql:
     def test_integer_literal(self):
-        assert Value(42).to_sql(PostgreSql()) == "42"
+        assert Value(42).to_sql(PostgreSql) == "42"
 
     def test_string_literal_matches_string_serializer(self):
-        assert Value("hi").to_sql(PostgreSql()) == StringSerializer().serialize(
-            PostgreSql(), "hi"
-        )
+        assert Value("hi").to_sql(PostgreSql) == StringSerializer().serialize(PostgreSql, "hi")
 
     def test_none_is_null(self):
-        assert Value(None).to_sql(PostgreSql()) == "NULL"
+        assert Value(None).to_sql(PostgreSql) == "NULL"
 
     def test_propagates_serializer_type_error(self):
         with pytest.raises(TypeError):
-            Value("not an int", IntegerSerializer()).to_sql(PostgreSql())
+            Value("not an int", IntegerSerializer()).to_sql(PostgreSql)
 
 
 class TestValueEquality:

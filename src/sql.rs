@@ -31,10 +31,9 @@ impl std::fmt::Display for PrepareError {
         match self {
             Self::Write => f.write_str("failed to write SQL"),
             Self::Python(err) => write!(f, "{err}"),
-            Self::CustomPlaceholders { expected, got } => write!(
-                f,
-                "custom expression has {expected} placeholders but {got} arguments"
-            ),
+            Self::CustomPlaceholders { expected, got } => {
+                write!(f, "custom expression has {expected} placeholders but {got} arguments")
+            }
         }
     }
 }
@@ -73,11 +72,7 @@ impl From<FormatError> for pyo3::PyErr {
                 rapidquery_macros::pyerr!(PyValueError, "NUL is not allowed in a string literal")
             }
             FormatError::Unsupported(name) => {
-                rapidquery_macros::pyerr!(
-                    PyNotImplementedError,
-                    "this dialect does not support {}",
-                    name
-                )
+                rapidquery_macros::pyerr!(PyNotImplementedError, "this dialect does not support {}", name)
             }
         }
     }
@@ -150,10 +145,7 @@ pub struct BufferedSql<'py> {
 impl<'py> BufferedSql<'py> {
     #[inline]
     pub fn new(py: pyo3::Python<'py>) -> Self {
-        Self {
-            py,
-            sql: String::new(),
-        }
+        Self { py, sql: String::new() }
     }
 
     #[inline]
@@ -352,11 +344,7 @@ pub trait WriteSql {
 }
 
 /// Render `stmt` as raw SQL (values inlined as literals).
-pub fn write_sql<'py, T: WriteSql>(
-    py: pyo3::Python<'py>,
-    stmt: &T,
-    dialect: &PyDialect,
-) -> PrepareResult<String> {
+pub fn write_sql<'py, T: WriteSql>(py: pyo3::Python<'py>, stmt: &T, dialect: &PyDialect) -> PrepareResult<String> {
     let mut buf = BufferedSql::with_capacity(py, 256);
     stmt.write_sql(dialect, &mut buf)?;
     Ok(buf.into_string())

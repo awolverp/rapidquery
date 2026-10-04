@@ -128,18 +128,14 @@ rq.Expr.col("age") > 16  # -> "age" > 16
 # Note that `rq.all` is different from built-in `all`
 rq.all(
     rq.Expr.col("age") >= 18,
-    rq.Expr.col(
-        "subscription"
-    ).is_null(),  # same as rq.Expr.col("subscription").is_(Expr.null())
+    rq.Expr.col("subscription").is_null(),  # same as rq.Expr.col("subscription").is_(Expr.null())
     rq.Expr.col("status").in_(["pending", "approved", "active"]),
 )  # -> "age" >= 18 AND "subscription" IS NULL AND "status" IN ('pending', 'approved', 'active')
 
 # Note that `rq.any` is different from built-in `any`
 rq.any(
     rq.Expr.col("is_admin").is_(True),
-    rq.Expr.col(
-        "is_moderator"
-    ).is_not_null(),  # same as rq.Expr.col("subscription").is_not(Expr.null())
+    rq.Expr.col("is_moderator").is_not_null(),  # same as rq.Expr.col("subscription").is_not(Expr.null())
     rq.Expr.col("price").between(10.00, 50.00),
 )  # -> "is_admin" IS TRUE OR "is_moderator" IS NOT NULL OR "price" BETWEEN 10.00 AND 50.00
 ```
@@ -252,11 +248,7 @@ Use `rapidquery.InsertStatement` type to generate `INSERT` statements.
 ```python
 import rapidquery as rq
 
-stmt = (
-    rq.InsertStatement("glyph")
-    .values(aspect=3.14, image="A4")
-    .on_conflict(rq.OnConflict("id").do_update("image"))
-)
+stmt = rq.InsertStatement("glyph").values(aspect=3.14, image="A4").on_conflict(rq.OnConflict("id").do_update("image"))
 
 print(stmt.to_sql("postgres"))
 # INSERT INTO "glyph" ("aspect", "image") VALUES (3.14, 'A4')
@@ -278,11 +270,7 @@ Use `rapidquery.UpdateStatement` type to generate `UPDATE` statements.
 ```python
 import rapidquery as rq
 
-stmt = (
-    rq.UpdateStatement("glyph")
-    .values(aspect=1.23, image="123")
-    .where(rq.Expr.col("id") == 1)
-)
+stmt = rq.UpdateStatement("glyph").values(aspect=1.23, image="123").where(rq.Expr.col("id") == 1)
 
 print(stmt.to_sql("postgres"))
 # UPDATE "glyph" SET "aspect" = 1.23, "image" = '123' WHERE "id" = 1
@@ -360,12 +348,8 @@ clause = (
     )
 )
 
-users_count_select = rq.SelectStatement(rq.Func.count(rq.Expr.asterisk())).from_table(
-    "users_count"
-)
-teams_count_select = rq.SelectStatement(rq.Func.count(rq.Expr.asterisk())).from_table(
-    "teams_count"
-)
+users_count_select = rq.SelectStatement(rq.Func.count(rq.Expr.asterisk())).from_table("users_count")
+teams_count_select = rq.SelectStatement(rq.Func.count(rq.Expr.asterisk())).from_table("teams_count")
 
 query: WithQuery = clause.query(
     rq.SelectStatement(

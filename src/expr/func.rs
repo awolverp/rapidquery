@@ -38,10 +38,7 @@ impl PyFunction {
         }
     }
 
-    fn wrap(
-        py: pyo3::Python<'_>,
-        inner: super::enum_::Function,
-    ) -> pyo3::PyResult<alias::PyObject> {
+    fn wrap(py: pyo3::Python<'_>, inner: super::enum_::Function) -> pyo3::PyResult<alias::PyObject> {
         pyo3::Py::new(
             py,
             pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self),
@@ -74,10 +71,7 @@ impl PyFunction {
         Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
     }
 
-    fn filter(
-        slf: pyo3::PyRef<'_, Self>,
-        predicate: ConditionExtractor,
-    ) -> pyo3::PyResult<alias::PyObject> {
+    fn filter(slf: pyo3::PyRef<'_, Self>, predicate: ConditionExtractor) -> pyo3::PyResult<alias::PyObject> {
         let mut inner = Self::inner(&slf).clone();
         inner.filter = Some(Box::new(predicate.0));
         Self::wrap(slf.py(), inner)

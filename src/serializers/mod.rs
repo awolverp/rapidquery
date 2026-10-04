@@ -18,12 +18,7 @@ pub fn serializer_repr(serializer: &SerializerType) -> ReprFormatter {
 }
 
 /// Converts a Python object into a dialect-specific SQL literal string.
-#[rapidquery_macros::pyclass(
-    "rapidquery.serializers.Serializer",
-    subclass,
-    from_py_object,
-    generic
-)]
+#[rapidquery_macros::pyclass("rapidquery.serializers.Serializer", subclass, from_py_object, generic)]
 #[derive(Debug, Clone)]
 #[repr(transparent)]
 pub struct PySerializer(pub SerializerType);
@@ -31,11 +26,7 @@ pub struct PySerializer(pub SerializerType);
 #[pyo3::pymethods]
 impl PySerializer {
     /// Renders `object` as a SQL literal for `dialect`.
-    fn serialize(
-        &self,
-        dialect: crate::dialect::PyDialect,
-        object: alias::BoundObject<'_>,
-    ) -> pyo3::PyResult<String> {
+    fn serialize(&self, dialect: crate::dialect::PyDialect, object: alias::BoundObject<'_>) -> pyo3::PyResult<String> {
         let mut buf = String::new();
         self.0.serialize(&dialect, &object, &mut buf)?;
         Ok(buf)
@@ -290,9 +281,7 @@ impl PyArraySerializer {
     fn get_element(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
         let base = slf.as_super();
         match &base.0 {
-            SerializerType::Array(element) => {
-                PySerializer((**element).clone()).into_subclasses(slf.py())
-            }
+            SerializerType::Array(element) => PySerializer((**element).clone()).into_subclasses(slf.py()),
             _ => unsafe { std::hint::unreachable_unchecked() },
         }
     }
@@ -319,10 +308,7 @@ impl PyCustomSerializer {
     fn __new__(function: alias::PyObject) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
         unsafe {
             if pyo3::ffi::PyCallable_Check(function.as_ptr()) != 1 {
-                return rapidquery_macros::pyerr!(
-                    Err(PyTypeError),
-                    "the 'function' parameter must be callable"
-                );
+                return rapidquery_macros::pyerr!(Err(PyTypeError), "the 'function' parameter must be callable");
             }
         }
         let inner = SerializerType::Custom(function);
@@ -351,9 +337,7 @@ pub struct SerializerExtractor(pub SerializerType);
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for SerializerExtractor {
     type Error = pyo3::PyErr;
 
-    fn extract(
-        obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>,
-    ) -> Result<Self, Self::Error> {
+    fn extract(obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>) -> Result<Self, Self::Error> {
         let ptr = obj.as_ptr();
 
         unsafe {

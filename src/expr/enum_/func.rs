@@ -74,11 +74,7 @@ impl Function {
 }
 
 impl WriteSql for Function {
-    fn write_sql<W: SqlWriter>(
-        &self,
-        dialect: &crate::dialect::PyDialect,
-        out: &mut W,
-    ) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &crate::dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
         // "name"([DISTINCT] args [IGNORE|RESPECT NULLS] [WHERE expr])
         // [FILTER ([WHERE] expr)] [IGNORE|RESPECT NULLS]
         self.name.write_sql(dialect, out)?;
@@ -93,23 +89,15 @@ impl WriteSql for Function {
         let null_treatment_syntax = dialect.0.null_treatment();
         let function_filter_syntax = dialect.0.function_filter();
 
-        if self.null_treatment.is_some()
-            && matches!(null_treatment_syntax, flags::NullTreatment::Unsupported)
-        {
-            return Err(rapidquery_macros::pyerr!(
-                PyRuntimeError,
-                "null_treatment is not supported by this dialect",
-            )
-            .into());
+        if self.null_treatment.is_some() && matches!(null_treatment_syntax, flags::NullTreatment::Unsupported) {
+            return Err(
+                rapidquery_macros::pyerr!(PyRuntimeError, "null_treatment is not supported by this dialect",).into(),
+            );
         }
-        if self.filter.is_some()
-            && matches!(function_filter_syntax, flags::FunctionFilter::Unsupported)
-        {
-            return Err(rapidquery_macros::pyerr!(
-                PyRuntimeError,
-                "function filter is not supported by this dialect",
-            )
-            .into());
+        if self.filter.is_some() && matches!(function_filter_syntax, flags::FunctionFilter::Unsupported) {
+            return Err(
+                rapidquery_macros::pyerr!(PyRuntimeError, "function filter is not supported by this dialect",).into(),
+            );
         }
 
         // Inside parens IGNORE/RESPECT NULLS

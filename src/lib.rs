@@ -10,7 +10,6 @@ pub mod sql;
 pub mod typeref;
 
 // Tasks until being stable (until this part)
-// - Add lint/coding-style rules
 // - Restore GenericDialect ( very helpful for testing )
 // - Test and coverage everything and edge cases
 // - Update docstrings / doccomments

@@ -24,9 +24,7 @@ pub(crate) static mut STD_DATETIME_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr
 pub(crate) static mut STD_DATE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut STD_TIME_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
-unsafe fn get_type_object_for<T: pyo3::PyTypeInfo>(
-    py: pyo3::Python,
-) -> *mut pyo3::ffi::PyTypeObject {
+unsafe fn get_type_object_for<T: pyo3::PyTypeInfo>(py: pyo3::Python) -> *mut pyo3::ffi::PyTypeObject {
     // Borrowed type object; lives as long as the `#[pyclass]` is registered
     // on `rapidquery._core`, which is the process lifetime of this extension.
     T::type_object_raw(py)
@@ -45,8 +43,7 @@ unsafe fn look_up_type_object(
 ) -> *mut pyo3::ffi::PyTypeObject {
     let module = pyo3::ffi::PyImport_ImportModule(module_name.as_ptr());
     let module_dict = pyo3::ffi::PyObject_GenericGetDict(module, std::ptr::null_mut());
-    let ptr = pyo3::ffi::PyMapping_GetItemString(module_dict, member_name.as_ptr())
-        .cast::<pyo3::ffi::PyTypeObject>();
+    let ptr = pyo3::ffi::PyMapping_GetItemString(module_dict, member_name.as_ptr()).cast::<pyo3::ffi::PyTypeObject>();
 
     pyo3::ffi::Py_DECREF(module_dict);
     pyo3::ffi::Py_DECREF(module);
@@ -84,8 +81,8 @@ fn _initialize_typeref(py: pyo3::Python) {
         STD_UUID_TYPE = look_up_type_object(c"uuid", c"UUID");
 
         pyo3::ffi::PyDateTime_IMPORT();
-        let datetime_capsule = pyo3::ffi::PyCapsule_Import(c"datetime.datetime_CAPI".as_ptr(), 1)
-            .cast::<pyo3::ffi::PyDateTime_CAPI>();
+        let datetime_capsule =
+            pyo3::ffi::PyCapsule_Import(c"datetime.datetime_CAPI".as_ptr(), 1).cast::<pyo3::ffi::PyDateTime_CAPI>();
 
         STD_DATETIME_TYPE = (*datetime_capsule).DateTimeType;
         STD_DATE_TYPE = (*datetime_capsule).DateType;
@@ -110,10 +107,7 @@ pub fn initialize_typeref(py: pyo3::Python) {
 /// `PyTypeObject*` (interned pointers from [`initialize_typeref`] are fine).
 /// The GIL must be held.
 #[inline(always)]
-pub unsafe fn check_exact(
-    ptr: *mut pyo3::ffi::PyObject,
-    r#type: *mut pyo3::ffi::PyTypeObject,
-) -> bool {
+pub unsafe fn check_exact(ptr: *mut pyo3::ffi::PyObject, r#type: *mut pyo3::ffi::PyTypeObject) -> bool {
     pyo3::ffi::Py_TYPE(ptr) == r#type
 }
 

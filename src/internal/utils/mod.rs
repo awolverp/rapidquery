@@ -12,10 +12,7 @@ pub use submodule_ext::*;
 /// returned slice is valid until that object is mutated or the GIL is
 /// released. The GIL must be held (`py`).
 #[inline]
-pub unsafe fn borrow_py_str_buffer<'a>(
-    py: pyo3::Python<'_>,
-    ptr: *mut pyo3::ffi::PyObject,
-) -> pyo3::PyResult<&'a str> {
+pub unsafe fn borrow_py_str_buffer<'a>(py: pyo3::Python<'_>, ptr: *mut pyo3::ffi::PyObject) -> pyo3::PyResult<&'a str> {
     let mut size: pyo3::ffi::Py_ssize_t = 0;
     let data = pyo3::ffi::PyUnicode_AsUTF8AndSize(ptr, &mut size);
     if data.is_null() || size < 0 {
@@ -67,10 +64,7 @@ pub fn new_pynone<'py>(py: pyo3::Python<'py>) -> pyo3::Bound<'py, pyo3::PyAny> {
 /// # Safety
 /// The items returned by the iterator must be owned, not borrowed.
 #[inline]
-pub unsafe fn iterator_to_tuple<
-    'py,
-    I: Iterator<Item = pyo3::PyResult<*mut pyo3::ffi::PyObject>>,
->(
+pub unsafe fn iterator_to_tuple<'py, I: Iterator<Item = pyo3::PyResult<*mut pyo3::ffi::PyObject>>>(
     py: pyo3::Python<'py>,
     len: isize,
     iter: I,

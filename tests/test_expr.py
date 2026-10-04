@@ -1,8 +1,8 @@
 import pytest
 
-from rapidquery.data_type import DataType
 from rapidquery.dialect import (
     BigQuery,
+    Dialect,
     DuckDb,
     MsSql,
     MySql,
@@ -11,7 +11,6 @@ from rapidquery.dialect import (
     Redshift,
     Snowflake,
     Spark,
-    Dialect,
     Sqlite,
     Teradata,
 )
@@ -54,7 +53,6 @@ class TestExpr:
             UnaryExpr("-", 1),
             BinaryExpr(1, "+", 2),
             IsExpr(Ident("id"), "NULL"),
-            IsNormalizedExpr(Ident("s")),
             IsDistinctFromExpr(1, 2),
             InListExpr(Ident("id"), [1]),
             BetweenExpr(Ident("id"), 0, 1),
@@ -70,9 +68,9 @@ class TestExpr:
         for node in nodes:
             assert isinstance(node, Expr)
 
-    def test_render_succeeds_on_every_dialect(self, dialect_instance: Dialect):
+    def test_render_succeeds_on_every_dialect(self, dialect: Dialect):
         expr = BinaryExpr(Ident("id"), ">", 10)
-        sql = expr.to_sql(dialect_instance)
+        sql = expr.to_sql(dialect)
         assert "id" in sql
         assert "10" in sql
 
@@ -81,22 +79,18 @@ class TestFunction:
     def test_new(self):
         fn = Function("now")
         assert fn.get_name() == Ident("now")
-        assert fn.get_distinct() is None
-        assert fn.get_args() is None
+        assert fn.get_distinct() is False
+        assert fn.get_args() == ()
         assert fn.get_filter() is None
         assert fn.get_null_treatment() is None
 
         fn = Function("example").filter(BinaryExpr(1, ">", 2))
         assert fn.get_name() == Ident("example")
-        assert fn.get_distinct() is None
-        assert fn.get_args() is None
+        assert fn.get_distinct() is False
+        assert fn.get_args() == ()
         assert isinstance(fn.get_filter(), BinaryExpr)
 
-        fn = (
-            Function("count")
-            .call(Ident("id"), distinct=False)
-            .filter(BinaryExpr(1, ">", 2))
-        )
+        fn = Function("count", Ident("id"), distinct=False).filter(BinaryExpr(1, ">", 2))
         assert fn.get_name() == Ident("count")
         assert fn.get_distinct() is False
         assert fn.get_args() == (Ident("id"),)
@@ -109,94 +103,53 @@ class TestFunction:
         assert fn.get_name() == Ident("schema", "fn")
 
         bare = Function("now")
-        called = bare.call()
-        assert called is not bare
-        assert called.get_args() == ()
-        assert bare.get_args() is None
+        with_arg = Function("now", 1)
+        assert with_arg is not bare
+        assert with_arg.get_args() == (Value(1),)
+        assert bare.get_args() == ()
 
     def test_to_sql(self):
-        fn = Function("current_timestamp")
-        assert fn.to_sql(PostgreSql()) == '"current_timestamp"'
+        assert Function("current_timestamp").to_sql(PostgreSql) == '"current_timestamp"()'
+        assert Function(Unquote("CURRENT_TIMESTAMP")).to_sql(PostgreSql) == "CURRENT_TIMESTAMP()"
+        assert Function(Unquote("NOW")).to_sql(PostgreSql) == "NOW()"
 
-        fn = Function(Unquote("CURRENT_TIMESTAMP"))
-        assert fn.to_sql(PostgreSql()) == "CURRENT_TIMESTAMP"
+        fn = Function("count", Asterisk).filter(BinaryExpr(Ident("status"), "=", "completed"))
+        assert fn.to_sql(PostgreSql) == '"count"(*) FILTER (WHERE "status" = E\'completed\')'
 
-        fn = Function(Unquote("NOW")).call()
-        assert fn.to_sql(PostgreSql()) == "NOW()"
+        fn = Function("count", Ident("id"), distinct=False).filter(BinaryExpr(Ident("status"), "=", "completed"))
+        assert fn.to_sql(PostgreSql) == '"count"("id") FILTER (WHERE "status" = E\'completed\')'
 
-        fn = Function(Unquote("NOW"))
-        assert fn.to_sql(PostgreSql()) == "NOW"
+        fn = Function("count", Ident("id"), distinct=True).filter(BinaryExpr(Ident("status"), "=", "completed"))
+        assert fn.to_sql(PostgreSql) == '"count"(DISTINCT "id") FILTER (WHERE "status" = E\'completed\')'
 
-        fn = (
-            Function("count")
-            .call(Asterisk)
-            .filter(BinaryExpr(Ident("status"), "=", "completed"))
-        )
-        assert (
-            fn.to_sql(PostgreSql())
-            == '"count"(*) FILTER (WHERE "status" = E\'completed\')'
+        assert Function("now", distinct=True).to_sql(PostgreSql) == '"now"()'
+        assert Function("custom", 1, 2, Ident("id"), distinct=True).to_sql(PostgreSql) == (
+            '"custom"(DISTINCT 1, 2, "id")'
         )
 
-        fn = (
-            Function("count")
-            .call(Ident("id"), distinct=False)
-            .filter(BinaryExpr(Ident("status"), "=", "completed"))
-        )
-        assert (
-            fn.to_sql(PostgreSql())
-            == '"count"(ALL "id") FILTER (WHERE "status" = E\'completed\')'
-        )
-
-        fn = (
-            Function("count")
-            .call(Ident("id"), distinct=True)
-            .filter(BinaryExpr(Ident("status"), "=", "completed"))
-        )
-        assert (
-            fn.to_sql(PostgreSql())
-            == '"count"(DISTINCT "id") FILTER (WHERE "status" = E\'completed\')'
-        )
-
-        fn = Function("now").call(distinct=True)
-        assert fn.to_sql(PostgreSql()) == '"now"()'
-
-        fn = Function("custom").call(1, 2, Ident("id"), distinct=True)
-        assert fn.to_sql(PostgreSql()) == '"custom"(DISTINCT 1, 2, "id")'
-
-        fn = Function("lag").call(Ident("x")).ignore_nulls()
-        assert fn.to_sql(PostgreSql()) == '"lag"("x") IGNORE NULLS'
-        assert fn.to_sql(BigQuery()) == "`lag`(`x` IGNORE NULLS)"
-        assert fn.to_sql(DuckDb()) == '"lag"("x" IGNORE NULLS)'
+        fn = Function("lag", Ident("x")).ignore_nulls()
+        assert fn.to_sql(Oracle) == '"lag"("x") IGNORE NULLS'
+        assert fn.to_sql(BigQuery) == "`lag`(`x` IGNORE NULLS)"
+        assert fn.to_sql(DuckDb) == '"lag"("x" IGNORE NULLS)'
         assert fn.get_null_treatment() == "IGNORE NULLS"
+        with pytest.raises(RuntimeError, match="null_treatment"):
+            fn.to_sql(PostgreSql)
 
-        fn = Function("lag").call(Ident("x")).respect_nulls()
-        assert fn.to_sql(PostgreSql()) == '"lag"("x") RESPECT NULLS'
-        assert fn.to_sql(BigQuery()) == "`lag`(`x` RESPECT NULLS)"
-        assert fn.to_sql(DuckDb()) == '"lag"("x" RESPECT NULLS)'
+        fn = Function("lag", Ident("x")).respect_nulls()
+        assert fn.to_sql(Oracle) == '"lag"("x") RESPECT NULLS'
+        assert fn.to_sql(BigQuery) == "`lag`(`x` RESPECT NULLS)"
+        assert fn.to_sql(DuckDb) == '"lag"("x" RESPECT NULLS)'
         assert fn.get_null_treatment() == "RESPECT NULLS"
 
-        fn = Function("lag").call().ignore_nulls()
-        assert fn.to_sql(PostgreSql()) == '"lag"() IGNORE NULLS'
-        assert fn.to_sql(BigQuery()) == "`lag`(IGNORE NULLS)"
-
         fn = Function("lag").ignore_nulls()
-        assert fn.to_sql(PostgreSql()) == '"lag" IGNORE NULLS'
-        assert fn.to_sql(BigQuery()) == "`lag` IGNORE NULLS"
+        assert fn.to_sql(Oracle) == '"lag"() IGNORE NULLS'
+        assert fn.to_sql(BigQuery) == "`lag`(IGNORE NULLS)"
 
-        fn = (
-            Function("count")
-            .call(Ident("id"))
-            .ignore_nulls()
-            .filter(BinaryExpr(Ident("status"), "=", "completed"))
-        )
-        assert (
-            fn.to_sql(PostgreSql())
-            == '"count"("id") IGNORE NULLS FILTER (WHERE "status" = E\'completed\')'
-        )
-        assert (
-            fn.to_sql(BigQuery())
-            == "`count`(`id` IGNORE NULLS) FILTER (WHERE `status` = 'completed')"
-        )
+        completed = BinaryExpr(Ident("status"), "=", "completed")
+        fn = Function("count", Ident("id")).ignore_nulls().filter(completed)
+        assert fn.to_sql(Oracle) == '"count"("id") FILTER (WHERE "status" = \'completed\') IGNORE NULLS'
+        assert fn.to_sql(BigQuery) == "`count`(`id` IGNORE NULLS WHERE `status` = 'completed')"
+        assert fn.to_sql(DuckDb) == '"count"("id" IGNORE NULLS) FILTER ("status" = \'completed\')'
 
     def test_edge_cases(self):
         with pytest.raises(TypeError):
@@ -211,40 +164,37 @@ class TestFunction:
         with pytest.raises(TypeError, match="condition"):
             Function("now").filter(1)  # pyright: ignore
 
-        fn = Function("f").call("id")
+        fn = Function("f", "id")
         assert fn.get_args() == (Value("id"),)
-        assert fn.to_sql(PostgreSql()) == "\"f\"('id')"
+        assert fn.to_sql(PostgreSql) == "\"f\"(E'id')"
 
-        fn = Function(Ident("schema.fn")).call()
+        fn = Function(Ident("schema.fn"))
         assert fn.get_name() == Ident("schema.fn")
-        assert fn.to_sql(PostgreSql()) == '"schema.fn"()'
+        assert fn.to_sql(PostgreSql) == '"schema.fn"()'
 
-        first = Function("f").call(1)
-        second = first.call(2, 3)
+        first = Function("f", 1)
+        second = Function("f", 2, 3)
         assert first.get_args() == (Value(1),)
         assert second.get_args() == (Value(2), Value(3))
 
         filtered = Function("f").filter(BinaryExpr(1, ">", 0))
         replaced = filtered.filter(BinaryExpr(2, ">", 0))
-        assert filtered.to_sql(PostgreSql()) == '"f" FILTER (WHERE 1 > 0)'
-        assert replaced.to_sql(PostgreSql()) == '"f" FILTER (WHERE 2 > 0)'
+        assert filtered.to_sql(PostgreSql) == '"f"() FILTER (WHERE 1 > 0)'
+        assert replaced.to_sql(PostgreSql) == '"f"() FILTER (WHERE 2 > 0)'
 
-        ignored = Function("lag").call(Ident("x")).ignore_nulls()
+        ignored = Function("lag", Ident("x")).ignore_nulls()
         respected = ignored.respect_nulls()
         assert ignored.get_null_treatment() == "IGNORE NULLS"
         assert respected.get_null_treatment() == "RESPECT NULLS"
-        assert ignored.to_sql(PostgreSql()) == '"lag"("x") IGNORE NULLS'
-        assert respected.to_sql(PostgreSql()) == '"lag"("x") RESPECT NULLS'
+        assert ignored.to_sql(Oracle) == '"lag"("x") IGNORE NULLS'
+        assert respected.to_sql(Oracle) == '"lag"("x") RESPECT NULLS'
 
-        fn = Function("count").call(1).filter(BinaryExpr(Ident("x"), ">", 2))
-        sql, params = fn.prepare(PostgreSql())
-        assert sql == '"count"(:param_0) FILTER (WHERE "x" > :param_1)'
-        assert params == {"param_0": 1, "param_1": 2}
+        fn = Function("count", 1).filter(BinaryExpr(Ident("x"), ">", 2))
+        sql, params = fn.prepare(PostgreSql)
+        assert sql == '"count"($1) FILTER (WHERE "x" > $2)'
+        assert params == (1, 2)
 
-        assert (
-            repr(Function("lag").call(Ident("x")).ignore_nulls())
-            == 'Function(Ident("lag")).call(Ident("x")).ignore_nulls()'
-        )
+        assert repr(Function("lag", Ident("x")).ignore_nulls()) == ('Function(Ident("lag"), Ident("x")).ignore_nulls()')
 
 
 class TestTupleExpr:
@@ -265,24 +215,22 @@ class TestTupleExpr:
 
     def test_to_sql(self):
         tpl = TupleExpr(1, 2, "A")
-        assert tpl.to_sql(PostgreSql()) == "ROW(1, 2, 'A')"
+        assert tpl.to_sql(PostgreSql) == "ROW(1, 2, E'A')"
 
-        sql, params = tpl.prepare(PostgreSql())
-        assert sql == "ROW(:param_0, :param_1, :param_2)"
-        assert params == {"param_0": 1, "param_1": 2, "param_2": "A"}
+        sql, params = tpl.prepare(PostgreSql)
+        assert sql == "ROW($1, $2, $3)"
+        assert params == (1, 2, "A")
 
-        assert TupleExpr().to_sql(PostgreSql()) == "ROW()"
-        assert TupleExpr(1).to_sql(PostgreSql()) == "ROW(1)"
-        assert (
-            TupleExpr((1, 2), Ident("A")).to_sql(PostgreSql()) == 'ROW(ROW(1, 2), "A")'
-        )
+        assert TupleExpr().to_sql(PostgreSql) == "ROW()"
+        assert TupleExpr(1).to_sql(PostgreSql) == "ROW(1)"
+        assert TupleExpr((1, 2), Ident("A")).to_sql(PostgreSql) == 'ROW(ROW(1, 2), "A")'
 
-        assert TupleExpr(1, 2).to_sql(Sqlite()) == "(1, 2)"
+        assert TupleExpr(1, 2).to_sql(Sqlite) == "(1, 2)"
         with pytest.raises(RuntimeError, match="at least two elements"):
-            TupleExpr(1).to_sql(Sqlite())
-        assert TupleExpr(1, 2).to_sql(Spark()) == "struct(1, 2)"
+            TupleExpr(1).to_sql(Sqlite)
+        assert TupleExpr(1, 2).to_sql(Spark) == "struct(1, 2)"
         with pytest.raises(RuntimeError, match="tuple values are not supported"):
-            TupleExpr(1, 2).to_sql(BigQuery())
+            TupleExpr(1, 2).to_sql(BigQuery)
 
 
 class TestUnaryExpr:
@@ -315,48 +263,26 @@ class TestUnaryExpr:
             "|/",
             "?-",
             "?|",
+            "bang",
         ):
-            assert UnaryExpr(token, 1).get_operator() == token
-
-        with pytest.raises(ValueError, match="unknown unary operator"):
-            UnaryExpr("bang", 1)
+            with pytest.raises(ValueError, match="unknown unary operator"):
+                UnaryExpr(token, 1)
 
     def test_to_sql(self):
-        un = UnaryExpr("-", Function("now").call())
-        assert un.to_sql(PostgreSql()) == '-"now"()'
+        un = UnaryExpr("-", Function("now"))
+        assert un.to_sql(PostgreSql) == '-"now"()'
 
-        assert UnaryExpr("NOT", 1).to_sql(PostgreSql()) == "NOT 1"
-        assert UnaryExpr("NOT", Ident("id")).to_sql(PostgreSql()) == 'NOT "id"'
-        assert UnaryExpr("+", 1).to_sql(PostgreSql()) == "+1"
-        assert UnaryExpr("~", Ident("id")).to_sql(PostgreSql()) == '~"id"'
-        assert UnaryExpr("-", UnaryExpr("-", 1)).to_sql(PostgreSql()) == "-(-1)"
-        assert (
-            UnaryExpr("NOT", UnaryExpr("NOT", 1)).to_sql(PostgreSql()) == "NOT (NOT 1)"
-        )
-        assert UnaryExpr("-", BinaryExpr(1, "+", 2)).to_sql(PostgreSql()) == "-(1 + 2)"
+        assert UnaryExpr("NOT", 1).to_sql(PostgreSql) == "NOT 1"
+        assert UnaryExpr("NOT", Ident("id")).to_sql(PostgreSql) == 'NOT "id"'
+        assert UnaryExpr("+", 1).to_sql(PostgreSql) == "+1"
+        assert UnaryExpr("~", Ident("id")).to_sql(PostgreSql) == '~"id"'
+        assert UnaryExpr("-", UnaryExpr("-", 1)).to_sql(PostgreSql) == "-(-1)"
+        assert UnaryExpr("NOT", UnaryExpr("NOT", 1)).to_sql(PostgreSql) == "NOT (NOT 1)"
+        assert UnaryExpr("-", BinaryExpr(1, "+", 2)).to_sql(PostgreSql) == "-(1 + 2)"
 
-        sql, params = UnaryExpr("-", 1).prepare(PostgreSql())
-        assert sql == "-:param_0"
-        assert params == {"param_0": 1}
-
-        assert UnaryExpr("|/", 9).to_sql(PostgreSql()) == "|/9"
-        assert UnaryExpr("||/", 27).to_sql(PostgreSql()) == "||/27"
-        assert UnaryExpr("!!", 1).to_sql(PostgreSql()) == "!!1"
-        assert UnaryExpr("@", 1).to_sql(PostgreSql()) == "@1"
-        assert UnaryExpr("!", 9).to_sql(PostgreSql()) == "9!"
-        assert UnaryExpr("#", Ident("path")).to_sql(PostgreSql()) == '# "path"'
-        assert UnaryExpr("@-@", Ident("path")).to_sql(PostgreSql()) == '@-@ "path"'
-        assert UnaryExpr("@@", Ident("path")).to_sql(PostgreSql()) == '@@ "path"'
-        assert UnaryExpr("?-", Ident("path")).to_sql(PostgreSql()) == '?- "path"'
-        assert UnaryExpr("?|", Ident("path")).to_sql(PostgreSql()) == '?| "path"'
-
-        assert UnaryExpr("!", UnaryExpr("-", 1)).to_sql(PostgreSql()) == "(-1)!"
-        assert UnaryExpr("-", UnaryExpr("!", 1)).to_sql(PostgreSql()) == "-(1!)"
-        assert UnaryExpr("!", UnaryExpr("!", 1)).to_sql(PostgreSql()) == "(1!)!"
-
-        sql, params = UnaryExpr("|/", 9).prepare(PostgreSql())
-        assert sql == "|/:param_0"
-        assert params == {"param_0": 9}
+        sql, params = UnaryExpr("-", 1).prepare(PostgreSql)
+        assert sql == "-$1"
+        assert params == (1,)
 
 
 class TestBinaryExpr:
@@ -379,65 +305,53 @@ class TestBinaryExpr:
         bin = BinaryExpr(1, "Or", 2)
         assert bin.get_operator() == "OR"
         bin = BinaryExpr(1, "xor", 2)
-        assert bin.get_operator() == "XOR"
+        assert bin.get_operator() == "xor"
 
     def test_to_sql(self):
         bin = BinaryExpr(Ident("id"), ">", 10)
-        assert bin.to_sql(PostgreSql()) == '"id" > 10'
+        assert bin.to_sql(PostgreSql) == '"id" > 10'
 
         bin = BinaryExpr("str", "-custom-", 10)
-        assert bin.to_sql(PostgreSql()) == "'str' -custom- 10"
+        assert bin.to_sql(PostgreSql) == "E'str' -custom- 10"
 
         bin = BinaryExpr(Ident("id"), ">", BinaryExpr(456, "&", 10))
-        assert bin.to_sql(PostgreSql()) == '"id" > 456 & 10'
+        assert bin.to_sql(PostgreSql) == '"id" > 456 & 10'
 
         bin = BinaryExpr(Ident("id"), ">", BinaryExpr(456, "CusTom", 10))
-        assert bin.to_sql(PostgreSql()) == '"id" > (456 CusTom 10)'
+        assert bin.to_sql(PostgreSql) == '"id" > (456 CusTom 10)'
 
         bin = BinaryExpr(Ident("id"), ">", BinaryExpr(456, "<", 10))
-        assert bin.to_sql(PostgreSql()) == '"id" > (456 < 10)'
+        assert bin.to_sql(PostgreSql) == '"id" > (456 < 10)'
 
-        assert BinaryExpr(1, "!=", 2).to_sql(PostgreSql()) == "1 <> 2"
-        assert BinaryExpr(1, "AND", 2).to_sql(PostgreSql()) == "1 AND 2"
-        assert (
-            BinaryExpr(BinaryExpr(1, "+", 2), "AND", 3).to_sql(PostgreSql())
-            == "1 + 2 AND 3"
-        )
-        assert (
-            BinaryExpr(1, "+", BinaryExpr(2, "AND", 3)).to_sql(PostgreSql())
-            == "1 + (2 AND 3)"
-        )
+        assert BinaryExpr(1, "!=", 2).to_sql(PostgreSql) == "1 <> 2"
+        assert BinaryExpr(1, "AND", 2).to_sql(PostgreSql) == "1 AND 2"
+        assert BinaryExpr(BinaryExpr(1, "+", 2), "AND", 3).to_sql(PostgreSql) == "1 + 2 AND 3"
+        assert BinaryExpr(1, "+", BinaryExpr(2, "AND", 3)).to_sql(PostgreSql) == "1 + (2 AND 3)"
 
-        sql, params = BinaryExpr(Ident("id"), ">", 10).prepare(PostgreSql())
-        assert sql == '"id" > :param_0'
-        assert params == {"param_0": 10}
+        sql, params = BinaryExpr(Ident("id"), ">", 10).prepare(PostgreSql)
+        assert sql == '"id" > $1'
+        assert params == (10,)
 
         concat = BinaryExpr(1, "||", BinaryExpr(2, "+", 3))
-        assert concat.to_sql(PostgreSql()) == "1 || (2 + 3)"
-        assert concat.to_sql(Sqlite()) == "1 || (2 + 3)"
-        assert concat.to_sql(MsSql()) == "1 + (2 + 3)"
-        assert concat.to_sql(MySql()) == "CONCAT(1, 2 + 3)"
-        assert (
-            BinaryExpr(BinaryExpr(1, "||", 2), "||", 3).to_sql(MySql())
-            == "CONCAT(CONCAT(1, 2), 3)"
-        )
+        assert concat.to_sql(PostgreSql) == "1 || (2 + 3)"
+        assert concat.to_sql(Sqlite) == "1 || (2 + 3)"
+        assert concat.to_sql(MsSql) == "1 + (2 + 3)"
+        assert concat.to_sql(MySql) == "CONCAT(1, 2 + 3)"
+        assert BinaryExpr(BinaryExpr(1, "||", 2), "||", 3).to_sql(MySql) == "CONCAT(CONCAT(1, 2), 3)"
 
-        assert BinaryExpr(1, "^", 2).to_sql(PostgreSql()) == "1 # 2"
-        assert BinaryExpr(1, "^", 2).to_sql(DuckDb()) == "xor(1, 2)"
-        assert BinaryExpr(1, "^", 2).to_sql(Snowflake()) == "BITXOR(1, 2)"
-        assert BinaryExpr(1, "^", 2).to_sql(MySql()) == "1 ^ 2"
+        assert BinaryExpr(1, "^", 2).to_sql(PostgreSql) == "1 # 2"
+        assert BinaryExpr(1, "^", 2).to_sql(DuckDb) == "xor(1, 2)"
+        assert BinaryExpr(1, "^", 2).to_sql(Snowflake) == "BITXOR(1, 2)"
+        assert BinaryExpr(1, "^", 2).to_sql(MySql) == "1 ^ 2"
         with pytest.raises(RuntimeError, match="bitwise XOR is not supported"):
-            BinaryExpr(1, "^", 2).to_sql(Sqlite())
+            BinaryExpr(1, "^", 2).to_sql(Sqlite)
 
-        assert BinaryExpr(5, "%", 2).to_sql(Oracle()) == "MOD(5, 2)"
-        assert BinaryExpr(5, "%", 2).to_sql(Teradata()) == "5 MOD 2"
-        assert BinaryExpr(5, "%", 2).to_sql(PostgreSql()) == "5 % 2"
+        assert BinaryExpr(5, "%", 2).to_sql(Oracle) == "MOD(5, 2)"
+        assert BinaryExpr(5, "%", 2).to_sql(Teradata) == "5 MOD 2"
+        assert BinaryExpr(5, "%", 2).to_sql(PostgreSql) == "5 % 2"
 
     def test_repr(self):
-        assert (
-            repr(BinaryExpr(Ident("id"), ">", 10))
-            == 'BinaryExpr(Ident("id"), ">", Value(10, IntegerSerializer()))'
-        )
+        assert repr(BinaryExpr(Ident("id"), ">", 10)) == 'BinaryExpr(Ident("id"), ">", Value(10, IntegerSerializer()))'
 
 
 class TestIsExpr:
@@ -457,31 +371,28 @@ class TestIsExpr:
 
     def test_to_sql(self):
         is_ = IsExpr(Ident("id"), "NUll")
-        assert is_.to_sql(PostgreSql()) == '"id" IS NULL'
+        assert is_.to_sql(PostgreSql) == '"id" IS NULL'
 
         is_ = IsExpr(Ident("id"), "FalSE")
-        assert is_.to_sql(PostgreSql()) == '"id" IS FALSE'
+        assert is_.to_sql(PostgreSql) == '"id" IS FALSE'
 
         is_ = IsExpr(Ident("id"), "tRuE")
-        assert is_.to_sql(PostgreSql()) == '"id" IS TRUE'
+        assert is_.to_sql(PostgreSql) == '"id" IS TRUE'
 
         is_ = IsExpr(Ident("id"), "unknown", negated=True)
-        assert is_.to_sql(PostgreSql()) == '"id" IS NOT UNKNOWN'
+        assert is_.to_sql(PostgreSql) == '"id" IS NOT UNKNOWN'
 
-        sql, params = IsExpr(Ident("id"), "NULL").prepare(PostgreSql())
+        sql, params = IsExpr(Ident("id"), "NULL").prepare(PostgreSql)
         assert sql == '"id" IS NULL'
-        assert params == {}
+        assert params == ()
 
-        sql, params = IsExpr(1, "TRUE").prepare(PostgreSql())
-        assert sql == ":param_0 IS TRUE"
-        assert params == {"param_0": 1}
+        sql, params = IsExpr(1, "TRUE").prepare(PostgreSql)
+        assert sql == "$1 IS TRUE"
+        assert params == (1,)
 
     def test_repr(self):
         assert repr(IsExpr(Ident("id"), "NULL")) == 'IsExpr(Ident("id"), "NULL")'
-        assert (
-            repr(IsExpr(Ident("id"), "NULL", negated=True))
-            == 'IsExpr(Ident("id"), "NULL", negated=True)'
-        )
+        assert repr(IsExpr(Ident("id"), "NULL", negated=True)) == 'IsExpr(Ident("id"), "NULL", negated=True)'
 
 
 class TestIsDistinctFromExpr:
@@ -507,24 +418,21 @@ class TestIsDistinctFromExpr:
 
     def test_to_sql(self):
         idf = IsDistinctFromExpr(2, 3)
-        assert idf.to_sql(PostgreSql()) == "2 IS DISTINCT FROM 3"
+        assert idf.to_sql(PostgreSql) == "2 IS DISTINCT FROM 3"
 
         idf = IsDistinctFromExpr(Ident("id"), 10, negated=True)
-        assert idf.to_sql(PostgreSql()) == '"id" IS NOT DISTINCT FROM 10'
+        assert idf.to_sql(PostgreSql) == '"id" IS NOT DISTINCT FROM 10'
 
-        sql, params = idf.prepare(PostgreSql())
-        assert sql == '"id" IS NOT DISTINCT FROM :param_0'
-        assert params == {"param_0": 10}
+        sql, params = idf.prepare(PostgreSql)
+        assert sql == '"id" IS NOT DISTINCT FROM $1'
+        assert params == (10,)
 
-        assert (
-            IsDistinctFromExpr(Ident("a"), Ident("b")).to_sql(PostgreSql())
-            == '"a" IS DISTINCT FROM "b"'
-        )
+        assert IsDistinctFromExpr(Ident("a"), Ident("b")).to_sql(PostgreSql) == '"a" IS DISTINCT FROM "b"'
 
-        assert IsDistinctFromExpr(1, 2).to_sql(MySql()) == "NOT (1 <=> 2)"
-        assert IsDistinctFromExpr(1, 2, negated=True).to_sql(MySql()) == "1 <=> 2"
+        assert IsDistinctFromExpr(1, 2).to_sql(MySql) == "NOT (1 <=> 2)"
+        assert IsDistinctFromExpr(1, 2, negated=True).to_sql(MySql) == "1 <=> 2"
         with pytest.raises(RuntimeError, match="IS DISTINCT FROM is not supported"):
-            IsDistinctFromExpr(1, 2).to_sql(Oracle())
+            IsDistinctFromExpr(1, 2).to_sql(Oracle)
 
 
 class TestInListExpr:
@@ -547,25 +455,23 @@ class TestInListExpr:
 
     def test_to_sql(self):
         lst = InListExpr(Ident("id"), [1, 2, 3])
-        assert lst.to_sql(PostgreSql()) == '"id" IN (1, 2, 3)'
+        assert lst.to_sql(PostgreSql) == '"id" IN (1, 2, 3)'
 
-        sql, params = lst.prepare(PostgreSql())
-        assert sql == '"id" IN (:param_0, :param_1, :param_2)'
-        assert params == {"param_0": 1, "param_1": 2, "param_2": 3}
+        sql, params = lst.prepare(PostgreSql)
+        assert sql == '"id" IN ($1, $2, $3)'
+        assert params == (1, 2, 3)
 
-        assert InListExpr(Ident("id"), []).to_sql(PostgreSql()) == "FALSE"
-        assert InListExpr(Ident("id"), [], negated=True).to_sql(PostgreSql()) == "TRUE"
-        assert InListExpr(Ident("id"), [], negated=True).to_sql(MySql()) == "1"
-        assert InListExpr(Ident("id"), [1], negated=True).to_sql(PostgreSql()) == (
-            '"id" NOT IN (1)'
-        )
-        assert InListExpr(Ident("id"), [1, 2]).to_sql(MsSql()) == "([id] IN (1, 2))"
+        assert InListExpr(Ident("id"), []).to_sql(PostgreSql) == "FALSE"
+        assert InListExpr(Ident("id"), [], negated=True).to_sql(PostgreSql) == "TRUE"
+        assert InListExpr(Ident("id"), [], negated=True).to_sql(MySql) == "1"
+        assert InListExpr(Ident("id"), [1], negated=True).to_sql(PostgreSql) == ('"id" NOT IN (1)')
+        assert InListExpr(Ident("id"), [1, 2]).to_sql(MsSql) == "([id] IN (1, 2))"
         assert (
             BinaryExpr(
                 InListExpr(Ident("id"), [1]),
                 "OR",
                 InListExpr(Ident("id"), [2]),
-            ).to_sql(MsSql())
+            ).to_sql(MsSql)
             == "([id] IN (1)) OR ([id] IN (2))"
         )
 
@@ -578,32 +484,26 @@ class TestBetweenExpr:
         assert bw.get_high() == Value(10)
         assert bw.get_negated() is False
 
-        bw = BetweenExpr(
-            Ident("id"), BinaryExpr(Ident("old"), "|", 0), 10, negated=True
-        )
+        bw = BetweenExpr(Ident("id"), BinaryExpr(Ident("old"), "|", 0), 10, negated=True)
         assert bw.get_expr() == Ident("id")
         assert isinstance(bw.get_low(), BinaryExpr)
         assert bw.get_high() == Value(10)
         assert bw.get_negated() is True
 
     def test_to_sql(self):
-        bw = BetweenExpr(
-            Ident("id"), BinaryExpr(Ident("old"), "|", 0), 10, negated=True
-        )
-        assert bw.to_sql(PostgreSql()) == '"id" NOT BETWEEN "old" | 0 AND 10'
+        bw = BetweenExpr(Ident("id"), BinaryExpr(Ident("old"), "|", 0), 10, negated=True)
+        assert bw.to_sql(PostgreSql) == '"id" NOT BETWEEN "old" | 0 AND 10'
 
         bw = BetweenExpr(Ident("id"), 1, 10)
-        assert BetweenExpr(Ident("id"), 1, 10, negated=True).to_sql(MsSql()) == (
-            "([id] NOT BETWEEN 1 AND 10)"
-        )
-        assert bw.to_sql(PostgreSql()) == '"id" BETWEEN 1 AND 10'
+        assert BetweenExpr(Ident("id"), 1, 10, negated=True).to_sql(MsSql) == ("([id] NOT BETWEEN 1 AND 10)")
+        assert bw.to_sql(PostgreSql) == '"id" BETWEEN 1 AND 10'
 
         bw = BetweenExpr(Ident("id"), BinaryExpr(1, "AND", 2), 10)
-        assert bw.to_sql(PostgreSql()) == '"id" BETWEEN (1 AND 2) AND 10'
+        assert bw.to_sql(PostgreSql) == '"id" BETWEEN (1 AND 2) AND 10'
 
-        sql, params = BetweenExpr(Ident("id"), 1, 10).prepare(PostgreSql())
-        assert sql == '"id" BETWEEN :param_0 AND :param_1'
-        assert params == {"param_0": 1, "param_1": 10}
+        sql, params = BetweenExpr(Ident("id"), 1, 10).prepare(PostgreSql)
+        assert sql == '"id" BETWEEN $1 AND $2'
+        assert params == (1, 10)
 
 
 class TestLikeExpr:
@@ -645,60 +545,39 @@ class TestLikeExpr:
 
     def test_to_sql(self):
         like = LikeExpr(Ident("name"), "%a%")
-        assert like.to_sql(PostgreSql()) == "\"name\" LIKE '%a%'"
+        assert like.to_sql(PostgreSql) == "\"name\" LIKE E'%a%'"
 
-        assert (
-            LikeExpr(Ident("name"), "%a%", case_sensitive=False).to_sql(PostgreSql())
-            == "\"name\" ILIKE '%a%'"
-        )
-        assert (
-            LikeExpr(Ident("name"), "%a%", negated=True).to_sql(PostgreSql())
-            == "\"name\" NOT LIKE '%a%'"
-        )
-        assert (
-            LikeExpr(Ident("name"), "%a%", escape="!").to_sql(PostgreSql())
-            == "\"name\" LIKE '%a%' ESCAPE '!'"
-        )
+        assert LikeExpr(Ident("name"), "%a%", case_sensitive=False).to_sql(PostgreSql) == "\"name\" ILIKE E'%a%'"
+        assert LikeExpr(Ident("name"), "%a%", negated=True).to_sql(PostgreSql) == "\"name\" NOT LIKE E'%a%'"
+        assert LikeExpr(Ident("name"), "%a%", escape="!").to_sql(PostgreSql) == "\"name\" LIKE E'%a%' ESCAPE E'!'"
 
-        sql, params = LikeExpr(Ident("name"), "%a%").prepare(PostgreSql())
-        assert sql == '"name" LIKE :param_0'
-        assert params == {"param_0": "%a%"}
+        sql, params = LikeExpr(Ident("name"), "%a%").prepare(PostgreSql)
+        assert sql == '"name" LIKE $1'
+        assert params == ("%a%",)
 
         any_like = LikeExpr(Ident("name"), ["%a%", "%b%"])
-        assert (
-            any_like.to_sql(PostgreSql()) == "\"name\" LIKE ANY (ARRAY['%a%', '%b%'])"
-        )
-        assert any_like.to_sql(Snowflake()) == "\"name\" LIKE ANY ('%a%', '%b%')"
-        assert any_like.to_sql(Sqlite()) == (
-            "(\"name\" LIKE '%a%' OR \"name\" LIKE '%b%')"
-        )
+        assert any_like.to_sql(PostgreSql) == "\"name\" LIKE ANY (ARRAY[E'%a%', E'%b%'])"
+        assert any_like.to_sql(Snowflake) == "\"name\" LIKE ANY ('%a%', '%b%')"
+        assert any_like.to_sql(Sqlite) == "(\"name\" LIKE '%a%' OR \"name\" LIKE '%b%')"
 
-        sql, params = any_like.prepare(PostgreSql())
-        assert sql == '"name" LIKE ANY (ARRAY[:param_0, :param_1])'
-        assert params == {"param_0": "%a%", "param_1": "%b%"}
+        sql, params = any_like.prepare(PostgreSql)
+        assert sql == '"name" LIKE ANY (ARRAY[$1, $2])'
+        assert params == ("%a%", "%b%")
 
         negated = LikeExpr(Ident("name"), ["%a%", "%b%"], negated=True)
-        assert (
-            negated.to_sql(PostgreSql())
-            == "NOT (\"name\" LIKE ANY (ARRAY['%a%', '%b%']))"
-        )
-        assert negated.to_sql(Snowflake()) == "\"name\" NOT LIKE ANY ('%a%', '%b%')"
-        assert negated.to_sql(Sqlite()) == (
-            "(\"name\" NOT LIKE '%a%' AND \"name\" NOT LIKE '%b%')"
-        )
+        assert negated.to_sql(PostgreSql) == "NOT (\"name\" LIKE ANY (ARRAY[E'%a%', E'%b%']))"
+        assert negated.to_sql(Snowflake) == "NOT (\"name\" LIKE ANY ('%a%', '%b%'))"
+        assert negated.to_sql(Sqlite) == "(\"name\" NOT LIKE '%a%' AND \"name\" NOT LIKE '%b%')"
 
         ilike_any = LikeExpr(Ident("name"), ["%a%", "%b%"], case_sensitive=False)
-        assert (
-            ilike_any.to_sql(PostgreSql())
-            == "\"name\" ILIKE ANY (ARRAY['%a%', '%b%'])"
-        )
+        assert ilike_any.to_sql(PostgreSql) == "\"name\" ILIKE ANY (ARRAY[E'%a%', E'%b%'])"
 
-        escaped = LikeExpr(Ident("name"), ["%a%", "%b%"], escape="!")
-        assert (
-            escaped.to_sql(PostgreSql())
-            == "\"name\" LIKE ANY (ARRAY['%a%', '%b%']) ESCAPE '!'"
+        with pytest.raises(RuntimeError, match="LIKE ANY ESCAPE"):
+            LikeExpr(Ident("name"), ["%a%", "%b%"], escape="!").to_sql(PostgreSql)
+        assert LikeExpr(Ident("name"), ["%a%", "%b%"], escape="!").to_sql(Snowflake) == (
+            "\"name\" LIKE ANY ('%a%', '%b%') ESCAPE '!'"
         )
-        assert escaped.to_sql(Sqlite()) == (
+        assert LikeExpr(Ident("name"), ["%a%", "%b%"], escape="!").to_sql(Sqlite) == (
             "(\"name\" LIKE '%a%' ESCAPE '!' OR \"name\" LIKE '%b%' ESCAPE '!')"
         )
 
@@ -723,28 +602,24 @@ class TestSimilarToExpr:
 
     def test_to_sql(self):
         sim = SimilarToExpr(Ident("name"), "%a%")
-        assert sim.to_sql(PostgreSql()) == "\"name\" SIMILAR TO '%a%'"
-        assert sim.to_sql(Redshift()) == "\"name\" SIMILAR TO '%a%'"
-        assert sim.to_sql(DuckDb()) == "\"name\" SIMILAR TO '%a%'"
+        assert sim.to_sql(PostgreSql) == "\"name\" SIMILAR TO E'%a%'"
+        assert sim.to_sql(Redshift) == "\"name\" SIMILAR TO '%a%'"
+        assert sim.to_sql(DuckDb) == "\"name\" SIMILAR TO '%a%'"
 
-        assert (
-            SimilarToExpr(Ident("name"), "%a%", negated=True).to_sql(PostgreSql())
-            == "\"name\" NOT SIMILAR TO '%a%'"
+        assert SimilarToExpr(Ident("name"), "%a%", negated=True).to_sql(PostgreSql) == (
+            "\"name\" NOT SIMILAR TO E'%a%'"
         )
 
-        sql, params = sim.prepare(PostgreSql())
-        assert sql == '"name" SIMILAR TO :param_0'
-        assert params == {"param_0": "%a%"}
+        sql, params = sim.prepare(PostgreSql)
+        assert sql == '"name" SIMILAR TO $1'
+        assert params == ("%a%",)
 
         with pytest.raises(RuntimeError, match="SIMILAR TO is not supported"):
-            sim.to_sql(MySql())
+            sim.to_sql(MySql)
         with pytest.raises(RuntimeError, match="SIMILAR TO is not supported"):
-            sim.to_sql(Sqlite())
+            sim.to_sql(Sqlite)
 
-        assert (
-            repr(sim)
-            == "SimilarToExpr(Ident(\"name\"), Value('%a%', StringSerializer()))"
-        )
+        assert repr(sim) == "SimilarToExpr(Ident(\"name\"), Value('%a%', StringSerializer()))"
         assert (
             repr(SimilarToExpr(Ident("name"), "%a%", negated=True))
             == "SimilarToExpr(Ident(\"name\"), Value('%a%', StringSerializer()), "
@@ -766,36 +641,27 @@ class TestRLikeExpr:
 
     def test_to_sql(self):
         rlike = RLikeExpr(Ident("name"), "%a%")
-        assert rlike.to_sql(PostgreSql()) == "\"name\" ~ '%a%'"
-        assert rlike.to_sql(MySql()) == "`name` RLIKE '%a%'"
-        assert rlike.to_sql(Spark()) == "`name` RLIKE '%a%'"
-        assert rlike.to_sql(Snowflake()) == "\"name\" RLIKE '%a%'"
-        assert rlike.to_sql(Oracle()) == "REGEXP_LIKE(\"name\", '%a%')"
-        assert rlike.to_sql(BigQuery()) == "REGEXP_CONTAINS(`name`, '%a%')"
-        assert rlike.to_sql(DuckDb()) == "regexp_matches(\"name\", '%a%')"
+        assert rlike.to_sql(PostgreSql) == "\"name\" ~ E'%a%'"
+        assert rlike.to_sql(MySql) == "`name` RLIKE '%a%'"
+        assert rlike.to_sql(Spark) == "`name` RLIKE '%a%'"
+        assert rlike.to_sql(Snowflake) == "\"name\" RLIKE '%a%'"
+        assert rlike.to_sql(Oracle) == "REGEXP_LIKE(\"name\", '%a%')"
+        assert rlike.to_sql(BigQuery) == "REGEXP_CONTAINS(`name`, '%a%')"
+        assert rlike.to_sql(DuckDb) == "regexp_matches(\"name\", '%a%')"
 
-        assert (
-            RLikeExpr(Ident("name"), "%a%", negated=True).to_sql(PostgreSql())
-            == "\"name\" !~ '%a%'"
-        )
-        assert (
-            RLikeExpr(Ident("name"), "%a%", negated=True).to_sql(Oracle())
-            == "NOT REGEXP_LIKE(\"name\", '%a%')"
-        )
+        assert RLikeExpr(Ident("name"), "%a%", negated=True).to_sql(PostgreSql) == "\"name\" !~ E'%a%'"
+        assert RLikeExpr(Ident("name"), "%a%", negated=True).to_sql(Oracle) == "NOT REGEXP_LIKE(\"name\", '%a%')"
 
-        sql, params = rlike.prepare(PostgreSql())
-        assert sql == '"name" ~ :param_0'
-        assert params == {"param_0": "%a%"}
+        sql, params = rlike.prepare(PostgreSql)
+        assert sql == '"name" ~ $1'
+        assert params == ("%a%",)
 
         with pytest.raises(RuntimeError, match="RLIKE is not supported"):
-            rlike.to_sql(Sqlite())
+            rlike.to_sql(Sqlite)
         with pytest.raises(RuntimeError, match="RLIKE is not supported"):
-            rlike.to_sql(MsSql())
+            rlike.to_sql(MsSql)
 
-        assert (
-            repr(rlike)
-            == "RLikeExpr(Ident(\"name\"), Value('%a%', StringSerializer()))"
-        )
+        assert repr(rlike) == "RLikeExpr(Ident(\"name\"), Value('%a%', StringSerializer()))"
         assert (
             repr(RLikeExpr(Ident("name"), "%a%", negated=True))
             == "RLikeExpr(Ident(\"name\"), Value('%a%', StringSerializer()), "
@@ -819,132 +685,68 @@ class TestCastExpr:
         assert cast.get_data_type_name() == "some_totally_unknown_type"
         assert cast.get_kind() == "CAST"
 
-        dt = DataType("integer")
-        cast = CastExpr(Ident("x"), dt, kind="SAFE_CAST")
-        assert cast.get_data_type_name() == dt.name
-        assert cast.get_kind() == "SAFE_CAST"
+        cast = CastExpr(Ident("x"), "integer", kind="TRY_CAST")
+        assert cast.get_data_type_name() == "INTEGER"
+        assert cast.get_kind() == "TRY_CAST"
 
-        formatted = CastExpr(Ident("s"), "DATE", format="%Y-%m-%d")
-        assert formatted.get_format() == Value("%Y-%m-%d")
-        assert formatted.get_at_time_zone() is None
+        cast = CastExpr(Ident("x"), "integer", kind="::")
+        assert cast.get_kind() == "::"
 
-        tz = CastExpr(Ident("s"), "TIMESTAMP", format="%Y-%m-%d", at_time_zone="UTC")
-        assert tz.get_format() == Value("%Y-%m-%d")
-        assert tz.get_at_time_zone() == Value("UTC")
-
-        with pytest.raises(ValueError, match="AT TIME ZONE requires FORMAT"):
-            CastExpr(Ident("s"), "TIMESTAMP", at_time_zone="UTC")
+        with pytest.raises(ValueError, match="unknown cast kind"):
+            CastExpr(Ident("x"), "integer", kind="SAFE_CAST")
 
     def test_to_sql(self):
-        assert CastExpr(Ident("id"), "int").to_sql(PostgreSql()) == 'CAST("id" AS INT)'
-        assert (
-            CastExpr(Ident("id"), "int", kind="SAFE_CAST").to_sql(PostgreSql())
-            == 'SAFE_CAST("id" AS INT)'
-        )
-        assert (
-            CastExpr(Ident("id"), "int", kind="TRY_CAST").to_sql(PostgreSql())
-            == 'TRY_CAST("id" AS INT)'
-        )
-        assert CastExpr(Ident("id"), "int").to_sql(PostgreSql()) == 'CAST("id" AS INT)'
-        assert CastExpr(1, "varchar(255)").to_sql(PostgreSql()) == (
-            "CAST(1 AS varchar(255))"
-        )
-        assert CastExpr(Ident("id"), "INT ARRAY").to_sql(PostgreSql()) == (
-            'CAST("id" AS INT ARRAY)'
-        )
-        assert (
-            CastExpr(Ident("s"), "DATE", format="%Y-%m-%d").to_sql(PostgreSql())
-            == "CAST(\"s\" AS DATE FORMAT '%Y-%m-%d')"
-        )
-        assert (
-            CastExpr(
-                Ident("s"),
-                "TIMESTAMP",
-                kind="SAFE_CAST",
-                format="%Y-%m-%d",
-                at_time_zone="UTC",
-            ).to_sql(PostgreSql())
-            == "SAFE_CAST(\"s\" AS TIMESTAMP FORMAT '%Y-%m-%d' AT TIME ZONE 'UTC')"
-        )
+        assert CastExpr(Ident("id"), "int").to_sql(PostgreSql) == 'CAST("id" AS INT)'
+        assert CastExpr(1, "varchar(255)").to_sql(PostgreSql) == "CAST(1 AS varchar(255))"
+        assert CastExpr(Ident("id"), "INT ARRAY").to_sql(PostgreSql) == 'CAST("id" AS INT ARRAY)'
 
-        sql, params = CastExpr(1, "INT").prepare(PostgreSql())
-        assert sql == "CAST(:param_0 AS INT)"
-        assert params == {"param_0": 1}
+        with pytest.raises(RuntimeError, match="try cast"):
+            CastExpr(Ident("id"), "int", kind="TRY_CAST").to_sql(PostgreSql)
+        assert CastExpr(Ident("id"), "int", kind="TRY_CAST").to_sql(BigQuery) == "SAFE_CAST(`id` AS INT)"
+        assert CastExpr(Ident("id"), "int", kind="TRY_CAST").to_sql(Teradata) == 'TRYCAST("id" AS INT)'
+        assert CastExpr(Ident("id"), "int", kind="::").to_sql(DuckDb) == '("id")::INT'
 
-        sql, params = CastExpr("s", "DATE", format="%Y-%m-%d").prepare(PostgreSql())
-        assert sql == "CAST(:param_0 AS DATE FORMAT :param_1)"
-        assert params == {"param_0": "s", "param_1": "%Y-%m-%d"}
+        sql, params = CastExpr(1, "INT").prepare(PostgreSql)
+        assert sql == "CAST($1 AS INT)"
+        assert params == (1,)
 
         assert repr(CastExpr(Ident("id"), "int")) == 'CastExpr(Ident("id"), "INT")'
-        assert (
-            repr(CastExpr(Ident("id"), "int", kind="TRY_CAST"))
-            == 'CastExpr(Ident("id"), "INT", kind="TRY_CAST")'
-        )
-        assert (
-            repr(CastExpr(Ident("s"), "DATE", format="%Y-%m-%d"))
-            == 'CastExpr(Ident("s"), "DATE", '
-            "format=Value('%Y-%m-%d', StringSerializer()))"
-        )
+        assert repr(CastExpr(Ident("id"), "int", kind="TRY_CAST")) == 'CastExpr(Ident("id"), "INT", kind="TRY_CAST")'
 
 
 class TestTrimExpr:
     def test_new(self):
         trim = TrimExpr(Ident("s"))
         assert trim.get_expr() == Ident("s")
-        assert trim.get_where() is None
-        assert trim.get_what() is None
+        assert trim.get_where() == "BOTH"
         assert trim.get_characters() is None
 
-        trim = TrimExpr(Ident("s"), where="leading", what="x")
+        trim = TrimExpr(Ident("s"), where="leading", characters="x")
         assert trim.get_where() == "LEADING"
-        assert trim.get_what() == Value("x")
-        assert trim.get_characters() is None
+        assert trim.get_characters() == Value("x")
 
-        trim = TrimExpr(Ident("s"), characters=["a", Ident("b")])
-        assert trim.get_characters() == (Value("a"), Ident("b"))
+        trim = TrimExpr(Ident("s"), characters=Ident("b"))
+        assert trim.get_characters() == Ident("b")
 
         with pytest.raises(ValueError, match="unknown TRIM where"):
             TrimExpr(Ident("s"), where="MIDDLE")
-        with pytest.raises(ValueError, match="empty"):
-            TrimExpr(Ident("s"), characters=[])
-        with pytest.raises(ValueError, match="cannot both be set"):
-            TrimExpr(Ident("s"), what="x", characters=["y"])
-        with pytest.raises(TypeError, match="list or tuple"):
-            TrimExpr(Ident("s"), characters="xy")  # pyright: ignore
+        with pytest.raises(TypeError):
+            TrimExpr(Ident("s"), what="x")  # pyright: ignore
 
     def test_to_sql(self):
-        assert TrimExpr(Ident("s")).to_sql(PostgreSql()) == 'TRIM("s")'
-        assert TrimExpr(Ident("s"), where="LEADING").to_sql(PostgreSql()) == (
-            'TRIM(LEADING FROM "s")'
-        )
-        assert TrimExpr(Ident("s"), what="x").to_sql(PostgreSql()) == (
-            "TRIM('x' FROM \"s\")"
-        )
-        assert TrimExpr(Ident("s"), where="BOTH", what="x").to_sql(PostgreSql()) == (
-            "TRIM(BOTH 'x' FROM \"s\")"
-        )
-        assert TrimExpr(Ident("s"), characters=["a", "b"]).to_sql(PostgreSql()) == (
-            "TRIM(\"s\", 'a', 'b')"
-        )
+        assert TrimExpr(Ident("s")).to_sql(PostgreSql) == 'TRIM("s")'
+        assert TrimExpr(Ident("s"), where="LEADING").to_sql(PostgreSql) == 'TRIM(LEADING FROM "s")'
+        assert TrimExpr(Ident("s"), characters="x").to_sql(PostgreSql) == "TRIM(E'x' FROM \"s\")"
+        assert TrimExpr(Ident("s"), where="BOTH", characters="x").to_sql(PostgreSql) == "TRIM(E'x' FROM \"s\")"
+        assert TrimExpr(Ident("s"), where="LEADING", characters="x").to_sql(Sqlite) == "LTRIM(\"s\", 'x')"
 
-        sql, params = TrimExpr(Ident("s"), what="x").prepare(PostgreSql())
-        assert sql == 'TRIM(:param_0 FROM "s")'
-        assert params == {"param_0": "x"}
-
-        sql, params = TrimExpr(Ident("s"), characters=["a", "b"]).prepare(PostgreSql())
-        assert sql == 'TRIM("s", :param_0, :param_1)'
-        assert params == {"param_0": "a", "param_1": "b"}
+        sql, params = TrimExpr(Ident("s"), characters="x").prepare(PostgreSql)
+        assert sql == 'TRIM($1 FROM "s")'
+        assert params == ("x",)
 
         assert repr(TrimExpr(Ident("s"))) == 'TrimExpr(Ident("s"))'
-        assert (
-            repr(TrimExpr(Ident("s"), where="BOTH", what="x"))
-            == 'TrimExpr(Ident("s"), where="BOTH", '
-            "what=Value('x', StringSerializer()))"
-        )
-        assert (
-            repr(TrimExpr(Ident("s"), characters=["a", "b"]))
-            == 'TrimExpr(Ident("s"), characters=['
-            "Value('a', StringSerializer()), Value('b', StringSerializer())])"
+        assert repr(TrimExpr(Ident("s"), where="LEADING", characters="x")) == (
+            'TrimExpr(Ident("s"), where="LEADING", characters=Value(\'x\', StringSerializer()))'
         )
 
 
@@ -965,30 +767,16 @@ class TestCollateExpr:
         assert col.get_collation() == Ident("pg_catalog", "default")
 
     def test_to_sql(self):
-        assert CollateExpr(Ident("name"), "en_US").to_sql(PostgreSql()) == (
-            '"name" COLLATE "en_US"'
-        )
-        assert CollateExpr(Ident("name"), Unquote("C")).to_sql(PostgreSql()) == (
-            '"name" COLLATE C'
-        )
+        assert CollateExpr(Ident("name"), "en_US").to_sql(PostgreSql) == ('"name" COLLATE "en_US"')
+        assert CollateExpr(Ident("name"), Unquote("C")).to_sql(PostgreSql) == ('"name" COLLATE C')
         assert (
-            CollateExpr(Ident("name"), Ident("pg_catalog", "default")).to_sql(
-                PostgreSql()
-            )
+            CollateExpr(Ident("name"), Ident("pg_catalog", "default")).to_sql(PostgreSql)
             == '"name" COLLATE "pg_catalog"."default"'
         )
-        assert CollateExpr(BinaryExpr(1, "+", 2), "en_US").to_sql(PostgreSql()) == (
-            '(1 + 2) COLLATE "en_US"'
-        )
-        assert (
-            BinaryExpr(CollateExpr(Ident("a"), "c"), "+", 1).to_sql(PostgreSql())
-            == '"a" COLLATE "c" + 1'
-        )
+        assert CollateExpr(BinaryExpr(1, "+", 2), "en_US").to_sql(PostgreSql) == ('(1 + 2) COLLATE "en_US"')
+        assert BinaryExpr(CollateExpr(Ident("a"), "c"), "+", 1).to_sql(PostgreSql) == '"a" COLLATE "c" + 1'
 
-        assert (
-            repr(CollateExpr(Ident("name"), "en_US"))
-            == 'CollateExpr(Ident("name"), Ident("en_US"))'
-        )
+        assert repr(CollateExpr(Ident("name"), "en_US")) == 'CollateExpr(Ident("name"), Ident("en_US"))'
 
 
 class TestCaseExpr:
@@ -1026,27 +814,17 @@ class TestCaseExpr:
             CaseExpr().when(1, 2)  # pyright: ignore
 
     def test_to_sql(self):
-        assert CaseExpr().to_sql(PostgreSql()) == "CASE END"
+        assert CaseExpr().to_sql(PostgreSql) == "CASE END"
 
         searched = CaseExpr().when(BinaryExpr(Ident("id"), ">", 0), "yes").else_("no")
-        assert (
-            searched.to_sql(PostgreSql())
-            == "CASE WHEN \"id\" > 0 THEN 'yes' ELSE 'no' END"
-        )
+        assert searched.to_sql(PostgreSql) == "CASE WHEN \"id\" > 0 THEN E'yes' ELSE E'no' END"
 
-        simple = (
-            CaseExpr(Ident("status"))
-            .when(BinaryExpr(Ident("status"), "=", "open"), 1)
-            .else_(0)
-        )
-        assert (
-            simple.to_sql(PostgreSql())
-            == 'CASE "status" WHEN "status" = E\'open\' THEN 1 ELSE 0 END'
-        )
+        simple = CaseExpr(Ident("status")).when(BinaryExpr(Ident("status"), "=", "open"), 1).else_(0)
+        assert simple.to_sql(PostgreSql) == 'CASE "status" WHEN "status" = E\'open\' THEN 1 ELSE 0 END'
 
-        sql, params = searched.prepare(PostgreSql())
-        assert sql == 'CASE WHEN "id" > :param_0 THEN :param_1 ELSE :param_2 END'
-        assert params == {"param_0": 0, "param_1": "yes", "param_2": "no"}
+        sql, params = searched.prepare(PostgreSql)
+        assert sql == 'CASE WHEN "id" > $1 THEN $2 ELSE $3 END'
+        assert params == (0, "yes", "no")
 
 
 class TestCustomExpr:
@@ -1060,21 +838,21 @@ class TestCustomExpr:
         assert custom.get_args() == (Ident("a"), Value(1))
 
     def test_to_sql(self):
-        assert CustomExpr("1 = 1").to_sql(PostgreSql()) == "1 = 1"
-        assert CustomExpr("{} = {}", Ident("a"), 1).to_sql(PostgreSql()) == '"a" = 1'
-        assert CustomExpr("{{x}}").to_sql(PostgreSql()) == "{x}"
-        assert CustomExpr("a {{}} b").to_sql(PostgreSql()) == "a {} b"
-        assert CustomExpr("fn({})", Ident("id")).to_sql(PostgreSql()) == 'fn("id")'
+        assert CustomExpr("1 = 1").to_sql(PostgreSql) == "1 = 1"
+        assert CustomExpr("{} = {}", Ident("a"), 1).to_sql(PostgreSql) == '"a" = 1'
+        assert CustomExpr("{{x}}").to_sql(PostgreSql) == "{x}"
+        assert CustomExpr("a {{}} b").to_sql(PostgreSql) == "a {} b"
+        assert CustomExpr("fn({})", Ident("id")).to_sql(PostgreSql) == 'fn("id")'
 
         with pytest.raises(ValueError, match="placeholders"):
-            CustomExpr("a {} {}", 1).to_sql(PostgreSql())
+            CustomExpr("a {} {}", 1).to_sql(PostgreSql)
 
         with pytest.raises(ValueError, match="placeholders"):
-            CustomExpr("a {}", 1, 2).to_sql(PostgreSql())
+            CustomExpr("a {}", 1, 2).to_sql(PostgreSql)
 
-        sql, params = CustomExpr("x = {}", 1).prepare(PostgreSql())
-        assert sql == "x = :param_0"
-        assert params == {"param_0": 1}
+        sql, params = CustomExpr("x = {}", 1).prepare(PostgreSql)
+        assert sql == "x = $1"
+        assert params == (1,)
 
         with pytest.raises(ValueError, match="placeholders"):
-            CustomExpr("{} {}", 1).prepare(PostgreSql())
+            CustomExpr("{} {}", 1).prepare(PostgreSql)

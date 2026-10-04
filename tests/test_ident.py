@@ -1,7 +1,38 @@
 import pytest
 
 from rapidquery import Asterisk, Ident, Unquote
-from rapidquery.dialect import MySql, PostgreSql, Dialect
+from rapidquery.dialect import (
+    BigQuery,
+    Databricks,
+    Dialect,
+    DuckDb,
+    Hive,
+    MsSql,
+    MySql,
+    Oracle,
+    PostgreSql,
+    Redshift,
+    Snowflake,
+    Spark,
+    Sqlite,
+    Teradata,
+)
+
+_QUOTED_USERS_ID = {
+    BigQuery: "`users`.`id`",
+    Databricks: "`users`.`id`",
+    DuckDb: '"users"."id"',
+    Hive: "`users`.`id`",
+    MsSql: "[users].[id]",
+    MySql: "`users`.`id`",
+    Oracle: '"users"."id"',
+    PostgreSql: '"users"."id"',
+    Redshift: '"users"."id"',
+    Snowflake: '"users"."id"',
+    Spark: "`users`.`id`",
+    Sqlite: '"users"."id"',
+    Teradata: '"users"."id"',
+}
 
 
 class TestIdentConstruction:
@@ -16,7 +47,7 @@ class TestIdentConstruction:
 
         assert len(ident) == 1
         assert ident[0] == "schema.table"
-        assert ident.to_sql(PostgreSql()) == '"schema.table"'
+        assert ident.to_sql(PostgreSql) == '"schema.table"'
 
     def test_rejects_no_arguments(self):
         with pytest.raises(ValueError, match="empty"):
@@ -34,7 +65,7 @@ class TestIdentConstruction:
         ident = Ident(Ident("t"), "id")
 
         assert ident.to_list() == ["t", "id"]
-        assert ident.to_sql(PostgreSql()) == '"t"."id"'
+        assert ident.to_sql(PostgreSql) == '"t"."id"'
 
     def test_too_many_parts(self):
         with pytest.raises(ValueError, match="too many"):
@@ -50,22 +81,22 @@ class TestQuotedStarVersusAsterisk:
         ident = Ident("*")
         assert len(ident) == 1
         assert ident[0] == "*"
-        assert ident.to_sql(PostgreSql()) == '"*"'
-        assert ident.to_sql(MySql()) == "`*`"
+        assert ident.to_sql(PostgreSql) == '"*"'
+        assert ident.to_sql(MySql) == "`*`"
 
     def test_asterisk_class_is_wildcard(self):
         ident = Ident(Asterisk)
         assert ident[0] == Asterisk()
-        assert ident.to_sql(PostgreSql()) == "*"
+        assert ident.to_sql(PostgreSql) == "*"
 
     def test_asterisk_instance_is_wildcard(self):
         ident = Ident(Asterisk())
-        assert ident.to_sql(MySql()) == "*"
+        assert ident.to_sql(MySql) == "*"
 
     def test_qualified_wildcard(self):
         ident = Ident("t", Asterisk)
-        assert ident.to_sql(PostgreSql()) == '"t".*'
-        assert ident.to_sql(MySql()) == "`t`.*"
+        assert ident.to_sql(PostgreSql) == '"t".*'
+        assert ident.to_sql(MySql) == "`t`.*"
 
     def test_asterisk_not_last_is_rejected(self):
         with pytest.raises(ValueError, match="asterisk"):
@@ -76,11 +107,11 @@ class TestUnquote:
     def test_simple_name(self):
         part = Unquote("Users")
         assert part.name == "Users"
-        assert Ident(part).to_sql(PostgreSql()) == "Users"
+        assert Ident(part).to_sql(PostgreSql) == "Users"
 
     def test_mixed_with_quoted_parts(self):
         ident = Ident("public", Unquote("Users"), "id")
-        assert ident.to_sql(PostgreSql()) == '"public".Users."id"'
+        assert ident.to_sql(PostgreSql) == '"public".Users."id"'
 
     def test_equals_by_name(self):
         assert Unquote("id") == Unquote("id")
@@ -136,15 +167,10 @@ class TestEqualityHashReprFrozen:
 
 
 class TestRender:
-    def test_to_sql_uses_dialect_quote_identifier(self, dialect_instance: Dialect):
-        ident = Ident("users", "id")
-        sql = ident.to_sql(dialect_instance)
-        assert sql == (
-            f"{dialect_instance.quote_identifier('users')}."
-            f"{dialect_instance.quote_identifier('id')}"
-        )
+    def test_to_sql_quotes_each_part(self, dialect: Dialect):
+        assert Ident("users", "id").to_sql(dialect) == _QUOTED_USERS_ID[dialect]
 
     def test_quoted_injection_stays_inside_delimiters(self):
         payload = "a; DROP TABLE t--"
-        sql = Ident(payload).to_sql(PostgreSql())
-        assert sql == PostgreSql().quote_identifier(payload)
+        sql = Ident(payload).to_sql(PostgreSql)
+        assert sql == f'"{payload}"'

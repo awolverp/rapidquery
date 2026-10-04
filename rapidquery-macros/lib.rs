@@ -85,10 +85,9 @@ pub fn pyclass(attr: TokenStream, item: TokenStream) -> TokenStream {
     let item = syn::parse_macro_input!(item as syn::ItemStruct);
 
     // Fresh tokens, no input span, so rustc cannot substitute the dotted literal.
-    let args: proc_macro2::TokenStream =
-        format!("module = \"{module}\", name = \"{name}\", immutable_type, frozen")
-            .parse()
-            .expect("pyclass args");
+    let args: proc_macro2::TokenStream = format!("module = \"{module}\", name = \"{name}\", immutable_type, frozen")
+        .parse()
+        .expect("pyclass args");
 
     let extra = if meta_args.is_empty() {
         quote! {}

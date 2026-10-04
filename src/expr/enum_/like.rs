@@ -9,20 +9,14 @@ use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
 use crate::sql::write_separated;
 
-pub(super) fn write_escape<W: SqlWriter>(
-    dialect: &PyDialect,
-    out: &mut W,
-    escape: Option<char>,
-) -> PrepareResult<()> {
+pub(super) fn write_escape<W: SqlWriter>(dialect: &PyDialect, out: &mut W, escape: Option<char>) -> PrepareResult<()> {
     let Some(c) = escape else {
         return Ok(());
     };
 
     out.push_str(" ESCAPE ");
     let mut buf = [0u8; 4];
-    dialect
-        .0
-        .write_string_literal(out, c.encode_utf8(&mut buf))?;
+    dialect.0.write_string_literal(out, c.encode_utf8(&mut buf))?;
 
     Ok(())
 }
@@ -220,8 +214,7 @@ impl WriteSql for Like {
         ensure_like_escape_is_supported(
             dialect.0.like_escape(),
             self.escape,
-            matches!(self.pattern, LikePattern::Any(_))
-                && !matches!(dialect.0.like_any(), flags::LikeAny::OrExpansion),
+            matches!(self.pattern, LikePattern::Any(_)) && !matches!(dialect.0.like_any(), flags::LikeAny::OrExpansion),
         )?;
 
         match &self.pattern {
@@ -290,23 +283,19 @@ impl SimilarTo {
 impl WriteSql for SimilarTo {
     fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
         if !dialect.0.supports_similar_to() {
-            return Err(rapidquery_macros::pyerr!(
-                PyRuntimeError,
-                "SIMILAR TO is not supported by this dialect",
-            )
-            .into());
+            return Err(
+                rapidquery_macros::pyerr!(PyRuntimeError, "SIMILAR TO is not supported by this dialect",).into(),
+            );
         }
 
-        self.expr
-            .write_operand(dialect, out, Self::PRECEDENCE, false)?;
+        self.expr.write_operand(dialect, out, Self::PRECEDENCE, false)?;
         out.push_char(' ');
         if self.negated {
             out.push_str("NOT SIMILAR TO ");
         } else {
             out.push_str("SIMILAR TO ");
         }
-        self.pattern
-            .write_operand(dialect, out, Self::PRECEDENCE, true)
+        self.pattern.write_operand(dialect, out, Self::PRECEDENCE, true)
     }
 }
 
@@ -370,54 +359,31 @@ impl WriteSql for RLike {
     fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
         match dialect.0.rlike_expression() {
             flags::RLikeExpression::Unsupported => {
-                return Err(rapidquery_macros::pyerr!(
-                    PyRuntimeError,
-                    "RLIKE is not supported by this dialect",
-                )
-                .into());
+                Err(rapidquery_macros::pyerr!(PyRuntimeError, "RLIKE is not supported by this dialect",).into())
             }
             flags::RLikeExpression::Standard => {
-                self.expr
-                    .write_operand(dialect, out, Self::PRECEDENCE, false)?;
+                self.expr.write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 if self.negated {
                     out.push_str(" NOT RLIKE ");
                 } else {
                     out.push_str(" RLIKE ");
                 }
-                self.pattern
-                    .write_operand(dialect, out, Self::PRECEDENCE, true)
+                self.pattern.write_operand(dialect, out, Self::PRECEDENCE, true)
             }
             flags::RLikeExpression::Tilde => {
-                self.expr
-                    .write_operand(dialect, out, Self::PRECEDENCE, false)?;
+                self.expr.write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 out.push_str(if self.negated { " !~ " } else { " ~ " });
-                self.pattern
-                    .write_operand(dialect, out, Self::PRECEDENCE, true)
+                self.pattern.write_operand(dialect, out, Self::PRECEDENCE, true)
             }
-            flags::RLikeExpression::RegexpLike => write_regex_call(
-                dialect,
-                out,
-                "REGEXP_LIKE",
-                self.negated,
-                &self.expr,
-                &self.pattern,
-            ),
-            flags::RLikeExpression::RegexpContains => write_regex_call(
-                dialect,
-                out,
-                "REGEXP_CONTAINS",
-                self.negated,
-                &self.expr,
-                &self.pattern,
-            ),
-            flags::RLikeExpression::RegexpMatches => write_regex_call(
-                dialect,
-                out,
-                "regexp_matches",
-                self.negated,
-                &self.expr,
-                &self.pattern,
-            ),
+            flags::RLikeExpression::RegexpLike => {
+                write_regex_call(dialect, out, "REGEXP_LIKE", self.negated, &self.expr, &self.pattern)
+            }
+            flags::RLikeExpression::RegexpContains => {
+                write_regex_call(dialect, out, "REGEXP_CONTAINS", self.negated, &self.expr, &self.pattern)
+            }
+            flags::RLikeExpression::RegexpMatches => {
+                write_regex_call(dialect, out, "regexp_matches", self.negated, &self.expr, &self.pattern)
+            }
         }
     }
 }

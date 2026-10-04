@@ -149,19 +149,8 @@ impl BinaryOp {
         match self {
             Self::Mul | Self::Div | Self::Mod => 2,
             Self::Add | Self::Sub => 3,
-            Self::BitAnd
-            | Self::BitOr
-            | Self::BitXor
-            | Self::LShift
-            | Self::RShift
-            | Self::StringConcat => 4,
-            Self::Eq
-            | Self::NotEq
-            | Self::Lt
-            | Self::LtEq
-            | Self::Gt
-            | Self::GtEq
-            | Self::Custom(_) => 5,
+            Self::BitAnd | Self::BitOr | Self::BitXor | Self::LShift | Self::RShift | Self::StringConcat => 4,
+            Self::Eq | Self::NotEq | Self::Lt | Self::LtEq | Self::Gt | Self::GtEq | Self::Custom(_) => 5,
             Self::And => 7,
             Self::Or => 9,
         }

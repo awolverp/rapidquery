@@ -1,6 +1,5 @@
 """Python SQL query builder with a Rust engine."""
 
-from . import data_type as data_type
 from . import dialect as dialect
 from . import expr as expr
 from . import serializers as serializers
@@ -14,7 +13,6 @@ __all__ = [
     "Ident",
     "Unquote",
     "Value",
-    "data_type",
     "dialect",
     "expr",
     "serializers",

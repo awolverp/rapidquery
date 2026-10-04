@@ -3,21 +3,19 @@ name = "rapidquery-macros"
 version = "1.0.0-alpha1"
 edition = "2024"
 description = "Procedural macros for RapidQuery."
-license = "MIT"
 homepage = "https://github.com/awolverp/rapidquery"
 repository = "https://github.com/awolverp/rapidquery.git"
-authors = ["Ali Pooralijan <awolverp@gmail.com>"]
+license = "MIT"
 
 [lib]
 path = "lib.rs"
 proc-macro = true
 
 [dependencies]
-syn = { version = "2", default-features = false, features = [
-    "parsing",
-    "printing",
-    "proc-macro",
-    "derive",
-] }
-quote = "1"
 proc-macro2 = "1"
+quote = "1"
+
+[dependencies.syn]
+version = "2"
+default-features = false
+features = ["derive", "parsing", "printing", "proc-macro"]

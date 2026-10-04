@@ -47,10 +47,7 @@ impl PyValue {
     ///     TypeError: If `serializer` is not a `Serializer`.
     #[new]
     #[pyo3(signature = (object, serializer = None, /))]
-    fn __new__(
-        object: alias::BoundObject,
-        serializer: Option<SerializerExtractor>,
-    ) -> pyo3::PyClassInitializer<Self> {
+    fn __new__(object: alias::BoundObject, serializer: Option<SerializerExtractor>) -> pyo3::PyClassInitializer<Self> {
         // handle Value(Value(...), new_serializer)
         if unsafe { crate::typeref::check_exact(object.as_ptr(), crate::typeref::VALUE_TYPE) } {
             let expr = unsafe { object.cast_unchecked::<super::base::PyExpr>() };

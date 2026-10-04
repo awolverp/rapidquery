@@ -27,31 +27,21 @@ fn wrap<'py, T>(py: pyo3::Python<'py>, base: PyExpr) -> pyo3::PyResult<alias::Bo
 where
     T: pyo3::PyClass<BaseType = PyExpr> + Default,
 {
-    pyo3::Bound::new(
-        py,
-        pyo3::PyClassInitializer::from(base).add_subclass(T::default()),
-    )
-    .map(|x| x.into_any())
+    pyo3::Bound::new(py, pyo3::PyClassInitializer::from(base).add_subclass(T::default())).map(|x| x.into_any())
 }
 
 /// Wrap `expr` as the matching Python subclass.
 ///
 /// Shorthand for `PyExpr(expr).into_subclasses(py)`
 #[inline]
-pub(super) fn into_subclasses<'py>(
-    py: pyo3::Python<'py>,
-    expr: ExprInner,
-) -> pyo3::PyResult<alias::BoundObject<'py>> {
+pub(super) fn into_subclasses<'py>(py: pyo3::Python<'py>, expr: ExprInner) -> pyo3::PyResult<alias::BoundObject<'py>> {
     PyExpr(expr).into_subclasses(py)
 }
 
 impl PyExpr {
     /// Wrap `self` as the matching Python subclass.
     #[inline]
-    pub fn into_subclasses<'py>(
-        self,
-        py: pyo3::Python<'py>,
-    ) -> pyo3::PyResult<alias::BoundObject<'py>> {
+    pub fn into_subclasses<'py>(self, py: pyo3::Python<'py>) -> pyo3::PyResult<alias::BoundObject<'py>> {
         match &self.0 {
             ExprInner::Ident(_) => wrap::<super::ident::PyIdent>(py, self),
             ExprInner::Value(_) => wrap::<super::value::PyValue>(py, self),

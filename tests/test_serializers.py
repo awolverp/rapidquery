@@ -10,6 +10,20 @@ from decimal import Decimal
 
 import pytest
 
+from rapidquery.dialect import (
+    BigQuery,
+    Dialect,
+    DuckDb,
+    Hive,
+    MsSql,
+    MySql,
+    Oracle,
+    PostgreSql,
+    Snowflake,
+    Spark,
+    Sqlite,
+    Teradata,
+)
 from rapidquery.serializers import (
     ArraySerializer,
     BitSerializer,
@@ -28,34 +42,23 @@ from rapidquery.serializers import (
     UnspecifiedSerializer,
     UuidSerializer,
 )
-from rapidquery.dialect import (
-    BigQuery,
-    DuckDb,
-    MsSql,
-    MySql,
-    Oracle,
-    PostgreSql,
-    Snowflake,
-    Dialect,
-    Sqlite,
-)
 
-from .conftest import ALL_DIALECT_NAMES, ALL_DIALECTS, USING_ORJSON
+from .conftest import ALL_DIALECTS, USING_ORJSON
 
-PG = PostgreSql()
-BOOL_INT_NAMES = {"MsSql", "MySql", "Oracle", "Sqlite"}
+PG = PostgreSql
+BOOL_INT = (MsSql, MySql, Oracle, Sqlite)
 BIT_SQL = {
-    "PostgreSql": "B'10'",
-    "DuckDb": "B'10'",
-    "MySql": "b'10'",
-    "Teradata": "'10'B",
+    PostgreSql: "B'10'",
+    DuckDb: "B'10'",
+    MySql: "b'10'",
+    Teradata: "'10'B",
 }
 ARRAY_SQL = {
-    "PostgreSql": "ARRAY[1, 2, 3]",
-    "BigQuery": "ARRAY[1, 2, 3]",
-    "DuckDb": "[1, 2, 3]",
-    "Spark": "array(1, 2, 3)",
-    "Hive": "array(1, 2, 3)",
+    PostgreSql: "ARRAY[1, 2, 3]",
+    BigQuery: "ARRAY[1, 2, 3]",
+    DuckDb: "[1, 2, 3]",
+    Spark: "array(1, 2, 3)",
+    Hive: "array(1, 2, 3)",
 }
 
 
@@ -108,10 +111,10 @@ class TestFloatSerializer:
             FloatSerializer().serialize(PG, value)
 
 
-@pytest.mark.parametrize("dialect", ALL_DIALECTS, ids=ALL_DIALECT_NAMES)
+@pytest.mark.parametrize("dialect", ALL_DIALECTS)
 def test_boolean_spelling(dialect: Dialect):
     s = BooleanSerializer()
-    if type(dialect).__name__ in BOOL_INT_NAMES:
+    if dialect in BOOL_INT:
         assert s.serialize(dialect, True) == "1"
         assert s.serialize(dialect, False) == "0"
     else:
@@ -125,7 +128,7 @@ def test_boolean_rejects_non_bool(value: typing.Any):
         BooleanSerializer().serialize(PG, value)
 
 
-@pytest.mark.parametrize("dialect", ALL_DIALECTS, ids=ALL_DIALECT_NAMES)
+@pytest.mark.parametrize("dialect", ALL_DIALECTS)
 def test_string_obrien_and_nul(dialect: Dialect):
     s = StringSerializer()
     sql = s.serialize(dialect, "O'Brien")
@@ -149,8 +152,8 @@ class TestUuidSerializer:
         expected = f"E'{self._TEXT}'::uuid"
         assert s.serialize(PG, self._TEXT) == expected
         assert s.serialize(PG, uuid.UUID(self._TEXT)) == expected
-        assert s.serialize(DuckDb(), self._TEXT) == f"UUID '{self._TEXT}'"
-        assert s.serialize(Sqlite(), self._TEXT) == f"'{self._TEXT}'"
+        assert s.serialize(DuckDb, self._TEXT) == f"UUID '{self._TEXT}'"
+        assert s.serialize(Sqlite, self._TEXT) == f"'{self._TEXT}'"
 
     def test_invalid_str(self):
         with pytest.raises(ValueError):
@@ -165,30 +168,26 @@ def test_bytes_pg_snowflake_duckdb():
     dead = b"\xde\xad"
     assert BytesSerializer().serialize(PG, dead) == "'\\xDEAD'::bytea"
     assert BytesSerializer().serialize(PG, b"") == "'\\x'::bytea"
-    assert BytesSerializer().serialize(Snowflake(), dead) == "TO_BINARY('DEAD', 'HEX')"
-    assert BytesSerializer().serialize(Snowflake(), b"") == "TO_BINARY('', 'HEX')"
-    assert BytesSerializer().serialize(DuckDb(), dead) == "'\\xDE\\xAD'::BLOB"
-    assert BytesSerializer().serialize(DuckDb(), b"") == "''::BLOB"
+    assert BytesSerializer().serialize(Snowflake, dead) == "TO_BINARY('DEAD', 'HEX')"
+    assert BytesSerializer().serialize(Snowflake, b"") == "TO_BINARY('', 'HEX')"
+    assert BytesSerializer().serialize(DuckDb, dead) == "'\\xDE\\xAD'::BLOB"
+    assert BytesSerializer().serialize(DuckDb, b"") == "''::BLOB"
 
 
-@pytest.mark.parametrize(
-    "value", [bytearray(b"abc"), memoryview(b"abc"), "abc", 1, None]
-)
+@pytest.mark.parametrize("value", [bytearray(b"abc"), memoryview(b"abc"), "abc", 1, None])
 def test_bytes_rejects_non_exact_bytes(value: typing.Any):
     with pytest.raises(TypeError):
         BytesSerializer().serialize(PG, value)
 
 
 class TestBitSerializer:
-    def test_follows_bit_format_when_supported(self, dialect_instance: Dialect):
-        name = type(dialect_instance).__name__
-        if name not in BIT_SQL:
-            with pytest.raises(
-                NotImplementedError, match="does not support BitSerializer"
-            ):
-                BitSerializer().serialize(dialect_instance, "10")
+    def test_follows_bit_format_when_supported(self, dialect: Dialect):
+        expected = BIT_SQL.get(dialect)
+        if expected is None:
+            with pytest.raises(NotImplementedError, match="does not support BitSerializer"):
+                BitSerializer().serialize(dialect, "10")
             return
-        assert BitSerializer().serialize(dialect_instance, "10") == BIT_SQL[name]
+        assert BitSerializer().serialize(dialect, "10") == expected
 
     def test_rejects_non_bit_string(self):
         with pytest.raises(ValueError):
@@ -204,9 +203,9 @@ class TestJSONSerializer:
         s = JSONSerializer()
         assert s.serialize(PG, 10) == "E'10'"
         assert s.serialize(PG, "10") == "E'\"10\"'"
-        assert s.serialize(BigQuery(), {"a": 1}) == "JSON '{\"a\":1}'"
-        assert s.serialize(Snowflake(), {"a": 1}) == "PARSE_JSON('{\"a\":1}')"
-        assert s.serialize(Sqlite(), {"a": 1}) == "'{\"a\":1}'"
+        assert s.serialize(BigQuery, {"a": 1}) == "JSON '{\"a\":1}'"
+        assert s.serialize(Snowflake, {"a": 1}) == "PARSE_JSON('{\"a\":1}')"
+        assert s.serialize(Sqlite, {"a": 1}) == "'{\"a\":1}'"
 
     def test_orjson_only_values(self):
         s = JSONSerializer()
@@ -233,8 +232,8 @@ class TestDateTimeSerializers:
     def test_date(self):
         value = datetime.date(2024, 1, 15)
         assert DateSerializer().serialize(PG, value) == "DATE E'2024-01-15'"
-        assert DateSerializer().serialize(Oracle(), value) == "DATE '2024-01-15'"
-        assert DateSerializer().serialize(Sqlite(), value) == "'2024-01-15'"
+        assert DateSerializer().serialize(Oracle, value) == "DATE '2024-01-15'"
+        assert DateSerializer().serialize(Sqlite, value) == "'2024-01-15'"
 
     def test_date_rejects_datetime_and_str(self):
         with pytest.raises(TypeError):
@@ -245,10 +244,8 @@ class TestDateTimeSerializers:
     def test_time(self):
         s = TimeSerializer()
         assert s.serialize(PG, datetime.time(13, 45, 30)) == "TIME E'13:45:30'"
-        assert (
-            s.serialize(PG, datetime.time(1, 2, 3, 456789)) == "TIME E'01:02:03.456789'"
-        )
-        assert s.serialize(Oracle(), datetime.time(13, 45, 30)) == "'13:45:30'"
+        assert s.serialize(PG, datetime.time(1, 2, 3, 456789)) == "TIME E'01:02:03.456789'"
+        assert s.serialize(Oracle, datetime.time(13, 45, 30)) == "'13:45:30'"
 
     def test_time_rejects_date(self):
         with pytest.raises(TypeError):
@@ -270,13 +267,10 @@ class TestDateTimeSerializers:
         assert s.serialize(PG, naive) == "TIMESTAMP E'2024-01-15 10:30:00'"
         assert s.serialize(PG, utc) == "TIMESTAMPTZ E'2024-01-15 10:30:00+00:00'"
         assert s.serialize(PG, offset) == "TIMESTAMPTZ E'2024-01-15 10:30:00-05:00'"
-        assert s.serialize(Oracle(), naive) == "TIMESTAMP '2024-01-15 10:30:00'"
-        assert (
-            s.serialize(Oracle(), offset)
-            == "TIMESTAMP WITH TIMEZONE '2024-01-15 10:30:00-05:00'"
-        )
-        assert s.serialize(Sqlite(), naive) == "'2024-01-15 10:30:00'"
-        assert s.serialize(Sqlite(), offset) == "'2024-01-15 10:30:00-05:00'"
+        assert s.serialize(Oracle, naive) == "TIMESTAMP '2024-01-15 10:30:00'"
+        assert s.serialize(Oracle, offset) == "TIMESTAMP WITH TIMEZONE '2024-01-15 10:30:00-05:00'"
+        assert s.serialize(Sqlite, naive) == "'2024-01-15 10:30:00'"
+        assert s.serialize(Sqlite, offset) == "'2024-01-15 10:30:00-05:00'"
 
     def test_datetime_unix_timestamp(self):
         s = DatetimeSerializer()
@@ -295,13 +289,10 @@ class TestDateTimeSerializers:
 
 
 class TestInetSerializer:
-    def test_canonical_cidr(self, dialect_instance: Dialect):
-        name = type(dialect_instance).__name__
-        if name not in {"PostgreSql", "DuckDb"}:
-            with pytest.raises(
-                NotImplementedError, match="does not support InetSerializer"
-            ):
-                InetSerializer().serialize(dialect_instance, "192.168.1.1")
+    def test_canonical_cidr(self, dialect: Dialect):
+        if dialect not in (PostgreSql, DuckDb):
+            with pytest.raises(NotImplementedError, match="does not support InetSerializer"):
+                InetSerializer().serialize(dialect, "192.168.1.1")
             return
         s = InetSerializer()
         cases = [
@@ -312,11 +303,11 @@ class TestInetSerializer:
             ("2001:db8::/32", "2001:db8::/32"),
         ]
         for obj, inner in cases:
-            if name == "PostgreSql":
+            if dialect == PostgreSql:
                 expected = f"E'{inner}'::inet"
             else:
                 expected = f"'{inner}'::inet"
-            assert s.serialize(dialect_instance, obj) == expected
+            assert s.serialize(dialect, obj) == expected
 
     def test_invalid_address(self):
         with pytest.raises(ValueError):
@@ -324,17 +315,15 @@ class TestInetSerializer:
 
 
 class TestMacAddressSerializer:
-    def test_canonical_form(self, dialect_instance: Dialect):
-        if type(dialect_instance).__name__ != "PostgreSql":
-            with pytest.raises(
-                NotImplementedError, match="does not support MacAddressSerializer"
-            ):
-                MacAddressSerializer().serialize(dialect_instance, "01:23:45:67:89:ab")
+    def test_canonical_form(self, dialect: Dialect):
+        if dialect != PostgreSql:
+            with pytest.raises(NotImplementedError, match="does not support MacAddressSerializer"):
+                MacAddressSerializer().serialize(dialect, "01:23:45:67:89:ab")
             return
         s = MacAddressSerializer()
         expected = "E'01:23:45:67:89:AB'::macaddr"
-        assert s.serialize(dialect_instance, "01:23:45:67:89:ab") == expected
-        assert s.serialize(dialect_instance, "01-23-45-67-89-AB") == expected
+        assert s.serialize(dialect, "01:23:45:67:89:ab") == expected
+        assert s.serialize(dialect, "01-23-45-67-89-AB") == expected
 
     def test_invalid_address(self):
         with pytest.raises(ValueError):
@@ -350,38 +339,26 @@ class TestUnspecifiedSerializer:
 
 
 class TestArraySerializer:
-    def test_renders_array_constructor(self, dialect_instance: Dialect):
+    def test_renders_array_constructor(self, dialect: Dialect):
         s = ArraySerializer(IntegerSerializer())
-        name = type(dialect_instance).__name__
-        expected = ARRAY_SQL.get(name)
+        expected = ARRAY_SQL.get(dialect)
         if expected is None:
-            with pytest.raises(
-                NotImplementedError, match="does not support ArraySerializer"
-            ):
-                s.serialize(dialect_instance, [1, 2, 3])
+            with pytest.raises(NotImplementedError, match="does not support ArraySerializer"):
+                s.serialize(dialect, [1, 2, 3])
             return
-        assert s.serialize(dialect_instance, [1, 2, 3]) == expected
-        assert s.serialize(dialect_instance, (1, 2, 3)) == expected
-        empty = (
-            expected.replace("1, 2, 3", "")
-            if "array(" in expected
-            else expected.replace("1, 2, 3", "")
-        )
-        assert s.serialize(dialect_instance, []) == empty
+        assert s.serialize(dialect, [1, 2, 3]) == expected
+        assert s.serialize(dialect, (1, 2, 3)) == expected
+        empty = expected.replace("1, 2, 3", "")
+        assert s.serialize(dialect, []) == empty
         nested = ArraySerializer(ArraySerializer(IntegerSerializer()))
-        inner = expected
-        if name in {"PostgreSql", "BigQuery"}:
-            assert nested.serialize(dialect_instance, [[1, 2], [3]]) == (
-                "ARRAY[ARRAY[1, 2], ARRAY[3]]"
-            )
-        elif name == "DuckDb":
-            assert nested.serialize(dialect_instance, [[1, 2], [3]]) == "[[1, 2], [3]]"
-        elif name in {"Spark", "Hive"}:
-            assert nested.serialize(dialect_instance, [[1, 2], [3]]) == (
-                "array(array(1, 2), array(3))"
-            )
+        if dialect in (PostgreSql, BigQuery):
+            assert nested.serialize(dialect, [[1, 2], [3]]) == "ARRAY[ARRAY[1, 2], ARRAY[3]]"
+        elif dialect == DuckDb:
+            assert nested.serialize(dialect, [[1, 2], [3]]) == "[[1, 2], [3]]"
+        elif dialect in (Spark, Hive):
+            assert nested.serialize(dialect, [[1, 2], [3]]) == "array(array(1, 2), array(3))"
         else:
-            raise AssertionError(inner)
+            raise AssertionError(expected)
 
     def test_rejects_non_sequence_and_bad_element(self):
         s = ArraySerializer(IntegerSerializer())
@@ -392,12 +369,12 @@ class TestArraySerializer:
 
     def test_nested_unsupported_element(self):
         with pytest.raises(NotImplementedError, match="does not support BitSerializer"):
-            ArraySerializer(BitSerializer()).serialize(BigQuery(), ["10"])
+            ArraySerializer(BitSerializer()).serialize(BigQuery, ["10"])
 
 
 class TestCustomSerializer:
     def test_receives_dialect_instance(self):
-        dialect = DuckDb()
+        dialect = DuckDb
         assert CustomSerializer(_custom_ok).serialize(dialect, 1) == "CUSTOM:1"
 
     def test_must_return_str(self):
@@ -407,15 +384,13 @@ class TestCustomSerializer:
 
 def test_unsupported_serializer_error_message():
     with pytest.raises(NotImplementedError, match="does not support BitSerializer"):
-        BitSerializer().serialize(Sqlite(), "10")
+        BitSerializer().serialize(Sqlite, "10")
     with pytest.raises(NotImplementedError, match="does not support ArraySerializer"):
-        ArraySerializer(IntegerSerializer()).serialize(MySql(), [1, 2])
+        ArraySerializer(IntegerSerializer()).serialize(MySql, [1, 2])
     with pytest.raises(NotImplementedError, match="does not support InetSerializer"):
-        InetSerializer().serialize(Sqlite(), "192.168.1.1")
-    with pytest.raises(
-        NotImplementedError, match="does not support MacAddressSerializer"
-    ):
-        MacAddressSerializer().serialize(DuckDb(), "01:23:45:67:89:ab")
+        InetSerializer().serialize(Sqlite, "192.168.1.1")
+    with pytest.raises(NotImplementedError, match="does not support MacAddressSerializer"):
+        MacAddressSerializer().serialize(DuckDb, "01:23:45:67:89:ab")
 
 
 class TestLiteralGoldens:
@@ -424,7 +399,7 @@ class TestLiteralGoldens:
         assert StringSerializer().serialize(PG, "a\nb") == "E'a\\nb'"
 
     def test_mssql_nvarchar_prefix(self):
-        assert StringSerializer().serialize(MsSql(), "hi") == "N'hi'"
+        assert StringSerializer().serialize(MsSql, "hi") == "N'hi'"
 
     def test_pg_e_needed_for_backslash(self):
         assert StringSerializer().serialize(PG, "a\\b") == "E'a\\\\b'"

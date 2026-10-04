@@ -1,9 +1,12 @@
+import importlib.util
+
 import pytest
 from rapidquery._core import _feature_only_stdlib_json
 
 from rapidquery.dialect import (
     BigQuery,
     Databricks,
+    Dialect,
     DuckDb,
     Hive,
     MsSql,
@@ -13,22 +16,14 @@ from rapidquery.dialect import (
     Redshift,
     Snowflake,
     Spark,
-    Dialect,
     Sqlite,
     Teradata,
 )
 
-try:
-    import orjson
-
-    USING_ORJSON = not _feature_only_stdlib_json
-except ImportError:
-    USING_ORJSON = False
+USING_ORJSON = importlib.util.find_spec("orjson") is not None and not _feature_only_stdlib_json
 
 
-# Builtin dialects only. GenericDialect needs every field as a keyword argument;
-# tests that want one call `generic_dialect()`.
-ALL_DIALECT_CLASSES: list[type[Dialect]] = [
+ALL_DIALECTS: list[Dialect] = [
     BigQuery,
     Databricks,
     DuckDb,
@@ -43,17 +38,9 @@ ALL_DIALECT_CLASSES: list[type[Dialect]] = [
     Sqlite,
     Teradata,
 ]
-ALL_DIALECT_NAMES = [cls.__name__ for cls in ALL_DIALECT_CLASSES]
-ALL_DIALECTS = tuple(cls() for cls in ALL_DIALECT_CLASSES)
 
 
-@pytest.fixture(params=ALL_DIALECT_CLASSES, ids=ALL_DIALECT_NAMES)
-def dialect_cls(request: pytest.FixtureRequest) -> type[Dialect]:
-    """Every builtin SqlDialect subclass (not GenericDialect)."""
+@pytest.fixture(params=ALL_DIALECTS)
+def dialect(request: pytest.FixtureRequest) -> Dialect:
+    """Every builtin Dialects."""
     return request.param
-
-
-@pytest.fixture(params=ALL_DIALECT_CLASSES, ids=ALL_DIALECT_NAMES)
-def dialect_instance(request: pytest.FixtureRequest) -> Dialect:
-    """An instance of every builtin SqlDialect subclass."""
-    return request.param()

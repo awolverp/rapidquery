@@ -101,10 +101,7 @@ impl PyTupleExpr {
             exprs.push(item.extract::<LiteralExprExtractor>()?.0);
         }
 
-        Ok(
-            pyo3::PyClassInitializer::from(PyExpr(super::enum_::Tuple { items: exprs }.into()))
-                .add_subclass(Self),
-        )
+        Ok(pyo3::PyClassInitializer::from(PyExpr(super::enum_::Tuple { items: exprs }.into())).add_subclass(Self))
     }
 
     fn get_items(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<pyo3::Bound<'_, pyo3::PyAny>> {
@@ -127,16 +124,9 @@ impl PyTupleExpr {
 impl PyUnaryExpr {
     #[new]
     #[pyo3(signature = (operator, expr, /))]
-    fn __new__(
-        operator: &str,
-        expr: LiteralExprExtractor,
-    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+    fn __new__(operator: &str, expr: LiteralExprExtractor) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
         let Some(op) = super::enum_::UnaryOp::parse(operator) else {
-            return rapidquery_macros::pyerr!(
-                Err(PyValueError),
-                "unknown unary operator {:?}",
-                operator
-            );
+            return rapidquery_macros::pyerr!(Err(PyValueError), "unknown unary operator {:?}", operator);
         };
 
         let inner = super::enum_::Unary {
@@ -562,10 +552,7 @@ impl PyTrimExpr {
 impl PyCollateExpr {
     #[new]
     #[pyo3(signature = (expr, collation, /))]
-    fn __new__(
-        expr: LiteralExprExtractor,
-        collation: IdentExtractor,
-    ) -> pyo3::PyClassInitializer<Self> {
+    fn __new__(expr: LiteralExprExtractor, collation: IdentExtractor) -> pyo3::PyClassInitializer<Self> {
         let inner = super::enum_::Collate {
             expr: Box::new(expr.0),
             collation: collation.0,
@@ -587,9 +574,7 @@ impl PyCollateExpr {
 impl PyCaseExpr {
     #[new]
     #[pyo3(signature = (operand = None, /))]
-    fn __new__(
-        operand: Option<LiteralExprExtractor>,
-    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+    fn __new__(operand: Option<LiteralExprExtractor>) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
         let inner = super::enum_::Case {
             operand: operand.map(|LiteralExprExtractor(e)| Box::new(e)),
             when: vec![],
@@ -613,10 +598,7 @@ impl PyCaseExpr {
         .map(pyo3::Py::into_any)
     }
 
-    fn else_(
-        slf: pyo3::PyRef<'_, Self>,
-        result: LiteralExprExtractor,
-    ) -> pyo3::PyResult<alias::PyObject> {
+    fn else_(slf: pyo3::PyRef<'_, Self>, result: LiteralExprExtractor) -> pyo3::PyResult<alias::PyObject> {
         let mut inner = Self::inner(&slf).clone();
         inner.else_result = Some(Box::new(result.0));
 
@@ -670,10 +652,7 @@ impl PyCaseExpr {
 impl PyCustomExpr {
     #[new]
     #[pyo3(signature = (sql, *args))]
-    fn __new__(
-        sql: String,
-        args: alias::ArgsType<'_>,
-    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+    fn __new__(sql: String, args: alias::ArgsType<'_>) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
         let mut extracted = Vec::with_capacity(args.len());
 
         for item in args.iter() {

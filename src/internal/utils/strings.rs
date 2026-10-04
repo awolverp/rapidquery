@@ -100,11 +100,7 @@ where
 ///
 /// # Complexity
 /// O(n + k) where n is the input length and k is the number of pairs.
-pub fn replace_ascii_to<W: Write>(
-    haystack: &str,
-    replacements: &[(u8, &str)],
-    out: &mut W,
-) -> fmt::Result {
+pub fn replace_ascii_to<W: Write>(haystack: &str, replacements: &[(u8, &str)], out: &mut W) -> fmt::Result {
     if replacements.is_empty() {
         return out.write_str(haystack);
     }
@@ -235,18 +231,12 @@ mod tests {
     #[test]
     fn single_replacement_matches_naive() {
         let input = "hello world";
-        assert_eq!(
-            replace_ascii(input, &[(b'o', "0")]),
-            input.replace('o', "0")
-        );
+        assert_eq!(replace_ascii(input, &[(b'o', "0")]), input.replace('o', "0"));
     }
 
     #[test]
     fn no_matches_ascii() {
-        assert_eq!(
-            replace_ascii("hello world", &[(b'z', "Z"), (b'x', "X")]),
-            "hello world"
-        );
+        assert_eq!(replace_ascii("hello world", &[(b'z', "Z"), (b'x', "X")]), "hello world");
     }
 
     #[test]
@@ -286,10 +276,7 @@ mod tests {
     fn unicode_content_preserved() {
         let input = "café\0naïve'test";
         let expected = input.replace('\'', "''").replace('\0', "");
-        assert_eq!(
-            replace_ascii(input, &[(b'\'', "''"), (b'\0', "")]),
-            expected
-        );
+        assert_eq!(replace_ascii(input, &[(b'\'', "''"), (b'\0', "")]), expected);
     }
 
     #[test]

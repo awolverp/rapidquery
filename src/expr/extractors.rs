@@ -62,8 +62,7 @@ fn extract_expr(
 
             // a bare `str` becomes [`ExprInner::Ident`] if `str_as_ident`
             if str_as_ident {
-                let inner = Ident::from_str(s)
-                    .map_err(|err| rapidquery_macros::pyerr!(PyValueError, "{}", err))?;
+                let inner = Ident::from_str(s).map_err(|err| rapidquery_macros::pyerr!(PyValueError, "{}", err))?;
 
                 return Ok(ExprInner::Ident(inner));
             }
@@ -86,18 +85,14 @@ fn extract_expr(
         }
     }
 
-    Ok(ExprInner::Value(super::enum_::Value::infer_bound(
-        obj.as_any().clone(),
-    )))
+    Ok(ExprInner::Value(super::enum_::Value::infer_bound(obj.as_any().clone())))
 }
 
 /// Scalar `LIKE` pattern, or a list/tuple of patterns (`LIKE ANY`).
 ///
 /// A Python `str` is never a sequence. An already-built `TupleExpr` is a
 /// single pattern; a raw `tuple`/`list` is ANY.
-pub fn extract_like_pattern(
-    obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::PyAny>,
-) -> pyo3::PyResult<LikePattern> {
+pub fn extract_like_pattern(obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::PyAny>) -> pyo3::PyResult<LikePattern> {
     let ptr = obj.as_ptr();
     unsafe {
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
@@ -115,9 +110,7 @@ pub fn extract_like_pattern(
     Ok(LikePattern::One(Box::new(extract_expr(obj, false)?)))
 }
 
-fn extract_like_any<'py>(
-    iter: impl IntoIterator<Item = pyo3::Bound<'py, pyo3::PyAny>>,
-) -> pyo3::PyResult<LikePattern> {
+fn extract_like_any<'py>(iter: impl IntoIterator<Item = pyo3::Bound<'py, pyo3::PyAny>>) -> pyo3::PyResult<LikePattern> {
     let mut items = Vec::new();
     for item in iter {
         items.push(item.extract::<LiteralExprExtractor>()?.0);
@@ -144,8 +137,7 @@ pub(super) fn extract_ident_argument(
         // interned in `initialize_typeref` before any extractor runs.
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
             let s = utils::borrow_py_str_buffer(obj.py(), ptr)?;
-            let part = IdentPart::quoted(s)
-                .map_err(|e| rapidquery_macros::pyerr!(PyValueError, "{}", e))?;
+            let part = IdentPart::quoted(s).map_err(|e| rapidquery_macros::pyerr!(PyValueError, "{}", e))?;
 
             return Ok(ExtractedIdentArgument::Part(part));
         }
@@ -185,9 +177,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for LiteralExprExtractor {
     type Error = pyo3::PyErr;
 
     #[inline]
-    fn extract(
-        obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>,
-    ) -> Result<Self, Self::Error> {
+    fn extract(obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>) -> Result<Self, Self::Error> {
         extract_expr(obj, false).map(Self)
     }
 }
@@ -196,15 +186,12 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for IdentExtractor {
     type Error = pyo3::PyErr;
 
     #[inline]
-    fn extract(
-        obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>,
-    ) -> Result<Self, Self::Error> {
+    fn extract(obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>) -> Result<Self, Self::Error> {
         unsafe {
             // SAFETY: `ptr` is a live borrowed `PyObject`.
             if pyo3::ffi::PyUnicode_CheckExact(obj.as_ptr()) == 1 {
                 let s = utils::borrow_py_str_buffer(obj.py(), obj.as_ptr())?;
-                let inner = Ident::from_str(s)
-                    .map_err(|e| rapidquery_macros::pyerr!(PyValueError, "{}", e))?;
+                let inner = Ident::from_str(s).map_err(|e| rapidquery_macros::pyerr!(PyValueError, "{}", e))?;
 
                 return Ok(Self(inner));
             }
@@ -221,9 +208,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for ConditionExtractor {
     type Error = pyo3::PyErr;
 
     #[inline]
-    fn extract(
-        obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>,
-    ) -> Result<Self, Self::Error> {
+    fn extract(obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>) -> Result<Self, Self::Error> {
         let ptr = obj.as_ptr();
         unsafe {
             if crate::typeref::check(ptr, crate::typeref::EXPR_TYPE) {
@@ -236,10 +221,8 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for ConditionExtractor {
             }
         }
 
-        rapidquery_macros::pyerr!(
-            Err(PyTypeError),
-            "expected a condition expression, got {}",
-            unsafe { crate::internal::utils::get_type_name(obj.py(), obj.as_ptr()) }
-        )
+        rapidquery_macros::pyerr!(Err(PyTypeError), "expected a condition expression, got {}", unsafe {
+            crate::internal::utils::get_type_name(obj.py(), obj.as_ptr())
+        })
     }
 }

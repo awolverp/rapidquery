@@ -11,9 +11,7 @@ use pyo3::types::PyTuple;
 use crate::internal::utils::borrow_py_str_buffer;
 
 #[cfg(all(feature = "only-stdlib-json", feature = "only-orjson"))]
-compile_error!(
-    "Testing features `only-stdlib-json` and `only-orjson` cannot be used at a same time."
-);
+compile_error!("Testing features `only-stdlib-json` and `only-orjson` cannot be used at a same time.");
 
 enum JsonDumper {
     Orjson {
@@ -118,9 +116,7 @@ pub unsafe fn dumps(
     let dumper = DUMPER.get_or_try_init(|| init_import(py))?;
 
     let result = match dumper {
-        JsonDumper::Orjson { dumps } => unsafe {
-            pyo3::ffi::PyObject_CallOneArg(dumps.as_ptr(), obj.as_ptr())
-        },
+        JsonDumper::Orjson { dumps } => unsafe { pyo3::ffi::PyObject_CallOneArg(dumps.as_ptr(), obj.as_ptr()) },
         JsonDumper::Stdlib {
             dumps,
             kwnames,
@@ -128,14 +124,7 @@ pub unsafe fn dumps(
         } => {
             let false_ = unsafe { pyo3::ffi::Py_False() };
             let mut args = [obj.as_ptr(), false_, false_, separators.as_ptr()];
-            unsafe {
-                pyo3::ffi::PyObject_Vectorcall(
-                    dumps.as_ptr(),
-                    args.as_mut_ptr(),
-                    1,
-                    kwnames.as_ptr(),
-                )
-            }
+            unsafe { pyo3::ffi::PyObject_Vectorcall(dumps.as_ptr(), args.as_mut_ptr(), 1, kwnames.as_ptr()) }
         }
     };
 

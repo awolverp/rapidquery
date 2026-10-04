@@ -12,9 +12,7 @@ pub struct PyDialect(pub flags::DialectFlags);
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDialect {
     type Error = pyo3::PyErr;
 
-    fn extract(
-        obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>,
-    ) -> Result<Self, Self::Error> {
+    fn extract(obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>) -> Result<Self, Self::Error> {
         unsafe {
             // SAFETY: `obj` is a borrowed `&Bound<PyAny>`, so `as_ptr()` is a
             // live `PyObject*`.
@@ -39,7 +37,8 @@ impl PyDialect {
     }
 
     fn __hash__(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
+        use std::hash::Hash;
+        use std::hash::Hasher;
 
         let mut hasher = std::hash::DefaultHasher::default();
         self.0.hash(&mut hasher);

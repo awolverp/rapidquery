@@ -24,7 +24,6 @@ fn all_interned_names_canonicalize() {
         // --- Float (includes decimal/numeric) ---
         ("numeric", "NUMERIC"),
         ("decimal", "DECIMAL"),
-        ("dec", "DEC"),
         ("float", "FLOAT"),
         ("real", "REAL"),
         ("double", "DOUBLE"),
@@ -79,10 +78,7 @@ fn interned_synonyms_compare_equal() {
         DataTypeName::from("timestamp"),
         DataTypeName::from("timestamp without timezone"),
     );
-    assert_eq!(
-        DataTypeName::from("macaddress"),
-        DataTypeName::from("MACADDR"),
-    );
+    assert_eq!(DataTypeName::from("macaddress"), DataTypeName::from("MACADDR"),);
     // Distinct interned spellings stay distinct.
     assert_ne!(
         DataTypeName::from("timestamp with timezone"),

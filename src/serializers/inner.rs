@@ -85,9 +85,7 @@ impl SerializerType {
             }
 
             // float / decimal -> Float
-            if pyo3::ffi::PyFloat_CheckExact(object_ptr) == 1
-                || object_type_ptr == crate::typeref::STD_DECIMAL_TYPE
-            {
+            if pyo3::ffi::PyFloat_CheckExact(object_ptr) == 1 || object_type_ptr == crate::typeref::STD_DECIMAL_TYPE {
                 return Self::Float;
             }
 
@@ -127,8 +125,7 @@ impl SerializerType {
             }
 
             // list/dict -> Json
-            if (pyo3::ffi::PyList_CheckExact(object_ptr) == 1
-                || pyo3::ffi::PyDict_CheckExact(object_ptr) == 1)
+            if (pyo3::ffi::PyList_CheckExact(object_ptr) == 1 || pyo3::ffi::PyDict_CheckExact(object_ptr) == 1)
                 && modules::json_dumps(bound.clone(), |_| Ok(())).is_ok()
             {
                 return Self::Json;
@@ -165,9 +162,7 @@ impl SerializerType {
                 Self::Datetime => super::functions::write_datetime(py, ptr, &dialect.0, out),
                 Self::Inet => super::functions::write_inet(py, ptr, &dialect.0, out),
                 Self::MacAddress => super::functions::write_macaddr(py, ptr, &dialect.0, out),
-                Self::Array(element) => {
-                    super::functions::write_array(py, ptr, dialect, element, out)
-                }
+                Self::Array(element) => super::functions::write_array(py, ptr, dialect, element, out),
                 Self::Unspecified => {
                     let text = super::functions::pyobject_string(py, ptr)?;
                     out.push_str(&text);

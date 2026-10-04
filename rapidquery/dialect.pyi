@@ -1,15 +1,6 @@
 import typing
 
 class Dialect:
-    """
-    Abstract SQL dialect.
-
-    Concrete dialects are frozen subclasses (`PostgreSql`, `DuckDb`, ...).
-    Pass an instance wherever a dialect is required.
-    This base class cannot be instantiated.
-
-    Instances of the same dialect compare equal and hash together.
-    """
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 

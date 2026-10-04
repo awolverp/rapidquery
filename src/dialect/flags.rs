@@ -613,11 +613,7 @@ pub struct DialectFlags {
 impl DialectFlags {
     /// Write a boolean literal (`TRUE`/`FALSE` or `1`/`0`).
     #[inline]
-    pub fn format_boolean<W: std::fmt::Write>(
-        &self,
-        writer: &mut W,
-        value: bool,
-    ) -> Result<(), FormatError> {
+    pub fn format_boolean<W: std::fmt::Write>(&self, writer: &mut W, value: bool) -> Result<(), FormatError> {
         match (self.bool_format(), value) {
             (BoolFormat::Integer, false) => writer.write_str("0")?,
             (BoolFormat::Integer, true) => writer.write_str("1")?,
@@ -629,11 +625,7 @@ impl DialectFlags {
 
     /// Write `string` with special characters neutralized, without wrapping it.
     #[inline]
-    pub fn escape_string<W: std::fmt::Write>(
-        &self,
-        writer: &mut W,
-        string: &str,
-    ) -> Result<(), FormatError> {
+    pub fn escape_string<W: std::fmt::Write>(&self, writer: &mut W, string: &str) -> Result<(), FormatError> {
         let result = match self.string_escape() {
             StringEscape::Quote => utils::replace_to(string, '\'', "''", writer),
             StringEscape::BackslashHex => write_backslash_hex(writer, string),
@@ -647,11 +639,7 @@ impl DialectFlags {
 
     /// Escape `ident` and wrap it in this dialect's identifier delimiters.
     #[inline]
-    pub fn quote_identifier<W: std::fmt::Write>(
-        &self,
-        writer: &mut W,
-        ident: &str,
-    ) -> std::fmt::Result {
+    pub fn quote_identifier<W: std::fmt::Write>(&self, writer: &mut W, ident: &str) -> std::fmt::Result {
         let (start, end) = match self.identifier_format() {
             IdentifierFormat::DoubleQuote => ('"', '"'),
             IdentifierFormat::Backtick => ('`', '`'),
@@ -689,11 +677,7 @@ impl DialectFlags {
 
     /// Escape `raw` and wrap it as a complete string literal.
     #[inline]
-    pub fn write_string_literal<W: std::fmt::Write>(
-        &self,
-        writer: &mut W,
-        raw: &str,
-    ) -> Result<(), FormatError> {
+    pub fn write_string_literal<W: std::fmt::Write>(&self, writer: &mut W, raw: &str) -> Result<(), FormatError> {
         if raw.contains('\0') {
             return Err(FormatError::NulInString);
         }
@@ -713,11 +697,7 @@ impl DialectFlags {
     /// Native formats embed `bits` as-is. Callers must pass only `'0'` and `'1'`;
     /// that is checked with `debug_assert!`.
     #[inline]
-    pub fn format_bits<W: std::fmt::Write>(
-        &self,
-        writer: &mut W,
-        bits: &str,
-    ) -> Result<(), FormatError> {
+    pub fn format_bits<W: std::fmt::Write>(&self, writer: &mut W, bits: &str) -> Result<(), FormatError> {
         debug_assert!(
             bits.chars().all(|c| c == '0' || c == '1'),
             "format_bits: invalid input: {bits}"
@@ -732,11 +712,7 @@ impl DialectFlags {
 
     /// Write `bytes` as a native blob/bytea/varbyte literal.
     #[inline]
-    pub fn format_bytes<W: std::fmt::Write>(
-        &self,
-        writer: &mut W,
-        bytes: &[u8],
-    ) -> Result<(), FormatError> {
+    pub fn format_bytes<W: std::fmt::Write>(&self, writer: &mut W, bytes: &[u8]) -> Result<(), FormatError> {
         let result = match self.bytes_format() {
             BytesFormat::PrefixBigX => {
                 writer.write_str("X'")?;
@@ -801,10 +777,7 @@ const HEX_DIGITS: &[u8; 16] = b"0123456789ABCDEF";
 /// Write `byte` as two uppercase hex digits.
 #[inline]
 fn write_hex2<W: std::fmt::Write>(writer: &mut W, byte: u8) -> std::fmt::Result {
-    let buf = [
-        HEX_DIGITS[(byte >> 4) as usize],
-        HEX_DIGITS[(byte & 0x0F) as usize],
-    ];
+    let buf = [HEX_DIGITS[(byte >> 4) as usize], HEX_DIGITS[(byte & 0x0F) as usize]];
     // SAFETY: HEX_DIGITS is ASCII, so `buf` is valid UTF-8.
     writer.write_str(unsafe { std::str::from_utf8_unchecked(&buf) })
 }
@@ -868,10 +841,7 @@ fn write_unicode4_escape<W: std::fmt::Write>(writer: &mut W, code: u32) -> std::
 /// Use the string escape table, plus `\``.
 ///
 /// `'` is left as itself. Only known escapes are emitted.
-fn write_identifier_backtick_escape<W: std::fmt::Write>(
-    writer: &mut W,
-    ident: &str,
-) -> std::fmt::Result {
+fn write_identifier_backtick_escape<W: std::fmt::Write>(writer: &mut W, ident: &str) -> std::fmt::Result {
     write_span_escapes(writer, ident, |b| match b {
         b'\\' => SpanEscape::Literal("\\\\"),
         b'`' => SpanEscape::Literal("\\`"),
@@ -889,12 +859,7 @@ fn write_identifier_backtick_escape<W: std::fmt::Write>(
 /// `bytes` is the raw view of a `&str`. Callers split only on ASCII bytes,
 /// which are char boundaries, or at `bytes.len()`.
 #[inline]
-fn write_byte_span<W: std::fmt::Write>(
-    writer: &mut W,
-    bytes: &[u8],
-    from: usize,
-    to: usize,
-) -> std::fmt::Result {
+fn write_byte_span<W: std::fmt::Write>(writer: &mut W, bytes: &[u8], from: usize, to: usize) -> std::fmt::Result {
     if from == to {
         return Ok(());
     }
