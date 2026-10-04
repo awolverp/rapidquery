@@ -6,7 +6,6 @@ use crate::internal::utils;
 
 use super::base::PyExpr;
 use super::enum_::NullTreatment;
-use super::extractors::ConditionExtractor;
 use super::extractors::IdentExtractor;
 use super::extractors::LiteralExprExtractor;
 
@@ -71,7 +70,7 @@ impl PyFunction {
         Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
     }
 
-    fn filter(slf: pyo3::PyRef<'_, Self>, predicate: ConditionExtractor) -> pyo3::PyResult<alias::PyObject> {
+    fn filter(slf: pyo3::PyRef<'_, Self>, predicate: LiteralExprExtractor) -> pyo3::PyResult<alias::PyObject> {
         let mut inner = Self::inner(&slf).clone();
         inner.filter = Some(Box::new(predicate.0));
         Self::wrap(slf.py(), inner)

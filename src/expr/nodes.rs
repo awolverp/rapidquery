@@ -3,7 +3,6 @@ use pyo3::types::PyTupleMethods;
 
 use super::base::PyExpr;
 use super::enum_::ExprInner;
-use super::extractors::ConditionExtractor;
 use super::extractors::IdentExtractor;
 use super::extractors::LiteralExprExtractor;
 use super::extractors::extract_like_pattern;
@@ -585,7 +584,7 @@ impl PyCaseExpr {
 
     fn when(
         slf: pyo3::PyRef<'_, Self>,
-        when: ConditionExtractor,
+        when: LiteralExprExtractor,
         then: LiteralExprExtractor,
     ) -> pyo3::PyResult<alias::PyObject> {
         let mut inner = Self::inner(&slf).clone();

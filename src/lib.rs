@@ -14,10 +14,10 @@ pub mod typeref;
 // - Update docstrings / doccomments
 
 // Later tasks:
-// - Complete `Expr` methods
-// - Test `Expr` methods
 // - Benchmark and compare with old version
 // - Open PR
+// - Complete `Expr` methods
+// - Support customization protocols (e.g. __serializer__, __expr__, __ident__)
 // - Start writing query ASTs.
 
 /// RapidQuery native extension.

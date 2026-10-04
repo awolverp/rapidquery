@@ -31,9 +31,6 @@ pub struct LiteralExprExtractor(pub ExprInner);
 /// `Asterisk`, and `type[Asterisk]`. Sequences are rejected.
 pub struct IdentExtractor(pub Ident);
 
-/// Accepts `PyExpr` only when it is a condition, not a value or ident.
-pub struct ConditionExtractor(pub ExprInner);
-
 fn extract_expr(
     obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::PyAny>,
     str_as_ident: bool,
@@ -201,28 +198,5 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for IdentExtractor {
             ExtractedIdentArgument::Ident(ident) => Ok(Self(ident)),
             ExtractedIdentArgument::Part(part) => Ok(Self(Ident::from_one(part))),
         }
-    }
-}
-
-impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for ConditionExtractor {
-    type Error = pyo3::PyErr;
-
-    #[inline]
-    fn extract(obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>) -> Result<Self, Self::Error> {
-        let ptr = obj.as_ptr();
-        unsafe {
-            if crate::typeref::check(ptr, crate::typeref::EXPR_TYPE) {
-                let expr = obj.cast_unchecked::<super::base::PyExpr>();
-                let inner = &expr.get().0;
-
-                if inner.is_condition() {
-                    return Ok(Self(inner.clone()));
-                }
-            }
-        }
-
-        rapidquery_macros::pyerr!(Err(PyTypeError), "expected a condition expression, got {}", unsafe {
-            crate::internal::utils::get_type_name(obj.py(), obj.as_ptr())
-        })
     }
 }

@@ -158,11 +158,8 @@ class TestFunction:
         with pytest.raises(ValueError, match="empty"):
             Function("")
 
-        with pytest.raises(TypeError, match="condition"):
-            Function("now").filter(Ident("x"))  # pyright: ignore
-
-        with pytest.raises(TypeError, match="condition"):
-            Function("now").filter(1)  # pyright: ignore
+        Function("now").filter(Ident("x"))
+        Function("now").filter(1)
 
         fn = Function("f", "id")
         assert fn.get_args() == (Value("id"),)
@@ -804,14 +801,9 @@ class TestCaseExpr:
         simple = CaseExpr(Ident("status"))
         assert simple.get_operand() == Ident("status")
 
-        with pytest.raises(TypeError, match="condition"):
-            CaseExpr().when(Ident("x"), 1)  # pyright: ignore
-
-        with pytest.raises(TypeError, match="condition"):
-            CaseExpr().when(Value(1), 1)  # pyright: ignore
-
-        with pytest.raises(TypeError, match="condition"):
-            CaseExpr().when(1, 2)  # pyright: ignore
+        CaseExpr().when(Ident("x"), 1)
+        CaseExpr().when(Value(1), 1)
+        CaseExpr().when(1, 2)
 
     def test_to_sql(self):
         assert CaseExpr().to_sql(PostgreSql) == "CASE END"
