@@ -19,7 +19,7 @@ from rapidquery.dialect import (
     Redshift,
     Snowflake,
     Spark,
-    SqlDialect,
+    Dialect,
     Sqlite,
     Teradata,
 )
@@ -252,10 +252,10 @@ _BYTES_DEAD = {
 class TestSqlDialect:
     def test_base_cannot_be_instantiated(self):
         with pytest.raises(TypeError):
-            SqlDialect()
+            Dialect()
 
     def test_rejects_a_dialect_class_where_an_instance_is_required(self):
-        from rapidquery.data_type import IntegerSerializer
+        from rapidquery.serializers import IntegerSerializer
 
         with pytest.raises(TypeError, match="SqlDialect"):
             IntegerSerializer().serialize(PostgreSql, 1)
@@ -270,41 +270,41 @@ class TestSqlDialect:
 
 
 class TestBuiltinDialects:
-    def test_is_subclass_of_sql_dialect(self, dialect_cls: type[SqlDialect]):
-        assert issubclass(dialect_cls, SqlDialect)
+    def test_is_subclass_of_sql_dialect(self, dialect_cls: type[Dialect]):
+        assert issubclass(dialect_cls, Dialect)
 
-    def test_instance_is_sql_dialect(self, dialect_instance: SqlDialect):
-        assert isinstance(dialect_instance, SqlDialect)
+    def test_instance_is_sql_dialect(self, dialect_instance: Dialect):
+        assert isinstance(dialect_instance, Dialect)
 
-    def test_constructs_with_no_arguments(self, dialect_cls: type[SqlDialect]):
+    def test_constructs_with_no_arguments(self, dialect_cls: type[Dialect]):
         dialect_cls()
 
-    def test_rejects_unexpected_arguments(self, dialect_cls: type[SqlDialect]):
+    def test_rejects_unexpected_arguments(self, dialect_cls: type[Dialect]):
         with pytest.raises(TypeError):
             dialect_cls("unexpected")
 
-    def test_cannot_be_subclassed(self, dialect_cls: type[SqlDialect]):
+    def test_cannot_be_subclassed(self, dialect_cls: type[Dialect]):
         with pytest.raises(TypeError):
             type(f"Sub{dialect_cls.__name__}", (dialect_cls,), {})
 
-    def test_frozen(self, dialect_instance: SqlDialect):
+    def test_frozen(self, dialect_instance: Dialect):
         with pytest.raises(AttributeError):
             dialect_instance.placeholder_sigil = "?"
 
     def test_builtin_config_covers_every_class(self):
         assert set(BUILTIN_CONFIG) == set(ALL_DIALECT_CLASSES)
 
-    def test_config_matches_builtin_table(self, dialect_cls: type[SqlDialect]):
+    def test_config_matches_builtin_table(self, dialect_cls: type[Dialect]):
         dialect = dialect_cls()
         for field, expected in BUILTIN_CONFIG[dialect_cls].items():
             assert getattr(dialect, field) == expected, field
 
-    def test_same_dialect_instances_are_equal(self, dialect_cls: type[SqlDialect]):
+    def test_same_dialect_instances_are_equal(self, dialect_cls: type[Dialect]):
         assert dialect_cls() == dialect_cls()
         assert hash(dialect_cls()) == hash(dialect_cls())
         assert len({dialect_cls(), dialect_cls()}) == 1
 
-    def test_instance_is_not_equal_to_its_class(self, dialect_cls: type[SqlDialect]):
+    def test_instance_is_not_equal_to_its_class(self, dialect_cls: type[Dialect]):
         assert dialect_cls() != dialect_cls
 
     def test_distinct_builtins(self):
@@ -312,22 +312,22 @@ class TestBuiltinDialects:
         assert PostgreSql() != MySql()
         assert len({PostgreSql(), MySql()}) == 2
 
-    def test_format_boolean_follows_bool_format(self, dialect_instance: SqlDialect):
+    def test_format_boolean_follows_bool_format(self, dialect_instance: Dialect):
         kind = dialect_instance.bool_format
         assert dialect_instance.format_boolean(True) == _BOOL_TRUE[kind]
         assert dialect_instance.format_boolean(False) == _BOOL_FALSE[kind]
 
-    def test_write_string_literal_wraps_plain_text(self, dialect_instance: SqlDialect):
+    def test_write_string_literal_wraps_plain_text(self, dialect_instance: Dialect):
         wrapped = _STRING_WRAP[dialect_instance.string_format].format("hello")
         assert dialect_instance.write_string_literal("hello") == wrapped
 
-    def test_format_bytes_follows_bytes_format(self, dialect_instance: SqlDialect):
+    def test_format_bytes_follows_bytes_format(self, dialect_instance: Dialect):
         assert (
             dialect_instance.format_bytes(b"\xde\xad")
             == _BYTES_DEAD[dialect_instance.bytes_format]
         )
 
-    def test_format_bits(self, dialect_instance: SqlDialect):
+    def test_format_bits(self, dialect_instance: Dialect):
         if dialect_instance.bit_format is None:
             with pytest.raises(ValueError, match="does not support literal bit"):
                 dialect_instance.format_bits("10")
@@ -396,9 +396,9 @@ class TestStringEscape:
 class TestGenericDialect:
     def test_is_sql_dialect(self):
         dialect = generic_dialect()
-        assert isinstance(dialect, SqlDialect)
+        assert isinstance(dialect, Dialect)
         assert isinstance(dialect, GenericDialect)
-        assert issubclass(GenericDialect, SqlDialect)
+        assert issubclass(GenericDialect, Dialect)
 
     def test_cannot_be_subclassed(self):
         with pytest.raises(TypeError):

@@ -10,7 +10,7 @@ from decimal import Decimal
 
 import pytest
 
-from rapidquery.data_type import (
+from rapidquery.serializers import (
     ArraySerializer,
     BitSerializer,
     BooleanSerializer,
@@ -36,7 +36,7 @@ from rapidquery.dialect import (
     Oracle,
     PostgreSql,
     Snowflake,
-    SqlDialect,
+    Dialect,
     Sqlite,
 )
 
@@ -68,12 +68,12 @@ class ExampleDataclass:
     x: int
 
 
-def _custom_ok(dialect: SqlDialect, obj: typing.Any) -> str:
-    assert isinstance(dialect, SqlDialect)
+def _custom_ok(dialect: Dialect, obj: typing.Any) -> str:
+    assert isinstance(dialect, Dialect)
     return f"CUSTOM:{obj}"
 
 
-def _custom_not_str(dialect: SqlDialect, obj: typing.Any) -> int:
+def _custom_not_str(dialect: Dialect, obj: typing.Any) -> int:
     return 12345
 
 
@@ -109,7 +109,7 @@ class TestFloatSerializer:
 
 
 @pytest.mark.parametrize("dialect", ALL_DIALECTS, ids=ALL_DIALECT_NAMES)
-def test_boolean_spelling(dialect: SqlDialect):
+def test_boolean_spelling(dialect: Dialect):
     s = BooleanSerializer()
     if type(dialect).__name__ in BOOL_INT_NAMES:
         assert s.serialize(dialect, True) == "1"
@@ -126,7 +126,7 @@ def test_boolean_rejects_non_bool(value: typing.Any):
 
 
 @pytest.mark.parametrize("dialect", ALL_DIALECTS, ids=ALL_DIALECT_NAMES)
-def test_string_obrien_and_nul(dialect: SqlDialect):
+def test_string_obrien_and_nul(dialect: Dialect):
     s = StringSerializer()
     sql = s.serialize(dialect, "O'Brien")
     assert "O'Brien" not in sql
@@ -180,7 +180,7 @@ def test_bytes_rejects_non_exact_bytes(value: typing.Any):
 
 
 class TestBitSerializer:
-    def test_follows_bit_format_when_supported(self, dialect_instance: SqlDialect):
+    def test_follows_bit_format_when_supported(self, dialect_instance: Dialect):
         name = type(dialect_instance).__name__
         if name not in BIT_SQL:
             with pytest.raises(
@@ -295,7 +295,7 @@ class TestDateTimeSerializers:
 
 
 class TestInetSerializer:
-    def test_canonical_cidr(self, dialect_instance: SqlDialect):
+    def test_canonical_cidr(self, dialect_instance: Dialect):
         name = type(dialect_instance).__name__
         if name not in {"PostgreSql", "DuckDb"}:
             with pytest.raises(
@@ -324,7 +324,7 @@ class TestInetSerializer:
 
 
 class TestMacAddressSerializer:
-    def test_canonical_form(self, dialect_instance: SqlDialect):
+    def test_canonical_form(self, dialect_instance: Dialect):
         if type(dialect_instance).__name__ != "PostgreSql":
             with pytest.raises(
                 NotImplementedError, match="does not support MacAddressSerializer"
@@ -350,7 +350,7 @@ class TestUnspecifiedSerializer:
 
 
 class TestArraySerializer:
-    def test_renders_array_constructor(self, dialect_instance: SqlDialect):
+    def test_renders_array_constructor(self, dialect_instance: Dialect):
         s = ArraySerializer(IntegerSerializer())
         name = type(dialect_instance).__name__
         expected = ARRAY_SQL.get(name)

@@ -6,6 +6,7 @@ use super::enum_::ParseIdentError;
 use super::extractors::ExtractedIdentArgument;
 use super::extractors::extract_ident_argument;
 use crate::internal::alias;
+use crate::internal::repr::ReprFormatter;
 
 /// Convert a native part into the matching Python object (`str`, `Unquote`,
 /// or `Asterisk`).
@@ -195,7 +196,9 @@ impl PyUnquote {
     }
 
     fn __repr__(&self) -> String {
-        format!("Unquote({:?})", self.0.as_str())
+        let mut fmt = ReprFormatter::new_call("Unquote");
+        fmt.positional_debug(self.0.as_str());
+        fmt.into_string()
     }
 }
 

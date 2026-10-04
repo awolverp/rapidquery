@@ -1,105 +1,75 @@
 use super::*;
 
-fn assert_copy<T: Copy>(_: T) {}
-
-#[test]
-fn data_type_group_is_copy() {
-    assert_copy(DataTypeKind::Integer);
-}
-
 #[test]
 fn all_interned_names_canonicalize() {
     let cases = [
         // --- String ---
-        ("character", "CHARACTER", DataTypeKind::String),
-        ("char", "CHAR", DataTypeKind::String),
-        (
-            "character varying",
-            "CHARACTER VARYING",
-            DataTypeKind::String,
-        ),
-        ("char varying", "CHAR VARYING", DataTypeKind::String),
-        ("varchar", "VARCHAR", DataTypeKind::String),
-        ("nvarchar", "NVARCHAR", DataTypeKind::String),
-        ("text", "TEXT", DataTypeKind::String),
+        ("character", "CHARACTER"),
+        ("char", "CHAR"),
+        ("character varying", "CHARACTER VARYING"),
+        ("char varying", "CHAR VARYING"),
+        ("varchar", "VARCHAR"),
+        ("nvarchar", "NVARCHAR"),
+        ("text", "TEXT"),
         // --- Uuid ---
-        ("uuid", "UUID", DataTypeKind::Uuid),
+        ("uuid", "UUID"),
         // --- Bytes ---
-        ("binary", "BINARY", DataTypeKind::Bytes),
-        ("varbinary", "VARBINARY", DataTypeKind::Bytes),
-        ("blob", "BLOB", DataTypeKind::Bytes),
-        ("bytea", "BYTEA", DataTypeKind::Bytes),
+        ("binary", "BINARY"),
+        ("varbinary", "VARBINARY"),
+        ("blob", "BLOB"),
+        ("bytea", "BYTEA"),
         // --- Bit ---
-        ("bit", "BIT", DataTypeKind::Bit),
-        ("bit varying", "BIT VARYING", DataTypeKind::Bit),
+        ("bit", "BIT"),
+        ("bit varying", "BIT VARYING"),
         // --- Float (includes decimal/numeric) ---
-        ("numeric", "NUMERIC", DataTypeKind::Float),
-        ("decimal", "DECIMAL", DataTypeKind::Float),
-        ("dec", "DEC", DataTypeKind::Float),
-        ("float", "FLOAT", DataTypeKind::Float),
-        ("real", "REAL", DataTypeKind::Float),
-        ("double", "DOUBLE", DataTypeKind::Float),
-        ("double precision", "DOUBLE PRECISION", DataTypeKind::Float),
+        ("numeric", "NUMERIC"),
+        ("decimal", "DECIMAL"),
+        ("dec", "DEC"),
+        ("float", "FLOAT"),
+        ("real", "REAL"),
+        ("double", "DOUBLE"),
+        ("double precision", "DOUBLE PRECISION"),
         // --- Integer ---
-        ("tinyint", "TINYINT", DataTypeKind::Integer),
-        ("smallint", "SMALLINT", DataTypeKind::Integer),
-        ("int", "INT", DataTypeKind::Integer),
-        ("integer", "INTEGER", DataTypeKind::Integer),
-        ("bigint", "BIGINT", DataTypeKind::Integer),
+        ("tinyint", "TINYINT"),
+        ("smallint", "SMALLINT"),
+        ("int", "INT"),
+        ("integer", "INTEGER"),
+        ("bigint", "BIGINT"),
         // --- Boolean ---
-        ("boolean", "BOOLEAN", DataTypeKind::Boolean),
+        ("boolean", "BOOLEAN"),
         // --- Date ---
-        ("date", "DATE", DataTypeKind::Date),
+        ("date", "DATE"),
         // --- Time ---
-        ("time", "TIME", DataTypeKind::Time),
-        (
-            "time with timezone",
-            "TIME WITH TIMEZONE",
-            DataTypeKind::Time,
-        ),
+        ("time", "TIME"),
+        ("time with timezone", "TIME WITH TIMEZONE"),
         // --- Datetime ---
-        ("datetime", "DATETIME", DataTypeKind::Datetime),
-        ("timestamp", "TIMESTAMP", DataTypeKind::Datetime),
-        (
-            "timestamp without timezone",
-            "TIMESTAMP",
-            DataTypeKind::Datetime,
-        ),
-        (
-            "timestamp with timezone",
-            "TIMESTAMP WITH TIMEZONE",
-            DataTypeKind::Datetime,
-        ),
-        (
-            "timestamp with time zone",
-            "TIMESTAMP WITH TIME ZONE",
-            DataTypeKind::Datetime,
-        ),
-        ("timestamptz", "TIMESTAMPTZ", DataTypeKind::Datetime),
-        // --- Json / Jsonb stay distinct groups ---
-        ("json", "JSON", DataTypeKind::Json),
-        ("jsonb", "JSONB", DataTypeKind::Jsonb),
+        ("datetime", "DATETIME"),
+        ("timestamp", "TIMESTAMP"),
+        ("timestamp without timezone", "TIMESTAMP"),
+        ("timestamp with timezone", "TIMESTAMP WITH TIMEZONE"),
+        ("timestamp with time zone", "TIMESTAMP WITH TIME ZONE"),
+        ("timestamptz", "TIMESTAMPTZ"),
+        // --- Json / Jsonb stay distinct spellings ---
+        ("json", "JSON"),
+        ("jsonb", "JSONB"),
         // --- Inet ---
-        ("inet", "INET", DataTypeKind::Inet),
+        ("inet", "INET"),
         // --- MacAddress (alias collapses onto the interned spelling) ---
-        ("macaddress", "MACADDRESS", DataTypeKind::MacAddress),
-        ("macaddr", "MACADDRESS", DataTypeKind::MacAddress),
+        ("macaddress", "MACADDRESS"),
+        ("macaddr", "MACADDRESS"),
     ];
 
-    for (input, canonical, kind) in cases {
+    for (input, canonical) in cases {
         let from_str = DataTypeName::from(input);
         assert_eq!(from_str.as_str(), canonical, "input {input:?}");
-        assert_eq!(from_str.kind(), kind, "input {input:?}");
 
         let upper = input.to_ascii_uppercase();
         let from_upper = DataTypeName::from(upper.as_str());
         assert_eq!(from_upper.as_str(), canonical, "input {upper:?}");
-        assert_eq!(from_upper.kind(), kind, "input {upper:?}");
         assert_eq!(from_str, from_upper, "case fold of {input:?}");
 
         let from_string = DataTypeName::from(input.to_string());
         assert_eq!(from_string, from_str, "From<String> of {input:?}");
-        assert_eq!(from_string.kind(), kind);
     }
 }
 
@@ -113,7 +83,7 @@ fn interned_synonyms_compare_equal() {
         DataTypeName::from("macaddress"),
         DataTypeName::from("MACADDR"),
     );
-    // Distinct interned spellings stay distinct even when the kind matches.
+    // Distinct interned spellings stay distinct.
     assert_ne!(
         DataTypeName::from("timestamp with timezone"),
         DataTypeName::from("timestamp with time zone"),
@@ -125,27 +95,22 @@ fn interned_synonyms_compare_equal() {
 #[test]
 fn mixed_case_known_names_are_canonicalized() {
     let cases = [
-        ("Int", "INT", DataTypeKind::Integer),
-        ("InTeGeR", "INTEGER", DataTypeKind::Integer),
-        ("VarChar", "VARCHAR", DataTypeKind::String),
-        ("tExT", "TEXT", DataTypeKind::String),
-        ("UuId", "UUID", DataTypeKind::Uuid),
-        ("Boolean", "BOOLEAN", DataTypeKind::Boolean),
-        ("TimeStampTz", "TIMESTAMPTZ", DataTypeKind::Datetime),
-        (
-            "Timestamp Without Timezone",
-            "TIMESTAMP",
-            DataTypeKind::Datetime,
-        ),
-        ("MacAddr", "MACADDRESS", DataTypeKind::MacAddress),
-        ("JsonB", "JSONB", DataTypeKind::Jsonb),
-        ("Double Precision", "DOUBLE PRECISION", DataTypeKind::Float),
-        ("ByteA", "BYTEA", DataTypeKind::Bytes),
+        ("Int", "INT"),
+        ("InTeGeR", "INTEGER"),
+        ("VarChar", "VARCHAR"),
+        ("tExT", "TEXT"),
+        ("UuId", "UUID"),
+        ("Boolean", "BOOLEAN"),
+        ("TimeStampTz", "TIMESTAMPTZ"),
+        ("Timestamp Without Timezone", "TIMESTAMP"),
+        ("MacAddr", "MACADDRESS"),
+        ("JsonB", "JSONB"),
+        ("Double Precision", "DOUBLE PRECISION"),
+        ("ByteA", "BYTEA"),
     ];
-    for (input, canonical, kind) in cases {
+    for (input, canonical) in cases {
         let dt = DataTypeName::from(input);
         assert_eq!(dt.as_str(), canonical, "input {input:?}");
-        assert_eq!(dt.kind(), kind, "input {input:?}");
     }
 }
 
@@ -154,7 +119,6 @@ fn parameterized_name_is_custom_and_preserved() {
     for input in ["varchar(255)", "VARCHAR(255)", "decimal(10, 2)", "int(11)"] {
         let dt = DataTypeName::from(input);
         assert_eq!(dt.as_str(), input);
-        assert_eq!(dt.kind(), DataTypeKind::Custom);
     }
 }
 
@@ -162,18 +126,16 @@ fn parameterized_name_is_custom_and_preserved() {
 fn unknown_name_is_custom_and_preserved() {
     let dt = DataTypeName::from("some_totally_unknown_type");
     assert_eq!(dt.as_str(), "some_totally_unknown_type");
-    assert_eq!(dt.kind(), DataTypeKind::Custom);
 }
 
 #[test]
 fn from_string_reuses_unknown_allocation_path() {
     let dt = DataTypeName::from(String::from("not_a_real_type"));
     assert_eq!(dt.as_str(), "not_a_real_type");
-    assert_eq!(dt.kind(), DataTypeKind::Custom);
 }
 
 /// Non-ASCII never hits the interned table: the lookup bails before matching,
-/// and the caller's spelling (including unprintable scalars) is kept as Custom.
+/// and the caller's spelling (including unprintable scalars) is kept.
 #[test]
 fn unicode_and_unprintable_names_are_custom() {
     let cases = [
@@ -197,11 +159,9 @@ fn unicode_and_unprintable_names_are_custom() {
     for input in cases {
         let from_str = DataTypeName::from(input);
         assert_eq!(from_str.as_str(), input, "input {input:?}");
-        assert_eq!(from_str.kind(), DataTypeKind::Custom, "input {input:?}");
 
         let from_string = DataTypeName::from(input.to_string());
         assert_eq!(from_string.as_str(), input, "From<String> {input:?}");
-        assert_eq!(from_string.kind(), DataTypeKind::Custom);
         assert_eq!(from_str, from_string);
     }
 }

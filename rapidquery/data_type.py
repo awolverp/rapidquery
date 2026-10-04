@@ -1,45 +1,7 @@
 """
-SQL data types and value serializers.
+SQL data type names.
 """
 
-from ._core.data_type import (
-    ArraySerializer,
-    BitSerializer,
-    BooleanSerializer,
-    BytesSerializer,
-    CustomSerializer,
-    DataType,
-    DateSerializer,
-    DatetimeSerializer,
-    FloatSerializer,
-    InetSerializer,
-    IntegerSerializer,
-    JSONSerializer,
-    MacAddressSerializer,
-    Serializer,
-    StringSerializer,
-    TimeSerializer,
-    UnspecifiedSerializer,
-    UuidSerializer,
-)
+from ._core.data_type import DataType
 
-__all__ = [
-    "ArraySerializer",
-    "BitSerializer",
-    "BooleanSerializer",
-    "BytesSerializer",
-    "CustomSerializer",
-    "DataType",
-    "DateSerializer",
-    "DatetimeSerializer",
-    "FloatSerializer",
-    "InetSerializer",
-    "IntegerSerializer",
-    "JSONSerializer",
-    "MacAddressSerializer",
-    "Serializer",
-    "StringSerializer",
-    "TimeSerializer",
-    "UnspecifiedSerializer",
-    "UuidSerializer",
-]
+__all__ = ["DataType"]

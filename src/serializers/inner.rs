@@ -69,32 +69,6 @@ impl std::hash::Hash for SerializerType {
 }
 
 impl SerializerType {
-    /// Built-in serializer for a [`DataTypeKind`].
-    ///
-    /// [`DataTypeKind::Custom`] maps to [`Self::Unspecified`]. Json and Jsonb
-    /// share [`Self::Json`].
-    #[inline]
-    pub fn from_kind(kind: crate::data_type::DataTypeKind) -> Self {
-        match kind {
-            crate::data_type::DataTypeKind::Integer => Self::Integer,
-            crate::data_type::DataTypeKind::Float => Self::Float,
-            crate::data_type::DataTypeKind::Boolean => Self::Boolean,
-            crate::data_type::DataTypeKind::String => Self::String,
-            crate::data_type::DataTypeKind::Uuid => Self::Uuid,
-            crate::data_type::DataTypeKind::Bytes => Self::Bytes,
-            crate::data_type::DataTypeKind::Bit => Self::Bit,
-            crate::data_type::DataTypeKind::Json | crate::data_type::DataTypeKind::Jsonb => {
-                Self::Json
-            }
-            crate::data_type::DataTypeKind::Date => Self::Date,
-            crate::data_type::DataTypeKind::Time => Self::Time,
-            crate::data_type::DataTypeKind::Datetime => Self::Datetime,
-            crate::data_type::DataTypeKind::Inet => Self::Inet,
-            crate::data_type::DataTypeKind::MacAddress => Self::MacAddress,
-            crate::data_type::DataTypeKind::Custom => Self::Unspecified,
-        }
-    }
-
     pub fn infer_bound(bound: &alias::BoundObject) -> Self {
         unsafe {
             let object_ptr = bound.as_ptr();

@@ -6,23 +6,24 @@ mod inner;
 pub use inner::SerializerType;
 
 use crate::internal::alias;
+use crate::internal::repr::ReprFormatter;
 
-pub fn serializer_repr(serializer: &SerializerType) -> String {
-    let name = serializer_type_to_pyname(serializer);
-    let mut buf = String::with_capacity(name.len() + 2);
-    buf.push_str(name);
-    buf.push('(');
-
+pub fn serializer_repr(serializer: &SerializerType) -> ReprFormatter {
+    let mut fmt = ReprFormatter::new_call(serializer_type_to_pyname(serializer));
     if let SerializerType::Array(element) = serializer {
-        buf.push_str(&serializer_repr(element));
+        fmt.positional_formatter(serializer_repr(element));
     }
-
-    buf.push(')');
-    buf
+    fmt.close();
+    fmt
 }
 
 /// Converts a Python object into a dialect-specific SQL literal string.
-#[rapidquery_macros::pyclass("rapidquery.data_type.Serializer", subclass, from_py_object, generic)]
+#[rapidquery_macros::pyclass(
+    "rapidquery.serializers.Serializer",
+    subclass,
+    from_py_object,
+    generic
+)]
 #[derive(Debug, Clone)]
 #[repr(transparent)]
 pub struct PySerializer(pub SerializerType);
@@ -41,7 +42,7 @@ impl PySerializer {
     }
 
     fn __repr__(&self) -> String {
-        serializer_repr(&self.0)
+        serializer_repr(&self.0).into_string()
     }
 
     // Bound<Self> so only instances match.
@@ -68,7 +69,7 @@ macro_rules! impl_unit_serializers {
     ) => {
         $(
             $(#[$outer])*
-            #[rapidquery_macros::pyclass("rapidquery.data_type" + $pyname, extends = PySerializer)]
+            #[rapidquery_macros::pyclass("rapidquery.serializers" + $pyname, extends = PySerializer)]
             #[derive(Debug, Default)]
             pub struct $name;
 
@@ -249,7 +250,7 @@ impl_unit_serializers! {
     MacAddress => PyMacAddressSerializer => "MacAddressSerializer",
 
     /// Inserts `str(obj)` into SQL with no quoting or type check.
-    /// Used when no serializer could be inferred from the type name. The result
+    /// Used when the Python object matches no built-in serializer. The result
     /// is not a safe SQL value; prefer an explicit serializer.
     Unspecified => PyUnspecifiedSerializer => "UnspecifiedSerializer",
 }
@@ -263,7 +264,7 @@ impl_unit_serializers! {
 /// Raises:
 ///     TypeError: If the value is not a `list` or `tuple`.
 ///     NotImplementedError: If the dialect has no `ARRAY[…]` constructor.
-#[rapidquery_macros::pyclass("rapidquery.data_type.ArraySerializer", extends = PySerializer)]
+#[rapidquery_macros::pyclass("rapidquery.serializers.ArraySerializer", extends = PySerializer)]
 #[derive(Debug, Default)]
 pub struct PyArraySerializer;
 
@@ -302,7 +303,7 @@ impl PyArraySerializer {
 /// `function` has the form `fn(dialect_name: str, obj) -> str`. The return
 /// value is inserted into SQL as-is (not re-quoted or escaped). It is the
 /// caller's responsibility to produce a safe fragment.
-#[rapidquery_macros::pyclass("rapidquery.data_type.CustomSerializer", extends = PySerializer)]
+#[rapidquery_macros::pyclass("rapidquery.serializers.CustomSerializer", extends = PySerializer)]
 #[derive(Debug, Default)]
 pub struct PyCustomSerializer;
 
@@ -342,9 +343,9 @@ impl PyCustomSerializer {
     }
 }
 
-/// `Serializer` instance, or a `DataType` (its serializer only).
+/// A `Serializer` instance.
 ///
-/// Use [`PySerializer`] itself as an argument if you wanna accept ONLY `PySerializer` types.
+/// Use [`PySerializer`] itself as an argument to accept only `PySerializer` types.
 pub struct SerializerExtractor(pub SerializerType);
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for SerializerExtractor {
@@ -362,17 +363,48 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for SerializerExtractor {
                 let serializer = obj.cast_unchecked::<PySerializer>();
                 return Ok(Self(serializer.get().0.clone()));
             }
-
-            if crate::typeref::check_exact(ptr, crate::typeref::DATATYPE_TYPE) {
-                let data_type = obj.cast_unchecked::<crate::data_type::PyDataType>();
-                return Ok(Self(data_type.get().serializer.clone()));
-            }
         }
 
-        rapidquery_macros::pyerr!(
-            Err(PyTypeError),
-            "expected Serializer or DataType, got {}",
-            unsafe { crate::internal::utils::get_type_name(obj.py(), obj.as_ptr()) }
-        )
+        rapidquery_macros::pyerr!(Err(PyTypeError), "expected Serializer, got {}", unsafe {
+            crate::internal::utils::get_type_name(obj.py(), obj.as_ptr())
+        })
     }
+}
+
+#[pyo3::pymodule(name = "serializers", gil_used = false)]
+pub mod serializers_mod {
+    #[pymodule_export]
+    use super::PyArraySerializer;
+    #[pymodule_export]
+    use super::PyBitSerializer;
+    #[pymodule_export]
+    use super::PyBooleanSerializer;
+    #[pymodule_export]
+    use super::PyBytesSerializer;
+    #[pymodule_export]
+    use super::PyCustomSerializer;
+    #[pymodule_export]
+    use super::PyDateSerializer;
+    #[pymodule_export]
+    use super::PyDatetimeSerializer;
+    #[pymodule_export]
+    use super::PyFloatSerializer;
+    #[pymodule_export]
+    use super::PyInetSerializer;
+    #[pymodule_export]
+    use super::PyIntegerSerializer;
+    #[pymodule_export]
+    use super::PyJSONSerializer;
+    #[pymodule_export]
+    use super::PyMacAddressSerializer;
+    #[pymodule_export]
+    use super::PySerializer;
+    #[pymodule_export]
+    use super::PyStringSerializer;
+    #[pymodule_export]
+    use super::PyTimeSerializer;
+    #[pymodule_export]
+    use super::PyUnspecifiedSerializer;
+    #[pymodule_export]
+    use super::PyUuidSerializer;
 }

@@ -1,6 +1,6 @@
-use crate::data_type::PySerializer;
-use crate::data_type::SerializerExtractor;
 use crate::internal::alias;
+use crate::serializers::PySerializer;
+use crate::serializers::SerializerExtractor;
 
 use super::enum_::Value;
 
@@ -12,8 +12,7 @@ use super::enum_::Value;
 ///
 /// If `serializer` is omitted, one is inferred from the object's type.
 /// Passing an existing `Value` keeps its object (and its serializer, unless
-/// a new one is given). A `DataType` as `serializer` contributes only its
-/// serializer; the data type is not stored.
+/// a new one is given).
 #[rapidquery_macros::pyclass("rapidquery.expr.Value", skip_from_py_object, extends = super::base::PyExpr, generic)]
 #[derive(Debug, Default)]
 pub struct PyValue;
@@ -40,13 +39,12 @@ impl PyValue {
     /// Args:
     ///     object: The Python object to bind or serialize. If this is already
     ///             a `Value`, its object is reused.
-    ///     serializer: How to render `object` as a SQL literal. A `DataType`
-    ///             is accepted and only its serializer is kept. If omitted,
+    ///     serializer: How to render `object` as a SQL literal. If omitted,
     ///             a serializer is inferred from `object` (or kept, when
     ///             `object` is already a `Value`).
     ///
     /// Raises:
-    ///     TypeError: If `serializer` is not a `Serializer` or `DataType`.
+    ///     TypeError: If `serializer` is not a `Serializer`.
     #[new]
     #[pyo3(signature = (object, serializer = None, /))]
     fn __new__(

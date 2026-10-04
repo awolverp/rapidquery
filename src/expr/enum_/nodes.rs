@@ -8,25 +8,15 @@ use super::UnaryOp;
 use super::UnarySpacing;
 use crate::dialect::PyDialect;
 use crate::dialect::flags;
+use crate::internal::repr::ReprFormatter;
 use crate::sql::PrepareResult;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
 use crate::sql::write_separated;
-use std::fmt::Write;
 
 #[inline]
 fn unsupported(message: &'static str) -> crate::sql::PrepareError {
     rapidquery_macros::pyerr!(PyRuntimeError, message).into()
-}
-
-fn join_reprs(py: pyo3::Python<'_>, buf: &mut String, items: &[ExprInner]) -> pyo3::PyResult<()> {
-    for (i, item) in items.iter().enumerate() {
-        if i > 0 {
-            buf.push_str(", ");
-        }
-        buf.push_str(&item.python_repr(py)?);
-    }
-    Ok(())
 }
 
 /// Row value. SQL spelling depends on [`TupleSyntax`].
@@ -38,11 +28,13 @@ pub struct Tuple {
 impl Tuple {
     pub(crate) const PRECEDENCE: u8 = 0;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        let mut buf = String::from("TupleExpr(");
-        join_reprs(py, &mut buf, &self.items)?;
-        buf.push(')');
-        Ok(buf)
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
+        let mut fmt = ReprFormatter::new_call("TupleExpr");
+        for item in &self.items {
+            fmt.positional_formatter(item.python_repr(py)?);
+        }
+        fmt.close();
+        Ok(fmt)
     }
 }
 
@@ -97,12 +89,12 @@ pub struct Unary {
 }
 
 impl Unary {
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        Ok(format!(
-            "UnaryExpr({:?}, {})",
-            self.op.as_sql(),
-            self.expr.python_repr(py)?
-        ))
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
+        let mut fmt = ReprFormatter::new_call("UnaryExpr");
+        fmt.positional_debug(self.op.as_sql());
+        fmt.positional_formatter(self.expr.python_repr(py)?);
+        fmt.close();
+        Ok(fmt)
     }
 }
 
@@ -159,13 +151,13 @@ pub struct Binary {
 }
 
 impl Binary {
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        Ok(format!(
-            "BinaryExpr({}, {:?}, {})",
-            self.left.python_repr(py)?,
-            self.op.as_sql(),
-            self.right.python_repr(py)?
-        ))
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
+        let mut fmt = ReprFormatter::new_call("BinaryExpr");
+        fmt.positional_formatter(self.left.python_repr(py)?);
+        fmt.positional_debug(self.op.as_sql());
+        fmt.positional_formatter(self.right.python_repr(py)?);
+        fmt.close();
+        Ok(fmt)
     }
 }
 
@@ -339,17 +331,13 @@ pub struct Is {
 impl Is {
     pub(crate) const PRECEDENCE: u8 = 5;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        let mut buf = format!(
-            "IsExpr({}, {:?}",
-            self.expr.python_repr(py)?,
-            self.kind.as_sql()
-        );
-        if self.negated {
-            buf.push_str(", negated=True");
-        }
-        buf.push(')');
-        Ok(buf)
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
+        let mut fmt = ReprFormatter::new_call("IsExpr");
+        fmt.positional_formatter(self.expr.python_repr(py)?);
+        fmt.positional_debug(self.kind.as_sql());
+        fmt.keyword_if_true("negated", self.negated);
+        fmt.close();
+        Ok(fmt)
     }
 }
 
@@ -378,17 +366,13 @@ pub struct IsDistinctFrom {
 impl IsDistinctFrom {
     pub(crate) const PRECEDENCE: u8 = 5;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        let mut buf = format!(
-            "IsDistinctFromExpr({}, {}",
-            self.left.python_repr(py)?,
-            self.right.python_repr(py)?
-        );
-        if self.negated {
-            buf.push_str(", negated=True");
-        }
-        buf.push(')');
-        Ok(buf)
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
+        let mut fmt = ReprFormatter::new_call("IsDistinctFromExpr");
+        fmt.positional_formatter(self.left.python_repr(py)?);
+        fmt.positional_formatter(self.right.python_repr(py)?);
+        fmt.keyword_if_true("negated", self.negated);
+        fmt.close();
+        Ok(fmt)
     }
 }
 
@@ -442,15 +426,18 @@ pub struct InList {
 impl InList {
     pub(crate) const PRECEDENCE: u8 = 5;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        let mut buf = format!("InListExpr({}, (", self.expr.python_repr(py)?);
-        join_reprs(py, &mut buf, &self.list)?;
-        buf.push(')');
-        if self.negated {
-            buf.push_str(", negated=True");
-        }
-        buf.push(')');
-        Ok(buf)
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
+        let mut fmt = ReprFormatter::new_call("InListExpr");
+        fmt.positional_formatter(self.expr.python_repr(py)?);
+        fmt.positional_tuple(|group| -> pyo3::PyResult<()> {
+            for item in &self.list {
+                group.positional_formatter(item.python_repr(py)?);
+            }
+            Ok(())
+        })?;
+        fmt.keyword_if_true("negated", self.negated);
+        fmt.close();
+        Ok(fmt)
     }
 }
 
@@ -495,18 +482,14 @@ pub struct Between {
 impl Between {
     pub(crate) const PRECEDENCE: u8 = 5;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        let mut buf = format!(
-            "BetweenExpr({}, {}, {}",
-            self.expr.python_repr(py)?,
-            self.low.python_repr(py)?,
-            self.high.python_repr(py)?
-        );
-        if self.negated {
-            buf.push_str(", negated=True");
-        }
-        buf.push(')');
-        Ok(buf)
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
+        let mut fmt = ReprFormatter::new_call("BetweenExpr");
+        fmt.positional_formatter(self.expr.python_repr(py)?);
+        fmt.positional_formatter(self.low.python_repr(py)?);
+        fmt.positional_formatter(self.high.python_repr(py)?);
+        fmt.keyword_if_true("negated", self.negated);
+        fmt.close();
+        Ok(fmt)
     }
 }
 
@@ -548,17 +531,15 @@ pub struct Cast {
 impl Cast {
     pub(crate) const PRECEDENCE: u8 = 0;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        let mut buf = format!(
-            "CastExpr({}, {:?}",
-            self.expr.python_repr(py)?,
-            self.data_type_name.as_str()
-        );
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
+        let mut fmt = ReprFormatter::new_call("CastExpr");
+        fmt.positional_formatter(self.expr.python_repr(py)?);
+        fmt.positional_debug(self.data_type_name.as_str());
         if self.kind != CastKind::Cast {
-            write!(buf, ", kind={:?}", self.kind.as_sql()).unwrap();
+            fmt.keyword_debug("kind", self.kind.as_sql());
         }
-        buf.push(')');
-        Ok(buf)
+        fmt.close();
+        Ok(fmt)
     }
 
     fn write_call<W: SqlWriter>(
@@ -620,16 +601,20 @@ pub struct Trim {
 impl Trim {
     pub(crate) const PRECEDENCE: u8 = 0;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        let mut buf = format!("TrimExpr({}", self.expr.python_repr(py)?);
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
+        let characters = self
+            .characters
+            .as_ref()
+            .map(|characters| characters.python_repr(py))
+            .transpose()?;
+        let mut fmt = ReprFormatter::new_call("TrimExpr");
+        fmt.positional_formatter(self.expr.python_repr(py)?);
         if self.where_ != TrimWhere::Both {
-            write!(buf, ", where={:?}", self.where_.as_sql()).unwrap();
+            fmt.keyword_debug("where", self.where_.as_sql());
         }
-        if let Some(characters) = &self.characters {
-            write!(buf, ", characters={}", characters.python_repr(py)?).unwrap();
-        }
-        buf.push(')');
-        Ok(buf)
+        fmt.keyword_optional_formatter("characters", characters);
+        fmt.close();
+        Ok(fmt)
     }
 }
 
@@ -708,12 +693,12 @@ pub struct Collate {
 impl Collate {
     pub(crate) const PRECEDENCE: u8 = 0;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        Ok(format!(
-            "CollateExpr({}, {})",
-            self.expr.python_repr(py)?,
-            self.collation.python_repr()
-        ))
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
+        let mut fmt = ReprFormatter::new_call("CollateExpr");
+        fmt.positional_formatter(self.expr.python_repr(py)?);
+        fmt.positional_formatter(self.collation.python_repr());
+        fmt.close();
+        Ok(fmt)
     }
 }
 
@@ -762,29 +747,33 @@ pub struct Case {
 impl Case {
     pub(crate) const PRECEDENCE: u8 = 0;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        let mut buf = String::from("CaseExpr([");
-        for (i, (when, then)) in self.when.iter().enumerate() {
-            if i > 0 {
-                buf.push_str(", ");
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
+        let mut fmt = ReprFormatter::new_call("CaseExpr");
+        fmt.positional_list(|list| -> pyo3::PyResult<()> {
+            for (when, then) in &self.when {
+                let when = when.python_repr(py)?;
+                let then = then.python_repr(py)?;
+                list.positional_tuple(|pair| {
+                    pair.positional_formatter(when);
+                    pair.positional_formatter(then);
+                });
             }
-            write!(
-                buf,
-                "({}, {})",
-                when.python_repr(py)?,
-                then.python_repr(py)?
-            )
-            .unwrap();
-        }
-        buf.push(']');
-        if let Some(operand) = &self.operand {
-            write!(buf, ", operand={}", operand.python_repr(py)?).unwrap();
-        }
-        if let Some(else_result) = &self.else_result {
-            write!(buf, ", else_={}", else_result.python_repr(py)?).unwrap();
-        }
-        buf.push(')');
-        Ok(buf)
+            Ok(())
+        })?;
+        let operand = self
+            .operand
+            .as_ref()
+            .map(|operand| operand.python_repr(py))
+            .transpose()?;
+        let else_result = self
+            .else_result
+            .as_ref()
+            .map(|else_result| else_result.python_repr(py))
+            .transpose()?;
+        fmt.keyword_optional_formatter("operand", operand);
+        fmt.keyword_optional_formatter("else_", else_result);
+        fmt.close();
+        Ok(fmt)
     }
 }
 
@@ -821,14 +810,14 @@ pub struct Custom {
 impl Custom {
     pub(crate) const PRECEDENCE: u8 = 0;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        let mut buf = format!("CustomExpr({:?}", self.sql);
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
+        let mut fmt = ReprFormatter::new_call("CustomExpr");
+        fmt.positional_debug(self.sql.as_str());
         for arg in &self.args {
-            buf.push_str(", ");
-            buf.push_str(&arg.python_repr(py)?);
+            fmt.positional_formatter(arg.python_repr(py)?);
         }
-        buf.push(')');
-        Ok(buf)
+        fmt.close();
+        Ok(fmt)
     }
 }
 

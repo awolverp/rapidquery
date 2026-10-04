@@ -1,7 +1,7 @@
 import pytest
 
 from rapidquery import Asterisk, Ident, Unquote
-from rapidquery.dialect import MySql, PostgreSql, SqlDialect
+from rapidquery.dialect import MySql, PostgreSql, Dialect
 
 
 class TestIdentConstruction:
@@ -136,7 +136,7 @@ class TestEqualityHashReprFrozen:
 
 
 class TestRender:
-    def test_to_sql_uses_dialect_quote_identifier(self, dialect_instance: SqlDialect):
+    def test_to_sql_uses_dialect_quote_identifier(self, dialect_instance: Dialect):
         ident = Ident("users", "id")
         sql = ident.to_sql(dialect_instance)
         assert sql == (

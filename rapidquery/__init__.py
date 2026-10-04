@@ -3,6 +3,7 @@
 from . import data_type as data_type
 from . import dialect as dialect
 from . import expr as expr
+from . import serializers as serializers
 from .expr import Asterisk as Asterisk
 from .expr import Ident as Ident
 from .expr import Unquote as Unquote
@@ -16,4 +17,5 @@ __all__ = [
     "data_type",
     "dialect",
     "expr",
+    "serializers",
 ]

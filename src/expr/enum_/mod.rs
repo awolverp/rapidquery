@@ -13,6 +13,7 @@ pub use operator::*;
 pub use value::*;
 
 use crate::dialect::PyDialect;
+use crate::internal::repr::ReprFormatter;
 use crate::sql::PrepareResult;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
@@ -148,7 +149,7 @@ impl ExprInner {
     }
 
     #[inline]
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
         match self {
             Self::Ident(x) => Ok(x.python_repr()),
             Self::Value(x) => x.python_repr(py),

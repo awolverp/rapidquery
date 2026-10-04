@@ -105,6 +105,6 @@ impl PyExpr {
     }
 
     fn __repr__(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        self.0.python_repr(py)
+        Ok(self.0.python_repr(py)?.into_string())
     }
 }

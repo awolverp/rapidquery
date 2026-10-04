@@ -1,6 +1,7 @@
 //! SQL identifiers.
 
 use crate::dialect::PyDialect;
+use crate::internal::repr::ReprFormatter;
 use crate::sql::PrepareResult;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
@@ -159,22 +160,24 @@ impl Ident {
         self.0
     }
 
-    pub fn python_repr(&self) -> String {
-        use std::fmt::Write;
-
-        let mut result = String::from("Ident(");
-        let parts = self.parts();
-        for (index, item) in parts.iter().enumerate() {
+    pub fn python_repr(&self) -> ReprFormatter {
+        let mut result = ReprFormatter::new_call("Ident");
+        for item in self.parts() {
             match item {
-                IdentPart::Quote(x) => write!(result, "{x:?}").unwrap(),
-                IdentPart::Unquote(x) => write!(result, "Unquote({x:?})").unwrap(),
-                IdentPart::Asterisk => result.push_str("Asterisk"),
-            }
-            if index + 1 < parts.len() {
-                result.push_str(", ");
+                IdentPart::Quote(name) => {
+                    result.positional_debug(name.as_str());
+                }
+                IdentPart::Unquote(name) => {
+                    let mut unquote = ReprFormatter::new_call("Unquote");
+                    unquote.positional_debug(name.as_str());
+                    result.positional_formatter(unquote);
+                }
+                IdentPart::Asterisk => {
+                    result.positional_raw("Asterisk");
+                }
             }
         }
-        result.push(')');
+        result.close();
         result
     }
 

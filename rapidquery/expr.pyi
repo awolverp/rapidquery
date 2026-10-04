@@ -2,8 +2,9 @@ import typing
 from collections.abc import Iterable, Sequence
 from typing import Self, final, overload
 
-from rapidquery.data_type import DataType, Serializer
-from rapidquery.dialect import SqlDialect
+from rapidquery.data_type import DataType
+from rapidquery.serializers import Serializer
+from rapidquery.dialect import Dialect
 
 class Expr:
     """
@@ -14,12 +15,12 @@ class Expr:
     instantiated.
     """
 
-    def to_sql(self, dialect: SqlDialect) -> str:
+    def to_sql(self, dialect: Dialect) -> str:
         """
         Render this expression as raw SQL (values inlined as literals).
         """
 
-    def prepare(self, dialect: SqlDialect) -> tuple[str, tuple[typing.Any]]:
+    def prepare(self, dialect: Dialect) -> tuple[str, tuple[typing.Any]]:
         """
         Render this expression as a parameterized statement.
         """
@@ -151,9 +152,7 @@ class Value(Expr, typing.Generic[_T]):
 
     If ``serializer`` is omitted, one is inferred from the object's
     type. Passing an existing ``Value`` keeps its object (and its
-    serializer, unless a new one is given). A ``DataType`` as
-    ``serializer`` contributes only its serializer; the data type is
-    not stored.
+    serializer, unless a new one is given).
     """
 
     @overload
@@ -162,7 +161,7 @@ class Value(Expr, typing.Generic[_T]):
     def __new__(
         cls,
         object: _T,
-        serializer: Serializer[_T] | DataType[_T] | None = None,
+        serializer: Serializer[_T] | None = None,
         /,
     ) -> typing.Self:
         """
@@ -171,18 +170,15 @@ class Value(Expr, typing.Generic[_T]):
         Args:
             object: The Python object to bind or serialize. If this is
                 already a ``Value``, its object is reused.
-            serializer: How to render ``object`` as a SQL literal. A
-                ``DataType`` is accepted and only its serializer is
-                kept. If omitted, a serializer is inferred from
-                ``object`` (or kept, when ``object`` is already a
-                ``Value``).
+            serializer: How to render ``object`` as a SQL literal. If
+                omitted, a serializer is inferred from ``object`` (or
+                kept, when ``object`` is already a ``Value``).
 
         Returns:
             A new ``Value``.
 
         Raises:
-            TypeError: If ``serializer`` is not a ``Serializer`` or
-                ``DataType``.
+            TypeError: If ``serializer`` is not a ``Serializer``.
         """
 
     def get_object(self) -> _T:

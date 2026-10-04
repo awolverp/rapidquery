@@ -5,6 +5,7 @@ pub mod data_type;
 pub mod dialect;
 pub mod expr;
 pub mod internal;
+pub mod serializers;
 pub mod sql;
 pub mod typeref;
 
@@ -29,6 +30,9 @@ mod _core {
 
     #[pymodule_export]
     use super::dialect::dialect_mod;
+
+    #[pymodule_export]
+    use super::serializers::serializers_mod;
 
     #[pymodule_export]
     use super::expr::expr_mod;

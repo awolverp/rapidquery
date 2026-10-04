@@ -5,6 +5,7 @@ SQL dialect markers.
 from ._core.dialect import (
     BigQuery,
     Databricks,
+    Dialect,
     DuckDb,
     Hive,
     MsSql,
@@ -14,7 +15,6 @@ from ._core.dialect import (
     Redshift,
     Snowflake,
     Spark,
-    SqlDialect,
     Sqlite,
     Teradata,
 )
@@ -22,6 +22,7 @@ from ._core.dialect import (
 __all__ = [
     "BigQuery",
     "Databricks",
+    "Dialect",
     "DuckDb",
     "Hive",
     "MsSql",
@@ -31,7 +32,6 @@ __all__ = [
     "Redshift",
     "Snowflake",
     "Spark",
-    "SqlDialect",
     "Sqlite",
     "Teradata",
 ]

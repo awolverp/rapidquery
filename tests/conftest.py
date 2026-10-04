@@ -13,7 +13,7 @@ from rapidquery.dialect import (
     Redshift,
     Snowflake,
     Spark,
-    SqlDialect,
+    Dialect,
     Sqlite,
     Teradata,
 )
@@ -28,7 +28,7 @@ except ImportError:
 
 # Builtin dialects only. GenericDialect needs every field as a keyword argument;
 # tests that want one call `generic_dialect()`.
-ALL_DIALECT_CLASSES: list[type[SqlDialect]] = [
+ALL_DIALECT_CLASSES: list[type[Dialect]] = [
     BigQuery,
     Databricks,
     DuckDb,
@@ -48,12 +48,12 @@ ALL_DIALECTS = tuple(cls() for cls in ALL_DIALECT_CLASSES)
 
 
 @pytest.fixture(params=ALL_DIALECT_CLASSES, ids=ALL_DIALECT_NAMES)
-def dialect_cls(request: pytest.FixtureRequest) -> type[SqlDialect]:
+def dialect_cls(request: pytest.FixtureRequest) -> type[Dialect]:
     """Every builtin SqlDialect subclass (not GenericDialect)."""
     return request.param
 
 
 @pytest.fixture(params=ALL_DIALECT_CLASSES, ids=ALL_DIALECT_NAMES)
-def dialect_instance(request: pytest.FixtureRequest) -> SqlDialect:
+def dialect_instance(request: pytest.FixtureRequest) -> Dialect:
     """An instance of every builtin SqlDialect subclass."""
     return request.param()

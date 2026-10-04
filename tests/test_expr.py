@@ -11,7 +11,7 @@ from rapidquery.dialect import (
     Redshift,
     Snowflake,
     Spark,
-    SqlDialect,
+    Dialect,
     Sqlite,
     Teradata,
 )
@@ -70,7 +70,7 @@ class TestExpr:
         for node in nodes:
             assert isinstance(node, Expr)
 
-    def test_render_succeeds_on_every_dialect(self, dialect_instance: SqlDialect):
+    def test_render_succeeds_on_every_dialect(self, dialect_instance: Dialect):
         expr = BinaryExpr(Ident("id"), ">", 10)
         sql = expr.to_sql(dialect_instance)
         assert "id" in sql

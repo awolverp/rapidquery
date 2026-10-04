@@ -73,7 +73,7 @@ fn _initialize_typeref(py: pyo3::Python) {
             crate::dialect::PyDialect => DIALECT_TYPE,
             // data types / serializers
             crate::data_type::PyDataType => DATATYPE_TYPE,
-            crate::data_type::PySerializer => SERIALIZER_TYPE,
+            crate::serializers::PySerializer => SERIALIZER_TYPE,
             crate::expr::base::PyExpr => EXPR_TYPE,
             crate::expr::ident::PyIdent => IDENT_TYPE,
             crate::expr::ident::PyUnquote => UNQUOTE_TYPE,

@@ -9,11 +9,11 @@ use std::fmt::Write;
 
 use pyo3::types::PyAnyMethods;
 
-use crate::data_type::SerializerType;
 use crate::dialect::PyDialect;
 use crate::dialect::errors::FormatError;
 use crate::dialect::flags::Placeholder;
 use crate::internal::alias;
+use crate::serializers::SerializerType;
 
 /// Error produced while building SQL.
 #[derive(Debug)]

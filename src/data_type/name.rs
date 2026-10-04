@@ -2,52 +2,21 @@ use crate::sql::PrepareResult;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
 
-/// Category used to infer a built-in serializer from a type name.
-///
-/// Distinct SQL spellings collapse onto one serializer (every integer width
-/// is [`crate::data_type::Serializer::Integer`]). [`Json`] and [`Jsonb`] stay
-/// distinct as groups so a later layer can treat storage differently; both
-/// currently infer [`crate::data_type::Serializer::Json`].
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
-pub enum DataTypeKind {
-    String,
-    Uuid,
-    Bytes,
-    Bit,
-    Integer,
-    Float,
-    Boolean,
-    Date,
-    Time,
-    Datetime,
-    Json,
-    Jsonb,
-    Inet,
-    MacAddress,
-    Custom,
-}
-
-/// SQL type spelling plus its [`DataTypeGroup`].
+/// SQL type spelling.
 ///
 /// Known names are interned (`arcstr::literal!`) under that same spelling
 /// (case-folded to the traditional uppercase form). Unknown and parameterized
-/// names keep the caller's spelling and are [`DataTypeGroup::Custom`].
-/// Synonyms are not rewritten to a different name.
+/// names keep the caller's spelling. Synonyms are not rewritten to a different
+/// name.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct DataTypeName {
     name: arcstr::ArcStr,
-    kind: DataTypeKind,
 }
 
 impl DataTypeName {
     #[inline]
     pub fn as_str(&self) -> &str {
         &self.name
-    }
-
-    #[inline]
-    pub fn kind(&self) -> DataTypeKind {
-        self.kind
     }
 }
 
@@ -68,10 +37,7 @@ fn interned(value: &str) -> Option<DataTypeName> {
 }
 
 fn custom_name<T: Into<arcstr::ArcStr>>(value: T) -> DataTypeName {
-    DataTypeName {
-        name: value.into(),
-        kind: DataTypeKind::Custom,
-    }
+    DataTypeName { name: value.into() }
 }
 
 // Interned no-arg types. `arcstr::literal!` shares one allocation per spelling.
@@ -79,14 +45,13 @@ macro_rules! simple_data_types {
     (
         $(
             $(#[$docs:meta])*
-            ($upcase:ident => ($realname:literal, $kind:ident), $($possible_names:literal)|+);
+            ($upcase:ident => $realname:literal, $($possible_names:literal)|+);
         )+
     ) => {
         $(
             $(#[$docs])*
             pub(super) const $upcase: DataTypeName = DataTypeName {
                 name: arcstr::literal!($realname),
-                kind: DataTypeKind::$kind,
             };
         )+
 
@@ -103,73 +68,73 @@ macro_rules! simple_data_types {
 
 simple_data_types! {
     // --- String ---
-    (CHARACTER_DATA_TYPE => ("CHARACTER", String), "character");
-    (CHAR_DATA_TYPE => ("CHAR", String), "char");
-    (CHARACTER_VARYING_DATA_TYPE => ("CHARACTER VARYING", String), "character varying");
-    (CHAR_VARYING_DATA_TYPE => ("CHAR VARYING", String), "char varying");
-    (VARCHAR_DATA_TYPE => ("VARCHAR", String), "varchar");
-    (NVARCHAR_DATA_TYPE => ("NVARCHAR", String), "nvarchar");
-    (TEXT_DATA_TYPE => ("TEXT", String), "text");
+    (CHARACTER_DATA_TYPE => "CHARACTER", "character");
+    (CHAR_DATA_TYPE => "CHAR", "char");
+    (CHARACTER_VARYING_DATA_TYPE => "CHARACTER VARYING", "character varying");
+    (CHAR_VARYING_DATA_TYPE => "CHAR VARYING", "char varying");
+    (VARCHAR_DATA_TYPE => "VARCHAR", "varchar");
+    (NVARCHAR_DATA_TYPE => "NVARCHAR", "nvarchar");
+    (TEXT_DATA_TYPE => "TEXT", "text");
 
     // --- Uuid ---
-    (UUID_DATA_TYPE => ("UUID", Uuid), "uuid");
+    (UUID_DATA_TYPE => "UUID", "uuid");
 
     // --- Bytes ---
-    (BYTES_DATA_TYPE => ("BYTES", Bytes), "bytes");
-    (BINARY_DATA_TYPE => ("BINARY", Bytes), "binary");
-    (VARBINARY_DATA_TYPE => ("VARBINARY", Bytes), "varbinary");
-    (BLOB_DATA_TYPE => ("BLOB", Bytes), "blob");
-    (BYTEA_DATA_TYPE => ("BYTEA", Bytes), "bytea");
+    (BYTES_DATA_TYPE => "BYTES", "bytes");
+    (BINARY_DATA_TYPE => "BINARY", "binary");
+    (VARBINARY_DATA_TYPE => "VARBINARY", "varbinary");
+    (BLOB_DATA_TYPE => "BLOB", "blob");
+    (BYTEA_DATA_TYPE => "BYTEA", "bytea");
 
     // --- Bit ---
-    (BIT_DATA_TYPE => ("BIT", Bit), "bit");
-    (VARBIT_DATA_TYPE => ("VARBIT", Bit), "varbit");
-    (BIT_VARYING_DATA_TYPE => ("BIT VARYING", Bit), "bit varying");
+    (BIT_DATA_TYPE => "BIT", "bit");
+    (VARBIT_DATA_TYPE => "VARBIT", "varbit");
+    (BIT_VARYING_DATA_TYPE => "BIT VARYING", "bit varying");
 
     // --- Float (includes decimal/numeric) ---
-    (NUMERIC_DATA_TYPE => ("NUMERIC", Float), "numeric");
-    (BIGNUMERIC_DATA_TYPE => ("BIGNUMERIC", Float), "bignumeric");
-    (DECIMAL_DATA_TYPE => ("DECIMAL", Float), "decimal");
-    (BIGDECIMAL_DATA_TYPE => ("BIGDECIMAL", Float), "bigdecimal");
-    (FLOAT_DATA_TYPE => ("FLOAT", Float), "float");
-    (REAL_DATA_TYPE => ("REAL", Float), "real");
-    (DOUBLE_DATA_TYPE => ("DOUBLE", Float), "double");
-    (DOUBLE_PRECISION_DATA_TYPE => ("DOUBLE PRECISION", Float), "double precision");
+    (NUMERIC_DATA_TYPE => "NUMERIC", "numeric");
+    (BIGNUMERIC_DATA_TYPE => "BIGNUMERIC", "bignumeric");
+    (DECIMAL_DATA_TYPE => "DECIMAL", "decimal");
+    (BIGDECIMAL_DATA_TYPE => "BIGDECIMAL", "bigdecimal");
+    (FLOAT_DATA_TYPE => "FLOAT", "float");
+    (REAL_DATA_TYPE => "REAL", "real");
+    (DOUBLE_DATA_TYPE => "DOUBLE", "double");
+    (DOUBLE_PRECISION_DATA_TYPE => "DOUBLE PRECISION", "double precision");
 
     // --- Integer ---
-    (TINYINT_DATA_TYPE => ("TINYINT", Integer), "tinyint");
-    (SMALLINT_DATA_TYPE => ("SMALLINT", Integer), "smallint");
-    (INT_DATA_TYPE => ("INT", Integer), "int");
-    (INTEGER_DATA_TYPE => ("INTEGER", Integer), "integer");
-    (BIGINT_DATA_TYPE => ("BIGINT", Integer), "bigint");
+    (TINYINT_DATA_TYPE => "TINYINT", "tinyint");
+    (SMALLINT_DATA_TYPE => "SMALLINT", "smallint");
+    (INT_DATA_TYPE => "INT", "int");
+    (INTEGER_DATA_TYPE => "INTEGER", "integer");
+    (BIGINT_DATA_TYPE => "BIGINT", "bigint");
 
     // --- Boolean ---
-    (BOOLEAN_DATA_TYPE => ("BOOLEAN", Boolean), "boolean" | "bool");
+    (BOOLEAN_DATA_TYPE => "BOOLEAN", "boolean" | "bool");
 
     // --- Date ---
-    (DATE_DATA_TYPE => ("DATE", Date), "date");
+    (DATE_DATA_TYPE => "DATE", "date");
 
     // --- Time ---
-    (TIME_DATA_TYPE => ("TIME", Time), "time" | "time without timezone" | "time without time zone");
-    (TIME_WITH_TIMEZONE_DATA_TYPE => ("TIME WITH TIMEZONE", Time), "time with timezone");
-    (TIME_WITH_TIME_ZONE_DATA_TYPE => ("TIME WITH TIME ZONE", Time), "time with time zone");
+    (TIME_DATA_TYPE => "TIME", "time" | "time without timezone" | "time without time zone");
+    (TIME_WITH_TIMEZONE_DATA_TYPE => "TIME WITH TIMEZONE", "time with timezone");
+    (TIME_WITH_TIME_ZONE_DATA_TYPE => "TIME WITH TIME ZONE", "time with time zone");
 
     // --- Datetime ---
-    (DATETIME_DATA_TYPE => ("DATETIME", Datetime), "datetime");
-    (TIMESTAMP_DATA_TYPE => ("TIMESTAMP", Datetime), "timestamp" | "timestamp without timezone" | "timestamp without time zone");
-    (TIMESTAMP_WITH_TIMEZONE_DATA_TYPE => ("TIMESTAMP WITH TIMEZONE", Datetime), "timestamp with timezone");
-    (TIMESTAMP_WITH_TIME_ZONE_DATA_TYPE => ("TIMESTAMP WITH TIME ZONE", Datetime), "timestamp with time zone");
-    (TIMESTAMPTZ_DATA_TYPE => ("TIMESTAMPTZ", Datetime), "timestamptz");
+    (DATETIME_DATA_TYPE => "DATETIME", "datetime");
+    (TIMESTAMP_DATA_TYPE => "TIMESTAMP", "timestamp" | "timestamp without timezone" | "timestamp without time zone");
+    (TIMESTAMP_WITH_TIMEZONE_DATA_TYPE => "TIMESTAMP WITH TIMEZONE", "timestamp with timezone");
+    (TIMESTAMP_WITH_TIME_ZONE_DATA_TYPE => "TIMESTAMP WITH TIME ZONE", "timestamp with time zone");
+    (TIMESTAMPTZ_DATA_TYPE => "TIMESTAMPTZ", "timestamptz");
 
     // --- Json ---
-    (JSON_DATA_TYPE => ("JSON", Json), "json");
-    (JSONB_DATA_TYPE => ("JSONB", Jsonb), "jsonb");
+    (JSON_DATA_TYPE => "JSON", "json");
+    (JSONB_DATA_TYPE => "JSONB", "jsonb");
 
     // --- Inet ---
-    (INET_DATA_TYPE => ("INET", Inet), "inet");
+    (INET_DATA_TYPE => "INET", "inet");
 
     // --- MacAddress ---
-    (MACADDRESS_DATA_TYPE => ("MACADDRESS", MacAddress), "macaddress" | "macaddr");
+    (MACADDRESS_DATA_TYPE => "MACADDRESS", "macaddress" | "macaddr");
 }
 
 fn is_parameterized(value: &str) -> bool {

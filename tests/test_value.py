@@ -5,12 +5,11 @@ import uuid
 
 import pytest
 
-from rapidquery.data_type import (
+from rapidquery.serializers import (
     ArraySerializer,
     BitSerializer,
     BooleanSerializer,
     BytesSerializer,
-    DataType,
     DateSerializer,
     DatetimeSerializer,
     FloatSerializer,
@@ -105,9 +104,11 @@ class TestValueConstruction:
         assert isinstance(inner.get_serializer(), InetSerializer)
         assert isinstance(outer.get_serializer(), UnspecifiedSerializer)
 
-    def test_data_type_serializer_override(self):
-        value = Value("x", DataType("integer", StringSerializer()))
-        assert isinstance(value.get_serializer(), StringSerializer)
+    def test_data_type_is_not_a_serializer(self):
+        from rapidquery.data_type import DataType
+
+        with pytest.raises(TypeError):
+            Value("x", DataType("integer"))
 
 
 class TestValueToSql:

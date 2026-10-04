@@ -2,6 +2,7 @@ use super::ExprInner;
 use super::ident::Ident;
 
 use crate::dialect::flags;
+use crate::internal::repr::ReprFormatter;
 use crate::sql::PrepareResult;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
@@ -46,33 +47,29 @@ pub struct Function {
 }
 
 impl Function {
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {
-        let mut buf = format!("Function({}", self.name.python_repr());
-
-        for arg in self.args.iter() {
-            buf.push_str(", ");
-            buf.push_str(&arg.python_repr(py)?);
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
+        let mut fmt = ReprFormatter::new_call("Function");
+        fmt.positional_formatter(self.name.python_repr());
+        for arg in &self.args {
+            fmt.positional_formatter(arg.python_repr(py)?);
         }
-
-        if self.distinct {
-            if !self.args.is_empty() {
-                buf.push_str(", ");
-            }
-            buf.push_str("distinct=True");
-        }
-        buf.push(')');
+        fmt.keyword_if_true("distinct", self.distinct);
+        fmt.close();
 
         match self.null_treatment {
-            Some(NullTreatment::IgnoreNulls) => buf.push_str(".ignore_nulls()"),
-            Some(NullTreatment::RespectNulls) => buf.push_str(".respect_nulls()"),
+            Some(NullTreatment::IgnoreNulls) => {
+                fmt.append_suffix(".ignore_nulls()");
+            }
+            Some(NullTreatment::RespectNulls) => {
+                fmt.append_suffix(".respect_nulls()");
+            }
             None => {}
         }
         if let Some(filter) = &self.filter {
-            buf.push_str(".filter(");
-            buf.push_str(&filter.python_repr(py)?);
-            buf.push(')');
+            let argument = filter.python_repr(py)?;
+            fmt.append_call("filter", &argument);
         }
-        Ok(buf)
+        Ok(fmt)
     }
 }
 
