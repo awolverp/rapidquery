@@ -75,6 +75,7 @@ target-version = "py310"
 
 [tool.ruff.lint]
 ignore = ["DTZ00"]
+select = ["RUF022"]
 
 [tool.uv]
 required-version = ">=0.10.0"

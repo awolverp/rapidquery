@@ -75,4 +75,9 @@ pub mod dialect_mod {
     #[pymodule_export]
     #[allow(non_upper_case_globals)]
     const Teradata: super::PyDialect = super::TERADATA_DIALECT;
+
+    #[pymodule_init]
+    fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
+        super::base::export_options(m)
+    }
 }

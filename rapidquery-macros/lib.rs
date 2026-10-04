@@ -3,6 +3,8 @@ use quote::quote;
 use syn::parse::Parse;
 use syn::parse::ParseStream;
 
+mod dialect_options;
+
 struct PyClassInput {
     name: String,
     module: String,
@@ -187,5 +189,17 @@ pub fn pyerr(item: TokenStream) -> TokenStream {
         quote! { Err(#constructed) }.into()
     } else {
         constructed.into()
+    }
+}
+
+/// Constructor arguments, getters, and `OPT_*` constants for dialect flags.
+///
+/// Invoked from `src/dialect/base.rs`. Each item is `char name = '?';`,
+/// `enum Type name { Variant => OPT_..., }`, or `bool name = false;`.
+#[proc_macro]
+pub fn dialect_options(input: TokenStream) -> TokenStream {
+    match dialect_options::generate(input.into()) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
     }
 }
