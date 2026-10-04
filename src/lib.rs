@@ -26,9 +26,6 @@ pub mod typeref;
 #[pyo3::pymodule(gil_used = false)]
 mod _core {
     #[pymodule_export]
-    use super::data_type::data_type_mod;
-
-    #[pymodule_export]
     use super::dialect::dialect_mod;
 
     #[pymodule_export]

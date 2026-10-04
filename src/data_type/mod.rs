@@ -3,119 +3,199 @@
 //! A [`DataTypeName`] is a canonical SQL spelling. Known names are interned.
 //! Serializing a Python value is [`crate::serializers`], not this module.
 
-mod name;
+use crate::sql;
 
 #[cfg(test)]
 mod tests;
 
-pub use name::DataTypeName;
-
-use crate::internal::repr::ReprFormatter;
-use crate::internal::utils;
-
-/// Represents a SQL data type.
+/// SQL type spelling.
 ///
-/// A data type is a SQL type name. The name can be any string; it is not
-/// limited to a set of predefined values.
-///
-/// Known names are interned and canonicalized (`"int"` becomes `"INT"`).
-/// Unknown names and parameterized spellings (`VARCHAR(255)`) are kept as
-/// given. Interning applies to the **name string**, not to `DataType`
-/// instances: `DataType("int")` is not a singleton.
-///
-/// [`WriteSql`] emits the type name (CAST, column definitions). A Python
-/// value is serialized by a `rapidquery.serializers` serializer on `Value`.
-#[rapidquery_macros::pyclass("rapidquery.data_type.DataType", from_py_object, eq, hash)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct PyDataType {
-    pub name: DataTypeName,
+/// Known names are interned (`arcstr::literal!`) under that same spelling
+/// (case-folded to the traditional uppercase form). Unknown and parameterized
+/// names keep the caller's spelling. Synonyms are not rewritten to a different
+/// name.
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+pub struct DataTypeName {
+    name: arcstr::ArcStr,
 }
 
-impl PyDataType {
+impl DataTypeName {
     #[inline]
-    pub fn from_name(name: impl Into<DataTypeName>) -> Self {
-        Self { name: name.into() }
+    pub fn as_str(&self) -> &str {
+        &self.name
     }
 }
 
-impl crate::sql::WriteSql for PyDataType {
-    #[inline]
-    fn write_sql<W: crate::sql::SqlWriter>(
-        &self,
-        dialect: &crate::dialect::PyDialect,
-        out: &mut W,
-    ) -> crate::sql::PrepareResult<()> {
-        self.name.write_sql(dialect, out)
+// Longest interned name is `"timestamp without time zone"` (27 bytes).
+const LOOKUP_BUF: usize = 32;
+
+fn interned(value: &str) -> Option<DataTypeName> {
+    if value.len() > LOOKUP_BUF || !value.is_ascii() {
+        return None;
     }
+    let mut buf = [0u8; LOOKUP_BUF];
+    for (i, b) in value.bytes().enumerate() {
+        buf[i] = b.to_ascii_lowercase();
+    }
+    // SAFETY: `value` is ASCII, so the lowercased copy is valid UTF-8.
+    let lower = unsafe { std::str::from_utf8_unchecked(&buf[..value.len()]) };
+    lookup_alias(lower)
 }
 
-#[pyo3::pymethods]
-impl PyDataType {
-    /// Creates a new SQL data type.
-    ///
-    /// Args:
-    ///     name: The SQL type spelling. Not limited to a predefined set.
-    ///             Known names are interned and canonicalized (`"int"`
-    ///             becomes `"INT"`). Unknown names and parameterized
-    ///             spellings (`VARCHAR(255)`) are kept as given.
-    #[new]
-    #[pyo3(signature = (name, /))]
-    fn __new__(name: String) -> Self {
-        PyDataType::from_name(name)
-    }
-
-    /// Returns the type name.
-    ///
-    /// Returns:
-    ///     The canonical type name. For interned names this may differ in
-    ///     casing or spacing from the string passed to the constructor.
-    #[getter]
-    fn get_name(&self) -> &str {
-        self.name.as_str()
-    }
-
-    fn __repr__(&self) -> String {
-        let mut fmt = ReprFormatter::new_call("DataType");
-        fmt.positional_debug(self.name.as_str());
-        fmt.into_string()
-    }
+fn custom_name<T: Into<arcstr::ArcStr>>(value: T) -> DataTypeName {
+    DataTypeName { name: value.into() }
 }
 
-/// An extractor for DataTypeName, which accepts `str` and `DataType`
-pub struct DataTypeNameExtractor(pub DataTypeName);
+// Interned no-arg types. `arcstr::literal!` shares one allocation per spelling.
+macro_rules! simple_data_types {
+    (
+        $(
+            $(#[$docs:meta])*
+            ($upcase:ident => $realname:literal, $($possible_names:literal)|+);
+        )+
+    ) => {
+        $(
+            $(#[$docs])*
+            pub(super) const $upcase: DataTypeName = DataTypeName {
+                name: arcstr::literal!($realname),
+            };
+        )+
 
-impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for DataTypeNameExtractor {
-    type Error = pyo3::PyErr;
-
-    fn extract(
-        obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>,
-    ) -> Result<Self, Self::Error> {
-        let ptr = obj.as_ptr();
-
-        unsafe {
-            // SAFETY: `ptr` is a live borrowed `PyObject`. Type pointers are
-            // interned in `initialize_typeref` before any extractor runs.
-            if crate::typeref::check(ptr, crate::typeref::DATATYPE_TYPE) {
-                let dt = obj.cast_unchecked::<PyDataType>();
-                return Ok(Self(dt.get().name.clone()));
-            }
-
-            if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
-                let borrowed = utils::borrow_py_str_buffer(obj.py(), ptr)?;
-                return Ok(Self(DataTypeName::from(borrowed)));
+        fn lookup_alias(lowercase: &str) -> Option<DataTypeName> {
+            match lowercase {
+                $(
+                    $($possible_names)|+ => Some($upcase),
+                )+
+                _ => None,
             }
         }
+    };
+}
 
-        rapidquery_macros::pyerr!(
-            Err(PyTypeError),
-            "expected str or DataType, got {}",
-            unsafe { crate::internal::utils::get_type_name(obj.py(), obj.as_ptr()) }
-        )
+simple_data_types! {
+    // --- String ---
+    (CHARACTER_DATA_TYPE => "CHARACTER", "character");
+    (CHAR_DATA_TYPE => "CHAR", "char");
+    (CHARACTER_VARYING_DATA_TYPE => "CHARACTER VARYING", "character varying");
+    (CHAR_VARYING_DATA_TYPE => "CHAR VARYING", "char varying");
+    (VARCHAR_DATA_TYPE => "VARCHAR", "varchar");
+    (NVARCHAR_DATA_TYPE => "NVARCHAR", "nvarchar");
+    (TEXT_DATA_TYPE => "TEXT", "text");
+
+    // --- Uuid ---
+    (UUID_DATA_TYPE => "UUID", "uuid");
+
+    // --- Bytes ---
+    (BYTES_DATA_TYPE => "BYTES", "bytes");
+    (BINARY_DATA_TYPE => "BINARY", "binary");
+    (VARBINARY_DATA_TYPE => "VARBINARY", "varbinary");
+    (BLOB_DATA_TYPE => "BLOB", "blob");
+    (BYTEA_DATA_TYPE => "BYTEA", "bytea");
+
+    // --- Bit ---
+    (BIT_DATA_TYPE => "BIT", "bit");
+    (VARBIT_DATA_TYPE => "VARBIT", "varbit");
+    (BIT_VARYING_DATA_TYPE => "BIT VARYING", "bit varying");
+
+    // --- Float (includes decimal/numeric) ---
+    (NUMERIC_DATA_TYPE => "NUMERIC", "numeric");
+    (BIGNUMERIC_DATA_TYPE => "BIGNUMERIC", "bignumeric");
+    (DECIMAL_DATA_TYPE => "DECIMAL", "decimal");
+    (BIGDECIMAL_DATA_TYPE => "BIGDECIMAL", "bigdecimal");
+    (FLOAT_DATA_TYPE => "FLOAT", "float");
+    (REAL_DATA_TYPE => "REAL", "real");
+    (DOUBLE_DATA_TYPE => "DOUBLE", "double");
+    (DOUBLE_PRECISION_DATA_TYPE => "DOUBLE PRECISION", "double precision");
+
+    // --- Integer ---
+    (TINYINT_DATA_TYPE => "TINYINT", "tinyint");
+    (SMALLINT_DATA_TYPE => "SMALLINT", "smallint");
+    (INT_DATA_TYPE => "INT", "int");
+    (INTEGER_DATA_TYPE => "INTEGER", "integer");
+    (BIGINT_DATA_TYPE => "BIGINT", "bigint");
+
+    // --- Boolean ---
+    (BOOLEAN_DATA_TYPE => "BOOLEAN", "boolean" | "bool");
+
+    // --- Date ---
+    (DATE_DATA_TYPE => "DATE", "date");
+
+    // --- Time ---
+    (TIME_DATA_TYPE => "TIME", "time" | "time without timezone" | "time without time zone");
+    (TIME_WITH_TIMEZONE_DATA_TYPE => "TIME WITH TIMEZONE", "time with timezone");
+    (TIME_WITH_TIME_ZONE_DATA_TYPE => "TIME WITH TIME ZONE", "time with time zone");
+
+    // --- Datetime ---
+    (DATETIME_DATA_TYPE => "DATETIME", "datetime");
+    (TIMESTAMP_DATA_TYPE => "TIMESTAMP", "timestamp" | "timestamp without timezone" | "timestamp without time zone");
+    (TIMESTAMP_WITH_TIMEZONE_DATA_TYPE => "TIMESTAMP WITH TIMEZONE", "timestamp with timezone");
+    (TIMESTAMP_WITH_TIME_ZONE_DATA_TYPE => "TIMESTAMP WITH TIME ZONE", "timestamp with time zone");
+    (TIMESTAMPTZ_DATA_TYPE => "TIMESTAMPTZ", "timestamptz");
+
+    // --- Json ---
+    (JSON_DATA_TYPE => "JSON", "json");
+    (JSONB_DATA_TYPE => "JSONB", "jsonb");
+
+    // --- Inet ---
+    (INET_DATA_TYPE => "INET", "inet");
+
+    // --- MacAddress ---
+    (MACADDRESS_DATA_TYPE => "MACADDRESS", "macaddress" | "macaddr");
+}
+
+fn is_parameterized(value: &str) -> bool {
+    value.as_bytes().contains(&b'(')
+}
+
+impl From<&str> for DataTypeName {
+    fn from(value: &str) -> Self {
+        if is_parameterized(value) {
+            return custom_name(value);
+        }
+        interned(value).unwrap_or_else(|| custom_name(value))
     }
 }
 
-#[pyo3::pymodule(name = "data_type", gil_used = false)]
-pub mod data_type_mod {
-    #[pymodule_export]
-    use super::PyDataType;
+impl From<String> for DataTypeName {
+    fn from(value: String) -> Self {
+        if is_parameterized(&value) {
+            return custom_name(value);
+        }
+        if let Some(dt) = interned(&value) {
+            return dt;
+        }
+        custom_name(value)
+    }
+}
+
+impl AsRef<str> for DataTypeName {
+    #[inline]
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl From<DataTypeName> for String {
+    #[inline]
+    fn from(val: DataTypeName) -> Self {
+        val.name.to_string()
+    }
+}
+
+impl std::fmt::Display for DataTypeName {
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.name.fmt(f)
+    }
+}
+
+impl sql::WriteSql for DataTypeName {
+    fn write_sql<W: sql::SqlWriter>(
+        &self,
+        _dialect: &crate::dialect::PyDialect,
+        out: &mut W,
+    ) -> sql::PrepareResult<()> {
+        out.push_str(self.as_str());
+        Ok(())
+    }
 }

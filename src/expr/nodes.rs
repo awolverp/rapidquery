@@ -7,7 +7,6 @@ use super::extractors::ConditionExtractor;
 use super::extractors::IdentExtractor;
 use super::extractors::LiteralExprExtractor;
 use super::extractors::extract_like_pattern;
-use crate::data_type::DataTypeNameExtractor;
 use crate::internal::alias;
 use crate::internal::utils;
 
@@ -484,7 +483,7 @@ impl PyCastExpr {
     #[pyo3(signature = (expr, data_type_name, /, *, kind = "CAST"))]
     fn __new__(
         expr: LiteralExprExtractor,
-        data_type_name: DataTypeNameExtractor,
+        data_type_name: &str,
         kind: &str,
     ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
         let Some(kind) = super::enum_::CastKind::parse(kind) else {
@@ -494,7 +493,7 @@ impl PyCastExpr {
         let inner = super::enum_::Cast {
             kind,
             expr: Box::new(expr.0),
-            data_type_name: data_type_name.0,
+            data_type_name: data_type_name.into(),
         };
         Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
     }
