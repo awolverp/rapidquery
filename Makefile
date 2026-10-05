@@ -54,6 +54,7 @@ lint: lint-python lint-rust
 
 .PHONY: test  ## Run all tests
 test:
+	cargo test --workspace --all --no-default-features --features auto-initialize
 	uv run pytest
 
 .PHONY: all  ## Run the standard set of checks performed in CI

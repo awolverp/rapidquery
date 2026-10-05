@@ -966,25 +966,3 @@ fn write_backslash_hex_zero<W: std::fmt::Write>(writer: &mut W, string: &str) ->
         _ => SpanEscape::Keep,
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn collect(write: impl FnOnce(&mut String) -> Result<(), FormatError>) -> String {
-        let mut buf = String::new();
-        write(&mut buf).unwrap();
-        buf
-    }
-
-    #[test]
-    fn test_bool_format() {
-        let cfg = DialectFlags::new().with_bool_format(BoolFormat::Integer);
-        assert_eq!(collect(|x| cfg.format_boolean(x, true)), "1");
-        assert_eq!(collect(|x| cfg.format_boolean(x, false)), "0");
-
-        let cfg = cfg.with_bool_format(BoolFormat::Keyword);
-        assert_eq!(collect(|x| cfg.format_boolean(x, true)), "TRUE");
-        assert_eq!(collect(|x| cfg.format_boolean(x, false)), "FALSE");
-    }
-}

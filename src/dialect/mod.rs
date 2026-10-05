@@ -4,6 +4,9 @@ pub mod flags;
 mod base;
 mod builtin;
 
+#[cfg(test)]
+mod tests;
+
 pub use base::PyDialect;
 pub use builtin::BIGQUERY_DIALECT;
 pub use builtin::DATABRICKS_DIALECT;

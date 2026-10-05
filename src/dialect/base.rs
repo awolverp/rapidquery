@@ -246,6 +246,7 @@ rapidquery_macros::dialect_options! {
     bool parenthesize_in_between = false;
     bool supports_double_colon = false;
 }
+
 #[pyo3::pymethods]
 impl PyDialect {
     fn __eq__(&self, other: &pyo3::Bound<'_, Self>) -> bool {
