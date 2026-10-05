@@ -10,7 +10,6 @@ pub mod sql;
 pub mod typeref;
 
 // Tasks until being stable (until this part)
-// - Test and coverage everything and edge cases
 // - Update docstrings / doccomments
 
 // Later tasks:
