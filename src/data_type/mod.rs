@@ -1,8 +1,3 @@
-//! SQL data types: interned names and [`DataType`].
-//!
-//! A [`DataTypeName`] is a canonical SQL spelling. Known names are interned.
-//! Serializing a Python value is [`crate::serializers`], not this module.
-
 use crate::sql;
 
 #[cfg(test)]
@@ -15,14 +10,13 @@ mod tests;
 /// names keep the caller's spelling. Synonyms are not rewritten to a different
 /// name.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
-pub struct DataTypeName {
-    name: arcstr::ArcStr,
-}
+#[repr(transparent)]
+pub struct DataTypeName(arcstr::ArcStr);
 
 impl DataTypeName {
     #[inline]
     pub fn as_str(&self) -> &str {
-        &self.name
+        &self.0
     }
 }
 
@@ -43,7 +37,7 @@ fn interned(value: &str) -> Option<DataTypeName> {
 }
 
 fn custom_name<T: Into<arcstr::ArcStr>>(value: T) -> DataTypeName {
-    DataTypeName { name: value.into() }
+    DataTypeName(value.into())
 }
 
 // Interned no-arg types. `arcstr::literal!` shares one allocation per spelling.
@@ -56,9 +50,7 @@ macro_rules! simple_data_types {
     ) => {
         $(
             $(#[$docs])*
-            pub(super) const $upcase: DataTypeName = DataTypeName {
-                name: arcstr::literal!($realname),
-            };
+            pub(super) const $upcase: DataTypeName = DataTypeName(arcstr::literal!($realname));
         )+
 
         fn lookup_alias(lowercase: &str) -> Option<DataTypeName> {
@@ -178,14 +170,14 @@ impl AsRef<str> for DataTypeName {
 impl From<DataTypeName> for String {
     #[inline]
     fn from(val: DataTypeName) -> Self {
-        val.name.to_string()
+        val.0.to_string()
     }
 }
 
 impl std::fmt::Display for DataTypeName {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.name.fmt(f)
+        self.0.fmt(f)
     }
 }
 

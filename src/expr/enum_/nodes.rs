@@ -403,7 +403,7 @@ impl WriteSql for InList {
     fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
         if self.list.is_empty() {
             // `x IN ()` is false and `x NOT IN ()` is true, including when `x` is NULL.
-            dialect.0.format_boolean(out, self.negated)?;
+            dialect.0.write_boolean(out, self.negated)?;
             return Ok(());
         }
 

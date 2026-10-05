@@ -57,7 +57,7 @@ def test_dialect_methods():
         bit_format=OPT_BIT_FORMAT_POSTFIX_BIG_B,
         bytes_format=OPT_BYTES_FORMAT_SLASH_X_BYTEA,
     )
-    assert default.format_boolean(True) == "1"
+    assert default.write_boolean(True) == "1"
 
     assert default.write_string_literal("love") == "E'love'"
 
@@ -65,11 +65,11 @@ def test_dialect_methods():
     assert default.escape_string("\t") == "\\t"
     assert default.escape_string("\\") == "\\\\"
 
-    assert default.quote_identifier("lov`e") == "`lov\\`e`"
+    assert default.write_identifier("lov`e") == "`lov\\`e`"
 
-    assert default.format_bits("10101") == "'10101'B"
+    assert default.write_bits("10101") == "'10101'B"
 
     with pytest.raises(ValueError):
-        _ = default.format_bits("123")
+        _ = default.write_bits("123")
 
-    assert default.format_bytes(b"love") == "'\\x6C6F7665'::bytea"
+    assert default.write_bytes(b"love") == "'\\x6C6F7665'::bytea"

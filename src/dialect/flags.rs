@@ -613,7 +613,7 @@ pub struct DialectFlags {
 impl DialectFlags {
     /// Write a boolean literal (`TRUE`/`FALSE` or `1`/`0`).
     #[inline]
-    pub fn format_boolean<W: std::fmt::Write>(&self, writer: &mut W, value: bool) -> Result<(), FormatError> {
+    pub fn write_boolean<W: std::fmt::Write>(&self, writer: &mut W, value: bool) -> Result<(), FormatError> {
         match (self.bool_format(), value) {
             (BoolFormat::Integer, false) => writer.write_str("0")?,
             (BoolFormat::Integer, true) => writer.write_str("1")?,
@@ -639,7 +639,7 @@ impl DialectFlags {
 
     /// Escape `ident` and wrap it in this dialect's identifier delimiters.
     #[inline]
-    pub fn quote_identifier<W: std::fmt::Write>(&self, writer: &mut W, ident: &str) -> std::fmt::Result {
+    pub fn write_identifier<W: std::fmt::Write>(&self, writer: &mut W, ident: &str) -> std::fmt::Result {
         let (start, end) = match self.identifier_format() {
             IdentifierFormat::DoubleQuote => ('"', '"'),
             IdentifierFormat::Backtick => ('`', '`'),
@@ -697,10 +697,10 @@ impl DialectFlags {
     /// Native formats embed `bits` as-is. Callers must pass only `'0'` and `'1'`;
     /// that is checked with `debug_assert!`.
     #[inline]
-    pub fn format_bits<W: std::fmt::Write>(&self, writer: &mut W, bits: &str) -> Result<(), FormatError> {
+    pub fn write_bits<W: std::fmt::Write>(&self, writer: &mut W, bits: &str) -> Result<(), FormatError> {
         debug_assert!(
             bits.chars().all(|c| c == '0' || c == '1'),
-            "format_bits: invalid input: {bits}"
+            "write_bits: invalid input: {bits}"
         );
         match self.bit_format() {
             BitFormat::Unsupported => Err(FormatError::Unsupported("BitSerializer")),
@@ -712,7 +712,7 @@ impl DialectFlags {
 
     /// Write `bytes` as a native blob/bytea/varbyte literal.
     #[inline]
-    pub fn format_bytes<W: std::fmt::Write>(&self, writer: &mut W, bytes: &[u8]) -> Result<(), FormatError> {
+    pub fn write_bytes<W: std::fmt::Write>(&self, writer: &mut W, bytes: &[u8]) -> Result<(), FormatError> {
         let result = match self.bytes_format() {
             BytesFormat::PrefixBigX => {
                 writer.write_str("X'")?;

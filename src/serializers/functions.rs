@@ -125,7 +125,7 @@ pub(super) unsafe fn write_bool(
 ) -> pyo3::PyResult<()> {
     if pyo3::ffi::PyBool_Check(ptr) == 1 {
         let value = pyo3::ffi::Py_True() == ptr;
-        dialect.format_boolean(out, value)?;
+        dialect.write_boolean(out, value)?;
         Ok(())
     } else {
         rapidquery_macros::pyerr!(
@@ -206,7 +206,7 @@ pub(super) unsafe fn write_bytes(
         debug_assert!(!buf.is_null());
 
         dialect
-            .format_bytes(out, std::slice::from_raw_parts(buf, len))
+            .write_bytes(out, std::slice::from_raw_parts(buf, len))
             .map_err(Into::into)
     } else {
         rapidquery_macros::pyerr!(
@@ -235,7 +235,7 @@ pub(super) unsafe fn write_bit(
             );
         }
 
-        dialect.format_bits(out, raw).map_err(Into::into)
+        dialect.write_bits(out, raw).map_err(Into::into)
     } else {
         rapidquery_macros::pyerr!(
             Err(PyTypeError),

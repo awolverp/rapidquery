@@ -33,7 +33,7 @@ fn escape(flags: &flags::DialectFlags, raw: &str) -> String {
 
 fn quote_ident(flags: &flags::DialectFlags, ident: &str) -> String {
     let mut out = String::new();
-    flags.quote_identifier(&mut out, ident).unwrap();
+    flags.write_identifier(&mut out, ident).unwrap();
     out
 }
 
@@ -154,34 +154,34 @@ const BREAKOUTS: &[&str] = &[
 ];
 
 #[test]
-fn format_boolean_keyword_and_integer() {
+fn write_boolean_keyword_and_integer() {
     let keyword = bool_flags(flags::BoolFormat::Keyword);
     let integer = bool_flags(flags::BoolFormat::Integer);
 
     let mut out = String::new();
-    keyword.format_boolean(&mut out, true).unwrap();
-    keyword.format_boolean(&mut out, false).unwrap();
+    keyword.write_boolean(&mut out, true).unwrap();
+    keyword.write_boolean(&mut out, false).unwrap();
     assert_eq!(out, "TRUEFALSE");
 
     out.clear();
-    integer.format_boolean(&mut out, true).unwrap();
-    integer.format_boolean(&mut out, false).unwrap();
+    integer.write_boolean(&mut out, true).unwrap();
+    integer.write_boolean(&mut out, false).unwrap();
     assert_eq!(out, "10");
 }
 
 #[test]
-fn format_boolean_does_not_emit_quotes_or_lowercase() {
+fn write_boolean_does_not_emit_quotes_or_lowercase() {
     // MySQL may accept the integers; neither spelling is a string, so a
     // caller that interpolates them into a quoted context would be wrong.
     for value in [false, true] {
         let mut keyword = String::new();
         let mut integer = String::new();
         bool_flags(flags::BoolFormat::Keyword)
-            .format_boolean(&mut keyword, value)
+            .write_boolean(&mut keyword, value)
             .unwrap();
 
         bool_flags(flags::BoolFormat::Integer)
-            .format_boolean(&mut integer, value)
+            .write_boolean(&mut integer, value)
             .unwrap();
 
         assert!(!keyword.contains('\''));
@@ -192,10 +192,10 @@ fn format_boolean_does_not_emit_quotes_or_lowercase() {
 }
 
 #[test]
-fn format_boolean_propagates_writer_errors() {
+fn write_boolean_propagates_writer_errors() {
     let mut writer = FailAfter { remaining: 0 };
     let err = bool_flags(flags::BoolFormat::Keyword)
-        .format_boolean(&mut writer, true)
+        .write_boolean(&mut writer, true)
         .unwrap_err();
 
     assert_eq!(err, errors::FormatError::Write);
@@ -391,7 +391,7 @@ fn write_string_literal_passes_unicode_quotes_and_like_wildcards() {
 }
 
 #[test]
-fn quote_identifier_doubles_only_its_own_closer() {
+fn write_identifier_doubles_only_its_own_closer() {
     let dq = ident_flags(flags::IdentifierFormat::DoubleQuote, flags::IdentifierEscape::Double);
     let bt = ident_flags(flags::IdentifierFormat::Backtick, flags::IdentifierEscape::Double);
     let br = ident_flags(flags::IdentifierFormat::SquareBracket, flags::IdentifierEscape::Double);
@@ -416,7 +416,7 @@ fn quote_identifier_doubles_only_its_own_closer() {
 }
 
 #[test]
-fn quote_identifier_rejects_delimiter_breakout() {
+fn write_identifier_rejects_delimiter_breakout() {
     let samples = [
         (
             ident_flags(flags::IdentifierFormat::DoubleQuote, flags::IdentifierEscape::Double),
@@ -465,7 +465,7 @@ fn quote_identifier_rejects_delimiter_breakout() {
 }
 
 #[test]
-fn quote_identifier_backslash_modes() {
+fn write_identifier_backslash_modes() {
     let dq = ident_flags(flags::IdentifierFormat::DoubleQuote, flags::IdentifierEscape::Backslash);
     let bt = ident_flags(flags::IdentifierFormat::Backtick, flags::IdentifierEscape::Backslash);
     let br = ident_flags(
@@ -493,7 +493,7 @@ fn quote_identifier_backslash_modes() {
 }
 
 #[test]
-fn quote_identifier_trailing_backslash_can_eat_a_backslash_closer() {
+fn write_identifier_trailing_backslash_can_eat_a_backslash_closer() {
     // If the engine treats `\` as an escape, a trailing backslash escapes the
     // closing delimiter and the next source token is absorbed into the name.
     // Doubling mode does not have this hole. Callers must not pair
@@ -510,7 +510,7 @@ fn quote_identifier_trailing_backslash_can_eat_a_backslash_closer() {
 }
 
 #[test]
-fn quote_identifier_comments_and_dots_stay_inside() {
+fn write_identifier_comments_and_dots_stay_inside() {
     let dq = ident_flags(flags::IdentifierFormat::DoubleQuote, flags::IdentifierEscape::Double);
     // A newline inside a quoted identifier is legal in some engines and a
     // line-comment introducer in others if the closer is lost. Doubling keeps
@@ -521,11 +521,11 @@ fn quote_identifier_comments_and_dots_stay_inside() {
 }
 
 #[test]
-fn format_bits_spellings_and_unsupported() {
+fn write_bits_spellings_and_unsupported() {
     let mut out = String::new();
     let err = flags::DialectFlags::new()
         .with_bit_format(flags::BitFormat::Unsupported)
-        .format_bits(&mut out, "101")
+        .write_bits(&mut out, "101")
         .unwrap_err();
 
     assert_eq!(err, errors::FormatError::Unsupported("BitSerializer"));
@@ -540,48 +540,48 @@ fn format_bits_spellings_and_unsupported() {
         out.clear();
         flags::DialectFlags::new()
             .with_bit_format(format)
-            .format_bits(&mut out, "101")
+            .write_bits(&mut out, "101")
             .unwrap();
         assert_eq!(out, expected);
         out.clear();
         flags::DialectFlags::new()
             .with_bit_format(format)
-            .format_bits(&mut out, "")
+            .write_bits(&mut out, "")
             .unwrap();
         assert_eq!(out, expected.replace("101", ""));
     }
 }
 
 #[test]
-fn format_bits_embeds_input_unchanged() {
+fn write_bits_embeds_input_unchanged() {
     // Release builds do not re-check the alphabet. A `'` in `bits` would
     // close the literal (`B'''; DROP`), so the debug assert is the guard.
     let mut out = String::new();
     flags::DialectFlags::new()
         .with_bit_format(flags::BitFormat::PrefixBigB)
-        .format_bits(&mut out, "0")
+        .write_bits(&mut out, "0")
         .unwrap();
     assert_eq!(out, "B'0'");
     out.clear();
     flags::DialectFlags::new()
         .with_bit_format(flags::BitFormat::PostfixBigB)
-        .format_bits(&mut out, "1")
+        .write_bits(&mut out, "1")
         .unwrap();
     assert_eq!(out, "'1'B");
 }
 
 #[cfg(debug_assertions)]
 #[test]
-#[should_panic(expected = "format_bits: invalid input")]
-fn format_bits_panics_on_quote_in_debug() {
+#[should_panic(expected = "write_bits: invalid input")]
+fn write_bits_panics_on_quote_in_debug() {
     let mut out = String::new();
     let _ = flags::DialectFlags::new()
         .with_bit_format(flags::BitFormat::PrefixBigB)
-        .format_bits(&mut out, "1'; DROP TABLE t; --");
+        .write_bits(&mut out, "1'; DROP TABLE t; --");
 }
 
 #[test]
-fn format_bytes_every_spelling_including_empty_and_quote_byte() {
+fn write_bytes_every_spelling_including_empty_and_quote_byte() {
     // 0x27 is ASCII `'`. Hex spellings must emit `27`, never a raw quote.
     let quote_byte = [0x27];
     let dead = [0xDE, 0xAD, 0xBE, 0xEF];
@@ -608,17 +608,17 @@ fn format_bytes_every_spelling_including_empty_and_quote_byte() {
     for (format, empty, quoted) in cases {
         let flags = flags::DialectFlags::new().with_bytes_format(format);
         let mut out = String::new();
-        flags.format_bytes(&mut out, &[]).unwrap();
+        flags.write_bytes(&mut out, &[]).unwrap();
         assert_eq!(out, empty, "{format:?} empty");
         out.clear();
-        flags.format_bytes(&mut out, &quote_byte).unwrap();
+        flags.write_bytes(&mut out, &quote_byte).unwrap();
         assert_eq!(out, quoted, "{format:?} quote byte");
         assert!(
             !out.contains("''") || format == flags::BytesFormat::SlashXBlob || out.starts_with("''"),
             "raw quote leaked into {out}"
         );
         out.clear();
-        flags.format_bytes(&mut out, &dead).unwrap();
+        flags.write_bytes(&mut out, &dead).unwrap();
         assert!(
             out.contains("DEADBEEF") || out.contains("\\xDE\\xAD\\xBE\\xEF"),
             "{out}"
@@ -628,26 +628,26 @@ fn format_bytes_every_spelling_including_empty_and_quote_byte() {
 }
 
 #[test]
-fn format_bytes_slash_x_blob_empty_is_not_a_slash_escape() {
+fn write_bytes_slash_x_blob_empty_is_not_a_slash_escape() {
     // Empty `'\x'::BLOB` would be a one-byte escape, not an empty blob.
     let flags = flags::DialectFlags::new().with_bytes_format(flags::BytesFormat::SlashXBlob);
     let mut out = String::new();
-    flags.format_bytes(&mut out, &[]).unwrap();
+    flags.write_bytes(&mut out, &[]).unwrap();
     assert_eq!(out, "''::BLOB");
     out.clear();
-    flags.format_bytes(&mut out, &[0x00]).unwrap();
+    flags.write_bytes(&mut out, &[0x00]).unwrap();
     assert_eq!(out, "'\\x00'::BLOB");
 }
 
 #[test]
-fn format_bytes_crosses_hex_and_slash_chunk_boundaries() {
+fn write_bytes_crosses_hex_and_slash_chunk_boundaries() {
     let sixty_five = vec![0xABu8; 65];
     let thirty_three = vec![0xFFu8; 33];
 
     let mut hex = String::new();
     flags::DialectFlags::new()
         .with_bytes_format(flags::BytesFormat::PrefixBigX)
-        .format_bytes(&mut hex, &sixty_five)
+        .write_bytes(&mut hex, &sixty_five)
         .unwrap();
 
     assert_eq!(hex.len(), 2 + 65 * 2 + 1);
@@ -657,7 +657,7 @@ fn format_bytes_crosses_hex_and_slash_chunk_boundaries() {
     let mut slash = String::new();
     flags::DialectFlags::new()
         .with_bytes_format(flags::BytesFormat::PrefixBigBSlashX)
-        .format_bytes(&mut slash, &thirty_three)
+        .write_bytes(&mut slash, &thirty_three)
         .unwrap();
 
     assert_eq!(slash, format!("B'{}'", "\\xFF".repeat(33)));
@@ -665,26 +665,26 @@ fn format_bytes_crosses_hex_and_slash_chunk_boundaries() {
     let mut blob = String::new();
     flags::DialectFlags::new()
         .with_bytes_format(flags::BytesFormat::SlashXBlob)
-        .format_bytes(&mut blob, &thirty_three)
+        .write_bytes(&mut blob, &thirty_three)
         .unwrap();
     assert_eq!(blob, format!("'{}'::BLOB", "\\xFF".repeat(33)));
 }
 
 #[test]
-fn format_bytes_zero_prefix_empty_is_not_a_closed_literal() {
+fn write_bytes_zero_prefix_empty_is_not_a_closed_literal() {
     // `0x` with no digits is rejected by most engines. Locked so a caller
     // that needs an empty blob picks another spelling.
     let mut out = String::new();
     flags::DialectFlags::new()
         .with_bytes_format(flags::BytesFormat::PrefixZeroX)
-        .format_bytes(&mut out, &[])
+        .write_bytes(&mut out, &[])
         .unwrap();
 
     assert_eq!(out, "0x");
 }
 
 #[test]
-fn format_bytes_function_wrappers_cannot_be_closed_by_payload() {
+fn write_bytes_function_wrappers_cannot_be_closed_by_payload() {
     // The hex alphabet is generated, not copied, so a byte cannot inject a
     // quote into HEXTORAW / UNHEX / TO_BINARY / TO_VARBYTE.
     let nasty = [0x27, 0x5C, 0x00, 0x22, 0x3B];
@@ -697,7 +697,7 @@ fn format_bytes_function_wrappers_cannot_be_closed_by_payload() {
         let mut out = String::new();
         flags::DialectFlags::new()
             .with_bytes_format(format)
-            .format_bytes(&mut out, &nasty)
+            .write_bytes(&mut out, &nasty)
             .unwrap();
 
         assert!(out.contains("275C00223B"), "{format:?} -> {out}");
@@ -727,7 +727,7 @@ fn writer_errors_surface_as_format_error() {
     assert!(
         flags
             .with_bit_format(flags::BitFormat::PrefixBigB)
-            .format_bits(&mut writer, "1")
+            .write_bits(&mut writer, "1")
             .is_err()
     );
 }

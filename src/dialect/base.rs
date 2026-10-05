@@ -249,9 +249,9 @@ rapidquery_macros::dialect_options! {
 
 #[pyo3::pymethods]
 impl PyDialect {
-    fn format_boolean(&self, value: bool) -> pyo3::PyResult<String> {
+    fn write_boolean(&self, value: bool) -> pyo3::PyResult<String> {
         let mut buf = String::new();
-        self.0.format_boolean(&mut buf, value)?;
+        self.0.write_boolean(&mut buf, value)?;
         Ok(buf)
     }
 
@@ -261,9 +261,9 @@ impl PyDialect {
         Ok(buf)
     }
 
-    fn quote_identifier(&self, value: &str) -> pyo3::PyResult<String> {
+    fn write_identifier(&self, value: &str) -> pyo3::PyResult<String> {
         let mut buf = String::new();
-        let _ = self.0.quote_identifier(&mut buf, value);
+        let _ = self.0.write_identifier(&mut buf, value);
         Ok(buf)
     }
 
@@ -273,19 +273,19 @@ impl PyDialect {
         Ok(buf)
     }
 
-    fn format_bits(&self, value: &str) -> pyo3::PyResult<String> {
+    fn write_bits(&self, value: &str) -> pyo3::PyResult<String> {
         if value.chars().any(|c| c != '0' && c != '1') {
             return rapidquery_macros::pyerr!(Err(PyValueError), "invalid input: {}", value);
         }
 
         let mut buf = String::new();
-        self.0.format_bits(&mut buf, value)?;
+        self.0.write_bits(&mut buf, value)?;
         Ok(buf)
     }
 
-    fn format_bytes(&self, value: &[u8]) -> pyo3::PyResult<String> {
+    fn write_bytes(&self, value: &[u8]) -> pyo3::PyResult<String> {
         let mut buf = String::new();
-        self.0.format_bytes(&mut buf, value)?;
+        self.0.write_bytes(&mut buf, value)?;
         Ok(buf)
     }
 
