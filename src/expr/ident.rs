@@ -22,27 +22,7 @@ fn ident_part_to_pyobject<'py>(
     }
 }
 
-/// Represents a SQL identifier (`schema.table.column`).
-///
-/// An identifier is a sequence of parts. Each constructor argument is one
-/// part: a quoted name (`str`), an `Unquote` name, an `Asterisk` wildcard,
-/// or a nested `Ident` whose parts are flattened.
-///
-/// Never empty. At most 10 parts. An asterisk may appear only as the last
-/// part.
-///
-/// Args:
-///     parts: One argument per part. A `str` is always quoted, including
-///             `"*"` (a column named star). Pass `Asterisk` for the SQL
-///             wildcard. Dotted names are `Ident("schema", "table")`, not
-///             `Ident("schema.table")`.
-///
-/// Raises:
-///     TypeError: If an argument is not `str`, `Unquote`, `Asterisk`, or
-///             `Ident`.
-///     ValueError: If there are no parts, a part is empty, `Asterisk` is
-///             not last, an `Unquote` body is not a simple ASCII name, or
-///             there are more than 10 parts.
+/// Dotted SQL name. A string part is quoted; `Asterisk` is the wildcard.
 #[rapidquery_macros::pyclass("rapidquery.expr.Ident", skip_from_py_object, extends = super::base::PyExpr)]
 #[derive(Debug, Default)]
 pub struct PyIdent;
@@ -111,7 +91,7 @@ impl PyIdent {
         }
     }
 
-    /// Returns the parts as a list (`str`, `Unquote`, or `Asterisk`).
+    /// Copy the parts into a list.
     fn to_list(slf: pyo3::PyRef<'_, Self>, py: pyo3::Python<'_>) -> pyo3::PyResult<Vec<alias::PyObject>> {
         Self::inner(&slf)
             .parts()
@@ -148,18 +128,7 @@ impl PyIdent {
     }
 }
 
-/// Marker for an unquoted identifier part.
-///
-/// The body is emitted without dialect delimiters. It must be a simple
-/// ASCII name (`[A-Za-z_][A-Za-z0-9_]*`). This is **not** a raw-SQL
-/// fragment (`COUNT(*)` belongs on a later expression type).
-///
-/// Args:
-///     name: The identifier body, unquoted.
-///
-/// Raises:
-///     ValueError: If `name` is empty or not a simple ASCII identifier
-///             (letters, digits, underscore; first character not a digit).
+/// Identifier body written with no quote characters.
 #[rapidquery_macros::pyclass("rapidquery.expr.Unquote", skip_from_py_object, eq, hash)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PyUnquote(pub arcstr::ArcStr);
@@ -175,10 +144,7 @@ impl PyUnquote {
         Ok(Self(arcstr::ArcStr::from(name)))
     }
 
-    /// Returns the unquoted identifier body.
-    ///
-    /// Returns:
-    ///     The string passed to the constructor.
+    /// The identifier body.
     #[getter]
     fn get_name(&self) -> &str {
         self.0.as_str()
@@ -191,11 +157,7 @@ impl PyUnquote {
     }
 }
 
-/// SQL wildcard `*`.
-///
-/// Pass the class (`Asterisk`) or an instance (`Asterisk()`) as an
-/// identifier part. It must be the last part of an `Ident` (`t.*`).
-/// `Ident("*")` is a quoted column named star, not this wildcard.
+/// SQL wildcard `*`, used as the last part of an identifier.
 #[rapidquery_macros::pyclass("rapidquery.expr.Asterisk", skip_from_py_object, eq, hash)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PyAsterisk;

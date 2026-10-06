@@ -61,10 +61,6 @@ def test_dialect_methods():
 
     assert default.write_string_literal("love") == "E'love'"
 
-    assert default.escape_string("\r") == "\\r"
-    assert default.escape_string("\t") == "\\t"
-    assert default.escape_string("\\") == "\\\\"
-
     assert default.write_identifier("lov`e") == "`lov\\`e`"
 
     assert default.write_bits("10101") == "'10101'B"

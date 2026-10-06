@@ -1,7 +1,3 @@
-"""
-SQL expressions.
-"""
-
 from ._core.expr import (
     Asterisk,
     BetweenExpr,

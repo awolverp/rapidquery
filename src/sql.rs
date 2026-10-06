@@ -1,9 +1,7 @@
-//! SQL writers: raw (`SqlBuf`) and parameterized (`PrepareContext`).
+//! SQL text buffers.
 //!
-//! One AST trait, [`WriteSql`], walks a node into any [`SqlWriter`]. Identifiers
-//! and type names only push text. Values (when they land) call
-//! [`SqlWriter::push_value`]: raw inlines a literal, prepared emits a
-//! placeholder.
+//! [`WriteSql`] walks a node into a [`SqlWriter`]. [`BufferedSql`] inlines values.
+//! [`ParameterizedSql`] binds them as placeholders.
 
 use std::fmt::Write;
 
@@ -106,10 +104,10 @@ impl From<PrepareError> for pyo3::PyErr {
 pub type PrepareResult<T> = Result<T, PrepareError>;
 pub type PrepareParams = smallvec::SmallVec<[alias::PyObject; 1]>;
 
-/// Output target for [`WriteSql`].
+/// Destination for [`WriteSql`].
 ///
-/// [`SqlBuf`] inlines values as SQL literals. [`PrepareContext`] binds them as
-/// named placeholders. Everything else is `push_str` / `push_char`.
+/// [`BufferedSql`] inlines values. [`ParameterizedSql`] binds them. Other methods
+/// only append text.
 pub trait SqlWriter: std::fmt::Write {
     fn push_str(&mut self, s: &str) -> &mut Self;
 
@@ -136,7 +134,17 @@ pub trait SqlWriter: std::fmt::Write {
     ) -> PrepareResult<()>;
 }
 
-/// Raw SQL buffer. No parameter map.
+/// SQL buffer that inlines values. It does not keep a parameter list.
+///
+/// Build one with a Python token, append text through [`SqlWriter`], then take
+/// the string with [`Self::into_string`].
+///
+/// ```
+/// pyo3::Python::attach(|py| {
+///     let buf = rapidquery::sql::BufferedSql::new(py);
+///     assert_eq!(buf.as_str(), "");
+/// });
+/// ```
 pub struct BufferedSql<'py> {
     py: pyo3::Python<'py>,
     sql: String,
@@ -215,10 +223,18 @@ impl<'py> std::fmt::Write for BufferedSql<'py> {
     }
 }
 
-/// Accumulates rendered SQL and the bound-parameter map.
+/// SQL text plus the Python objects bound for each placeholder.
 ///
-/// Implements [`std::fmt::Write`], so `write!` / `writeln!` work directly:
-/// `write!(ctx, "{name} = ")?;`
+/// [`std::fmt::Write`] appends text. [`Self::push_param`] appends a placeholder
+/// and stores the object. Numbering starts at 1.
+///
+/// ```
+/// pyo3::Python::attach(|py| {
+///     let sql = rapidquery::sql::ParameterizedSql::new(py);
+///     assert_eq!(sql.sql(), "");
+///     assert!(sql.params().is_empty());
+/// });
+/// ```
 pub struct ParameterizedSql<'py> {
     py: pyo3::Python<'py>,
     sql: String,

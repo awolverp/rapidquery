@@ -44,7 +44,7 @@ empty_node! {
     /// Parenthesized row / tuple expression `(a, b, …)`.
     PyTupleExpr(Tuple(super::enum_::Tuple)) => "TupleExpr",
 
-    /// Unary expression (`NOT x`, `-x`, `|/x`, `x!`, …).
+    /// Prefix expression: `NOT x`, `+x`, `-x`, or `~x`.
     PyUnaryExpr(Unary(super::enum_::Unary)) => "UnaryExpr",
 
     /// Binary expression (`a + b`, `a AND b`, custom operators).
@@ -83,8 +83,7 @@ empty_node! {
     /// `CASE [operand] WHEN … THEN … [ELSE …] END`.
     PyCaseExpr(Case(super::enum_::Case)) => "CaseExpr",
 
-    /// Escape-hatch SQL template. `{}` slots are filled by argument
-    /// expressions. `{{` / `}}` emit literal braces.
+    /// SQL template. `{}` slots are filled by arguments. `{{` and `}}` are braces.
     PyCustomExpr(Custom(super::enum_::Custom)) => "CustomExpr",
 }
 

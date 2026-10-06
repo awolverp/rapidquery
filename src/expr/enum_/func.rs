@@ -29,6 +29,26 @@ impl NullTreatment {
     }
 }
 
+/// Function call: name, arguments, `DISTINCT`, filter, and null treatment.
+///
+/// The name is an [`Ident`]. Arguments are expression nodes. `filter` and
+/// `null_treatment` are omitted from the SQL when they are `None`.
+///
+/// ```
+/// use std::str::FromStr;
+///
+/// use rapidquery::expr::enum_::Function;
+/// use rapidquery::expr::enum_::Ident;
+///
+/// let func = Function {
+///     name: Ident::from_str("count").unwrap(),
+///     distinct: false,
+///     args: Vec::new(),
+///     filter: None,
+///     null_treatment: None,
+/// };
+/// assert_eq!(func.name.len(), 1);
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct Function {
     /// The function name

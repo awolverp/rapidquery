@@ -490,12 +490,26 @@ pub enum JsonFormat {
     ParseJson,
 }
 
+/// Packed options that decide how one dialect spells SQL.
+///
+/// Each field is a small enum or a bool. Builtin dialects set every field.
+/// A flag the writer does not implement makes rendering fail.
+///
+/// ```
+/// use rapidquery::dialect::flags::BoolFormat;
+/// use rapidquery::dialect::flags::DialectFlags;
+///
+/// let flags = DialectFlags::new().with_bool_format(BoolFormat::Integer);
+/// let mut out = String::new();
+/// flags.write_boolean(&mut out, true).unwrap();
+/// assert_eq!(out, "1");
+/// ```
 #[bitfield(u128)]
 #[derive(PartialEq, Eq, Hash)]
 pub struct DialectFlags {
     /// Placeholder character as u32
     ///
-    /// Always is a valid character
+    /// NOTE: Caller is responsible to set a valid character.
     #[bits(32)]
     pub placeholder_character: u32,
     /// Positional parameter syntax
@@ -625,7 +639,7 @@ impl DialectFlags {
 
     /// Write `string` with special characters neutralized, without wrapping it.
     #[inline]
-    pub fn escape_string<W: std::fmt::Write>(&self, writer: &mut W, string: &str) -> Result<(), FormatError> {
+    pub(super) fn escape_string<W: std::fmt::Write>(&self, writer: &mut W, string: &str) -> Result<(), FormatError> {
         let result = match self.string_escape() {
             StringEscape::Quote => utils::replace_to(string, '\'', "''", writer),
             StringEscape::BackslashHex => write_backslash_hex(writer, string),

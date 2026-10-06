@@ -12,13 +12,18 @@ use crate::sql::PrepareResult;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
 
-/// A Python object plus the [`Serializer`] used to emit it as SQL.
+/// Python object plus the serializer that turns it into a SQL literal.
 ///
-/// Parameterized SQL binds [`Self::object`] as a placeholder and ignores the
-/// serializer. Raw SQL (`BufferedSql`) calls [`SerializerType::serialize`];
-/// Python `None` becomes `NULL`.
+/// Parameterized SQL binds [`Self::object`] and ignores the serializer.
+/// Raw SQL runs the serializer. Python `None` becomes `NULL`.
 ///
-/// Clone requires the GIL (`Py<T>::clone`).
+/// ```
+/// pyo3::Python::attach(|py| {
+///     let object = pyo3::types::PyString::new(py, "hi").into_any().unbind();
+///     let value = rapidquery::expr::enum_::Value::new(object, rapidquery::serializers::SerializerType::String);
+///     assert!(matches!(value.serializer, rapidquery::serializers::SerializerType::String));
+/// });
+/// ```
 #[derive(Debug, Clone)]
 pub struct Value {
     pub object: alias::PyObject,

@@ -1,7 +1,16 @@
-/// Builds a Python `__repr__` of the form `Name(...)` or `[...]`.
+/// Buffer for a Python `__repr__` of the form `Name(...)` or `[...]`.
 ///
-/// One buffer. Arguments are written in place. A nested node is another
-/// formatter; the parent copies that buffer once.
+/// Arguments are written in place. A nested formatter is copied into the parent
+/// once, after it is closed.
+///
+/// ```
+/// use rapidquery::internal::repr::ReprFormatter;
+///
+/// let mut fmt = ReprFormatter::new_call("Ident");
+/// fmt.positional_debug("id");
+/// fmt.close();
+/// assert_eq!(fmt.as_str(), "Ident(\"id\")");
+/// ```
 pub struct ReprFormatter {
     buf: String,
     separated: bool,

@@ -1,5 +1,3 @@
-"""Python SQL query builder with a Rust engine."""
-
 from . import dialect as dialect
 from . import expr as expr
 from . import serializers as serializers

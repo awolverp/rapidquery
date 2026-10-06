@@ -3,12 +3,17 @@ use crate::sql;
 #[cfg(test)]
 mod tests;
 
-/// SQL type spelling.
+/// SQL type name, interned when it is one of the known spellings.
 ///
-/// Known names are interned (`arcstr::literal!`) under that same spelling
-/// (case-folded to the traditional uppercase form). Unknown and parameterized
-/// names keep the caller's spelling. Synonyms are not rewritten to a different
-/// name.
+/// Known names fold to their traditional uppercase form. Unknown names and
+/// parameterized names such as `varchar(16)` keep the caller's spelling.
+///
+/// ```
+/// use rapidquery::data_type::DataTypeName;
+///
+/// assert_eq!(DataTypeName::from("varchar").as_str(), "VARCHAR");
+/// assert_eq!(DataTypeName::from("varchar(16)").as_str(), "varchar(16)");
+/// ```
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[repr(transparent)]
 pub struct DataTypeName(arcstr::ArcStr);

@@ -46,12 +46,9 @@ impl IdentPart {
 }
 
 impl<S: AsRef<str>> From<S> for IdentPart {
-    /// Parser helper used by [`Ident::from_str`].
+    /// `"*"` becomes [`IdentPart::Asterisk`]. Any other string is quoted.
     ///
-    /// A literal `"*"` becomes [`IdentPart::Asterisk`]. Everything else is
-    /// [`IdentPart::Quote`] with no emptiness check — [`Ident::from_str`]
-    /// rejects empty chunks first. Python `str` extract does **not** use
-    /// this impl (it always goes through [`IdentPart::quoted`]).
+    /// Empty chunks are not rejected here. [`Ident::from_str`] checks those first.
     fn from(value: S) -> Self {
         let s = value.as_ref();
         if s == "*" {
@@ -80,14 +77,19 @@ impl WriteSql for IdentPart {
     }
 }
 
-/// Represents a SQL identifier (`schema.table.column`).
+/// One or more identifier parts, joined with `.` when rendered.
 ///
-/// An identifier is a sequence of parts. Each constructor argument is one
-/// part: a quoted name (`str`), an `Unquote` name, an `Asterisk` wildcard,
-/// or a nested `Ident` whose parts are flattened.
+/// A validated ident is never empty and holds at most [`Ident::MAX_PARTS`] parts.
+/// [`IdentPart::Asterisk`] is legal only as the last part.
 ///
-/// Never empty. At most [`Ident::MAX_PARTS`] parts. An [`IdentPart::Asterisk`]
-/// may appear only as the last part.
+/// ```
+/// use std::str::FromStr;
+///
+/// use rapidquery::expr::enum_::Ident;
+///
+/// let ident = Ident::from_str("users.id").unwrap();
+/// assert_eq!(ident.len(), 2);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Ident(smallvec::SmallVec<[IdentPart; 4]>);
 

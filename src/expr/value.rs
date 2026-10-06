@@ -4,15 +4,7 @@ use crate::serializers::SerializerExtractor;
 
 use super::enum_::Value;
 
-/// A Python object plus the [`Serializer`] used to emit it as SQL.
-///
-/// `Value` does not convert the object until SQL is built. Parameterized
-/// statements bind the object as a placeholder. Raw SQL runs the serializer
-/// (`None` becomes `NULL`).
-///
-/// If `serializer` is omitted, one is inferred from the object's type.
-/// Passing an existing `Value` keeps its object (and its serializer, unless
-/// a new one is given).
+/// Python object kept until SQL is rendered. `prepare` binds it; `to_sql` serializes it.
 #[rapidquery_macros::pyclass("rapidquery.expr.Value", skip_from_py_object, extends = super::base::PyExpr, generic)]
 #[derive(Debug, Default)]
 pub struct PyValue;
@@ -34,17 +26,7 @@ impl PyValue {
 
 #[pyo3::pymethods]
 impl PyValue {
-    /// Creates a SQL value.
-    ///
-    /// Args:
-    ///     object: The Python object to bind or serialize. If this is already
-    ///             a `Value`, its object is reused.
-    ///     serializer: How to render `object` as a SQL literal. If omitted,
-    ///             a serializer is inferred from `object` (or kept, when
-    ///             `object` is already a `Value`).
-    ///
-    /// Raises:
-    ///     TypeError: If `serializer` is not a `Serializer`.
+    /// Wrap `object`. Omit `serializer` to infer one from its type.
     #[new]
     #[pyo3(signature = (object, serializer = None, /))]
     fn __new__(object: alias::BoundObject, serializer: Option<SerializerExtractor>) -> pyo3::PyClassInitializer<Self> {
@@ -81,19 +63,12 @@ impl PyValue {
         pyo3::PyClassInitializer::from(expr).add_subclass(PyValue)
     }
 
-    /// Returns the wrapped Python object.
-    ///
-    /// Returns:
-    ///     The object passed to the constructor (or taken from an existing `Value`).
+    /// The wrapped Python object.
     fn get_object(slf: pyo3::PyRef<'_, Self>) -> alias::PyObject {
         Self::inner(&slf).object.clone_ref(slf.py())
     }
 
-    /// Returns the serializer used for raw SQL literals.
-    ///
-    /// Returns:
-    ///     The `Serializer` stored on this value. Not used when the value
-    ///     is bound as a parameter.
+    /// Serializer used by `to_sql`.
     fn get_serializer(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
         PySerializer(Self::inner(&slf).serializer.clone()).into_subclasses(slf.py())
     }

@@ -22,13 +22,37 @@ unsafe fn is_asterisk(obj: *mut pyo3::ffi::PyObject) -> bool {
     type_ptr == crate::typeref::ASTERISK_TYPE
 }
 
-/// Literal-priority extractor: a bare `str` becomes [`ExprInner::Value`].
+/// Expression extracted from Python. A bare `str` becomes a value, not a name.
+///
+/// Use this for arguments where a string is data. Identifiers still pass through
+/// as identifiers. The wrapped node is [`ExprInner`].
+///
+/// ```
+/// use std::str::FromStr;
+///
+/// use rapidquery::expr::enum_::ExprInner;
+/// use rapidquery::expr::enum_::Ident;
+/// use rapidquery::expr::extractors::LiteralExprExtractor;
+///
+/// let extracted = LiteralExprExtractor(ExprInner::Ident(Ident::from_str("id").unwrap()));
+/// assert!(matches!(extracted.0, ExprInner::Ident(_)));
+/// ```
 pub struct LiteralExprExtractor(pub ExprInner);
 
-/// Extracts a native [`Ident`](crate::Ident) from a Python object.
+/// Native [`Ident`] extracted from a Python identifier argument.
 ///
-/// Accepts `Ident`, `str` (one quoted part, including `"*"`), `Unquote`,
-/// `Asterisk`, and `type[Asterisk]`. Sequences are rejected.
+/// Accepts `Ident`, one quoted `str` (including `"*"`), `Unquote`, `Asterisk`,
+/// and `type[Asterisk]`. Sequences are rejected.
+///
+/// ```
+/// use std::str::FromStr;
+///
+/// use rapidquery::expr::enum_::Ident;
+/// use rapidquery::expr::extractors::IdentExtractor;
+///
+/// let extracted = IdentExtractor(Ident::from_str("users.id").unwrap());
+/// assert_eq!(extracted.0.len(), 2);
+/// ```
 pub struct IdentExtractor(pub Ident);
 
 fn extract_expr(

@@ -9,9 +9,6 @@ pub mod serializers;
 pub mod sql;
 pub mod typeref;
 
-// Tasks until being stable (until this part)
-// - Update docstrings / doccomments
-
 // Later tasks:
 // - Benchmark and compare with old version
 // - Open PR

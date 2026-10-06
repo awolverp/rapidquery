@@ -9,16 +9,7 @@ use super::enum_::NullTreatment;
 use super::extractors::IdentExtractor;
 use super::extractors::LiteralExprExtractor;
 
-/// SQL function call.
-///
-/// `name` is an identifier (`SUM`, `schema.fn`). The constructor emits a
-/// bare name such as `CURRENT_TIMESTAMP` (no parentheses). `.call(...)`
-/// adds an argument list; `.filter(...)` adds `FILTER (WHERE …)`;
-/// `.ignore_nulls()` / `.respect_nulls()` add a postfix null-treatment
-/// clause. Each method returns a new frozen `Function`.
-///
-/// Args:
-///     name: Function name (`str`, `Ident`, `Unquote`).
+/// SQL function call. The name is an identifier, and each method returns a new call.
 #[rapidquery_macros::pyclass("rapidquery.expr.Function", skip_from_py_object, extends = PyExpr)]
 #[derive(Debug, Default)]
 pub struct PyFunction;
@@ -70,34 +61,40 @@ impl PyFunction {
         Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
     }
 
+    /// Return a copy whose filter predicate is `predicate`.
     fn filter(slf: pyo3::PyRef<'_, Self>, predicate: LiteralExprExtractor) -> pyo3::PyResult<alias::PyObject> {
         let mut inner = Self::inner(&slf).clone();
         inner.filter = Some(Box::new(predicate.0));
         Self::wrap(slf.py(), inner)
     }
 
+    /// Return a copy that writes `IGNORE NULLS`.
     fn ignore_nulls(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::PyObject> {
         let mut inner = Self::inner(&slf).clone();
         inner.null_treatment = Some(NullTreatment::IgnoreNulls);
         Self::wrap(slf.py(), inner)
     }
 
+    /// Return a copy that writes `RESPECT NULLS`.
     fn respect_nulls(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::PyObject> {
         let mut inner = Self::inner(&slf).clone();
         inner.null_treatment = Some(NullTreatment::RespectNulls);
         Self::wrap(slf.py(), inner)
     }
 
+    /// The function name.
     fn get_name(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
         let inner = Self::inner(&slf);
         PyExpr(super::enum_::ExprInner::Ident(inner.name.clone())).into_subclasses(slf.py())
     }
 
+    /// Whether the call writes `DISTINCT`.
     fn get_distinct(slf: pyo3::PyRef<'_, Self>) -> bool {
         let inner = Self::inner(&slf);
         inner.distinct
     }
 
+    /// The argument expressions.
     fn get_args(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
         let py = slf.py();
         let inner = Self::inner(&slf);
@@ -114,6 +111,7 @@ impl PyFunction {
         }
     }
 
+    /// The filter predicate, or `None`.
     fn get_filter(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
         let py = slf.py();
         let inner = Self::inner(&slf);
@@ -124,6 +122,7 @@ impl PyFunction {
         }
     }
 
+    /// `IGNORE NULLS`, `RESPECT NULLS`, or `None`.
     fn get_null_treatment(slf: pyo3::PyRef<'_, Self>) -> Option<&'static str> {
         Self::inner(&slf).null_treatment.map(NullTreatment::as_sql)
     }

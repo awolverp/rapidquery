@@ -1,7 +1,3 @@
-"""
-SQL dialect markers.
-"""
-
 from ._core.dialect import (
     # Dialect options
     OPT_ARRAY_FORMAT_CONSTRUCTOR,

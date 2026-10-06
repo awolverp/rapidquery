@@ -14,10 +14,7 @@ use crate::sql;
 
 use super::enum_::ExprInner;
 
-/// Abstract SQL expression.
-///
-/// Concrete nodes are frozen subclasses (`Ident`, `Value`, `Func`,
-/// `Binary`, …). This base class cannot be instantiated.
+/// Base of every SQL expression. Construct a subclass, not this class.
 #[rapidquery_macros::pyclass("rapidquery.expr.Expr", subclass, skip_from_py_object)]
 #[derive(Debug, Clone)]
 pub struct PyExpr(pub ExprInner);

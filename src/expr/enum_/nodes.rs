@@ -19,7 +19,22 @@ fn unsupported(message: &'static str) -> crate::sql::PrepareError {
     rapidquery_macros::pyerr!(PyRuntimeError, message).into()
 }
 
-/// Row value. SQL spelling depends on [`TupleSyntax`].
+/// Row value. The dialect chooses `ROW`, `struct`, or parentheses.
+///
+/// An empty row is legal only for dialects that accept it. A string stored as
+/// an item is a value expression, not a column name.
+///
+/// ```
+/// use rapidquery::expr::enum_::ExprInner;
+/// use rapidquery::expr::enum_::Ident;
+/// use rapidquery::expr::enum_::Tuple;
+/// use std::str::FromStr;
+///
+/// let row = Tuple {
+///     items: vec![ExprInner::Ident(Ident::from_str("id").unwrap())],
+/// };
+/// assert_eq!(row.items.len(), 1);
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct Tuple {
     pub items: Vec<ExprInner>,
@@ -73,11 +88,24 @@ impl WriteSql for Tuple {
     }
 }
 
-/// Unary operation (`NOT x`, `-x`, `~x`).
+/// Prefix operator: `NOT`, `+`, `-`, or `~`.
 ///
-/// `NOT` binds between comparisons and `AND`. `+`, `-`, and `~` bind tighter
-/// than multiplication. Nested equal-precedence operands are parenthesized.
-/// `~` is `BITNOT(expr)` where the dialect's bitwise profile says so.
+/// `NOT` is written with a space. The others sit against the operand. Dialects
+/// that have no prefix `~` render it as a function.
+///
+/// ```
+/// use rapidquery::expr::enum_::ExprInner;
+/// use rapidquery::expr::enum_::Ident;
+/// use rapidquery::expr::enum_::Unary;
+/// use rapidquery::expr::enum_::UnaryOp;
+/// use std::str::FromStr;
+///
+/// let expr = Unary {
+///     op: UnaryOp::Not,
+///     expr: Box::new(ExprInner::Ident(Ident::from_str("active").unwrap())),
+/// };
+/// assert_eq!(expr.op.as_sql(), "NOT");
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct Unary {
     pub op: UnaryOp,
@@ -130,10 +158,25 @@ impl WriteSql for Unary {
     }
 }
 
-/// Binary operation (`a + b`, `a AND b`, custom operators).
+/// Infix operation, including arithmetic, comparison, and boolean operators.
 ///
-/// `!=` is stored and emitted as `<>`. Precedence follows [`BinaryOp::precedence`].
-/// The right operand is parenthesized when it has equal precedence.
+/// `!=` is stored as `<>`. An unknown spelling is kept as a custom operator.
+/// The dialect may rewrite `%`, `^`, `||`, and shifts into function calls.
+///
+/// ```
+/// use rapidquery::expr::enum_::Binary;
+/// use rapidquery::expr::enum_::BinaryOp;
+/// use rapidquery::expr::enum_::ExprInner;
+/// use rapidquery::expr::enum_::Ident;
+/// use std::str::FromStr;
+///
+/// let expr = Binary {
+///     left: Box::new(ExprInner::Ident(Ident::from_str("age").unwrap())),
+///     op: BinaryOp::Gt,
+///     right: Box::new(ExprInner::Ident(Ident::from_str("n").unwrap())),
+/// };
+/// assert_eq!(expr.op.as_sql(), ">");
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct Binary {
     pub left: Box<ExprInner>,
@@ -285,7 +328,24 @@ impl WriteSql for Binary {
     }
 }
 
-/// `expr IS [NOT] {NULL|TRUE|FALSE|UNKNOWN}`.
+/// `expr IS [NOT] NULL`, `TRUE`, `FALSE`, or `UNKNOWN`.
+///
+/// `negated` selects `IS NOT`. The kind is a fixed word, not an expression.
+///
+/// ```
+/// use rapidquery::expr::enum_::ExprInner;
+/// use rapidquery::expr::enum_::Ident;
+/// use rapidquery::expr::enum_::Is;
+/// use rapidquery::expr::enum_::IsKind;
+/// use std::str::FromStr;
+///
+/// let expr = Is {
+///     expr: Box::new(ExprInner::Ident(Ident::from_str("name").unwrap())),
+///     negated: false,
+///     kind: IsKind::Null,
+/// };
+/// assert_eq!(expr.kind.as_sql(), "NULL");
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct Is {
     pub expr: Box<ExprInner>,
@@ -319,7 +379,24 @@ impl WriteSql for Is {
     }
 }
 
-/// `left IS [NOT] DISTINCT FROM right`.
+/// Null-safe comparison, `IS [NOT] DISTINCT FROM`.
+///
+/// Either side may be `NULL` without making the predicate unknown. The dialect
+/// writes the standard form, a null-safe operator, or rejects the node.
+///
+/// ```
+/// use rapidquery::expr::enum_::ExprInner;
+/// use rapidquery::expr::enum_::Ident;
+/// use rapidquery::expr::enum_::IsDistinctFrom;
+/// use std::str::FromStr;
+///
+/// let expr = IsDistinctFrom {
+///     left: Box::new(ExprInner::Ident(Ident::from_str("a").unwrap())),
+///     right: Box::new(ExprInner::Ident(Ident::from_str("b").unwrap())),
+///     negated: false,
+/// };
+/// assert!(!expr.negated);
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct IsDistinctFrom {
     pub left: Box<ExprInner>,
@@ -370,10 +447,24 @@ impl WriteSql for IsDistinctFrom {
     }
 }
 
-/// `expr [NOT] IN (list…)`.
+/// Membership test, `expr [NOT] IN (list…)`.
 ///
-/// An empty list is `FALSE` (`NOT IN` is `TRUE`), spelled with the dialect's
-/// boolean literal. The tested expression is not written.
+/// An empty list renders as a boolean literal and does not write `expr`.
+/// `NOT IN` of an empty list is the true literal.
+///
+/// ```
+/// use rapidquery::expr::enum_::ExprInner;
+/// use rapidquery::expr::enum_::Ident;
+/// use rapidquery::expr::enum_::InList;
+/// use std::str::FromStr;
+///
+/// let expr = InList {
+///     expr: Box::new(ExprInner::Ident(Ident::from_str("id").unwrap())),
+///     list: Vec::new(),
+///     negated: false,
+/// };
+/// assert!(expr.list.is_empty());
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct InList {
     pub expr: Box<ExprInner>,
@@ -425,9 +516,25 @@ impl WriteSql for InList {
     }
 }
 
-/// `expr [NOT] BETWEEN low AND high`.
+/// Inclusive range, `expr [NOT] BETWEEN low AND high`.
 ///
-/// No `SYMMETRIC` clause.
+/// Both bounds are expressions. There is no `SYMMETRIC` clause. Some dialects
+/// parenthesize the whole predicate.
+///
+/// ```
+/// use rapidquery::expr::enum_::Between;
+/// use rapidquery::expr::enum_::ExprInner;
+/// use rapidquery::expr::enum_::Ident;
+/// use std::str::FromStr;
+///
+/// let expr = Between {
+///     expr: Box::new(ExprInner::Ident(Ident::from_str("n").unwrap())),
+///     negated: false,
+///     low: Box::new(ExprInner::Ident(Ident::from_str("lo").unwrap())),
+///     high: Box::new(ExprInner::Ident(Ident::from_str("hi").unwrap())),
+/// };
+/// assert!(!expr.negated);
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct Between {
     pub expr: Box<ExprInner>,
@@ -471,10 +578,26 @@ impl WriteSql for Between {
     }
 }
 
-/// `CAST(expr AS type)`, `TRY_CAST(expr AS type)`, or `(expr)::type`.
+/// Cast to a SQL type name: `CAST`, `TRY_CAST`, or `::`.
 ///
-/// [`kind`](Self::kind) stays `CAST` / `TRY_CAST` / `::`. BigQuery spells
-/// `TRY_CAST` as `SAFE_CAST`; Teradata spells it as `TRYCAST`.
+/// `kind` stays one of those three. The dialect rewrites `TRY_CAST` to its own
+/// spelling, such as `SAFE_CAST`, or rejects it.
+///
+/// ```
+/// use rapidquery::data_type::DataTypeName;
+/// use rapidquery::expr::enum_::Cast;
+/// use rapidquery::expr::enum_::CastKind;
+/// use rapidquery::expr::enum_::ExprInner;
+/// use rapidquery::expr::enum_::Ident;
+/// use std::str::FromStr;
+///
+/// let expr = Cast {
+///     kind: CastKind::Cast,
+///     expr: Box::new(ExprInner::Ident(Ident::from_str("id").unwrap())),
+///     data_type_name: DataTypeName::from("int"),
+/// };
+/// assert_eq!(expr.data_type_name.as_str(), "INT");
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct Cast {
     pub kind: CastKind,
@@ -531,11 +654,25 @@ impl WriteSql for Cast {
     }
 }
 
-/// `TRIM` of [`expr`](Self::expr), optionally from one side, optionally of
-/// [`characters`](Self::characters).
+/// `TRIM` of an expression, from one side, of an optional character set.
 ///
-/// [`where_`](Self::where_) defaults to both ends. The SQL spelling is
-/// `TRIM([LEADING|TRAILING] [chars FROM] expr)` or `TRIM` / `LTRIM` / `RTRIM`.
+/// `where_` selects both ends, the leading end, or the trailing end. `characters`
+/// is `None` when the call strips spaces. The dialect picks the function name.
+///
+/// ```
+/// use rapidquery::expr::enum_::ExprInner;
+/// use rapidquery::expr::enum_::Ident;
+/// use rapidquery::expr::enum_::Trim;
+/// use rapidquery::expr::enum_::TrimWhere;
+/// use std::str::FromStr;
+///
+/// let expr = Trim {
+///     expr: Box::new(ExprInner::Ident(Ident::from_str("s").unwrap())),
+///     where_: TrimWhere::Both,
+///     characters: None,
+/// };
+/// assert!(expr.characters.is_none());
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct Trim {
     pub expr: Box<ExprInner>,
@@ -620,9 +757,23 @@ impl WriteSql for Trim {
     }
 }
 
-/// `expr COLLATE collation`.
+/// Expression with a collation name attached.
 ///
-/// Precedence 0, so a binary operand is parenthesized.
+/// The collation is an identifier. Dialects that spell this as a function quote
+/// that name as a string instead. Rendering fails when collation is unsupported.
+///
+/// ```
+/// use rapidquery::expr::enum_::Collate;
+/// use rapidquery::expr::enum_::ExprInner;
+/// use rapidquery::expr::enum_::Ident;
+/// use std::str::FromStr;
+///
+/// let expr = Collate {
+///     expr: Box::new(ExprInner::Ident(Ident::from_str("s").unwrap())),
+///     collation: Ident::from_str("en_US").unwrap(),
+/// };
+/// assert_eq!(expr.collation.len(), 1);
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct Collate {
     pub expr: Box<ExprInner>,
@@ -670,7 +821,21 @@ impl WriteSql for Collate {
     }
 }
 
-/// `CASE [operand] WHEN … THEN … [ELSE …] END`.
+/// `CASE` expression, searched or matched against an operand.
+///
+/// `operand` is `None` for `CASE WHEN`. Each `when` entry is a condition or
+/// comparison value paired with its result.
+///
+/// ```
+/// use rapidquery::expr::enum_::Case;
+///
+/// let expr = Case {
+///     operand: None,
+///     when: Vec::new(),
+///     else_result: None,
+/// };
+/// assert!(expr.operand.is_none());
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct Case {
     pub operand: Option<Box<ExprInner>>,
@@ -733,8 +898,23 @@ impl WriteSql for Case {
     }
 }
 
-/// Escape-hatch SQL template. `{}` slots are filled by argument expressions.
-/// `{{` / `}}` emit literal braces. Slot count must match [`args`](Self::args).
+/// SQL template. Each `{}` slot is filled by one argument expression.
+///
+/// `{{` and `}}` write a literal brace. The template itself is not escaped.
+/// Rendering fails when the number of slots and arguments differ.
+///
+/// ```
+/// use rapidquery::expr::enum_::Custom;
+/// use rapidquery::expr::enum_::ExprInner;
+/// use rapidquery::expr::enum_::Ident;
+/// use std::str::FromStr;
+///
+/// let expr = Custom {
+///     sql: arcstr::ArcStr::from("COALESCE({}, 0)"),
+///     args: vec![ExprInner::Ident(Ident::from_str("n").unwrap())],
+/// };
+/// assert_eq!(expr.args.len(), 1);
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct Custom {
     pub sql: arcstr::ArcStr,

@@ -46,20 +46,27 @@ impl LikePattern {
     }
 }
 
-/// `expr [NOT] LIKE / ILIKE [ANY] pattern [ESCAPE char]`.
+/// Pattern predicate: `LIKE`, `ILIKE`, or `LIKE ANY`, plus an optional escape.
 ///
-/// `case_sensitive == false` follows the dialect's `ilike_expression_options`
-/// (`ILIKE`, plain `LIKE`, or `LOWER(expr) LIKE LOWER(pattern)`). `ESCAPE` is
-/// a single inlined character (never a bind). A set escape character raises
-/// when [`flags::LikeEscape`] does not allow it on that form.
+/// One pattern is a scalar match. [`LikePattern::Any`] is `LIKE ANY`, spelled
+/// as the dialect allows. The escape character is inlined, never bound.
 ///
-/// LIKE ANY follows [`flags::LikeAny`]: Postgres `ANY (ARRAY[…])` wraps
-/// negation as `NOT (x LIKE ANY …)` because `NOT LIKE ANY` is a quantified
-/// NOT LIKE; Snowflake/Spark/Databricks use `LIKE ANY (p, …)`; everyone else
-/// expands to parenthesized `OR` of scalar `LIKE`s (`AND` of `NOT LIKE` when
-/// negated). Snowflake appends `ESCAPE` after the pattern list, inside that
-/// negation wrap. Postgres, Spark, and Databricks have no `ESCAPE` slot on
-/// native `LIKE ANY`.
+/// ```
+/// use rapidquery::expr::enum_::ExprInner;
+/// use rapidquery::expr::enum_::Ident;
+/// use rapidquery::expr::enum_::Like;
+/// use rapidquery::expr::enum_::LikePattern;
+/// use std::str::FromStr;
+///
+/// let expr = Like {
+///     case_sensitive: true,
+///     negated: false,
+///     expr: Box::new(ExprInner::Ident(Ident::from_str("name").unwrap())),
+///     pattern: LikePattern::One(Box::new(ExprInner::Ident(Ident::from_str("pat").unwrap()))),
+///     escape: None,
+/// };
+/// assert!(expr.escape.is_none());
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct Like {
     pub case_sensitive: bool,
@@ -253,13 +260,22 @@ impl WriteSql for Like {
 
 /// `expr [NOT] SIMILAR TO pattern`.
 ///
-/// Emitted only when [`Dialect::supports_similar_to`](crate::dialect::inner::Dialect::supports_similar_to)
-/// is set (PostgreSQL, Redshift, DuckDB). Other dialects raise.
+/// Rendered only when the dialect sets `supports_similar_to`. There is no
+/// `ESCAPE` clause. Other dialects fail at render time.
 ///
-/// No `ESCAPE` clause: regex engines use `\` (and dialect string-literal
-/// rules). See [PostgreSQL pattern matching](https://www.postgresql.org/docs/current/functions-matching.html),
-/// [Redshift SIMILAR TO](https://docs.aws.amazon.com/redshift/latest/dg/pattern-matching-conditions-similar-to.html),
-/// [DuckDB pattern matching](https://duckdb.org/docs/current/sql/functions/pattern_matching.html).
+/// ```
+/// use rapidquery::expr::enum_::ExprInner;
+/// use rapidquery::expr::enum_::Ident;
+/// use rapidquery::expr::enum_::SimilarTo;
+/// use std::str::FromStr;
+///
+/// let expr = SimilarTo {
+///     negated: false,
+///     expr: Box::new(ExprInner::Ident(Ident::from_str("name").unwrap())),
+///     pattern: Box::new(ExprInner::Ident(Ident::from_str("pat").unwrap())),
+/// };
+/// assert!(!expr.negated);
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct SimilarTo {
     pub negated: bool,
@@ -299,21 +315,24 @@ impl WriteSql for SimilarTo {
     }
 }
 
-/// Regex match: spelling follows [`RLikeExpressionOptions`].
+/// Regex predicate. The dialect chooses `RLIKE`, `~`, or a function.
 ///
-/// - MySQL / Hive / Spark / Databricks / Snowflake: `expr [NOT] RLIKE pattern`
-///   ([MySQL REGEXP](https://dev.mysql.com/doc/refman/8.4/en/regexp.html),
-///   [Spark LIKE/RLIKE](https://spark.apache.org/docs/latest/sql-ref-syntax-qry-select-like.html),
-///   [Snowflake RLIKE](https://docs.snowflake.com/en/sql-reference/functions/rlike)).
-///   Snowflake implicitly anchors the pattern (`^…$`); that rewrite is later.
-/// - PostgreSQL / Redshift: `expr ~ pattern` / `expr !~ pattern`
-///   ([PostgreSQL POSIX](https://www.postgresql.org/docs/current/functions-matching.html)).
-/// - Oracle: `REGEXP_LIKE(expr, pattern)`.
-/// - BigQuery: `REGEXP_CONTAINS(expr, pattern)`.
-/// - DuckDB: `regexp_matches(expr, pattern)` (substring; DuckDB `~` is full match).
-/// - MsSql / Sqlite / Teradata: raise.
+/// Dialects with no regex predicate fail at render time. There is no `ESCAPE`
+/// clause. Function names written for this node stay unquoted.
 ///
-/// Function names are unquoted. No `ESCAPE` clause.
+/// ```
+/// use rapidquery::expr::enum_::ExprInner;
+/// use rapidquery::expr::enum_::Ident;
+/// use rapidquery::expr::enum_::RLike;
+/// use std::str::FromStr;
+///
+/// let expr = RLike {
+///     negated: false,
+///     expr: Box::new(ExprInner::Ident(Ident::from_str("name").unwrap())),
+///     pattern: Box::new(ExprInner::Ident(Ident::from_str("pat").unwrap())),
+/// };
+/// assert!(!expr.negated);
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct RLike {
     pub negated: bool,

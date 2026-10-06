@@ -2,9 +2,9 @@ use crate::internal::utils;
 
 use super::flags;
 
-/// SQL dialect.
+/// SQL dialect: quoting, literals, and which syntax is legal.
 ///
-/// Instances of the same dialect compare equal and hash together.
+/// Use a builtin such as `PostgreSql`, or build one from `OPT_*` flags.
 #[rapidquery_macros::pyclass("rapidquery.dialect.Dialect", skip_from_py_object)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PyDialect(pub flags::DialectFlags);
@@ -249,30 +249,28 @@ rapidquery_macros::dialect_options! {
 
 #[pyo3::pymethods]
 impl PyDialect {
+    /// Write a boolean literal (`TRUE`/`FALSE` or `1`/`0`).
     fn write_boolean(&self, value: bool) -> pyo3::PyResult<String> {
         let mut buf = String::new();
         self.0.write_boolean(&mut buf, value)?;
         Ok(buf)
     }
 
-    fn escape_string(&self, value: &str) -> pyo3::PyResult<String> {
-        let mut buf = String::new();
-        self.0.escape_string(&mut buf, value)?;
-        Ok(buf)
-    }
-
+    /// Escape `ident` and wrap it in this dialect’s identifier delimiters.
     fn write_identifier(&self, value: &str) -> pyo3::PyResult<String> {
         let mut buf = String::new();
         let _ = self.0.write_identifier(&mut buf, value);
         Ok(buf)
     }
 
+    /// Escape `value` and wrap it as a complete string literal.
     fn write_string_literal(&self, value: &str) -> pyo3::PyResult<String> {
         let mut buf = String::new();
         self.0.write_string_literal(&mut buf, value)?;
         Ok(buf)
     }
 
+    /// Write a bit-string ('0'/'1' characters) as a native literal.
     fn write_bits(&self, value: &str) -> pyo3::PyResult<String> {
         if value.chars().any(|c| c != '0' && c != '1') {
             return rapidquery_macros::pyerr!(Err(PyValueError), "invalid input: {}", value);
@@ -283,6 +281,7 @@ impl PyDialect {
         Ok(buf)
     }
 
+    /// Write bytes as a native blob/bytea/varbyte literal.
     fn write_bytes(&self, value: &[u8]) -> pyo3::PyResult<String> {
         let mut buf = String::new();
         self.0.write_bytes(&mut buf, value)?;
