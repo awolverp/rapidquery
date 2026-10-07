@@ -11,6 +11,7 @@ pub mod typeref;
 
 // Later tasks:
 // - Complete `Expr` methods
+// - Update github workflows
 // - Support customization protocols (e.g. __serializer__, __expr__, __ident__)
 // - Start writing query ASTs.
 
