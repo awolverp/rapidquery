@@ -10,8 +10,6 @@ pub mod sql;
 pub mod typeref;
 
 // Later tasks:
-// - Benchmark and compare with old version
-// - Open PR
 // - Complete `Expr` methods
 // - Support customization protocols (e.g. __serializer__, __expr__, __ident__)
 // - Start writing query ASTs.
