@@ -9,8 +9,8 @@
 // `custom`. Prefer named methods over v0 dunders that return `Expr`.
 
 use crate::internal::alias;
+use crate::internal::sql;
 use crate::internal::utils;
-use crate::sql;
 
 use super::enum_::ExprInner;
 

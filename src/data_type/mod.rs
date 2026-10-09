@@ -1,4 +1,4 @@
-use crate::sql;
+use crate::internal::sql;
 
 #[cfg(test)]
 mod tests;

@@ -141,7 +141,7 @@ pub trait SqlWriter: std::fmt::Write {
 ///
 /// ```
 /// pyo3::Python::attach(|py| {
-///     let buf = rapidquery::sql::BufferedSql::new(py);
+///     let buf = rapidquery::internal::sql::BufferedSql::new(py);
 ///     assert_eq!(buf.as_str(), "");
 /// });
 /// ```
@@ -230,7 +230,7 @@ impl<'py> std::fmt::Write for BufferedSql<'py> {
 ///
 /// ```
 /// pyo3::Python::attach(|py| {
-///     let sql = rapidquery::sql::ParameterizedSql::new(py);
+///     let sql = rapidquery::internal::sql::ParameterizedSql::new(py);
 ///     assert_eq!(sql.sql(), "");
 ///     assert!(sql.params().is_empty());
 /// });

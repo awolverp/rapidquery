@@ -6,7 +6,6 @@ pub mod dialect;
 pub mod expr;
 pub mod internal;
 pub mod serializers;
-pub mod sql;
 pub mod typeref;
 
 // Later tasks:

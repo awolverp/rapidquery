@@ -20,6 +20,7 @@ install: .uv
 .PHONY: rebuild-lockfiles  ## Rebuild lockfiles from scratch, updating all dependencies
 rebuild-lockfiles: .uv
 	uv lock --upgrade
+	cargo update
 
 .PHONY: build-dev  ## Build the development version of the package
 build-dev:

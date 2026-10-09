@@ -5,12 +5,12 @@ use pyo3::types::PyStringMethods;
 
 use crate::dialect::PyDialect;
 use crate::internal::alias;
-use crate::internal::repr::ReprFormatter;
+use crate::internal::repr;
+use crate::internal::sql::PrepareResult;
+use crate::internal::sql::SqlWriter;
+use crate::internal::sql::WriteSql;
 use crate::serializers::SerializerType;
 use crate::serializers::serializer_repr;
-use crate::sql::PrepareResult;
-use crate::sql::SqlWriter;
-use crate::sql::WriteSql;
 
 /// Python object plus the serializer that turns it into a SQL literal.
 ///
@@ -42,13 +42,16 @@ impl Value {
         Self::new(bound.unbind(), serializer)
     }
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<repr::ReprFormatter> {
         let obj_repr = self.object.bind(py).repr()?;
         let text = obj_repr.to_cow()?;
-        let mut fmt = ReprFormatter::new_call("Value");
-        fmt.positional_raw(&text);
-        fmt.positional_formatter(serializer_repr(&self.serializer));
-        fmt.close();
+
+        let mut fmt = repr::ReprFormatter::new_call("Value");
+
+        fmt.positional_raw(&text)
+            .positional(serializer_repr(&self.serializer))
+            .close();
+
         Ok(fmt)
     }
 }

@@ -3,11 +3,11 @@
 use super::ExprInner;
 use crate::dialect::PyDialect;
 use crate::dialect::flags;
-use crate::internal::repr::ReprFormatter;
-use crate::sql::PrepareResult;
-use crate::sql::SqlWriter;
-use crate::sql::WriteSql;
-use crate::sql::write_separated;
+use crate::internal::repr;
+use crate::internal::sql::PrepareResult;
+use crate::internal::sql::SqlWriter;
+use crate::internal::sql::WriteSql;
+use crate::internal::sql::write_separated;
 
 pub(super) fn write_escape<W: SqlWriter>(dialect: &PyDialect, out: &mut W, escape: Option<char>) -> PrepareResult<()> {
     let Some(c) = escape else {
@@ -31,14 +31,16 @@ pub enum LikePattern {
 }
 
 impl LikePattern {
-    fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
+    fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<repr::ReprFormatter> {
         match self {
             Self::One(pattern) => pattern.python_repr(py),
             Self::Any(patterns) => {
-                let mut fmt = ReprFormatter::new_list();
+                let mut fmt = repr::ReprFormatter::new_list();
+
                 for item in patterns {
-                    fmt.positional_formatter(item.python_repr(py)?);
+                    fmt.positional(item.python_repr(py)?);
                 }
+
                 fmt.close();
                 Ok(fmt)
             }
@@ -79,14 +81,16 @@ pub struct Like {
 impl Like {
     pub(crate) const PRECEDENCE: u8 = 5;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
-        let mut fmt = ReprFormatter::new_call("LikeExpr");
-        fmt.positional_formatter(self.expr.python_repr(py)?);
-        fmt.positional_formatter(self.pattern.python_repr(py)?);
-        fmt.keyword_if_false("case_sensitive", self.case_sensitive);
-        fmt.keyword_if_true("negated", self.negated);
-        fmt.keyword_optional_debug("escape", self.escape);
-        fmt.close();
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<repr::ReprFormatter> {
+        let mut fmt = repr::ReprFormatter::new_call("LikeExpr");
+
+        fmt.positional(self.expr.python_repr(py)?)
+            .positional(self.pattern.python_repr(py)?)
+            .keyword_false("case_sensitive", self.case_sensitive)
+            .keyword_true("negated", self.negated)
+            .keyword("escape", self.escape)
+            .close();
+
         Ok(fmt)
     }
 }
@@ -286,12 +290,14 @@ pub struct SimilarTo {
 impl SimilarTo {
     pub(crate) const PRECEDENCE: u8 = 5;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
-        let mut fmt = ReprFormatter::new_call("SimilarToExpr");
-        fmt.positional_formatter(self.expr.python_repr(py)?);
-        fmt.positional_formatter(self.pattern.python_repr(py)?);
-        fmt.keyword_if_true("negated", self.negated);
-        fmt.close();
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<repr::ReprFormatter> {
+        let mut fmt = repr::ReprFormatter::new_call("SimilarToExpr");
+
+        fmt.positional(self.expr.python_repr(py)?)
+            .positional(self.pattern.python_repr(py)?)
+            .keyword_true("negated", self.negated)
+            .close();
+
         Ok(fmt)
     }
 }
@@ -343,12 +349,14 @@ pub struct RLike {
 impl RLike {
     pub(crate) const PRECEDENCE: u8 = 5;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
-        let mut fmt = ReprFormatter::new_call("RLikeExpr");
-        fmt.positional_formatter(self.expr.python_repr(py)?);
-        fmt.positional_formatter(self.pattern.python_repr(py)?);
-        fmt.keyword_if_true("negated", self.negated);
-        fmt.close();
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<repr::ReprFormatter> {
+        let mut fmt = repr::ReprFormatter::new_call("RLikeExpr");
+
+        fmt.positional(self.expr.python_repr(py)?)
+            .positional(self.pattern.python_repr(py)?)
+            .keyword_true("negated", self.negated)
+            .close();
+
         Ok(fmt)
     }
 }

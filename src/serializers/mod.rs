@@ -6,13 +6,15 @@ mod inner;
 pub use inner::SerializerType;
 
 use crate::internal::alias;
-use crate::internal::repr::ReprFormatter;
+use crate::internal::repr;
 
-pub fn serializer_repr(serializer: &SerializerType) -> ReprFormatter {
-    let mut fmt = ReprFormatter::new_call(serializer_type_to_pyname(serializer));
+pub fn serializer_repr(serializer: &SerializerType) -> repr::ReprFormatter {
+    let mut fmt = repr::ReprFormatter::new_call(serializer_type_to_pyname(serializer));
+
     if let SerializerType::Array(element) = serializer {
-        fmt.positional_formatter(serializer_repr(element));
+        fmt.positional(serializer_repr(element));
     }
+
     fmt.close();
     fmt
 }

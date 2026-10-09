@@ -1,11 +1,11 @@
 //! SQL identifiers.
 
 use crate::dialect::PyDialect;
-use crate::internal::repr::ReprFormatter;
-use crate::sql::PrepareResult;
-use crate::sql::SqlWriter;
-use crate::sql::WriteSql;
-use crate::sql::write_separated;
+use crate::internal::repr;
+use crate::internal::sql::PrepareResult;
+use crate::internal::sql::SqlWriter;
+use crate::internal::sql::WriteSql;
+use crate::internal::sql::write_separated;
 
 /// One segment of a dotted identifier.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -162,25 +162,27 @@ impl Ident {
         self.0
     }
 
-    pub fn python_repr(&self) -> ReprFormatter {
-        let mut result = ReprFormatter::new_call("Ident");
+    pub fn python_repr(&self) -> repr::ReprFormatter {
+        let mut fmt = repr::ReprFormatter::new_call("Ident");
+
         for item in self.parts() {
             match item {
                 IdentPart::Quote(name) => {
-                    result.positional_debug(name.as_str());
+                    fmt.positional(name.as_str());
                 }
                 IdentPart::Unquote(name) => {
-                    let mut unquote = ReprFormatter::new_call("Unquote");
-                    unquote.positional_debug(name.as_str());
-                    result.positional_formatter(unquote);
+                    let mut unquote = repr::ReprFormatter::new_call("Unquote");
+                    unquote.positional(name.as_str());
+                    fmt.positional(unquote);
                 }
                 IdentPart::Asterisk => {
-                    result.positional_raw("Asterisk");
+                    fmt.positional_raw("Asterisk");
                 }
             }
         }
-        result.close();
-        result
+
+        fmt.close();
+        fmt
     }
 
     /// One already-validated part. Prefer this over [`from_parts`] for a

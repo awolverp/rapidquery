@@ -2,11 +2,11 @@ use super::ExprInner;
 use super::ident::Ident;
 
 use crate::dialect::flags;
-use crate::internal::repr::ReprFormatter;
-use crate::sql::PrepareResult;
-use crate::sql::SqlWriter;
-use crate::sql::WriteSql;
-use crate::sql::write_separated;
+use crate::internal::repr;
+use crate::internal::sql::PrepareResult;
+use crate::internal::sql::SqlWriter;
+use crate::internal::sql::WriteSql;
+use crate::internal::sql::write_separated;
 
 /// How `NULL`s are treated in some window/aggregate functions.
 ///
@@ -67,14 +67,16 @@ pub struct Function {
 }
 
 impl Function {
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<ReprFormatter> {
-        let mut fmt = ReprFormatter::new_call("Function");
-        fmt.positional_formatter(self.name.python_repr());
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<repr::ReprFormatter> {
+        let mut fmt = repr::ReprFormatter::new_call("Function");
+
+        fmt.positional(self.name.python_repr());
+
         for arg in &self.args {
-            fmt.positional_formatter(arg.python_repr(py)?);
+            fmt.positional(arg.python_repr(py)?);
         }
-        fmt.keyword_if_true("distinct", self.distinct);
-        fmt.close();
+
+        fmt.keyword_true("distinct", self.distinct).close();
 
         match self.null_treatment {
             Some(NullTreatment::IgnoreNulls) => {
@@ -85,10 +87,11 @@ impl Function {
             }
             None => {}
         }
+
         if let Some(filter) = &self.filter {
-            let argument = filter.python_repr(py)?;
-            fmt.append_call("filter", &argument);
+            fmt.append_call("filter").positional(filter.python_repr(py)?);
         }
+
         Ok(fmt)
     }
 }
