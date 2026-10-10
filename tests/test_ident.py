@@ -140,24 +140,6 @@ class TestUnquote:
 
 
 class TestEqualityHashReprFrozen:
-    def test_equal_when_parts_match(self):
-        assert Ident("t", "id") == Ident("t", "id")
-        assert Ident("t", "id") != Ident("t", "name")
-
-    def test_quoted_is_not_unquoted(self):
-        assert Ident("id") != Ident(Unquote("id"))
-        assert hash(Ident("id")) != hash(Ident(Unquote("id")))
-
-    def test_asterisk_instances_are_equal(self):
-        assert Asterisk() == Asterisk()
-        assert Ident(Asterisk) == Ident(Asterisk())
-
-    def test_usable_as_dict_key(self):
-        mapping = {Ident("t", "id"): 1, Unquote("id"): 2, Asterisk(): 3}
-        assert mapping[Ident("t", "id")] == 1
-        assert mapping[Unquote("id")] == 2
-        assert mapping[Asterisk()] == 3
-
     def test_repr(self):
         assert repr(Ident("schema", "table")) == 'Ident("schema", "table")'
         assert repr(Ident("t", Asterisk)) == 'Ident("t", Asterisk)'

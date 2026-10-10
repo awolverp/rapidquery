@@ -118,6 +118,16 @@ impl PyTupleExpr {
     }
 }
 
+impl PyUnaryExpr {
+    pub(super) fn new_base(op: super::enum_::UnaryOp, expr: ExprInner) -> PyExpr {
+        let inner = super::enum_::Unary {
+            op,
+            expr: Box::new(expr),
+        };
+        PyExpr(inner.into())
+    }
+}
+
 #[pyo3::pymethods]
 impl PyUnaryExpr {
     #[new]
@@ -127,11 +137,8 @@ impl PyUnaryExpr {
             return rapidquery_macros::pyerr!(Err(PyValueError), "unknown unary operator {:?}", operator);
         };
 
-        let inner = super::enum_::Unary {
-            op,
-            expr: Box::new(expr.0),
-        };
-        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
+        let base = Self::new_base(op, expr.0);
+        Ok(pyo3::PyClassInitializer::from(base).add_subclass(Self))
     }
 
     fn get_operator(slf: pyo3::PyRef<'_, Self>) -> &'static str {
@@ -145,6 +152,17 @@ impl PyUnaryExpr {
     }
 }
 
+impl PyBinaryExpr {
+    pub(super) fn new_base(left: ExprInner, op: super::enum_::BinaryOp, right: ExprInner) -> PyExpr {
+        let inner = super::enum_::Binary {
+            left: Box::new(left),
+            op,
+            right: Box::new(right),
+        };
+        PyExpr(inner.into())
+    }
+}
+
 #[pyo3::pymethods]
 impl PyBinaryExpr {
     #[new]
@@ -154,12 +172,8 @@ impl PyBinaryExpr {
         operator: &str,
         right: LiteralExprExtractor,
     ) -> pyo3::PyClassInitializer<Self> {
-        let inner = super::enum_::Binary {
-            left: Box::new(left.0),
-            op: super::enum_::BinaryOp::parse(operator),
-            right: Box::new(right.0),
-        };
-        pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self)
+        let base = Self::new_base(left.0, super::enum_::BinaryOp::parse(operator), right.0);
+        pyo3::PyClassInitializer::from(base).add_subclass(Self)
     }
 
     fn get_left(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
@@ -178,15 +192,8 @@ impl PyBinaryExpr {
     }
 }
 
-#[pyo3::pymethods]
 impl PyIsExpr {
-    #[new]
-    #[pyo3(signature = (expr, kind, /, *, negated = false))]
-    fn __new__(
-        expr: LiteralExprExtractor,
-        kind: &str,
-        negated: bool,
-    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+    pub(super) fn new_base(expr: ExprInner, kind: &str, negated: bool) -> pyo3::PyResult<PyExpr> {
         let Some(kind) = super::enum_::IsKind::parse(kind) else {
             return rapidquery_macros::pyerr!(
                 Err(PyValueError),
@@ -196,11 +203,25 @@ impl PyIsExpr {
         };
 
         let inner = super::enum_::Is {
-            expr: Box::new(expr.0),
+            expr: Box::new(expr),
             negated,
             kind,
         };
-        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
+        Ok(PyExpr(inner.into()))
+    }
+}
+
+#[pyo3::pymethods]
+impl PyIsExpr {
+    #[new]
+    #[pyo3(signature = (expr, kind, /, *, negated = false))]
+    fn __new__(
+        expr: LiteralExprExtractor,
+        kind: &str,
+        negated: bool,
+    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+        let base = Self::new_base(expr.0, kind, negated)?;
+        Ok(pyo3::PyClassInitializer::from(base).add_subclass(Self))
     }
 
     fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
@@ -219,6 +240,17 @@ impl PyIsExpr {
     }
 }
 
+impl PyIsDistinctFromExpr {
+    pub(super) fn new_base(left: ExprInner, right: ExprInner, negated: bool) -> PyExpr {
+        let inner = super::enum_::IsDistinctFrom {
+            left: Box::new(left),
+            right: Box::new(right),
+            negated,
+        };
+        PyExpr(inner.into())
+    }
+}
+
 #[pyo3::pymethods]
 impl PyIsDistinctFromExpr {
     #[new]
@@ -228,12 +260,8 @@ impl PyIsDistinctFromExpr {
         right: LiteralExprExtractor,
         negated: bool,
     ) -> pyo3::PyClassInitializer<Self> {
-        let inner = super::enum_::IsDistinctFrom {
-            left: Box::new(left.0),
-            right: Box::new(right.0),
-            negated,
-        };
-        pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self)
+        let base = Self::new_base(left.0, right.0, negated);
+        pyo3::PyClassInitializer::from(base).add_subclass(Self)
     }
 
     fn get_left(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
@@ -252,6 +280,22 @@ impl PyIsDistinctFromExpr {
     }
 }
 
+impl PyInListExpr {
+    pub(super) fn new_base(expr: ExprInner, list: alias::BoundObject<'_>, negated: bool) -> pyo3::PyResult<PyExpr> {
+        let mut items = Vec::new();
+        for item in list.try_iter()? {
+            items.push(item?.extract::<LiteralExprExtractor>()?.0);
+        }
+
+        let inner = super::enum_::InList {
+            expr: Box::new(expr),
+            list: items,
+            negated,
+        };
+        Ok(PyExpr(inner.into()))
+    }
+}
+
 #[pyo3::pymethods]
 impl PyInListExpr {
     #[new]
@@ -261,17 +305,8 @@ impl PyInListExpr {
         list: alias::BoundObject<'_>,
         negated: bool,
     ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
-        let mut items = Vec::new();
-        for item in list.try_iter()? {
-            items.push(item?.extract::<LiteralExprExtractor>()?.0);
-        }
-
-        let inner = super::enum_::InList {
-            expr: Box::new(expr.0),
-            list: items,
-            negated,
-        };
-        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
+        let base = Self::new_base(expr.0, list, negated)?;
+        Ok(pyo3::PyClassInitializer::from(base).add_subclass(Self))
     }
 
     fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
@@ -301,6 +336,18 @@ impl PyInListExpr {
     }
 }
 
+impl PyBetweenExpr {
+    pub(super) fn new_base(expr: ExprInner, low: ExprInner, high: ExprInner, negated: bool) -> PyExpr {
+        let inner = super::enum_::Between {
+            expr: Box::new(expr),
+            negated,
+            low: Box::new(low),
+            high: Box::new(high),
+        };
+        PyExpr(inner.into())
+    }
+}
+
 #[pyo3::pymethods]
 impl PyBetweenExpr {
     #[new]
@@ -311,13 +358,8 @@ impl PyBetweenExpr {
         high: LiteralExprExtractor,
         negated: bool,
     ) -> pyo3::PyClassInitializer<Self> {
-        let inner = super::enum_::Between {
-            expr: Box::new(expr.0),
-            negated,
-            low: Box::new(low.0),
-            high: Box::new(high.0),
-        };
-        pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self)
+        let base = Self::new_base(expr.0, low.0, high.0, negated);
+        pyo3::PyClassInitializer::from(base).add_subclass(Self)
     }
 
     fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
@@ -341,6 +383,25 @@ impl PyBetweenExpr {
     }
 }
 
+impl PyLikeExpr {
+    pub(super) fn new_base(
+        expr: ExprInner,
+        pattern: alias::BoundObject<'_>,
+        negated: bool,
+        case_sensitive: bool,
+        escape: Option<char>,
+    ) -> pyo3::PyResult<PyExpr> {
+        let inner = super::enum_::Like {
+            case_sensitive,
+            negated,
+            expr: Box::new(expr),
+            pattern: extract_like_pattern(pattern.as_borrowed())?,
+            escape,
+        };
+        Ok(PyExpr(inner.into()))
+    }
+}
+
 #[pyo3::pymethods]
 impl PyLikeExpr {
     #[new]
@@ -352,14 +413,8 @@ impl PyLikeExpr {
         case_sensitive: bool,
         escape: Option<char>,
     ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
-        let inner = super::enum_::Like {
-            case_sensitive,
-            negated,
-            expr: Box::new(expr.0),
-            pattern: extract_like_pattern(pattern.as_borrowed())?,
-            escape,
-        };
-        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
+        let base = Self::new_base(expr.0, pattern, negated, case_sensitive, escape)?;
+        Ok(pyo3::PyClassInitializer::from(base).add_subclass(Self))
     }
 
     fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
@@ -399,6 +454,17 @@ impl PyLikeExpr {
     }
 }
 
+impl PySimilarToExpr {
+    pub(super) fn new_base(expr: ExprInner, pattern: ExprInner, negated: bool) -> PyExpr {
+        let inner = super::enum_::SimilarTo {
+            negated,
+            expr: Box::new(expr),
+            pattern: Box::new(pattern),
+        };
+        PyExpr(inner.into())
+    }
+}
+
 #[pyo3::pymethods]
 impl PySimilarToExpr {
     #[new]
@@ -408,12 +474,8 @@ impl PySimilarToExpr {
         pattern: LiteralExprExtractor,
         negated: bool,
     ) -> pyo3::PyClassInitializer<Self> {
-        let inner = super::enum_::SimilarTo {
-            negated,
-            expr: Box::new(expr.0),
-            pattern: Box::new(pattern.0),
-        };
-        pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self)
+        let base = Self::new_base(expr.0, pattern.0, negated);
+        pyo3::PyClassInitializer::from(base).add_subclass(Self)
     }
 
     fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
@@ -429,6 +491,17 @@ impl PySimilarToExpr {
     fn get_negated(slf: pyo3::PyRef<'_, Self>) -> bool {
         let inner = Self::inner(&slf);
         inner.negated
+    }
+}
+
+impl PyRLikeExpr {
+    pub(super) fn new_base(expr: ExprInner, pattern: ExprInner, negated: bool) -> PyExpr {
+        let inner = super::enum_::RLike {
+            negated,
+            expr: Box::new(expr),
+            pattern: Box::new(pattern),
+        };
+        PyExpr(inner.into())
     }
 }
 
@@ -441,12 +514,8 @@ impl PyRLikeExpr {
         pattern: LiteralExprExtractor,
         negated: bool,
     ) -> pyo3::PyClassInitializer<Self> {
-        let inner = super::enum_::RLike {
-            negated,
-            expr: Box::new(expr.0),
-            pattern: Box::new(pattern.0),
-        };
-        pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self)
+        let base = Self::new_base(expr.0, pattern.0, negated);
+        pyo3::PyClassInitializer::from(base).add_subclass(Self)
     }
 
     fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
@@ -465,6 +534,21 @@ impl PyRLikeExpr {
     }
 }
 
+impl PyCastExpr {
+    pub(super) fn new_base(expr: ExprInner, data_type_name: &str, kind: &str) -> pyo3::PyResult<PyExpr> {
+        let Some(kind) = super::enum_::CastKind::parse(kind) else {
+            return rapidquery_macros::pyerr!(Err(PyValueError), "unknown cast kind {:?}", kind);
+        };
+
+        let inner = super::enum_::Cast {
+            kind,
+            expr: Box::new(expr),
+            data_type_name: data_type_name.into(),
+        };
+        Ok(PyExpr(inner.into()))
+    }
+}
+
 #[pyo3::pymethods]
 impl PyCastExpr {
     #[new]
@@ -474,16 +558,8 @@ impl PyCastExpr {
         data_type_name: &str,
         kind: &str,
     ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
-        let Some(kind) = super::enum_::CastKind::parse(kind) else {
-            return rapidquery_macros::pyerr!(Err(PyValueError), "unknown cast kind {:?}", kind);
-        };
-
-        let inner = super::enum_::Cast {
-            kind,
-            expr: Box::new(expr.0),
-            data_type_name: data_type_name.into(),
-        };
-        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
+        let base = Self::new_base(expr.0, data_type_name, kind)?;
+        Ok(pyo3::PyClassInitializer::from(base).add_subclass(Self))
     }
 
     fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
@@ -502,15 +578,8 @@ impl PyCastExpr {
     }
 }
 
-#[pyo3::pymethods]
 impl PyTrimExpr {
-    #[new]
-    #[pyo3(signature = (expr, /, *, r#where = "BOTH", characters = None))]
-    fn __new__(
-        expr: LiteralExprExtractor,
-        r#where: &str,
-        characters: Option<LiteralExprExtractor>,
-    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+    pub(super) fn new_base(expr: ExprInner, r#where: &str, characters: Option<ExprInner>) -> pyo3::PyResult<PyExpr> {
         let Some(where_) = super::enum_::TrimWhere::parse(r#where) else {
             return rapidquery_macros::pyerr!(
                 Err(PyValueError),
@@ -520,11 +589,25 @@ impl PyTrimExpr {
         };
 
         let inner = super::enum_::Trim {
-            expr: Box::new(expr.0),
+            expr: Box::new(expr),
             where_,
-            characters: characters.map(|LiteralExprExtractor(e)| Box::new(e)),
+            characters: characters.map(Box::new),
         };
-        Ok(pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self))
+        Ok(PyExpr(inner.into()))
+    }
+}
+
+#[pyo3::pymethods]
+impl PyTrimExpr {
+    #[new]
+    #[pyo3(signature = (expr, /, *, r#where = "BOTH", characters = None))]
+    fn __new__(
+        expr: LiteralExprExtractor,
+        r#where: &str,
+        characters: Option<LiteralExprExtractor>,
+    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+        let base = Self::new_base(expr.0, r#where, characters.map(|LiteralExprExtractor(e)| e))?;
+        Ok(pyo3::PyClassInitializer::from(base).add_subclass(Self))
     }
 
     fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
@@ -546,16 +629,23 @@ impl PyTrimExpr {
     }
 }
 
+impl PyCollateExpr {
+    pub(super) fn new_base(expr: ExprInner, collation: super::enum_::Ident) -> PyExpr {
+        let inner = super::enum_::Collate {
+            expr: Box::new(expr),
+            collation,
+        };
+        PyExpr(inner.into())
+    }
+}
+
 #[pyo3::pymethods]
 impl PyCollateExpr {
     #[new]
     #[pyo3(signature = (expr, collation, /))]
     fn __new__(expr: LiteralExprExtractor, collation: IdentExtractor) -> pyo3::PyClassInitializer<Self> {
-        let inner = super::enum_::Collate {
-            expr: Box::new(expr.0),
-            collation: collation.0,
-        };
-        pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self)
+        let base = Self::new_base(expr.0, collation.0);
+        pyo3::PyClassInitializer::from(base).add_subclass(Self)
     }
 
     fn get_expr(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {

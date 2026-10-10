@@ -64,6 +64,7 @@ pub fn new_pynone<'py>(py: pyo3::Python<'py>) -> pyo3::Bound<'py, pyo3::PyAny> {
 /// # Safety
 /// The items returned by the iterator must be owned, not borrowed.
 #[inline]
+#[cfg_attr(feature = "nightly", optimize(speed))]
 pub unsafe fn iterator_to_tuple<'py, I: Iterator<Item = pyo3::PyResult<*mut pyo3::ffi::PyObject>>>(
     py: pyo3::Python<'py>,
     len: isize,

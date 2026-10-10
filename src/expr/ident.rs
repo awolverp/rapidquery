@@ -99,33 +99,6 @@ impl PyIdent {
             .map(|part| ident_part_to_pyobject(py, part).map(|bound| bound.unbind()))
             .collect()
     }
-
-    fn __hash__(slf: pyo3::PyRef<'_, Self>) -> u64 {
-        use std::hash::DefaultHasher;
-        use std::hash::Hash;
-        use std::hash::Hasher;
-
-        let mut state = DefaultHasher::default();
-        let inner = Self::inner(&slf);
-        inner.hash(&mut state);
-        state.finish()
-    }
-
-    fn __eq__(slf: pyo3::PyRef<'_, Self>, other: pyo3::PyRef<'_, Self>) -> bool {
-        if slf.as_ptr() == other.as_ptr() {
-            return true;
-        }
-
-        Self::inner(&slf).eq(Self::inner(&other))
-    }
-
-    fn __ne__(slf: pyo3::PyRef<'_, Self>, other: pyo3::PyRef<'_, Self>) -> bool {
-        if slf.as_ptr() == other.as_ptr() {
-            return true;
-        }
-
-        Self::inner(&slf).ne(Self::inner(&other))
-    }
 }
 
 /// Identifier body written with no quote characters.

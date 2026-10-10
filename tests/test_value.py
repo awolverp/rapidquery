@@ -118,25 +118,3 @@ class TestValueToSql:
     def test_propagates_serializer_type_error(self):
         with pytest.raises(TypeError):
             Value("not an int", IntegerSerializer()).to_sql(PostgreSql)
-
-
-class TestValueEquality:
-    def test_equal_when_object_and_serializer_match(self):
-        assert Value(1) == Value(1)
-        assert hash(Value(1)) == hash(Value(1))
-
-    def test_unequal_when_serializer_differs(self):
-        assert Value(1) != Value(1, StringSerializer())
-
-    def test_unequal_when_object_differs(self):
-        assert Value(1) != Value(2)
-
-    def test_not_equal_to_bare_object(self):
-        assert Value(1) != 1
-
-    def test_unhashable_object_raises(self):
-        with pytest.raises(TypeError):
-            hash(Value({"a": 1}))
-
-    def test_repr_includes_object_and_serializer(self):
-        assert repr(Value(42)) == "Value(42, IntegerSerializer())"

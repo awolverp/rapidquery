@@ -15,8 +15,8 @@ class Expr:
 
     Examples:
         >>> from rapidquery.dialect import Sqlite
-        >>> from rapidquery.expr import BinaryExpr, Ident
-        >>> BinaryExpr(Ident("age"), ">", 18).to_sql(Sqlite)
+        >>> from rapidquery.expr import Ident
+        >>> (Ident("age") > 18).to_sql(Sqlite)
         '"age" > 18'
     """
 
@@ -66,6 +66,245 @@ class Expr:
             >>> Value(1).prepare(PostgreSql)
             ('$1', (1,))
         """
+
+    def __add__(self, other: object, /) -> BinaryExpr:
+        """SQL ``self + other``."""
+
+    def __radd__(self, other: object, /) -> BinaryExpr:
+        """SQL ``other + self``, when the left operand is not an expression."""
+
+    def __sub__(self, other: object, /) -> BinaryExpr:
+        """SQL ``self - other``."""
+
+    def __rsub__(self, other: object, /) -> BinaryExpr:
+        """SQL ``other - self``, when the left operand is not an expression."""
+
+    def __mul__(self, other: object, /) -> BinaryExpr:
+        """SQL ``self * other``."""
+
+    def __rmul__(self, other: object, /) -> BinaryExpr:
+        """SQL ``other * self``, when the left operand is not an expression."""
+
+    def __truediv__(self, other: object, /) -> BinaryExpr:
+        """SQL ``self / other``."""
+
+    def __rtruediv__(self, other: object, /) -> BinaryExpr:
+        """SQL ``other / self``, when the left operand is not an expression."""
+
+    def __mod__(self, other: object, /) -> BinaryExpr:
+        """SQL ``self % other``."""
+
+    def __rmod__(self, other: object, /) -> BinaryExpr:
+        """SQL ``other % self``, when the left operand is not an expression."""
+
+    def __eq__(self, other: object, /) -> BinaryExpr:  # pyright: ignore[reportIncompatibleMethodOverride]
+        """SQL ``self = other``."""
+
+    def __ne__(self, other: object, /) -> BinaryExpr:  # pyright: ignore[reportIncompatibleMethodOverride]
+        """SQL ``self <> other``."""
+
+    def __lt__(self, other: object, /) -> BinaryExpr:
+        """SQL ``self < other``."""
+
+    def __le__(self, other: object, /) -> BinaryExpr:
+        """SQL ``self <= other``."""
+
+    def __gt__(self, other: object, /) -> BinaryExpr:
+        """SQL ``self > other``."""
+
+    def __ge__(self, other: object, /) -> BinaryExpr:
+        """SQL ``self >= other``."""
+
+    def __and__(self, other: object, /) -> BinaryExpr:
+        """SQL ``self AND other``. Python ``&`` is logical AND, not bitwise."""
+
+    def __rand__(self, other: object, /) -> BinaryExpr:
+        """SQL ``other AND self``. Python ``&`` is logical AND, not bitwise."""
+
+    def __or__(self, other: object, /) -> BinaryExpr:
+        """SQL ``self OR other``. Python ``|`` is logical OR, not bitwise."""
+
+    def __ror__(self, other: object, /) -> BinaryExpr:
+        """SQL ``other OR self``. Python ``|`` is logical OR, not bitwise."""
+
+    def bit_and(self, other: object, /) -> BinaryExpr:
+        """SQL bitwise ``self & other``."""
+
+    def bit_or(self, other: object, /) -> BinaryExpr:
+        """SQL bitwise ``self | other``."""
+
+    def bit_xor(self, other: object, /) -> BinaryExpr:
+        """SQL bitwise ``self ^ other``."""
+
+    def __lshift__(self, other: object, /) -> BinaryExpr:
+        """SQL ``self << other``."""
+
+    def __rlshift__(self, other: object, /) -> BinaryExpr:
+        """SQL ``other << self``, when the left operand is not an expression."""
+
+    def __rshift__(self, other: object, /) -> BinaryExpr:
+        """SQL ``self >> other``."""
+
+    def __rrshift__(self, other: object, /) -> BinaryExpr:
+        """SQL ``other >> self``, when the left operand is not an expression."""
+
+    def concat(self, other: object, /) -> BinaryExpr:
+        """SQL ``self || other``. Dialects may rewrite ``||`` as a function or as ``+``."""
+
+    def __neg__(self) -> UnaryExpr:
+        """SQL ``-self``."""
+
+    def __pos__(self) -> UnaryExpr:
+        """SQL ``+self``."""
+
+    def not_(self) -> UnaryExpr:
+        """SQL ``NOT self``."""
+
+    def bit_not(self) -> UnaryExpr:
+        """SQL ``~self``. This is not bound to Python ``~``."""
+
+    def between(self, low: object, high: object, /) -> BetweenExpr:
+        """SQL ``self BETWEEN low AND high``."""
+
+    def not_between(self, low: object, high: object, /) -> BetweenExpr:
+        """SQL ``self NOT BETWEEN low AND high``."""
+
+    def is_(self, kind: None | bool | str, /) -> IsExpr:
+        """
+        SQL ``self IS kind``.
+
+        ``None`` is ``IS NULL``. ``True`` and ``False`` are ``IS TRUE`` and ``IS FALSE``.
+        A string is ``NULL``, ``TRUE``, ``FALSE``, or ``UNKNOWN``.
+
+        Raises:
+            TypeError: ``kind`` is not ``None``, ``bool``, or ``str``.
+            ValueError: ``kind`` is a string and not one of those four words.
+        """
+
+    def is_not(self, kind: None | bool | str, /) -> IsExpr:
+        """
+        SQL ``self IS NOT kind``.
+
+        ``None`` is ``IS NOT NULL``. ``True`` and ``False`` are ``IS NOT TRUE`` and
+        ``IS NOT FALSE``. A string is ``NULL``, ``TRUE``, ``FALSE``, or ``UNKNOWN``.
+
+        Raises:
+            TypeError: ``kind`` is not ``None``, ``bool``, or ``str``.
+            ValueError: ``kind`` is a string and not one of those four words.
+        """
+
+    def is_distinct_from(self, other: object, /) -> IsDistinctFromExpr:
+        """SQL ``self IS DISTINCT FROM other``."""
+
+    def is_not_distinct_from(self, other: object, /) -> IsDistinctFromExpr:
+        """SQL ``self IS NOT DISTINCT FROM other``."""
+
+    def in_(self, list: Iterable[object], /) -> InListExpr:
+        """SQL ``self IN (list)``."""
+
+    def not_in(self, list: Iterable[object], /) -> InListExpr:
+        """SQL ``self NOT IN (list)``."""
+
+    def like(self, pattern: object, /, *, escape: str | None = None) -> LikeExpr:
+        """
+        SQL ``self LIKE pattern``.
+
+        A list or tuple of patterns is ``LIKE ANY``.
+
+        Args:
+            pattern: One pattern, or a list or tuple for ``ANY``.
+            escape: One escape character, or ``None``.
+
+        Raises:
+            TypeError: ``escape`` is not one character.
+        """
+
+    def not_like(self, pattern: object, /, *, escape: str | None = None) -> LikeExpr:
+        """
+        SQL ``self NOT LIKE pattern``.
+
+        A list or tuple of patterns is ``NOT LIKE ANY``.
+
+        Args:
+            pattern: One pattern, or a list or tuple for ``ANY``.
+            escape: One escape character, or ``None``.
+
+        Raises:
+            TypeError: ``escape`` is not one character.
+        """
+
+    def ilike(self, pattern: object, /, *, escape: str | None = None) -> LikeExpr:
+        """
+        SQL ``self ILIKE pattern``.
+
+        A list or tuple of patterns is ``ILIKE ANY``.
+
+        Args:
+            pattern: One pattern, or a list or tuple for ``ANY``.
+            escape: One escape character, or ``None``.
+
+        Raises:
+            TypeError: ``escape`` is not one character.
+        """
+
+    def not_ilike(self, pattern: object, /, *, escape: str | None = None) -> LikeExpr:
+        """
+        SQL ``self NOT ILIKE pattern``.
+
+        A list or tuple of patterns is ``NOT ILIKE ANY``.
+
+        Args:
+            pattern: One pattern, or a list or tuple for ``ANY``.
+            escape: One escape character, or ``None``.
+
+        Raises:
+            TypeError: ``escape`` is not one character.
+        """
+
+    def similar_to(self, pattern: object, /) -> SimilarToExpr:
+        """SQL ``self SIMILAR TO pattern``."""
+
+    def not_similar_to(self, pattern: object, /) -> SimilarToExpr:
+        """SQL ``self NOT SIMILAR TO pattern``."""
+
+    def rlike(self, pattern: object, /) -> RLikeExpr:
+        """SQL regex match of ``self`` against ``pattern``."""
+
+    def not_rlike(self, pattern: object, /) -> RLikeExpr:
+        """Negated SQL regex match of ``self`` against ``pattern``."""
+
+    def cast_as(self, data_type_name: str, /) -> CastExpr:
+        """SQL ``CAST(self AS data_type_name)``."""
+
+    def try_cast_as(self, data_type_name: str, /) -> CastExpr:
+        """SQL ``TRY_CAST(self AS data_type_name)``."""
+
+    def collate(
+        self,
+        collation: str | Unquote | Ident | Asterisk | type[Asterisk],
+        /,
+    ) -> CollateExpr:
+        """SQL ``self COLLATE collation``. The collation is an identifier."""
+
+    def trim(
+        self,
+        *,
+        where: typing.Literal["BOTH", "LEADING", "TRAILING"] | str = "BOTH",
+        characters: object | None = None,
+    ) -> TrimExpr:
+        """
+        SQL ``TRIM``, ``LTRIM``, or ``RTRIM`` of this expression.
+
+        Args:
+            where: ``BOTH``, ``LEADING``, or ``TRAILING``.
+            characters: Characters to strip, or ``None`` for spaces.
+
+        Raises:
+            ValueError: ``where`` is not one of those three words.
+        """
+
+    def __repr__(self) -> str:
+        """Constructor-style text, such as ``Ident("id")``."""
 
 @final
 class Unquote:
@@ -165,9 +404,6 @@ class Ident(Expr):
             IndexError: `index` is outside the parts.
         """
 
-    def __hash__(self) -> int: ...
-    def __eq__(self, value: object, /) -> bool: ...
-    def __ne__(self, value: object, /) -> bool: ...
     def to_list(self) -> list[str | Unquote | Asterisk]:
         """
         Copy the parts into a list.
@@ -219,10 +455,6 @@ class Value(Expr, typing.Generic[_T]):
 
     def get_serializer(self) -> Serializer[_T]:
         """Serializer used by `to_sql`. `prepare` does not call it."""
-
-    def __hash__(self) -> int: ...
-    def __eq__(self, value: object, /) -> bool: ...
-    def __ne__(self, value: object, /) -> bool: ...
 
 @final
 class Function(Expr):
