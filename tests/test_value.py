@@ -41,17 +41,13 @@ INFER_TEST_CASES: dict[type[Serializer], list[object]] = {
     FloatSerializer: [1.0, decimal.Decimal("1.0"), decimal.Decimal(1)],
     BooleanSerializer: [True, False],
     StringSerializer: ["string", ValidEnum.TEST],
-    UuidSerializer: [uuid.uuid4()],
+    UuidSerializer: [uuid.UUID("58073209-2238-4d99-9e74-1bc21110393b")],
     BytesSerializer: [b"bytes"],
     BitSerializer: [],
-    JSONSerializer: [
-        [],
-        {},
-        {"OK": 1},
-    ],
-    DateSerializer: [datetime.datetime.now(tz=datetime.UTC).date()],
-    TimeSerializer: [datetime.datetime.now(tz=datetime.UTC).time()],
-    DatetimeSerializer: [datetime.datetime.now(tz=datetime.UTC)],
+    JSONSerializer: [[], {}, {"OK": 1}],
+    DateSerializer: [datetime.date(2026, 10, 3)],
+    TimeSerializer: [datetime.time(10, 23)],
+    DatetimeSerializer: [datetime.datetime(2026, 10, 3, 23, 42, 34)],
     InetSerializer: [],
     MacAddressSerializer: [],
     UnspecifiedSerializer: [datetime.timezone.utc, InvalidEnum.TEST],
@@ -59,8 +55,8 @@ INFER_TEST_CASES: dict[type[Serializer], list[object]] = {
 }
 
 if USING_ORJSON:
-    INFER_TEST_CASES[JSONSerializer].append({"OK": datetime.datetime.now()})
-    INFER_TEST_CASES[JSONSerializer].append({"OK": uuid.uuid4()})
+    INFER_TEST_CASES[JSONSerializer].append({"OK": datetime.datetime(2026, 10, 3, 23, 42, 34)})
+    INFER_TEST_CASES[JSONSerializer].append({"OK": uuid.UUID("58073209-2238-4d99-9e74-1bc21110393b")})
 
 
 class TestValueConstruction:
