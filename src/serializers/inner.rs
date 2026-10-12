@@ -134,11 +134,15 @@ impl SerializerType {
         }
 
         // __serializer__ protocol
-        rapidquery_macros::customization_protocol! {
-            if bound(c"__serializer__") == crate::typeref::SERIALIZER_TYPE {
+        rapidquery_macros::cust_protocol! {
+            on: bound,
+            attr: c"__serializer__",
+            ty: crate::typeref::SERIALIZER_TYPE,
+            matches: {
                 let serializer = protocol.cast_into_unchecked::<super::PySerializer>();
                 return Ok(serializer.get().0.clone());
-            } else {
+            },
+            mismatches: {
                 return rapidquery_macros::pyerr!(
                     Err(PyTypeError),
                     "__serializer__ protocol attribute returns non-serializer type: {}",

@@ -107,11 +107,15 @@ fn extract_expr(
     }
 
     // __expr__ protocol
-    rapidquery_macros::customization_protocol! {
-        if obj(c"__expr__") == crate::typeref::EXPR_TYPE {
+    rapidquery_macros::cust_protocol! {
+        on: obj,
+        attr: c"__expr__",
+        ty: crate::typeref::EXPR_TYPE,
+        matches: {
             let expr = protocol.cast_into_unchecked::<super::base::PyExpr>();
             return Ok(expr.get().0.clone());
-        } else {
+        },
+        mismatches: {
             return rapidquery_macros::pyerr!(
                 Err(PyTypeError),
                 "__expr__ protocol attribute returns non-expr type: {}",
@@ -202,8 +206,11 @@ pub(super) fn extract_ident_argument(
     }
 
     // __ident__ protocol
-    rapidquery_macros::customization_protocol! {
-        if obj(c"__ident__") == crate::typeref::IDENT_TYPE {
+    rapidquery_macros::cust_protocol! {
+        on: obj,
+        attr: c"__ident__",
+        ty: crate::typeref::IDENT_TYPE,
+        matches: {
             let expr = protocol.cast_into_unchecked::<super::base::PyExpr>();
 
             match &expr.get().0 {
@@ -212,7 +219,8 @@ pub(super) fn extract_ident_argument(
                 }
                 _ => unreachable!("Ident instance always holds ExprInner::Ident"),
             }
-        } else {
+        },
+        mismatches: {
             return rapidquery_macros::pyerr!(
                 Err(PyTypeError),
                 "__ident__ protocol attribute returns non-ident type: {}",

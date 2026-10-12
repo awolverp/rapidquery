@@ -214,30 +214,54 @@ struct CustomizationProtocolInput {
 
 impl Parse for CustomizationProtocolInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        // if $bound:ident
-        input.parse::<syn::Token![if]>()?;
+        // on: $bound:ident,
+        let on_label: syn::Ident = input.parse()?;
+        if on_label != "on" {
+            return Err(input.error("expected `on`"));
+        }
+        input.parse::<syn::Token![:]>()?;
         let bound_object: syn::Ident = input.parse()?;
+        input.parse::<syn::Token![,]>()?;
 
-        // ...($attribute_name:cstr)
-        let content;
-        syn::parenthesized!(content in input);
+        // attr: $attribute_name:cstr,
+        let attr_label: syn::Ident = input.parse()?;
+        if attr_label != "attr" {
+            return Err(input.error("expected `attr`"));
+        }
+        input.parse::<syn::Token![:]>()?;
+        let attribute_name: syn::LitCStr = input.parse()?;
+        input.parse::<syn::Token![,]>()?;
 
-        let attribute_name: syn::LitCStr = content.parse()?;
-
-        // ...== $pyobject_type:path
-        input.parse::<syn::Token![==]>()?;
+        // ty: $pyobject_type:path,
+        let ty_label: syn::Ident = input.parse()?;
+        if ty_label != "ty" {
+            return Err(input.error("expected `ty`"));
+        }
+        input.parse::<syn::Token![:]>()?;
         let pyobject_type: syn::Path = input.parse()?;
+        input.parse::<syn::Token![,]>()?;
 
-        // ...{
-        //  $ok_expr:expr
-        // }
+        // matches: $ok_expr:expr,
+        let matches_label: syn::Ident = input.parse()?;
+        if matches_label != "matches" {
+            return Err(input.error("expected `matches`"));
+        }
+        input.parse::<syn::Token![:]>()?;
         let ok_expr: syn::Expr = input.parse()?;
+        input.parse::<syn::Token![,]>()?;
 
-        // else {
-        //  $err_expr:expr
-        // }
-        input.parse::<syn::Token![else]>()?;
+        // mismatches: $err_expr:expr
+        let mismatches_label: syn::Ident = input.parse()?;
+        if mismatches_label != "mismatches" {
+            return Err(input.error("expected `mismatches`"));
+        }
+        input.parse::<syn::Token![:]>()?;
         let err_expr: syn::Expr = input.parse()?;
+
+        // Optional trailing comma
+        if input.peek(syn::Token![,]) {
+            input.parse::<syn::Token![,]>()?;
+        }
 
         Ok(Self {
             bound_object,
@@ -256,9 +280,13 @@ impl Parse for CustomizationProtocolInput {
 /// For example:
 /// ```ignore
 /// customization_protocol! {
-///     if bound(c"__serializer__") == crate::typeref::SERIALIZER_TYPE {
+///     on: bound,
+///     attr: c"__serializer__",
+///     ty: crate::typeref::SERIALIZER_TYPE,
+///     matches: {
 ///         // OK expr
-///     } else {
+///     },
+///     mismatches: {
 ///         // ERR expr
 ///     }
 /// }
@@ -277,6 +305,7 @@ impl Parse for CustomizationProtocolInput {
 ///             if pyo3::ffi::PyErr_ExceptionMatches(pyo3::ffi::PyExc_AttributeError) != 1 {
 ///                 return Err(pyo3::PyErr::fetch(bound.py()));
 ///             } else {
+///                 pyo3::ffi::PyErr_Clear();
 ///                 None
 ///             }
 ///         } else {
@@ -294,7 +323,7 @@ impl Parse for CustomizationProtocolInput {
 /// }
 /// ```
 #[proc_macro]
-pub fn customization_protocol(item: TokenStream) -> TokenStream {
+pub fn cust_protocol(item: TokenStream) -> TokenStream {
     let CustomizationProtocolInput {
         bound_object,
         attribute_name,
