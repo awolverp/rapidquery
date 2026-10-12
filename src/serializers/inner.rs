@@ -1,6 +1,7 @@
 use crate::dialect::PyDialect;
 use crate::internal::alias;
 use crate::internal::modules;
+use crate::internal::utils;
 
 /// A thin enum which specifies the serializer type.
 ///
@@ -69,7 +70,7 @@ impl std::hash::Hash for SerializerType {
 }
 
 impl SerializerType {
-    pub fn infer_bound(bound: &alias::BoundObject) -> Self {
+    pub fn infer_bound(bound: &alias::BoundObject) -> pyo3::PyResult<Self> {
         unsafe {
             let object_ptr = bound.as_ptr();
             let object_type_ptr = pyo3::ffi::Py_TYPE(object_ptr);
@@ -81,59 +82,73 @@ impl SerializerType {
             // So it's not important what [`Serializer`] is.
             // `None` values are handled by [`crate::sql::SqlWriter`]
             if pyo3::ffi::Py_IsNone(object_ptr) == 1 || pyo3::ffi::PyBool_Check(object_ptr) == 1 {
-                return Self::Boolean;
+                return Ok(Self::Boolean);
             }
 
             // float / decimal -> Float
             if pyo3::ffi::PyFloat_CheckExact(object_ptr) == 1 || object_type_ptr == crate::typeref::STD_DECIMAL_TYPE {
-                return Self::Float;
+                return Ok(Self::Float);
             }
 
-            // int -> Integer
-            if pyo3::ffi::PyLong_CheckExact(object_ptr) == 1 {
-                return Self::Integer;
+            // int/enum.IntEnum -> Integer
+            if pyo3::ffi::PyLong_Check(object_ptr) == 1 {
+                return Ok(Self::Integer);
             }
 
             // str/enum.StrEnum -> String
             if pyo3::ffi::PyUnicode_Check(object_ptr) == 1 {
-                return Self::String;
+                return Ok(Self::String);
             }
 
             // bytes -> Bytes
             if pyo3::ffi::PyBytes_CheckExact(object_ptr) == 1 {
-                return Self::Bytes;
+                return Ok(Self::Bytes);
             }
 
             // date -> Date
             if object_type_ptr == crate::typeref::STD_DATE_TYPE {
-                return Self::Date;
+                return Ok(Self::Date);
             }
 
             // time -> Time
             if object_type_ptr == crate::typeref::STD_TIME_TYPE {
-                return Self::Time;
+                return Ok(Self::Time);
             }
 
             // datetime -> Datetime
             if object_type_ptr == crate::typeref::STD_DATETIME_TYPE {
-                return Self::Datetime;
+                return Ok(Self::Datetime);
             }
 
             // UUID -> Uuid
             if object_type_ptr == crate::typeref::STD_UUID_TYPE {
-                return Self::Uuid;
+                return Ok(Self::Uuid);
             }
 
             // list/dict -> Json
             if (pyo3::ffi::PyList_CheckExact(object_ptr) == 1 || pyo3::ffi::PyDict_CheckExact(object_ptr) == 1)
                 && modules::json_dumps(bound.clone(), |_| Ok(())).is_ok()
             {
-                return Self::Json;
+                return Ok(Self::Json);
+            }
+        }
+
+        // __serializer__ protocol
+        rapidquery_macros::customization_protocol! {
+            if bound(c"__serializer__") == crate::typeref::SERIALIZER_TYPE {
+                let serializer = protocol.cast_into_unchecked::<super::PySerializer>();
+                return Ok(serializer.get().0.clone());
+            } else {
+                return rapidquery_macros::pyerr!(
+                    Err(PyTypeError),
+                    "__serializer__ protocol attribute returns non-serializer type: {}",
+                    utils::get_type_name(bound.py(), protocol.as_ptr())
+                )
             }
         }
 
         // * -> Unspecified
-        Self::Unspecified
+        Ok(Self::Unspecified)
     }
 }
 

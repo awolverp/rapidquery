@@ -29,7 +29,10 @@ impl PyValue {
     /// Wrap `object`. Omit `serializer` to infer one from its type.
     #[new]
     #[pyo3(signature = (object, serializer = None, /))]
-    fn __new__(object: alias::BoundObject, serializer: Option<SerializerExtractor>) -> pyo3::PyClassInitializer<Self> {
+    fn __new__(
+        object: alias::BoundObject,
+        serializer: Option<SerializerExtractor>,
+    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
         // handle Value(Value(...), new_serializer)
         if unsafe { crate::typeref::check_exact(object.as_ptr(), crate::typeref::VALUE_TYPE) } {
             let expr = unsafe { object.cast_unchecked::<super::base::PyExpr>() };
@@ -51,16 +54,16 @@ impl PyValue {
             };
 
             let new_expr = super::base::PyExpr(super::enum_::ExprInner::Value(value));
-            return pyo3::PyClassInitializer::from(new_expr).add_subclass(PyValue);
+            return Ok(pyo3::PyClassInitializer::from(new_expr).add_subclass(PyValue));
         }
 
         let value = match serializer {
             Some(SerializerExtractor(s)) => Value::new(object.unbind(), s),
-            None => Value::infer_bound(object),
+            None => Value::infer_bound(object)?,
         };
 
         let expr = super::base::PyExpr(super::enum_::ExprInner::Value(value));
-        pyo3::PyClassInitializer::from(expr).add_subclass(PyValue)
+        Ok(pyo3::PyClassInitializer::from(expr).add_subclass(PyValue))
     }
 
     /// The wrapped Python object.

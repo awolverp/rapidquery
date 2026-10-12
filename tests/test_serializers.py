@@ -86,8 +86,10 @@ class TestIntegerSerializer:
         assert s.serialize(PG, 1) == "1"
         assert s.serialize(PG, 18_446_744_073_709_551_615) == "18446744073709551615"
         assert s.serialize(PG, -9_223_372_036_854_775_808) == "-9223372036854775808"
+        assert s.serialize(PG, True) == "1"
+        assert s.serialize(PG, False) == "0"
 
-    @pytest.mark.parametrize("value", [2.5, True, "invalid"])
+    @pytest.mark.parametrize("value", [2.5, "invalid"])
     def test_rejects_non_int(self, value: typing.Any):
         with pytest.raises(TypeError):
             IntegerSerializer().serialize(PG, value)

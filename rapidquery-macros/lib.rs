@@ -203,3 +203,131 @@ pub fn dialect_options(input: TokenStream) -> TokenStream {
         Err(err) => err.to_compile_error().into(),
     }
 }
+
+struct CustomizationProtocolInput {
+    bound_object: syn::Ident,
+    attribute_name: syn::LitCStr,
+    pyobject_type: syn::Path,
+    ok_expr: syn::Expr,
+    err_expr: syn::Expr,
+}
+
+impl Parse for CustomizationProtocolInput {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        // if $bound:ident
+        input.parse::<syn::Token![if]>()?;
+        let bound_object: syn::Ident = input.parse()?;
+
+        // ...($attribute_name:cstr)
+        let content;
+        syn::parenthesized!(content in input);
+
+        let attribute_name: syn::LitCStr = content.parse()?;
+
+        // ...== $pyobject_type:path
+        input.parse::<syn::Token![==]>()?;
+        let pyobject_type: syn::Path = input.parse()?;
+
+        // ...{
+        //  $ok_expr:expr
+        // }
+        let ok_expr: syn::Expr = input.parse()?;
+
+        // else {
+        //  $err_expr:expr
+        // }
+        input.parse::<syn::Token![else]>()?;
+        let err_expr: syn::Expr = input.parse()?;
+
+        Ok(Self {
+            bound_object,
+            attribute_name,
+            pyobject_type,
+            ok_expr,
+            err_expr,
+        })
+    }
+}
+
+/// Builds a customization protocol checking.
+///
+/// Note: you can access to attribute result using `protocol` variable.
+///
+/// For example:
+/// ```ignore
+/// customization_protocol! {
+///     if bound(c"__serializer__") == crate::typeref::SERIALIZER_TYPE {
+///         // OK expr
+///     } else {
+///         // ERR expr
+///     }
+/// }
+/// ```
+///
+/// becomes:
+/// ```ignore
+/// unsafe {
+///     const PROTOCOL: &'static std::ffi::CStr = c"__serializer__";
+///
+///     let result = {
+///         let attribute: *mut pyo3::ffi::PyObject =
+///             pyo3::ffi::PyObject_GetAttrString(bound.as_ptr(), PROTOCOL.as_ptr());
+///
+///         if attribute.is_null() {
+///             if pyo3::ffi::PyErr_ExceptionMatches(pyo3::ffi::PyExc_AttributeError) != 1 {
+///                 return Err(pyo3::PyErr::fetch(bound.py()));
+///             } else {
+///                 None
+///             }
+///         } else {
+///             Some(pyo3::Bound::from_owned_ptr(bound.py(), attribute))
+///         }
+///     };
+///
+///     if let Some(protocol) = result {
+///         if crate::typeref::check(protocol.as_ptr(), crate::typeref::SERIALIZER_TYPE) {
+///             // OK expr
+///         } else {
+///             // ERR expr
+///         }
+///     }
+/// }
+/// ```
+#[proc_macro]
+pub fn customization_protocol(item: TokenStream) -> TokenStream {
+    let CustomizationProtocolInput {
+        bound_object,
+        attribute_name,
+        pyobject_type,
+        ok_expr,
+        err_expr,
+    } = syn::parse_macro_input!(item as CustomizationProtocolInput);
+
+    quote! {
+        unsafe {
+            const PROTOCOL: &'static std::ffi::CStr = #attribute_name;
+
+            let result = {
+                let attribute: *mut pyo3::ffi::PyObject =
+                    pyo3::ffi::PyObject_GetAttrString(#bound_object.as_ptr(), PROTOCOL.as_ptr());
+
+                if attribute.is_null() {
+                    if pyo3::ffi::PyErr_ExceptionMatches(pyo3::ffi::PyExc_AttributeError) != 1 {
+                        return Err(pyo3::PyErr::fetch(#bound_object.py()));
+                    } else {
+                        pyo3::ffi::PyErr_Clear();
+                        None
+                    }
+                } else {
+                    Some(pyo3::Bound::from_owned_ptr(#bound_object.py(), attribute))
+                }
+            };
+
+            if let Some(protocol) = result {
+                if pyo3::ffi::PyObject_TypeCheck(protocol.as_ptr(), #pyobject_type) == 1 #ok_expr
+                else #err_expr
+            }
+        }
+    }
+    .into()
+}

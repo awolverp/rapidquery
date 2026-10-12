@@ -5,6 +5,15 @@ from typing import Self, final, overload
 from rapidquery.dialect import Dialect
 from rapidquery.serializers import Serializer
 
+class _IdentClassVarProtocol(typing.Protocol):
+    __ident__: Ident
+
+class _IdentPropertyProtocol(typing.Protocol):
+    @property
+    def __ident__(self) -> Ident: ...
+
+_IdentExtractor = str | Unquote | Ident | Asterisk | type[Asterisk] | _IdentClassVarProtocol | _IdentPropertyProtocol
+
 class Expr:
     """
     Base of every SQL expression node.
@@ -279,11 +288,7 @@ class Expr:
     def try_cast_as(self, data_type_name: str, /) -> CastExpr:
         """SQL ``TRY_CAST(self AS data_type_name)``."""
 
-    def collate(
-        self,
-        collation: str | Unquote | Ident | Asterisk | type[Asterisk],
-        /,
-    ) -> CollateExpr:
+    def collate(self, collation: _IdentExtractor, /) -> CollateExpr:
         """SQL ``self COLLATE collation``. The collation is an identifier."""
 
     def trim(
@@ -377,7 +382,7 @@ class Ident(Expr):
         '"users"."id"'
     """
 
-    def __new__(cls, *parts: str | Unquote | Ident | Asterisk | type[Asterisk]) -> Self:
+    def __new__(cls, *parts: _IdentExtractor) -> Self:
         """
         Build an identifier from parts.
 
@@ -474,13 +479,7 @@ class Function(Expr):
         '"count"("id")'
     """
 
-    def __new__(
-        cls,
-        name: str | Ident | Unquote | Asterisk | type[Asterisk],
-        /,
-        *args: object,
-        distinct: bool = False,
-    ) -> Self:
+    def __new__(cls, name: _IdentExtractor, /, *args: object, distinct: bool = False) -> Self:
         """
         Build a call.
 

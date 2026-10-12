@@ -9,7 +9,6 @@ pub mod serializers;
 pub mod typeref;
 
 // Later tasks:
-// - Support customization protocols (e.g. __serializer__, __expr__, __ident__)
 // - Start writing query ASTs.
 
 /// RapidQuery native extension.

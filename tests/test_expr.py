@@ -1044,3 +1044,29 @@ class TestCustomExpr:
 
         with pytest.raises(ValueError, match="placeholders"):
             CustomExpr("{} {}", 1).prepare(PostgreSql)
+
+
+class TestExprProtocol:
+    def test_attribute(self):
+
+        class Eq:
+            __expr__ = BinaryExpr(1, "=", 2)
+
+        cust = CustomExpr("{}", Eq)
+        assert isinstance(cust.get_args()[0], BinaryExpr)
+        assert cust.to_sql(PostgreSql) == "1 = 2"
+
+    def test_property(self):
+
+        class Eq:
+            def __init__(self, a: object, b: object):
+                self.a = a
+                self.b = b
+
+            @property
+            def __expr__(self):
+                return BinaryExpr(1, "=", 2)
+
+        cust = CustomExpr("{}", Eq(1, 2))
+        assert isinstance(cust.get_args()[0], BinaryExpr)
+        assert cust.to_sql(PostgreSql) == "1 = 2"

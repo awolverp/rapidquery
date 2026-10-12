@@ -106,7 +106,21 @@ fn extract_expr(
         }
     }
 
-    Ok(ExprInner::Value(super::enum_::Value::infer_bound(obj.as_any().clone())))
+    // __expr__ protocol
+    rapidquery_macros::customization_protocol! {
+        if obj(c"__expr__") == crate::typeref::EXPR_TYPE {
+            let expr = protocol.cast_into_unchecked::<super::base::PyExpr>();
+            return Ok(expr.get().0.clone());
+        } else {
+            return rapidquery_macros::pyerr!(
+                Err(PyTypeError),
+                "__expr__ protocol attribute returns non-expr type: {}",
+                utils::get_type_name(obj.py(), protocol.as_ptr())
+            )
+        }
+    }
+
+    super::enum_::Value::infer_bound(obj.as_any().clone()).map(ExprInner::Value)
 }
 
 /// Scalar `LIKE` pattern, or a list/tuple of patterns (`LIKE ANY`).
@@ -184,6 +198,26 @@ pub(super) fn extract_ident_argument(
 
         if is_asterisk(ptr) {
             return Ok(ExtractedIdentArgument::Part(IdentPart::Asterisk));
+        }
+    }
+
+    // __ident__ protocol
+    rapidquery_macros::customization_protocol! {
+        if obj(c"__ident__") == crate::typeref::IDENT_TYPE {
+            let expr = protocol.cast_into_unchecked::<super::base::PyExpr>();
+
+            match &expr.get().0 {
+                ExprInner::Ident(ident) => {
+                    return Ok(ExtractedIdentArgument::Ident(ident.clone()));
+                }
+                _ => unreachable!("Ident instance always holds ExprInner::Ident"),
+            }
+        } else {
+            return rapidquery_macros::pyerr!(
+                Err(PyTypeError),
+                "__ident__ protocol attribute returns non-ident type: {}",
+                utils::get_type_name(obj.py(), protocol.as_ptr())
+            )
         }
     }
 

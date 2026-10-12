@@ -55,7 +55,7 @@ pub(super) unsafe fn write_integer(
     ptr: *mut pyo3::ffi::PyObject,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
-    if pyo3::ffi::PyLong_CheckExact(ptr) != 1 {
+    if pyo3::ffi::PyLong_Check(ptr) != 1 {
         return rapidquery_macros::pyerr!(
             Err(PyTypeError),
             "expected int for integer serialization, got {}",

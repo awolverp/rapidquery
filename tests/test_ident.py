@@ -1,3 +1,5 @@
+import typing
+
 import pytest
 
 from rapidquery import Asterisk, Ident, Unquote
@@ -156,3 +158,31 @@ class TestRender:
         payload = "a; DROP TABLE t--"
         sql = Ident(payload).to_sql(PostgreSql)
         assert sql == f'"{payload}"'
+
+
+class TestIdentProtocol:
+    def test_attribute(self):
+
+        class Unk:
+            __ident__: Ident = Ident("schema", "unk")
+
+        ident = Ident("database", Unk())
+        assert ident.to_list() == ["database", "schema", "unk"]
+
+    def test_property(self):
+
+        class Unk:
+            @property
+            def __ident__(self) -> Ident:
+                return Ident("schema", "unk")
+
+        ident = Ident(Unk(), "col")
+        assert ident.to_list() == ["schema", "unk", "col"]
+
+    def test_invalid_type(self):
+
+        class Unk:
+            __ident__ = "A"
+
+        with pytest.raises(TypeError):
+            _ = Ident(Unk())  # pyright: ignore[reportArgumentType]

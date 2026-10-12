@@ -37,9 +37,8 @@ impl Value {
     }
 
     #[inline]
-    pub fn infer_bound(bound: alias::BoundObject) -> Self {
-        let serializer = SerializerType::infer_bound(&bound);
-        Self::new(bound.unbind(), serializer)
+    pub fn infer_bound(bound: alias::BoundObject) -> pyo3::PyResult<Self> {
+        SerializerType::infer_bound(&bound).map(|x| Self::new(bound.unbind(), x))
     }
 
     pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<repr::ReprFormatter> {

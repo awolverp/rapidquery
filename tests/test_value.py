@@ -12,6 +12,7 @@ from rapidquery.serializers import (
     BitSerializer,
     BooleanSerializer,
     BytesSerializer,
+    CustomSerializer,
     DateSerializer,
     DatetimeSerializer,
     FloatSerializer,
@@ -114,3 +115,75 @@ class TestValueToSql:
     def test_propagates_serializer_type_error(self):
         with pytest.raises(TypeError):
             Value("not an int", IntegerSerializer()).to_sql(PostgreSql)
+
+
+class TestSerializerProtocol:
+    def test_classvar_attribute(self):
+
+        class Unk:
+            __serializer__: Serializer = CustomSerializer["Unk"](lambda _, x: str(x))
+
+            def __str__(self) -> str:
+                return "UNK"
+
+        val = Value(Unk())
+        assert isinstance(val.get_serializer(), CustomSerializer)
+        assert val.to_sql(PostgreSql) == "UNK"
+
+    def test_property(self):
+
+        class Unk:
+            @property
+            def __serializer__(self):
+                return CustomSerializer["Unk"](lambda _, x: str(x))
+
+            def __str__(self) -> str:
+                return "UNK"
+
+        val = Value(Unk())
+        assert isinstance(val.get_serializer(), CustomSerializer)
+        assert val.to_sql(PostgreSql) == "UNK"
+
+    def test_invalid_attribute(self):
+
+        class Unk:
+            __serializer__ = 10
+
+        with pytest.raises(TypeError, match="non-serializer"):
+            _ = Value(Unk())
+
+    def test_attribute_error(self):
+
+        class Unk:
+            def __str__(self) -> str:
+                return "UNK"
+
+        val = Value(Unk())
+        assert isinstance(val.get_serializer(), UnspecifiedSerializer)
+        assert val.to_sql(PostgreSql) == "UNK"
+
+    def test_builtin_types_priority(self):
+
+        class String(str):
+            # It must not use this attribute
+            # We are using PyUnicode_Check to support StrEnum
+            __serializer__ = IntegerSerializer()
+
+        val = Value(String("test"))
+        assert isinstance(val.get_serializer(), StringSerializer)
+
+        class Integer(int):
+            # It must not use this attribute
+            # We are using PyLong_Check to support IntEnum
+            __serializer__ = UnspecifiedSerializer()
+
+        val = Value(Integer(1))
+        assert isinstance(val.get_serializer(), IntegerSerializer)
+
+        class Blob(bytes):
+            # It MUST use this attribute
+            # We are using PyBytes_CheckExact, so we only use BytesSerializer to literaly `bytes`.
+            __serializer__ = FloatSerializer()
+
+        val = Value(Blob(b"test"))
+        assert isinstance(val.get_serializer(), FloatSerializer)
