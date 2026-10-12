@@ -24,10 +24,12 @@ pub(super) unsafe fn pyobject_string(py: pyo3::Python<'_>, ptr: *mut pyo3::ffi::
     out
 }
 
+#[inline(always)]
 fn write_quoted(dialect: &flags::DialectFlags, out: &mut String, raw: &str) -> pyo3::PyResult<()> {
     dialect.write_string_literal(out, raw).map_err(Into::into)
 }
 
+#[inline]
 fn write_with_keyword(
     dialect: &flags::DialectFlags,
     out: &mut String,
@@ -41,6 +43,7 @@ fn write_with_keyword(
     write_quoted(dialect, out, raw)
 }
 
+#[inline(always)]
 fn timestamp_keyword(format: flags::TimestampFormat, aware: bool) -> Option<&'static str> {
     match format {
         flags::TimestampFormat::Quoted => None,
@@ -217,7 +220,6 @@ pub(super) unsafe fn write_bytes(
     }
 }
 
-#[inline]
 pub(super) unsafe fn write_bit(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
@@ -296,7 +298,6 @@ pub(super) unsafe fn write_date(
     }
 }
 
-#[inline]
 pub(super) unsafe fn write_time(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
@@ -397,7 +398,6 @@ pub(super) unsafe fn write_datetime(
     )
 }
 
-#[inline]
 pub(super) unsafe fn write_inet(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
@@ -420,7 +420,6 @@ pub(super) unsafe fn write_inet(
     }
 }
 
-#[inline]
 pub(super) unsafe fn write_macaddr(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
@@ -498,7 +497,6 @@ pub(super) unsafe fn write_array(
     Ok(())
 }
 
-#[inline]
 pub(super) unsafe fn write_custom(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,

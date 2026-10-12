@@ -1,5 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
+use syn::ItemStruct;
 use syn::parse::Parse;
 use syn::parse::ParseStream;
 
@@ -84,7 +85,8 @@ pub fn pyclass(attr: TokenStream, item: TokenStream) -> TokenStream {
         module,
         meta_args,
     } = syn::parse_macro_input!(attr as PyClassInput);
-    let item = syn::parse_macro_input!(item as syn::ItemStruct);
+
+    let item = syn::parse_macro_input!(item as ItemStruct);
 
     // Fresh tokens, no input span, so rustc cannot substitute the dotted literal.
     let args: proc_macro2::TokenStream = format!("module = \"{module}\", name = \"{name}\", immutable_type, frozen")
@@ -336,6 +338,24 @@ pub fn cust_protocol(item: TokenStream) -> TokenStream {
         unsafe {
             const PROTOCOL: &'static std::ffi::CStr = #attribute_name;
 
+            #[cfg(Py_3_13)]
+            let result = {
+                let mut attribute: *mut pyo3::ffi::PyObject = std::ptr::null_mut();
+
+                match pyo3::ffi::PyObject_GetOptionalAttrString(
+                    #bound_object.as_ptr(),
+                    PROTOCOL.as_ptr(),
+                    &mut attribute
+                ) {
+                    1 => Some(pyo3::Bound::from_owned_ptr(#bound_object.py(), attribute)),
+                    0 => None,
+                    _ => {
+                        return Err(pyo3::PyErr::fetch(#bound_object.py()))
+                    }
+                }
+            };
+
+            #[cfg(not(Py_3_13))]
             let result = {
                 let attribute: *mut pyo3::ffi::PyObject =
                     pyo3::ffi::PyObject_GetAttrString(#bound_object.as_ptr(), PROTOCOL.as_ptr());

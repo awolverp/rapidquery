@@ -14,8 +14,4 @@ proc-macro = true
 [dependencies]
 proc-macro2 = "1"
 quote = "1"
-
-[dependencies.syn]
-version = "2"
-default-features = false
-features = ["derive", "parsing", "printing", "proc-macro"]
+syn = { version = "3", features = ["default", "full"] }
