@@ -8,8 +8,10 @@ pub mod internal;
 pub mod serializers;
 pub mod typeref;
 
-// Later tasks:
-// - Start writing query ASTs.
+pub mod dcl;
+pub mod ddl;
+pub mod dml;
+pub mod tcl;
 
 /// RapidQuery native extension.
 #[pyo3::pymodule(gil_used = false)]
