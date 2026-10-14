@@ -2,6 +2,8 @@ name: Python Test
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
   workflow_dispatch:
 
 permissions:
@@ -17,6 +19,8 @@ env:
 
 jobs:
   test-python:
+    if: github.event.pull_request.draft == false
+
     name: ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     continue-on-error: ${{ endsWith(matrix.python-version, 't') }}
@@ -77,6 +81,8 @@ jobs:
           HYPOTHESIS_PROFILE: slow
 
   test-os:
+    if: github.event.pull_request.draft == false
+
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}-latest
     strategy:
@@ -114,7 +120,7 @@ jobs:
           fi
 
       - name: "Install dependencies"
-        run: uv pip install --group ci
+        run: uv pip install --group dev
 
       - name: "Run maturin"
         run: maturin develop
