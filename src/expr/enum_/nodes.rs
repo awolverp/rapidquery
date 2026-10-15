@@ -142,7 +142,7 @@ impl WriteSql for Unary {
                     out.push_char(')');
                     return Ok(());
                 }
-                flags::Bitwise::BitAndOnly | flags::Bitwise::Unsupported | flags::Bitwise::InfixAndShift => {
+                flags::Bitwise::BitAndOnly | flags::Bitwise::InfixAndShift => {
                     return Err(unsupported("bitwise NOT is not supported by this dialect"));
                 }
             }
@@ -296,14 +296,13 @@ impl WriteSql for Binary {
                 flags::Bitwise::BitShiftFunctions | flags::Bitwise::ShiftFunctions | flags::Bitwise::BitAndOnly => {
                     write_binary_call(dialect, out, "BITAND", &self.left, &self.right)
                 }
-                flags::Bitwise::Unsupported => Err(unsupported("bitwise AND is not supported by this dialect")),
             },
             BinaryOp::BitOr => match dialect.0.bitwise() {
                 flags::Bitwise::Infix | flags::Bitwise::InfixNoShift => write_infix(self, dialect, out, "|", false),
                 flags::Bitwise::BitShiftFunctions | flags::Bitwise::ShiftFunctions => {
                     write_binary_call(dialect, out, "BITOR", &self.left, &self.right)
                 }
-                flags::Bitwise::BitAndOnly | flags::Bitwise::Unsupported | flags::Bitwise::InfixAndShift => {
+                flags::Bitwise::BitAndOnly | flags::Bitwise::InfixAndShift => {
                     Err(unsupported("bitwise OR is not supported by this dialect"))
                 }
             },
@@ -313,7 +312,7 @@ impl WriteSql for Binary {
                     write_binary_call(dialect, out, "BITSHIFTLEFT", &self.left, &self.right)
                 }
                 flags::Bitwise::ShiftFunctions => write_binary_call(dialect, out, "SHIFTLEFT", &self.left, &self.right),
-                flags::Bitwise::InfixNoShift | flags::Bitwise::BitAndOnly | flags::Bitwise::Unsupported => {
+                flags::Bitwise::InfixNoShift | flags::Bitwise::BitAndOnly => {
                     Err(unsupported("bitwise shift is not supported by this dialect"))
                 }
             },
@@ -325,7 +324,7 @@ impl WriteSql for Binary {
                 flags::Bitwise::ShiftFunctions => {
                     write_binary_call(dialect, out, "SHIFTRIGHT", &self.left, &self.right)
                 }
-                flags::Bitwise::InfixNoShift | flags::Bitwise::BitAndOnly | flags::Bitwise::Unsupported => {
+                flags::Bitwise::InfixNoShift | flags::Bitwise::BitAndOnly => {
                     Err(unsupported("bitwise shift is not supported by this dialect"))
                 }
             },

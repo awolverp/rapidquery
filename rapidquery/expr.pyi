@@ -140,22 +140,53 @@ class Expr:
         """SQL bitwise ``self & other``."""
 
     def bit_or(self, other: object, /) -> BinaryExpr:
-        """SQL bitwise ``self | other``."""
+        """
+        SQL bitwise ``self | other``.
+
+        Is not supported by Redshift, Oracle.
+        """
 
     def bit_xor(self, other: object, /) -> BinaryExpr:
-        """SQL bitwise ``self ^ other``."""
+        """
+        SQL bitwise ``self ^ other``.
+
+        Is not supported by Oracle, Redshift, SQLite.
+        """
+
+    def bit_not(self) -> UnaryExpr:
+        """
+        SQL ``~self``. This is not bound to Python ``~``.
+
+        Is not supported by Redshift, Oracle.
+        """
 
     def __lshift__(self, other: object, /) -> BinaryExpr:
-        """SQL ``self << other``."""
+        """
+        SQL ``self << other``.
+
+        Is not supported by MsSQL, Oracle.
+        """
 
     def __rlshift__(self, other: object, /) -> BinaryExpr:
-        """SQL ``other << self``, when the left operand is not an expression."""
+        """
+        SQL ``other << self``, when the left operand is not an expression.
+
+        Is not supported by MsSQL, Oracle.
+        """
 
     def __rshift__(self, other: object, /) -> BinaryExpr:
-        """SQL ``self >> other``."""
+        """
+        SQL ``self >> other``.
+
+        Is not supported by MsSQL, Oracle.
+        """
 
     def __rrshift__(self, other: object, /) -> BinaryExpr:
-        """SQL ``other >> self``, when the left operand is not an expression."""
+        """
+        SQL ``other >> self``, when the left operand is not an expression.
+
+        Is not supported by MsSQL, Oracle.
+        """
 
     def concat(self, other: object, /) -> BinaryExpr:
         """SQL ``self || other``. Dialects may rewrite ``||`` as a function or as ``+``."""
@@ -168,9 +199,6 @@ class Expr:
 
     def not_(self) -> UnaryExpr:
         """SQL ``NOT self``."""
-
-    def bit_not(self) -> UnaryExpr:
-        """SQL ``~self``. This is not bound to Python ``~``."""
 
     def between(self, low: object, high: object, /) -> BetweenExpr:
         """SQL ``self BETWEEN low AND high``."""
@@ -503,13 +531,23 @@ class Function(Expr):
 
         Args:
             predicate: Boolean expression placed in the filter.
+
+        This method is not supported by Hive, MsSQL, MySQL, Redshift, Snowflake, Teradata.
         """
 
     def ignore_nulls(self) -> Self:
-        """Return a copy that writes `IGNORE NULLS`."""
+        """
+        Return a copy that writes `IGNORE NULLS`.
+
+        Is not supported by Hive, MySQL, PostgreSql, Sqlite.
+        """
 
     def respect_nulls(self) -> Self:
-        """Return a copy that writes `RESPECT NULLS`."""
+        """
+        Return a copy that writes `RESPECT NULLS`.
+
+        Is not supported by Hive, MySQL, PostgreSql, Sqlite.
+        """
 
     def get_name(self) -> Ident:
         """The function name."""
@@ -717,6 +755,8 @@ class IsDistinctFromExpr(Expr):
             left: Left expression.
             right: Right expression.
             negated: Write `IS NOT DISTINCT FROM`.
+
+        ``IS DISTINCT FROM`` is not supported by Oracle, Redshift, Teradata.
         """
 
     def get_left(self) -> Expr:
@@ -832,7 +872,8 @@ class LikeExpr(Expr):
             pattern: One pattern, or a list or tuple of patterns for `ANY`.
             negated: Negate the match.
             case_sensitive: When false, render the dialect's case-insensitive form.
-            escape: One escape character, or `None` to omit `ESCAPE`.
+            escape: One escape character, or `None` to omit ``ESCAPE``. ``ESCAPE`` is
+                    not supported by BigQuery, Hive.
 
         Raises:
             TypeError: `escape` is not one character, or `pattern` is not an
@@ -877,6 +918,8 @@ class SimilarToExpr(Expr):
             expr: Tested expression.
             pattern: SQL regular pattern.
             negated: Write `NOT SIMILAR TO`.
+
+        ``SIMILAR TO`` is supported by DuckDB, PostgreSql, Redshift.
         """
 
     def get_expr(self) -> Expr:
@@ -911,6 +954,8 @@ class RLikeExpr(Expr):
             expr: Tested expression.
             pattern: Regular expression.
             negated: Negate the match.
+
+        ``RLIKE`` is not supported by MsSQL, Sqlite, Teradata.
         """
 
     def get_expr(self) -> Expr:
@@ -952,7 +997,9 @@ class CastExpr(Expr):
         Args:
             expr: Input expression.
             data_type_name: SQL type name, such as `"int"` or `"varchar(16)"`.
-            kind: `CAST`, `TRY_CAST`, or `::`.
+            kind: `CAST`, `TRY_CAST`, or `::`. ``TRY_CAST`` is not supported by
+                  Hive, MySQL, Oracle, PostgreSql, Sqlite. ``::`` is supported
+                  by Databricks, DuckDB, PostgreSql, Redshift, Snowflake, Spark.
 
         Raises:
             ValueError: `kind` is not one of those three spellings.
@@ -1035,6 +1082,8 @@ class CollateExpr(Expr):
         Args:
             expr: Input expression.
             collation: Collation name, as an identifier.
+
+        ``COLLATE`` is not supported by Hive, Spark, Teradata.
         """
 
     def get_expr(self) -> Expr:

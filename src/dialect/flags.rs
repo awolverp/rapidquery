@@ -206,8 +206,6 @@ pub enum Collate {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Bitwise {
-    /// All raises.
-    Unsupported,
     /// `& | ~ << >>`.
     #[fallback]
     Infix,
@@ -216,13 +214,13 @@ pub enum Bitwise {
     /// Redshift documents those three and not bitwise OR or NOT
     /// (`^` is exponentiation and stays on [`BitXorSyntax`]).
     InfixAndShift,
-    /// `& | ~`. Shifts raise (SQL Server).
+    /// `& | ~`. Shifts raise.
     InfixNoShift,
     /// `BITAND` / `BITOR` / `BITNOT` / `BITSHIFTLEFT` / `BITSHIFTRIGHT`.
     BitShiftFunctions,
-    /// `BITAND` / `BITOR` / `BITNOT` / `SHIFTLEFT` / `SHIFTRIGHT` (Teradata).
+    /// `BITAND` / `BITOR` / `BITNOT` / `SHIFTLEFT` / `SHIFTRIGHT`.
     ShiftFunctions,
-    /// `BITAND` only. `|`, `~`, `<<`, and `>>` raise (Oracle).
+    /// `BITAND` only. `|`, `~`, `<<`, and `>>` raise.
     BitAndOnly,
 }
 

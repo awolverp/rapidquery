@@ -120,7 +120,6 @@ rapidquery_macros::dialect_options! {
     }
 
     enum Bitwise bitwise {
-        Unsupported => OPT_BITWISE_UNSUPPORTED,
         Infix => OPT_BITWISE_INFIX,
         InfixAndShift => OPT_BITWISE_INFIX_AND_SHIFT,
         InfixNoShift => OPT_BITWISE_INFIX_NO_SHIFT,

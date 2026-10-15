@@ -158,9 +158,6 @@ OPT_COLLATE_INFIX_IDENT: typing.Final[int]
 OPT_COLLATE_FUNCTION_STRING: typing.Final[int]
 """`COLLATE` is a function and the name is a string."""
 
-OPT_BITWISE_UNSUPPORTED: typing.Final[int]
-"""Bitwise operators are rejected."""
-
 OPT_BITWISE_INFIX: typing.Final[int]
 """Bitwise AND, OR, NOT, and shifts are infix operators."""
 
