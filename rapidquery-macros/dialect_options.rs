@@ -13,7 +13,15 @@ struct Options {
 enum Flag {
     Char { field: syn::Ident, default: syn::LitChar },
     Enum(EnumFlag),
+    Flags(FlagsFlag),
     Bool { field: syn::Ident, default: syn::Expr },
+}
+
+struct FlagsFlag {
+    ty: syn::Ident,
+    field: syn::Ident,
+    default: syn::Expr,
+    variants: Vec<Variant>,
 }
 
 struct EnumFlag {
@@ -33,6 +41,31 @@ impl Parse for Variant {
         input.parse::<Token![=>]>()?;
         let opt: syn::Ident = input.parse()?;
         Ok(Self { name, opt })
+    }
+}
+
+impl Parse for FlagsFlag {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let ty: syn::Ident = input.parse()?;
+        let field: syn::Ident = input.parse()?;
+        let default = if input.peek(Token![=]) {
+            input.parse::<Token![=]>()?;
+            input.parse()?
+        } else {
+            syn::parse_quote!(0)
+        };
+        let body;
+        syn::braced!(body in input);
+        let variants: Punctuated<Variant, Token![,]> = body.parse_terminated(Variant::parse, Token![,])?;
+        if variants.is_empty() {
+            return Err(syn::Error::new(field.span(), "flag set needs at least one flag"));
+        }
+        Ok(Self {
+            ty,
+            field,
+            default,
+            variants: variants.into_iter().collect(),
+        })
     }
 }
 
@@ -71,6 +104,8 @@ impl Parse for Options {
                 let default: syn::LitChar = input.parse()?;
                 input.parse::<Token![;]>()?;
                 flags.push(Flag::Char { field, default });
+            } else if kind == "flags" {
+                flags.push(Flag::Flags(input.parse()?));
             } else if kind == "bool" {
                 let field: syn::Ident = input.parse()?;
                 input.parse::<Token![=]>()?;
@@ -78,7 +113,10 @@ impl Parse for Options {
                 input.parse::<Token![;]>()?;
                 flags.push(Flag::Bool { field, default });
             } else {
-                return Err(syn::Error::new(kind.span(), "expected `char`, `enum`, or `bool`"));
+                return Err(syn::Error::new(
+                    kind.span(),
+                    "expected `char`, `enum`, `flags`, or `bool`",
+                ));
             }
         }
         Ok(Self { flags })
@@ -136,6 +174,48 @@ pub fn generate(input: TokenStream) -> syn::Result<TokenStream> {
                     let opt = &variant.opt;
                     consts.extend(quote! {
                         pub(super) const #opt: u8 = flags::#ty::#name.into_bits();
+                    });
+                    exports.extend(quote! {
+                        module.add(stringify!(#opt), #opt)?;
+                    });
+                }
+            }
+            Flag::Flags(flag) => {
+                let ty = &flag.ty;
+                let field = &flag.field;
+                let default = &flag.default;
+                let set = setter(field);
+                let get = format_ident!("get_{field}");
+                params.extend(quote! { #field = #default, });
+                args.extend(quote! { #field: u8, });
+                checks.extend(quote! {
+                    let #field = {
+                        let bits = #field;
+                        match flags::#ty::from_bits(bits) {
+                            Some(value) => value,
+                            None => {
+                                return rapidquery_macros::pyerr!(
+                                    Err(PyValueError),
+                                    "unknown {} bits: {}",
+                                    stringify!(#field),
+                                    bits
+                                );
+                            }
+                        }
+                    };
+                });
+                setters.extend(quote! { .#set(#field) });
+                getters.extend(quote! {
+                    #[getter]
+                    fn #get(&self) -> u8 {
+                        self.0.#field().bits()
+                    }
+                });
+                for variant in &flag.variants {
+                    let name = &variant.name;
+                    let opt = &variant.opt;
+                    consts.extend(quote! {
+                        pub(super) const #opt: u8 = flags::#ty::#name.bits();
                     });
                     exports.extend(quote! {
                         module.add(stringify!(#opt), #opt)?;

@@ -1,5 +1,6 @@
 use bitfield_struct::bitenum;
 use bitfield_struct::bitfield;
+use bitflags::bitflags;
 
 use crate::internal::utils;
 
@@ -31,21 +32,26 @@ pub enum NullTreatment {
     Postfix,
 }
 
-/// Where an inlined `LIKE` `ESCAPE` clause is legal.
-///
-/// `escape: None` writes nothing. A set escape character on a form this
-/// variant does not allow raises.
-#[bitenum]
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum LikeEscape {
-    /// No `ESCAPE` clause.
-    Unsupported,
-    /// Scalar `LIKE` and an `OR` expansion. Native `LIKE ANY` has no slot.
-    Scalar,
-    /// Scalar, `OR` expansion, and `LIKE ANY (p, …) ESCAPE`.
-    #[fallback]
-    IncludingAny,
+bitflags! {
+    /// Where an inlined `LIKE` `ESCAPE` clause is legal.
+    ///
+    /// Empty writes no `ESCAPE` and rejects a set escape character.
+    /// `SCALAR | ANY` allows both a scalar pattern and native `LIKE ANY`.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct LikeEscape: u8 {
+        /// Scalar `LIKE` and an `OR` expansion.
+        const SCALAR = 1 << 0;
+        /// Native `LIKE ANY (p, …) ESCAPE`.
+        const ANY = 1 << 1;
+    }
+}
+
+const fn like_escape_into(value: LikeEscape) -> u8 {
+    value.bits()
+}
+
+const fn like_escape_from(bits: u8) -> LikeEscape {
+    LikeEscape::from_bits_retain(bits)
 }
 
 /// How `LIKE ANY` / `ILIKE ANY` is rendered.
@@ -110,22 +116,66 @@ pub enum StringConcat {
     ConcatFunction,
 }
 
-/// How binary operation bit xor (`^`) is spelled.
+bitflags! {
+    /// Which bitwise operators a dialect can render.
+    ///
+    /// A missing flag rejects that operator. AND, OR, NOT, and the shifts share
+    /// one spelling ([`BitCall`]). XOR uses [`XorSpelling`] and only when
+    /// [`Self::XOR`] is set.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct BitOp: u8 {
+        const AND = 1 << 0;
+        const OR = 1 << 1;
+        const NOT = 1 << 2;
+        const SHL = 1 << 3;
+        const SHR = 1 << 4;
+        const XOR = 1 << 5;
+
+        /// `& | ~ << >>`, without XOR.
+        const INFIX = Self::AND.bits() | Self::OR.bits() | Self::NOT.bits() | Self::SHL.bits() | Self::SHR.bits();
+        /// `& << >>`.
+        const AND_SHIFT = Self::AND.bits() | Self::SHL.bits() | Self::SHR.bits();
+        /// `& | ~`, no shifts.
+        const NO_SHIFT = Self::AND.bits() | Self::OR.bits() | Self::NOT.bits();
+    }
+}
+
+const fn bit_op_into(value: BitOp) -> u8 {
+    value.bits()
+}
+
+const fn bit_op_from(bits: u8) -> BitOp {
+    BitOp::from_bits_retain(bits)
+}
+
+/// Spelling shared by `&`, `|`, `~`, `<<`, and `>>`.
 #[bitenum]
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BitXor {
-    /// Is not supported
-    Unsupported,
+pub enum BitCall {
+    /// `& | ~ << >>`.
+    #[fallback]
+    Infix,
+    /// `BITAND` / `BITOR` / `BITNOT` / `BITSHIFTLEFT` / `BITSHIFTRIGHT`.
+    BitFunction,
+    /// `BITAND` / `BITOR` / `BITNOT` / `SHIFTLEFT` / `SHIFTRIGHT`.
+    ShiftFunction,
+}
+
+/// How `^` is spelled when [`BitOp::XOR`] is set.
+#[bitenum]
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum XorSpelling {
     /// `left ^ right`.
     #[fallback]
     Caret,
     /// `left # right`. PostgreSQL `^` is exponent.
     Hash,
     /// `xor(left, right)`.
-    XORFunction,
+    Function,
     /// `BITXOR(left, right)`.
-    BitXORFunction,
+    BitFunction,
 }
 
 /// How binary operation mod (`%`) is spelled.
@@ -201,45 +251,47 @@ pub enum Collate {
     FunctionString,
 }
 
-/// How `&`, `|`, `~`, `<<`, and `>>` are spelled.
+/// How a tuple / row value is spelled.
+///
+/// Which arities are legal is [`TupleArity`], not another syntax variant.
 #[bitenum]
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Bitwise {
-    /// `& | ~ << >>`.
+pub enum TupleSyntax {
+    /// Is not supported.
     #[fallback]
-    Infix,
-    /// `& << >>`. `|` and `~` raise.
-    ///
-    /// Redshift documents those three and not bitwise OR or NOT
-    /// (`^` is exponentiation and stays on [`BitXorSyntax`]).
-    InfixAndShift,
-    /// `& | ~`. Shifts raise.
-    InfixNoShift,
-    /// `BITAND` / `BITOR` / `BITNOT` / `BITSHIFTLEFT` / `BITSHIFTRIGHT`.
-    BitShiftFunctions,
-    /// `BITAND` / `BITOR` / `BITNOT` / `SHIFTLEFT` / `SHIFTRIGHT`.
-    ShiftFunctions,
-    /// `BITAND` only. `|`, `~`, `<<`, and `>>` raise.
-    BitAndOnly,
+    Unsupported,
+    /// `ROW(...)`.
+    Row,
+    /// `struct(...)`.
+    Struct,
+    /// `(a, b, ...)`.
+    Parentheses,
 }
 
-/// How a tuple / row value is spelled.
-#[bitenum]
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Tuple {
-    /// Is not supported.
-    Unsupported,
-    /// `ROW(...)`. `empty_ok` allows arity 0 (`ROW()`).
-    Row,
-    /// `ROW(...)`. Rejects empty (`ROW()`).
-    RowRejectEmpty,
-    /// `struct(...)`. Arity 0 is unsupported.
-    Struct,
-    /// `(a, b, ...)`. Arity 0 and 1 are unsupported.
-    #[fallback]
-    Parentheses,
+bitflags! {
+    /// Arities below 2 that [`TupleSyntax`] accepts.
+    ///
+    /// Arity 2 and above is legal whenever the syntax is not [`TupleSyntax::Unsupported`].
+    /// Empty means a tuple needs at least two elements.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct TupleArity: u8 {
+        /// Arity 0 (`ROW()`).
+        const EMPTY = 1 << 0;
+        /// Arity 1.
+        const ONE = 1 << 1;
+
+        /// Arity 0 and arity 1.
+        const EMPTY_AND_ONE = Self::EMPTY.bits() | Self::ONE.bits();
+    }
+}
+
+const fn tuple_arity_into(value: TupleArity) -> u8 {
+    value.bits()
+}
+
+const fn tuple_arity_from(bits: u8) -> TupleArity {
+    TupleArity::from_bits_retain(bits)
 }
 
 /// The way dialect accepts literal bit values
@@ -488,10 +540,154 @@ pub enum JsonFormat {
     ParseJson,
 }
 
+/// Placeholder character plus `?` versus `?1`.
+#[bitfield(u64)]
+#[derive(PartialEq, Eq, Hash)]
+pub struct Placeholders {
+    /// Placeholder character as `u32`. The caller stores a valid `char`.
+    #[bits(32)]
+    pub character: u32,
+    /// `?` or `?1`.
+    #[bits(1)]
+    pub style: Placeholder,
+    #[bits(31)]
+    __: u32,
+}
+
+/// `LIKE` / `ILIKE` spelling and where `ESCAPE` is legal.
+#[bitfield(u8)]
+#[derive(PartialEq, Eq, Hash)]
+pub struct Like {
+    #[bits(2, from = like_escape_from, into = like_escape_into)]
+    pub escape: LikeEscape,
+    #[bits(2)]
+    pub any: LikeAny,
+    #[bits(2)]
+    pub ilike: ILikeExpression,
+    /// Whether `SIMILAR TO` is supported.
+    pub similar_to: bool,
+    #[bits(1)]
+    __: u8,
+}
+
+/// Postfix clauses on a function: null treatment and `FILTER`.
+#[bitfield(u8)]
+#[derive(PartialEq, Eq, Hash)]
+pub struct Aggregate {
+    #[bits(2)]
+    pub nulls: NullTreatment,
+    #[bits(2)]
+    pub filter: FunctionFilter,
+    #[bits(4)]
+    __: u8,
+}
+
+/// Bitwise operators: which exist, how AND/OR/NOT/shifts are spelled, and XOR.
+///
+/// `call` is shared. The builtins never mix an infix AND with a function OR.
+/// XOR does not use `call`.
+#[bitfield(u16)]
+#[derive(PartialEq, Eq, Hash)]
+pub struct Bitwise {
+    #[bits(6, from = bit_op_from, into = bit_op_into)]
+    pub ops: BitOp,
+    #[bits(2)]
+    pub call: BitCall,
+    #[bits(2)]
+    pub xor: XorSpelling,
+    #[bits(6)]
+    __: u8,
+}
+
+/// Identifier delimiter and how that delimiter is escaped.
+#[bitfield(u8)]
+#[derive(PartialEq, Eq, Hash)]
+pub struct Identifier {
+    #[bits(2)]
+    pub format: IdentifierFormat,
+    #[bits(1)]
+    pub escape: IdentifierEscape,
+    #[bits(5)]
+    __: u8,
+}
+
+/// String-literal prefix and escape style.
+#[bitfield(u8)]
+#[derive(PartialEq, Eq, Hash)]
+pub struct StringLiteral {
+    #[bits(2)]
+    pub format: StringFormat,
+    #[bits(3)]
+    pub escape: StringEscape,
+    #[bits(3)]
+    __: u8,
+}
+
+/// `TRY_CAST` spelling and whether `expr::type` is legal.
+#[bitfield(u8)]
+#[derive(PartialEq, Eq, Hash)]
+pub struct Cast {
+    #[bits(2)]
+    pub try_cast: TryCast,
+    pub double_colon: bool,
+    #[bits(5)]
+    __: u8,
+}
+
+/// Tuple syntax and which arities below 2 are legal.
+#[bitfield(u8)]
+#[derive(PartialEq, Eq, Hash)]
+pub struct TupleFlags {
+    #[bits(2)]
+    pub syntax: TupleSyntax,
+    #[bits(2, from = tuple_arity_from, into = tuple_arity_into)]
+    pub arity: TupleArity,
+    #[bits(4)]
+    __: u8,
+}
+
+/// Date, time, and timestamp literal spellings.
+#[bitfield(u8)]
+#[derive(PartialEq, Eq, Hash)]
+pub struct Temporal {
+    #[bits(1)]
+    pub date: DateFormat,
+    #[bits(1)]
+    pub time: TimeFormat,
+    #[bits(2)]
+    pub timestamp: TimestampFormat,
+    #[bits(4)]
+    __: u8,
+}
+
+/// Scalar and typed literal spellings.
+#[bitfield(u16)]
+#[derive(PartialEq, Eq, Hash)]
+pub struct Literals {
+    #[bits(1)]
+    pub bool_format: BoolFormat,
+    #[bits(2)]
+    pub bit_format: BitFormat,
+    #[bits(4)]
+    pub bytes_format: BytesFormat,
+    #[bits(2)]
+    pub inet: InetFormat,
+    #[bits(2)]
+    pub macaddr: MacAddrFormat,
+    #[bits(2)]
+    pub uuid: UuidFormat,
+    #[bits(2)]
+    pub json: JsonFormat,
+    #[bits(1)]
+    __: u8,
+}
+
 /// Packed options that decide how one dialect spells SQL.
 ///
-/// Each field is a small enum or a bool. Builtin dialects set every field.
-/// A flag the writer does not implement makes rendering fail.
+/// Related leaves share one nested field. A bitenum is one spelling. A
+/// bitflags field is a set that can hold several values at once. Builtin
+/// dialects set every leaf. A flag the writer does not implement makes
+/// rendering fail.
 ///
 /// ```
 /// use rapidquery::dialect::flags::BoolFormat;
@@ -505,107 +701,57 @@ pub enum JsonFormat {
 #[bitfield(u128)]
 #[derive(PartialEq, Eq, Hash)]
 pub struct DialectFlags {
-    /// Placeholder character as u32
-    ///
-    /// NOTE: Caller is responsible to set a valid character.
-    #[bits(32)]
-    pub placeholder_character: u32,
-    /// Positional parameter syntax
-    #[bits(1)]
-    pub placeholder: Placeholder,
-    /// The way dialect supports `{IGNORE|RESPECT} NULLS` expressions in `Function`s.
-    #[bits(2)]
-    pub null_treatment: NullTreatment,
-    /// Where an inlined `LIKE` `ESCAPE` clause is legal.
-    #[bits(2)]
-    pub like_escape: LikeEscape,
-    /// How `LIKE ANY` / `ILIKE ANY` is rendered.
-    #[bits(2)]
-    pub like_any: LikeAny,
-    /// Does dialect support `ILIKE` expression or we should fallback to another options?
-    #[bits(2)]
-    pub ilike_expression: ILikeExpression,
-    /// How regex `RLike` is spelled.
+    /// Placeholder character and `?` versus numbered `?1`.
+    #[bits(33)]
+    pub placeholders: Placeholders,
+    /// `LIKE`, `ILIKE`, `ESCAPE`, and `SIMILAR TO`.
+    #[bits(7)]
+    pub like: Like,
+    /// `{IGNORE|RESPECT} NULLS` and `FILTER`.
+    #[bits(4)]
+    pub aggregate: Aggregate,
+    /// Bitwise operators and XOR. `BitOp::INFIX` is not the zero value.
+    #[bits(10)]
+    pub bitwise: Bitwise,
+    /// Identifier delimiter and escape.
     #[bits(3)]
-    pub rlike_expression: RLikeExpression,
+    pub identifier: Identifier,
+    /// String literal prefix and escape.
+    #[bits(5)]
+    pub string: StringLiteral,
+    /// `TRY_CAST` and `::`.
+    #[bits(3)]
+    pub cast: Cast,
+    /// Tuple syntax and arity. The field is `tuples` so `tuple()` stays the syntax leaf.
+    #[bits(4)]
+    pub tuples: TupleFlags,
+    /// Date, time, and timestamp literals.
+    #[bits(4)]
+    pub temporal: Temporal,
+    /// Boolean, bit, bytes, inet, MAC, UUID, and JSON literals.
+    #[bits(15)]
+    pub literals: Literals,
     /// How binary operation StringConcat (`||`) is spelled.
     #[bits(2)]
     pub string_concat: StringConcat,
-    /// How binary operation bit xor (`^`) is spelled.
-    #[bits(3)]
-    pub bitxor: BitXor,
     /// How binary operation mod (`%`) is spelled.
     #[bits(2)]
     pub modulo: Modulo,
     /// How `IS [NOT] DISTINCT FROM` is spelled.
     #[bits(2)]
     pub is_distinct_from: IsDistinctFrom,
-    /// How `TRY_CAST` is spelled.
-    #[bits(2)]
-    pub try_cast: TryCast,
     /// How TRIM is spelled.
     #[bits(2)]
     pub trim: Trim,
     /// How `COLLATE` is spelled.
     #[bits(2)]
     pub collate: Collate,
-    /// How `&`, `|`, `~`, `<<`, and `>>` are spelled.
-    #[bits(3)]
-    pub bitwise: Bitwise,
-    /// How a tuple / row value is spelled.
-    #[bits(3)]
-    pub tuple: Tuple,
-    /// The way dialect accepts literal bit values.
-    #[bits(2)]
-    pub bit_format: BitFormat,
-    /// How a boolean literal is spelled.
-    #[bits(1)]
-    pub bool_format: BoolFormat,
-    /// Delimiters wrapped around a quoted identifier.
-    #[bits(2)]
-    pub identifier_format: IdentifierFormat,
-    /// How to escape identifiers.
-    #[bits(1)]
-    pub identifier_escape: IdentifierEscape,
-    /// Delimiters wrapped around a literal string.
-    #[bits(2)]
-    pub string_format: StringFormat,
-    /// How to escape literal strings.
-    #[bits(3)]
-    pub string_escape: StringEscape,
-    /// The way dialect accepts literal bytes values.
-    #[bits(4)]
-    pub bytes_format: BytesFormat,
-    /// Function `FILTER` syntax.
-    #[bits(3)]
-    pub function_filter: FunctionFilter,
     /// The way dialect accepts array values.
-    #[bits(3)]
+    #[bits(2)]
     pub array_format: ArrayFormat,
-    /// How a date literal is spelled.
+    /// How regex `RLike` is spelled.
     #[bits(3)]
-    pub date_format: DateFormat,
-    /// How a time literal is spelled.
-    #[bits(3)]
-    pub time_format: TimeFormat,
-    /// How a timestamp literal is spelled.
-    #[bits(2)]
-    pub timestamp_format: TimestampFormat,
-    /// How an inet literal is spelled.
-    #[bits(2)]
-    pub inet_format: InetFormat,
-    /// How a MAC address literal is spelled.
-    #[bits(2)]
-    pub macaddr_format: MacAddrFormat,
-    /// How a UUID literal is spelled.
-    #[bits(2)]
-    pub uuid_format: UuidFormat,
-    /// How a JSON literal is spelled.
-    #[bits(2)]
-    pub json_format: JsonFormat,
-    /// Whether `SIMILAR TO` is supported.
-    #[bits(1)]
-    pub supports_similar_to: bool,
+    pub rlike_expression: RLikeExpression,
     /// Wrap `IN` / `BETWEEN` in parentheses.
     ///
     /// SQL Server ranks `AND` above `IN`/`BETWEEN`/`OR`, and those four share
@@ -613,16 +759,361 @@ pub struct DialectFlags {
     /// from being parsed as part of the left operand.
     #[bits(1)]
     pub parenthesize_in_between: bool,
-    /// Whether `expr::type` is supported.
-    #[bits(1)]
-    pub supports_double_colon: bool,
 
-    // Padding
-    #[bits(23)]
+    // Padding. 33+7+4+10+3+5+3+4+4+15+2+2+2+2+2+2+3+1 = 104.
+    #[bits(24)]
     __: u32,
 }
 
 impl DialectFlags {
+    /// Stored placeholder character. The caller keeps this a valid `char`.
+    #[inline]
+    pub const fn placeholder_character(&self) -> u32 {
+        self.placeholders().character()
+    }
+
+    /// Set the placeholder character.
+    #[inline]
+    pub const fn with_placeholder_character(self, character: u32) -> Self {
+        self.with_placeholders(self.placeholders().with_character(character))
+    }
+
+    /// `?` or numbered `?1`.
+    #[inline]
+    pub const fn placeholder(&self) -> Placeholder {
+        self.placeholders().style()
+    }
+
+    /// Set `?` or numbered `?1`.
+    #[inline]
+    pub const fn with_placeholder(self, style: Placeholder) -> Self {
+        self.with_placeholders(self.placeholders().with_style(style))
+    }
+
+    /// Where `ESCAPE` is legal. Empty rejects it.
+    #[inline]
+    pub const fn like_escape(&self) -> LikeEscape {
+        self.like().escape()
+    }
+
+    /// Set where `ESCAPE` is legal.
+    #[inline]
+    pub const fn with_like_escape(self, escape: LikeEscape) -> Self {
+        self.with_like(self.like().with_escape(escape))
+    }
+
+    /// How `LIKE ANY` is spelled.
+    #[inline]
+    pub const fn like_any(&self) -> LikeAny {
+        self.like().any()
+    }
+
+    /// Set how `LIKE ANY` is spelled.
+    #[inline]
+    pub const fn with_like_any(self, any: LikeAny) -> Self {
+        self.with_like(self.like().with_any(any))
+    }
+
+    /// How `ILIKE` is spelled.
+    #[inline]
+    pub const fn ilike_expression(&self) -> ILikeExpression {
+        self.like().ilike()
+    }
+
+    /// Set how `ILIKE` is spelled.
+    #[inline]
+    pub const fn with_ilike_expression(self, ilike: ILikeExpression) -> Self {
+        self.with_like(self.like().with_ilike(ilike))
+    }
+
+    /// Whether `SIMILAR TO` can be rendered.
+    #[inline]
+    pub const fn supports_similar_to(&self) -> bool {
+        self.like().similar_to()
+    }
+
+    /// Set whether `SIMILAR TO` can be rendered.
+    #[inline]
+    pub const fn with_supports_similar_to(self, value: bool) -> Self {
+        self.with_like(self.like().with_similar_to(value))
+    }
+
+    /// Where `{IGNORE|RESPECT} NULLS` is written.
+    #[inline]
+    pub const fn null_treatment(&self) -> NullTreatment {
+        self.aggregate().nulls()
+    }
+
+    /// Set where `{IGNORE|RESPECT} NULLS` is written.
+    #[inline]
+    pub const fn with_null_treatment(self, value: NullTreatment) -> Self {
+        self.with_aggregate(self.aggregate().with_nulls(value))
+    }
+
+    /// How aggregate `FILTER` is spelled.
+    #[inline]
+    pub const fn function_filter(&self) -> FunctionFilter {
+        self.aggregate().filter()
+    }
+
+    /// Set how aggregate `FILTER` is spelled.
+    #[inline]
+    pub const fn with_function_filter(self, value: FunctionFilter) -> Self {
+        self.with_aggregate(self.aggregate().with_filter(value))
+    }
+
+    /// Which bitwise operators exist.
+    #[inline]
+    pub const fn bit_ops(&self) -> BitOp {
+        self.bitwise().ops()
+    }
+
+    /// Set which bitwise operators exist.
+    #[inline]
+    pub const fn with_bit_ops(self, ops: BitOp) -> Self {
+        self.with_bitwise(self.bitwise().with_ops(ops))
+    }
+
+    /// Spelling of AND, OR, NOT, and shifts.
+    #[inline]
+    pub const fn bit_call(&self) -> BitCall {
+        self.bitwise().call()
+    }
+
+    /// Set the spelling of AND, OR, NOT, and shifts.
+    #[inline]
+    pub const fn with_bit_call(self, call: BitCall) -> Self {
+        self.with_bitwise(self.bitwise().with_call(call))
+    }
+
+    /// XOR spelling. Ignored unless [`BitOp::XOR`] is set.
+    #[inline]
+    pub const fn xor(&self) -> XorSpelling {
+        self.bitwise().xor()
+    }
+
+    /// Set the XOR spelling.
+    #[inline]
+    pub const fn with_xor(self, xor: XorSpelling) -> Self {
+        self.with_bitwise(self.bitwise().with_xor(xor))
+    }
+
+    /// Identifier delimiter.
+    #[inline]
+    pub const fn identifier_format(&self) -> IdentifierFormat {
+        self.identifier().format()
+    }
+
+    /// Set the identifier delimiter.
+    #[inline]
+    pub const fn with_identifier_format(self, format: IdentifierFormat) -> Self {
+        self.with_identifier(self.identifier().with_format(format))
+    }
+
+    /// How an identifier escapes its delimiter.
+    #[inline]
+    pub const fn identifier_escape(&self) -> IdentifierEscape {
+        self.identifier().escape()
+    }
+
+    /// Set how an identifier escapes its delimiter.
+    #[inline]
+    pub const fn with_identifier_escape(self, escape: IdentifierEscape) -> Self {
+        self.with_identifier(self.identifier().with_escape(escape))
+    }
+
+    /// String-literal prefix.
+    #[inline]
+    pub const fn string_format(&self) -> StringFormat {
+        self.string().format()
+    }
+
+    /// Set the string-literal prefix.
+    #[inline]
+    pub const fn with_string_format(self, format: StringFormat) -> Self {
+        self.with_string(self.string().with_format(format))
+    }
+
+    /// String escape style.
+    #[inline]
+    pub const fn string_escape(&self) -> StringEscape {
+        self.string().escape()
+    }
+
+    /// Set the string escape style.
+    #[inline]
+    pub const fn with_string_escape(self, escape: StringEscape) -> Self {
+        self.with_string(self.string().with_escape(escape))
+    }
+
+    /// How `TRY_CAST` is spelled.
+    #[inline]
+    pub const fn try_cast(&self) -> TryCast {
+        self.cast().try_cast()
+    }
+
+    /// Set how `TRY_CAST` is spelled.
+    #[inline]
+    pub const fn with_try_cast(self, value: TryCast) -> Self {
+        self.with_cast(self.cast().with_try_cast(value))
+    }
+
+    /// Whether `expr::type` is legal.
+    #[inline]
+    pub const fn supports_double_colon(&self) -> bool {
+        self.cast().double_colon()
+    }
+
+    /// Set whether `expr::type` is legal.
+    #[inline]
+    pub const fn with_supports_double_colon(self, value: bool) -> Self {
+        self.with_cast(self.cast().with_double_colon(value))
+    }
+
+    /// Tuple syntax. Arity limits are [`Self::tuple_arity`].
+    #[inline]
+    pub const fn tuple(&self) -> TupleSyntax {
+        self.tuples().syntax()
+    }
+
+    /// Set the tuple syntax.
+    #[inline]
+    pub const fn with_tuple(self, syntax: TupleSyntax) -> Self {
+        self.with_tuples(self.tuples().with_syntax(syntax))
+    }
+
+    /// Arities below 2 that the tuple syntax accepts.
+    #[inline]
+    pub const fn tuple_arity(&self) -> TupleArity {
+        self.tuples().arity()
+    }
+
+    /// Set arities below 2 that the tuple syntax accepts.
+    #[inline]
+    pub const fn with_tuple_arity(self, arity: TupleArity) -> Self {
+        self.with_tuples(self.tuples().with_arity(arity))
+    }
+
+    /// How a date literal is spelled.
+    #[inline]
+    pub const fn date_format(&self) -> DateFormat {
+        self.temporal().date()
+    }
+
+    /// Set how a date literal is spelled.
+    #[inline]
+    pub const fn with_date_format(self, value: DateFormat) -> Self {
+        self.with_temporal(self.temporal().with_date(value))
+    }
+
+    /// How a time literal is spelled.
+    #[inline]
+    pub const fn time_format(&self) -> TimeFormat {
+        self.temporal().time()
+    }
+
+    /// Set how a time literal is spelled.
+    #[inline]
+    pub const fn with_time_format(self, value: TimeFormat) -> Self {
+        self.with_temporal(self.temporal().with_time(value))
+    }
+
+    /// How a timestamp literal is spelled.
+    #[inline]
+    pub const fn timestamp_format(&self) -> TimestampFormat {
+        self.temporal().timestamp()
+    }
+
+    /// Set how a timestamp literal is spelled.
+    #[inline]
+    pub const fn with_timestamp_format(self, value: TimestampFormat) -> Self {
+        self.with_temporal(self.temporal().with_timestamp(value))
+    }
+
+    /// How a boolean literal is spelled.
+    #[inline]
+    pub const fn bool_format(&self) -> BoolFormat {
+        self.literals().bool_format()
+    }
+
+    /// Set how a boolean literal is spelled.
+    #[inline]
+    pub const fn with_bool_format(self, value: BoolFormat) -> Self {
+        self.with_literals(self.literals().with_bool_format(value))
+    }
+
+    /// How a bit-string literal is spelled.
+    #[inline]
+    pub const fn bit_format(&self) -> BitFormat {
+        self.literals().bit_format()
+    }
+
+    /// Set how a bit-string literal is spelled.
+    #[inline]
+    pub const fn with_bit_format(self, value: BitFormat) -> Self {
+        self.with_literals(self.literals().with_bit_format(value))
+    }
+
+    /// How a byte literal is spelled.
+    #[inline]
+    pub const fn bytes_format(&self) -> BytesFormat {
+        self.literals().bytes_format()
+    }
+
+    /// Set how a byte literal is spelled.
+    #[inline]
+    pub const fn with_bytes_format(self, value: BytesFormat) -> Self {
+        self.with_literals(self.literals().with_bytes_format(value))
+    }
+
+    /// How an inet literal is spelled.
+    #[inline]
+    pub const fn inet_format(&self) -> InetFormat {
+        self.literals().inet()
+    }
+
+    /// Set how an inet literal is spelled.
+    #[inline]
+    pub const fn with_inet_format(self, value: InetFormat) -> Self {
+        self.with_literals(self.literals().with_inet(value))
+    }
+
+    /// How a MAC address literal is spelled.
+    #[inline]
+    pub const fn macaddr_format(&self) -> MacAddrFormat {
+        self.literals().macaddr()
+    }
+
+    /// Set how a MAC address literal is spelled.
+    #[inline]
+    pub const fn with_macaddr_format(self, value: MacAddrFormat) -> Self {
+        self.with_literals(self.literals().with_macaddr(value))
+    }
+
+    /// How a UUID literal is spelled.
+    #[inline]
+    pub const fn uuid_format(&self) -> UuidFormat {
+        self.literals().uuid()
+    }
+
+    /// Set how a UUID literal is spelled.
+    #[inline]
+    pub const fn with_uuid_format(self, value: UuidFormat) -> Self {
+        self.with_literals(self.literals().with_uuid(value))
+    }
+
+    /// How a JSON literal is spelled.
+    #[inline]
+    pub const fn json_format(&self) -> JsonFormat {
+        self.literals().json()
+    }
+
+    /// Set how a JSON literal is spelled.
+    #[inline]
+    pub const fn with_json_format(self, value: JsonFormat) -> Self {
+        self.with_literals(self.literals().with_json(value))
+    }
+
     /// Write a boolean literal (`TRUE`/`FALSE` or `1`/`0`).
     #[inline]
     pub fn write_boolean<W: std::fmt::Write>(&self, writer: &mut W, value: bool) -> Result<(), FormatError> {

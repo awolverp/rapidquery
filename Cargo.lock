@@ -380,6 +380,7 @@ version = "0.2.0-alpha1"
 dependencies = [
  "arcstr",
  "bitfield-struct",
+ "bitflags",
  "chrono",
  "hashbrown",
  "ipnetwork",

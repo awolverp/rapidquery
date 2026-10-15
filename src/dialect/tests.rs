@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use super::*;
 
 #[inline]
@@ -730,4 +732,125 @@ fn writer_errors_surface_as_format_error() {
             .write_bits(&mut writer, "1")
             .is_err()
     );
+}
+
+fn column(name: &str) -> crate::expr::enum_::ExprInner {
+    crate::expr::enum_::ExprInner::Ident(crate::expr::enum_::Ident::from_str(name).unwrap())
+}
+
+fn binary(op: crate::expr::enum_::BinaryOp) -> crate::expr::enum_::Binary {
+    crate::expr::enum_::Binary {
+        left: Box::new(column("a")),
+        right: Box::new(column("b")),
+        op,
+    }
+}
+
+fn render(
+    py: pyo3::Python<'_>,
+    flags: flags::DialectFlags,
+    expr: &impl crate::internal::sql::WriteSql,
+) -> Result<String, crate::internal::sql::PrepareError> {
+    let dialect = PyDialect(flags);
+    let mut buf = crate::internal::sql::BufferedSql::new(py);
+    expr.write_sql(&dialect, &mut buf)?;
+    Ok(buf.into_string())
+}
+
+fn error_text(err: crate::internal::sql::PrepareError) -> String {
+    match err {
+        crate::internal::sql::PrepareError::Python(err) => err.to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// Infix AND and OR, no NOT, no shifts, XOR as `#`.
+///
+/// The old `Bitwise` enum could not name this mix. Each operator is its own bit.
+#[test]
+fn bitwise_and_or_with_hash_xor_rejects_not_and_shifts() {
+    use crate::expr::enum_::BinaryOp;
+    use crate::expr::enum_::Unary;
+    use crate::expr::enum_::UnaryOp;
+
+    pyo3::Python::attach(|py| {
+        let flags = flags::DialectFlags::new()
+            .with_bit_ops(flags::BitOp::AND.union(flags::BitOp::OR).union(flags::BitOp::XOR))
+            .with_bit_call(flags::BitCall::Infix)
+            .with_xor(flags::XorSpelling::Hash);
+
+        assert_eq!(render(py, flags, &binary(BinaryOp::BitAnd)).unwrap(), "\"a\" & \"b\"");
+        assert_eq!(render(py, flags, &binary(BinaryOp::BitOr)).unwrap(), "\"a\" | \"b\"");
+        assert_eq!(render(py, flags, &binary(BinaryOp::BitXor)).unwrap(), "\"a\" # \"b\"");
+
+        let not = Unary {
+            op: UnaryOp::BitNot,
+            expr: Box::new(column("a")),
+        };
+        assert!(error_text(render(py, flags, &not).unwrap_err()).contains("bitwise NOT"));
+        assert!(error_text(render(py, flags, &binary(BinaryOp::LShift)).unwrap_err()).contains("bitwise shift"));
+        assert!(error_text(render(py, flags, &binary(BinaryOp::RShift)).unwrap_err()).contains("bitwise shift"));
+    });
+}
+
+/// `ROW` plus arity 1 rejects `ROW()`. Parentheses with an empty arity mask still need two elements.
+#[test]
+fn tuple_arity_is_independent_of_syntax() {
+    use crate::expr::enum_::Tuple;
+
+    pyo3::Python::attach(|py| {
+        let row = flags::DialectFlags::new()
+            .with_tuple(flags::TupleSyntax::Row)
+            .with_tuple_arity(flags::TupleArity::ONE);
+        let one = Tuple {
+            items: vec![column("a")],
+        };
+        let two = Tuple {
+            items: vec![column("a"), column("b")],
+        };
+        assert_eq!(render(py, row, &one).unwrap(), "ROW(\"a\")");
+        assert_eq!(render(py, row, &two).unwrap(), "ROW(\"a\", \"b\")");
+        assert!(error_text(render(py, row, &Tuple { items: vec![] }).unwrap_err()).contains("empty tuple"));
+
+        let parens = flags::DialectFlags::new().with_tuple(flags::TupleSyntax::Parentheses);
+        assert!(error_text(render(py, parens, &one).unwrap_err()).contains("at least two"));
+        assert_eq!(render(py, parens, &two).unwrap(), "(\"a\", \"b\")");
+    });
+}
+
+/// `SCALAR`, `ANY`, and empty are three different `ESCAPE` policies.
+#[test]
+fn like_escape_flags_combine() {
+    use crate::expr::enum_::Like;
+    use crate::expr::enum_::LikePattern;
+
+    fn like(any: bool, escape: Option<char>) -> Like {
+        Like {
+            case_sensitive: true,
+            negated: false,
+            expr: Box::new(column("a")),
+            pattern: if any {
+                LikePattern::Any(vec![column("p")])
+            } else {
+                LikePattern::One(Box::new(column("p")))
+            },
+            escape,
+        }
+    }
+
+    pyo3::Python::attach(|py| {
+        let scalar = flags::DialectFlags::new()
+            .with_like_escape(flags::LikeEscape::SCALAR)
+            .with_like_any(flags::LikeAny::PatternList);
+        let both = scalar.with_like_escape(flags::LikeEscape::SCALAR.union(flags::LikeEscape::ANY));
+        let none = flags::DialectFlags::new().with_like_any(flags::LikeAny::PatternList);
+
+        assert_eq!(
+            render(py, scalar, &like(false, Some('!'))).unwrap(),
+            "\"a\" LIKE \"p\" ESCAPE '!'"
+        );
+        assert!(error_text(render(py, scalar, &like(true, Some('!'))).unwrap_err()).contains("LIKE ANY ESCAPE"));
+        assert!(render(py, both, &like(true, Some('!'))).unwrap().contains("ESCAPE"));
+        assert!(error_text(render(py, none, &like(false, Some('!'))).unwrap_err()).contains("LIKE ESCAPE"));
+    });
 }

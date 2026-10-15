@@ -148,10 +148,10 @@ fn write_like_pattern_list<W: SqlWriter>(
 /// `OR` expansion.
 #[inline]
 fn like_escape_allowed(syntax: flags::LikeEscape, native_any: bool) -> bool {
-    match syntax {
-        flags::LikeEscape::Unsupported => false,
-        flags::LikeEscape::Scalar => !native_any,
-        flags::LikeEscape::IncludingAny => true,
+    if native_any {
+        syntax.contains(flags::LikeEscape::ANY)
+    } else {
+        syntax.contains(flags::LikeEscape::SCALAR)
     }
 }
 

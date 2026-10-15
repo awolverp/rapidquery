@@ -58,29 +58,31 @@ impl Tuple {
 impl WriteSql for Tuple {
     fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
         let arity = self.items.len();
-        match dialect.0.tuple() {
-            flags::Tuple::Unsupported => {
+        let syntax = dialect.0.tuple();
+        let allowed = dialect.0.tuple_arity();
+        if syntax != flags::TupleSyntax::Unsupported {
+            if arity == 0 && !allowed.contains(flags::TupleArity::EMPTY) {
+                return Err(unsupported(if syntax == flags::TupleSyntax::Parentheses {
+                    "a tuple needs at least two elements on this dialect"
+                } else {
+                    "empty tuple is not supported by this dialect"
+                }));
+            }
+            if arity == 1 && !allowed.contains(flags::TupleArity::ONE) {
+                return Err(unsupported("a tuple needs at least two elements on this dialect"));
+            }
+        }
+        match syntax {
+            flags::TupleSyntax::Unsupported => {
                 return Err(unsupported("tuple values are not supported by this dialect"));
             }
-            flags::Tuple::Row => {
+            flags::TupleSyntax::Row => {
                 out.push_str("ROW(");
             }
-            flags::Tuple::RowRejectEmpty => {
-                if arity == 0 {
-                    return Err(unsupported("empty tuple is not supported by this dialect"));
-                }
-                out.push_str("ROW(");
-            }
-            flags::Tuple::Struct => {
-                if arity == 0 {
-                    return Err(unsupported("empty tuple is not supported by this dialect"));
-                }
+            flags::TupleSyntax::Struct => {
                 out.push_str("struct(");
             }
-            flags::Tuple::Parentheses => {
-                if arity < 2 {
-                    return Err(unsupported("a tuple needs at least two elements on this dialect"));
-                }
+            flags::TupleSyntax::Parentheses => {
                 out.push_char('(');
             }
         }
@@ -129,21 +131,22 @@ impl Unary {
 impl WriteSql for Unary {
     fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
         if self.op == UnaryOp::BitNot {
-            match dialect.0.bitwise() {
-                flags::Bitwise::Infix | flags::Bitwise::InfixNoShift => {
+            let bits = dialect.0.bitwise();
+            if !bits.ops().contains(flags::BitOp::NOT) {
+                return Err(unsupported("bitwise NOT is not supported by this dialect"));
+            }
+            match bits.call() {
+                flags::BitCall::Infix => {
                     out.push_char('~');
                     return self
                         .expr
                         .write_operand(dialect, out, UnaryOp::BitNot.precedence(), true);
                 }
-                flags::Bitwise::BitShiftFunctions | flags::Bitwise::ShiftFunctions => {
+                flags::BitCall::BitFunction | flags::BitCall::ShiftFunction => {
                     out.push_str("BITNOT(");
                     self.expr.write_sql(dialect, out)?;
                     out.push_char(')');
                     return Ok(());
-                }
-                flags::Bitwise::BitAndOnly | flags::Bitwise::InfixAndShift => {
-                    return Err(unsupported("bitwise NOT is not supported by this dialect"));
                 }
             }
         }
@@ -227,6 +230,35 @@ fn write_binary_call<W: SqlWriter>(
     Ok(())
 }
 
+/// Render one bitwise operator from [`flags::Bitwise`].
+///
+/// `infix` is the token for [`flags::BitCall::Infix`]. `bit_fn` is the name
+/// for [`flags::BitCall::BitFunction`]. `shift_fn` is the name for
+/// [`flags::BitCall::ShiftFunction`]. AND and OR pass the same function name
+/// twice; shifts pass `BITSHIFT*` and `SHIFT*`.
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn write_bit_op<W: SqlWriter>(
+    bin: &Binary,
+    dialect: &PyDialect,
+    out: &mut W,
+    op: flags::BitOp,
+    infix: &str,
+    bit_fn: &str,
+    shift_fn: &str,
+    missing: &'static str,
+) -> PrepareResult<()> {
+    let bits = dialect.0.bitwise();
+    if !bits.ops().contains(op) {
+        return Err(unsupported(missing));
+    }
+    match bits.call() {
+        flags::BitCall::Infix => write_infix(bin, dialect, out, infix, false),
+        flags::BitCall::BitFunction => write_binary_call(dialect, out, bit_fn, &bin.left, &bin.right),
+        flags::BitCall::ShiftFunction => write_binary_call(dialect, out, shift_fn, &bin.left, &bin.right),
+    }
+}
+
 /// Infix `left SPELLING right`.
 ///
 /// `paren_arithmetic` parenthesizes a `+ - * / %` side. Infix `||` (and MsSql
@@ -277,57 +309,65 @@ impl WriteSql for Binary {
                 flags::StringConcat::Pipes => write_infix(self, dialect, out, "||", true),
                 flags::StringConcat::Plus => write_infix(self, dialect, out, "+", true),
             },
-            BinaryOp::BitXor => match dialect.0.bitxor() {
-                flags::BitXor::Unsupported => Err(unsupported("bitwise XOR is not supported by this dialect")),
-                flags::BitXor::Caret => write_infix(self, dialect, out, "^", false),
-                flags::BitXor::Hash => write_infix(self, dialect, out, "#", false),
-                flags::BitXor::XORFunction => write_binary_call(dialect, out, "xor", &self.left, &self.right),
-                flags::BitXor::BitXORFunction => write_binary_call(dialect, out, "BITXOR", &self.left, &self.right),
-            },
+            BinaryOp::BitXor => {
+                let bits = dialect.0.bitwise();
+                if !bits.ops().contains(flags::BitOp::XOR) {
+                    return Err(unsupported("bitwise XOR is not supported by this dialect"));
+                }
+                match bits.xor() {
+                    flags::XorSpelling::Caret => write_infix(self, dialect, out, "^", false),
+                    flags::XorSpelling::Hash => write_infix(self, dialect, out, "#", false),
+                    flags::XorSpelling::Function => write_binary_call(dialect, out, "xor", &self.left, &self.right),
+                    flags::XorSpelling::BitFunction => {
+                        write_binary_call(dialect, out, "BITXOR", &self.left, &self.right)
+                    }
+                }
+            }
             BinaryOp::Mod => match dialect.0.modulo() {
                 flags::Modulo::Percent => write_infix(self, dialect, out, "%", false),
                 flags::Modulo::Function => write_binary_call(dialect, out, "MOD", &self.left, &self.right),
                 flags::Modulo::Infix => write_infix(self, dialect, out, "MOD", false),
             },
-            BinaryOp::BitAnd => match dialect.0.bitwise() {
-                flags::Bitwise::Infix | flags::Bitwise::InfixNoShift | flags::Bitwise::InfixAndShift => {
-                    write_infix(self, dialect, out, "&", false)
-                }
-                flags::Bitwise::BitShiftFunctions | flags::Bitwise::ShiftFunctions | flags::Bitwise::BitAndOnly => {
-                    write_binary_call(dialect, out, "BITAND", &self.left, &self.right)
-                }
-            },
-            BinaryOp::BitOr => match dialect.0.bitwise() {
-                flags::Bitwise::Infix | flags::Bitwise::InfixNoShift => write_infix(self, dialect, out, "|", false),
-                flags::Bitwise::BitShiftFunctions | flags::Bitwise::ShiftFunctions => {
-                    write_binary_call(dialect, out, "BITOR", &self.left, &self.right)
-                }
-                flags::Bitwise::BitAndOnly | flags::Bitwise::InfixAndShift => {
-                    Err(unsupported("bitwise OR is not supported by this dialect"))
-                }
-            },
-            BinaryOp::LShift => match dialect.0.bitwise() {
-                flags::Bitwise::Infix | flags::Bitwise::InfixAndShift => write_infix(self, dialect, out, "<<", false),
-                flags::Bitwise::BitShiftFunctions => {
-                    write_binary_call(dialect, out, "BITSHIFTLEFT", &self.left, &self.right)
-                }
-                flags::Bitwise::ShiftFunctions => write_binary_call(dialect, out, "SHIFTLEFT", &self.left, &self.right),
-                flags::Bitwise::InfixNoShift | flags::Bitwise::BitAndOnly => {
-                    Err(unsupported("bitwise shift is not supported by this dialect"))
-                }
-            },
-            BinaryOp::RShift => match dialect.0.bitwise() {
-                flags::Bitwise::Infix | flags::Bitwise::InfixAndShift => write_infix(self, dialect, out, ">>", false),
-                flags::Bitwise::BitShiftFunctions => {
-                    write_binary_call(dialect, out, "BITSHIFTRIGHT", &self.left, &self.right)
-                }
-                flags::Bitwise::ShiftFunctions => {
-                    write_binary_call(dialect, out, "SHIFTRIGHT", &self.left, &self.right)
-                }
-                flags::Bitwise::InfixNoShift | flags::Bitwise::BitAndOnly => {
-                    Err(unsupported("bitwise shift is not supported by this dialect"))
-                }
-            },
+            BinaryOp::BitAnd => write_bit_op(
+                self,
+                dialect,
+                out,
+                flags::BitOp::AND,
+                "&",
+                "BITAND",
+                "BITAND",
+                "bitwise AND is not supported by this dialect",
+            ),
+            BinaryOp::BitOr => write_bit_op(
+                self,
+                dialect,
+                out,
+                flags::BitOp::OR,
+                "|",
+                "BITOR",
+                "BITOR",
+                "bitwise OR is not supported by this dialect",
+            ),
+            BinaryOp::LShift => write_bit_op(
+                self,
+                dialect,
+                out,
+                flags::BitOp::SHL,
+                "<<",
+                "BITSHIFTLEFT",
+                "SHIFTLEFT",
+                "bitwise shift is not supported by this dialect",
+            ),
+            BinaryOp::RShift => write_bit_op(
+                self,
+                dialect,
+                out,
+                flags::BitOp::SHR,
+                ">>",
+                "BITSHIFTRIGHT",
+                "SHIFTRIGHT",
+                "bitwise shift is not supported by this dialect",
+            ),
             _ => write_infix(self, dialect, out, self.op.as_sql(), false),
         }
     }

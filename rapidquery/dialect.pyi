@@ -41,14 +41,11 @@ OPT_NULL_TREATMENT_INSIDE_PARENS: typing.Final[int]
 OPT_NULL_TREATMENT_POSTFIX: typing.Final[int]
 """Null treatment is written after the call."""
 
-OPT_LIKE_ESCAPE_UNSUPPORTED: typing.Final[int]
-"""`LIKE` has no `ESCAPE` clause."""
-
 OPT_LIKE_ESCAPE_SCALAR: typing.Final[int]
-"""`ESCAPE` is legal on a single pattern, not on native `LIKE ANY`."""
+"""`ESCAPE` is legal on a scalar `LIKE` and on an `OR` expansion."""
 
-OPT_LIKE_ESCAPE_INCLUDING_ANY: typing.Final[int]
-"""`ESCAPE` is legal on a single pattern and on `LIKE ANY`."""
+OPT_LIKE_ESCAPE_ANY: typing.Final[int]
+"""`ESCAPE` is legal on native `LIKE ANY`. Combine with `OPT_LIKE_ESCAPE_SCALAR`."""
 
 OPT_LIKE_ANY_OR_EXPANSION: typing.Final[int]
 """`LIKE ANY` is expanded to `OR` of scalar `LIKE` predicates."""
@@ -95,20 +92,44 @@ OPT_STRING_CONCAT_PLUS: typing.Final[int]
 OPT_STRING_CONCAT_CONCAT_FUNCTION: typing.Final[int]
 """String concatenation is `CONCAT`."""
 
-OPT_BITXOR_UNSUPPORTED: typing.Final[int]
-"""Bitwise XOR is rejected."""
+OPT_BIT_AND: typing.Final[int]
+"""Bitwise AND is legal. Combine with the other `OPT_BIT_*` masks."""
 
-OPT_BITXOR_CARET: typing.Final[int]
-"""Bitwise XOR is `^`."""
+OPT_BIT_OR: typing.Final[int]
+"""Bitwise OR is legal."""
 
-OPT_BITXOR_HASH: typing.Final[int]
-"""Bitwise XOR is `#`."""
+OPT_BIT_NOT: typing.Final[int]
+"""Bitwise NOT is legal."""
 
-OPT_BITXOR_XOR_FUNCTION: typing.Final[int]
-"""Bitwise XOR is `XOR`."""
+OPT_BIT_SHL: typing.Final[int]
+"""Left shift is legal."""
 
-OPT_BITXOR_BIT_XOR_FUNCTION: typing.Final[int]
-"""Bitwise XOR is `BITXOR`."""
+OPT_BIT_SHR: typing.Final[int]
+"""Right shift is legal."""
+
+OPT_BIT_XOR: typing.Final[int]
+"""Bitwise XOR is legal. The token comes from `xor`."""
+
+OPT_BIT_CALL_INFIX: typing.Final[int]
+"""AND, OR, NOT, and shifts are `&`, `|`, `~`, `<<`, and `>>`."""
+
+OPT_BIT_CALL_BIT_FUNCTION: typing.Final[int]
+"""AND, OR, NOT, and shifts are `BITAND`, `BITOR`, `BITNOT`, `BITSHIFTLEFT`, and `BITSHIFTRIGHT`."""
+
+OPT_BIT_CALL_SHIFT_FUNCTION: typing.Final[int]
+"""AND, OR, and NOT are `BIT*` functions. Shifts are `SHIFTLEFT` and `SHIFTRIGHT`."""
+
+OPT_XOR_CARET: typing.Final[int]
+"""Bitwise XOR is `^` when `OPT_BIT_XOR` is set."""
+
+OPT_XOR_HASH: typing.Final[int]
+"""Bitwise XOR is `#` when `OPT_BIT_XOR` is set."""
+
+OPT_XOR_FUNCTION: typing.Final[int]
+"""Bitwise XOR is `xor()` when `OPT_BIT_XOR` is set."""
+
+OPT_XOR_BIT_FUNCTION: typing.Final[int]
+"""Bitwise XOR is `BITXOR()` when `OPT_BIT_XOR` is set."""
 
 OPT_MODULO_PERCENT: typing.Final[int]
 """Modulo is `%`."""
@@ -158,38 +179,23 @@ OPT_COLLATE_INFIX_IDENT: typing.Final[int]
 OPT_COLLATE_FUNCTION_STRING: typing.Final[int]
 """`COLLATE` is a function and the name is a string."""
 
-OPT_BITWISE_INFIX: typing.Final[int]
-"""Bitwise AND, OR, NOT, and shifts are infix operators."""
-
-OPT_BITWISE_INFIX_AND_SHIFT: typing.Final[int]
-"""Bitwise operators and shifts are both infix."""
-
-OPT_BITWISE_INFIX_NO_SHIFT: typing.Final[int]
-"""Bitwise AND, OR, and NOT are infix. Shifts are rejected."""
-
-OPT_BITWISE_BIT_SHIFT_FUNCTIONS: typing.Final[int]
-"""Shifts are `BITSHIFTLEFT` and `BITSHIFTRIGHT`."""
-
-OPT_BITWISE_SHIFT_FUNCTIONS: typing.Final[int]
-"""Shifts are `SHIFTLEFT` and `SHIFTRIGHT`."""
-
-OPT_BITWISE_BIT_AND_ONLY: typing.Final[int]
-"""Only bitwise AND is available, as a function."""
-
 OPT_TUPLE_UNSUPPORTED: typing.Final[int]
 """Tuple values are rejected."""
 
 OPT_TUPLE_ROW: typing.Final[int]
 """Tuples are `ROW(…)`."""
 
-OPT_TUPLE_ROW_REJECT_EMPTY: typing.Final[int]
-"""Tuples are `ROW(…)`. An empty tuple is rejected."""
-
 OPT_TUPLE_STRUCT: typing.Final[int]
 """Tuples are `struct(…)`."""
 
 OPT_TUPLE_PARENTHESES: typing.Final[int]
-"""Tuples are `(…)`. Fewer than two elements is rejected."""
+"""Tuples are `(…)`."""
+
+OPT_TUPLE_EMPTY: typing.Final[int]
+"""Arity 0 is legal. Combine with `OPT_TUPLE_ONE` when a single element is legal too."""
+
+OPT_TUPLE_ONE: typing.Final[int]
+"""Arity 1 is legal. Arity 2 and above stays legal whenever the syntax is not unsupported."""
 
 OPT_BIT_FORMAT_UNSUPPORTED: typing.Final[int]
 """Bit-string literals are rejected."""
@@ -398,14 +404,16 @@ class Dialect:
         ilike_expression: int = 0,
         rlike_expression: int = 0,
         string_concat: int = 0,
-        bitxor: int = 0,
+        bit_ops: int = 31,
+        bit_call: int = 0,
+        xor: int = 0,
         modulo: int = 0,
         is_distinct_from: int = 0,
         try_cast: int = 0,
         trim: int = 0,
         collate: int = 0,
-        bitwise: int = 0,
         tuple: int = 0,
+        tuple_arity: int = 0,
         bit_format: int = 0,
         bool_format: int = 0,
         identifier_format: int = 0,
@@ -429,26 +437,31 @@ class Dialect:
         """
         Build a dialect from flags.
 
-        Each integer argument is one `OPT_*` constant. Omitted flags use the
-        zero value, which is that option's fallback spelling.
+        An exclusive spelling is one `OPT_*` constant. A mask is several
+        `OPT_*` constants combined with `|`. Omitted spellings use discriminant
+        0. Omitted masks are empty, except `bit_ops`, which defaults to infix
+        AND, OR, NOT, and both shifts.
 
         Args:
             placeholder_character: One character written for a parameter.
             placeholder: `OPT_PLACEHOLDER_SIMPLE` or `OPT_PLACEHOLDER_NUMBERED`.
             null_treatment: Where `{IGNORE|RESPECT} NULLS` is written.
-            like_escape: Where `LIKE … ESCAPE` is legal.
+            like_escape: Mask of `OPT_LIKE_ESCAPE_SCALAR` and `OPT_LIKE_ESCAPE_ANY`. `0` rejects `ESCAPE`.
             like_any: How `LIKE ANY` is spelled.
             ilike_expression: How a case-insensitive `LIKE` is spelled.
             rlike_expression: How a regex predicate is spelled.
             string_concat: How `||` is spelled.
-            bitxor: How `^` is spelled.
+            bit_ops: Mask of `OPT_BIT_AND`, `OPT_BIT_OR`, `OPT_BIT_NOT`, `OPT_BIT_SHL`,
+                `OPT_BIT_SHR`, and `OPT_BIT_XOR`. The default `31` is every operator except XOR.
+            bit_call: How AND, OR, NOT, and shifts are spelled.
+            xor: How `^` is spelled when `OPT_BIT_XOR` is set. Ignored otherwise.
             modulo: How `%` is spelled.
             is_distinct_from: How `IS DISTINCT FROM` is spelled.
             try_cast: How `TRY_CAST` is spelled.
             trim: How `TRIM` is spelled.
             collate: How `COLLATE` is spelled.
-            bitwise: How `&`, `|`, `~`, and shifts are spelled.
             tuple: How a row value is spelled.
+            tuple_arity: Mask of `OPT_TUPLE_EMPTY` and `OPT_TUPLE_ONE`. `0` means at least two elements.
             bit_format: How a bit-string literal is spelled.
             bool_format: `TRUE`/`FALSE` or `1`/`0`.
             identifier_format: Delimiter around a quoted identifier.
@@ -472,6 +485,7 @@ class Dialect:
         Raises:
             TypeError: `placeholder_character` is not one character, or a flag
                 is not an `int`.
+            ValueError: A mask has a bit that is not one of its `OPT_*` flags.
         """
 
     def write_boolean(self, value: bool) -> str:
@@ -552,7 +566,7 @@ class Dialect:
 
     @property
     def like_escape(self) -> int:
-        """Where `LIKE … ESCAPE` is legal."""
+        """Mask of where `LIKE … ESCAPE` is legal. `0` rejects it."""
 
     @property
     def like_any(self) -> int:
@@ -571,8 +585,16 @@ class Dialect:
         """How string concatenation is spelled."""
 
     @property
-    def bitxor(self) -> int:
-        """How bitwise XOR is spelled."""
+    def bit_ops(self) -> int:
+        """Mask of bitwise operators this dialect can render."""
+
+    @property
+    def bit_call(self) -> int:
+        """How AND, OR, NOT, and shifts are spelled."""
+
+    @property
+    def xor(self) -> int:
+        """How bitwise XOR is spelled when `OPT_BIT_XOR` is set."""
 
     @property
     def modulo(self) -> int:
@@ -595,12 +617,12 @@ class Dialect:
         """How `COLLATE` is spelled."""
 
     @property
-    def bitwise(self) -> int:
-        """How bitwise operators are spelled."""
-
-    @property
     def tuple(self) -> int:
         """How a row value is spelled."""
+
+    @property
+    def tuple_arity(self) -> int:
+        """Which tuple arities below 2 are legal."""
 
     @property
     def bit_format(self) -> int:

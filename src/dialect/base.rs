@@ -47,10 +47,9 @@ rapidquery_macros::dialect_options! {
         Postfix => OPT_NULL_TREATMENT_POSTFIX,
     }
 
-    enum LikeEscape like_escape {
-        Unsupported => OPT_LIKE_ESCAPE_UNSUPPORTED,
-        Scalar => OPT_LIKE_ESCAPE_SCALAR,
-        IncludingAny => OPT_LIKE_ESCAPE_INCLUDING_ANY,
+    flags LikeEscape like_escape {
+        SCALAR => OPT_LIKE_ESCAPE_SCALAR,
+        ANY => OPT_LIKE_ESCAPE_ANY,
     }
 
     enum LikeAny like_any {
@@ -80,12 +79,27 @@ rapidquery_macros::dialect_options! {
         ConcatFunction => OPT_STRING_CONCAT_CONCAT_FUNCTION,
     }
 
-    enum BitXor bitxor {
-        Unsupported => OPT_BITXOR_UNSUPPORTED,
-        Caret => OPT_BITXOR_CARET,
-        Hash => OPT_BITXOR_HASH,
-        XORFunction => OPT_BITXOR_XOR_FUNCTION,
-        BitXORFunction => OPT_BITXOR_BIT_XOR_FUNCTION,
+    // Default is infix AND, OR, NOT, and both shifts. XOR stays off until OPT_BIT_XOR is set.
+    flags BitOp bit_ops = flags::BitOp::INFIX.bits() {
+        AND => OPT_BIT_AND,
+        OR => OPT_BIT_OR,
+        NOT => OPT_BIT_NOT,
+        SHL => OPT_BIT_SHL,
+        SHR => OPT_BIT_SHR,
+        XOR => OPT_BIT_XOR,
+    }
+
+    enum BitCall bit_call {
+        Infix => OPT_BIT_CALL_INFIX,
+        BitFunction => OPT_BIT_CALL_BIT_FUNCTION,
+        ShiftFunction => OPT_BIT_CALL_SHIFT_FUNCTION,
+    }
+
+    enum XorSpelling xor {
+        Caret => OPT_XOR_CARET,
+        Hash => OPT_XOR_HASH,
+        Function => OPT_XOR_FUNCTION,
+        BitFunction => OPT_XOR_BIT_FUNCTION,
     }
 
     enum Modulo modulo {
@@ -119,21 +133,16 @@ rapidquery_macros::dialect_options! {
         FunctionString => OPT_COLLATE_FUNCTION_STRING,
     }
 
-    enum Bitwise bitwise {
-        Infix => OPT_BITWISE_INFIX,
-        InfixAndShift => OPT_BITWISE_INFIX_AND_SHIFT,
-        InfixNoShift => OPT_BITWISE_INFIX_NO_SHIFT,
-        BitShiftFunctions => OPT_BITWISE_BIT_SHIFT_FUNCTIONS,
-        ShiftFunctions => OPT_BITWISE_SHIFT_FUNCTIONS,
-        BitAndOnly => OPT_BITWISE_BIT_AND_ONLY,
-    }
-
-    enum Tuple tuple {
+    enum TupleSyntax tuple {
         Unsupported => OPT_TUPLE_UNSUPPORTED,
         Row => OPT_TUPLE_ROW,
-        RowRejectEmpty => OPT_TUPLE_ROW_REJECT_EMPTY,
         Struct => OPT_TUPLE_STRUCT,
         Parentheses => OPT_TUPLE_PARENTHESES,
+    }
+
+    flags TupleArity tuple_arity {
+        EMPTY => OPT_TUPLE_EMPTY,
+        ONE => OPT_TUPLE_ONE,
     }
 
     enum BitFormat bit_format {

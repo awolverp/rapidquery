@@ -197,7 +197,8 @@ pub fn pyerr(item: TokenStream) -> TokenStream {
 /// Constructor arguments, getters, and `OPT_*` constants for dialect flags.
 ///
 /// Invoked from `src/dialect/base.rs`. Each item is `char name = '?';`,
-/// `enum Type name { Variant => OPT_..., }`, or `bool name = false;`.
+/// `enum Type name { Variant => OPT_..., }`, `flags Type name [= default] { FLAG => OPT_..., }`,
+/// or `bool name = false;`.
 #[proc_macro]
 pub fn dialect_options(input: TokenStream) -> TokenStream {
     match dialect_options::generate(input.into()) {
