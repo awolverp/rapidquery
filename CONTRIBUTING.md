@@ -22,6 +22,8 @@ It should be extremely simple to get started and create a PR. All PRs are welcom
 
 To make contributing as easy and fast as possible, you'll want to run tests and linting locally.
 
+If you're going to add a feature or make a change to SQL, our _current_ priority is things that are supported in at least 3 dialects or defined in Standard SQL.
+
 > Use `make format` to fix formatting, and `make` to run tests and linting.
 
 ## AI Policy
