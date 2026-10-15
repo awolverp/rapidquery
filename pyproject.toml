@@ -60,9 +60,9 @@ lint = [
   "ruff>=0.16.9",
 ]
 test = [
-    "hypothesis>=6.0.0",
-    "pytest>=8.0.0",
-    "pytest-xdist>=3.8.0",
+  "hypothesis>=6.0.0",
+  "pytest>=8.0.0",
+  "pytest-xdist>=3.8.0",
 ]
 
 [build-system]

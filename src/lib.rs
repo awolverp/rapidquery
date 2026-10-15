@@ -25,6 +25,18 @@ mod _core {
     #[pymodule_export]
     use super::expr::expr_mod;
 
+    #[pymodule_export]
+    use super::ddl::ddl_mod;
+
+    #[pymodule_export]
+    use super::dcl::dcl_mod;
+
+    #[pymodule_export]
+    use super::dml::dml_mod;
+
+    #[pymodule_export]
+    use super::tcl::tcl_mod;
+
     #[pymodule_init]
     #[cold]
     fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
