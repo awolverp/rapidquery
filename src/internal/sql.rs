@@ -8,8 +8,8 @@ use std::fmt::Write;
 use pyo3::types::PyAnyMethods;
 
 use crate::dialect::PyDialect;
+use crate::dialect::config::PlaceholderSyntax;
 use crate::dialect::errors::FormatError;
-use crate::dialect::flags::Placeholder;
 use crate::internal::alias;
 use crate::serializers::SerializerType;
 
@@ -288,15 +288,12 @@ impl ParameterizedSql<'_> {
     /// Register `param` and append its placeholder to the SQL in one step.
     #[inline]
     pub fn push_param(&mut self, dialect: &PyDialect, param: alias::PyObject) -> &mut Self {
-        // SAFETY: Dialect::placeholder_character guarateed to store valid `char`.
-        let character = unsafe { char::from_u32_unchecked(dialect.0.placeholder_character()) };
-
-        match dialect.0.placeholder() {
-            Placeholder::Simple => {
-                self.sql.push(character);
+        match dialect.0.placeholder_syntax {
+            PlaceholderSyntax::Simple => {
+                self.sql.push(dialect.0.placeholder_character);
             }
-            Placeholder::Numbered => {
-                self.sql.push(character);
+            PlaceholderSyntax::Numbered => {
+                self.sql.push(dialect.0.placeholder_character);
                 let _ = write!(self.sql, "{}", self.next_id);
                 self.next_id += 1;
             }

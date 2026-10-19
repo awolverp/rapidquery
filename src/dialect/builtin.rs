@@ -1,538 +1,566 @@
 use super::base;
-use super::flags;
+use super::config;
 
 /// BigQuery SQL dialect.
-pub const BIGQUERY_DIALECT: base::PyDialect = base::PyDialect(
-    flags::DialectFlags::new()
-        .with_placeholder_character('?' as u32)
-        .with_placeholder(flags::Placeholder::Simple)
-        .with_null_treatment(flags::NullTreatment::InsideParens)
-        .with_like_escape(flags::LikeEscape::empty())
-        .with_like_any(flags::LikeAny::OrExpansion)
-        .with_ilike_expression(flags::ILikeExpression::UseLikeLower)
-        .with_rlike_expression(flags::RLikeExpression::RegexpContains)
-        .with_string_concat(flags::StringConcat::Pipes)
-        .with_xor(flags::XorSpelling::Caret)
-        .with_modulo(flags::Modulo::Percent)
-        .with_is_distinct_from(flags::IsDistinctFrom::Standard)
-        .with_try_cast(flags::TryCast::SafeCast)
-        .with_trim(flags::Trim::Function)
-        .with_collate(flags::Collate::FunctionString)
-        .with_bit_ops(flags::BitOp::INFIX.union(flags::BitOp::XOR))
-        .with_bit_call(flags::BitCall::Infix)
-        .with_tuple(flags::TupleSyntax::Unsupported)
-        .with_bit_format(flags::BitFormat::Unsupported)
-        .with_bool_format(flags::BoolFormat::Keyword)
-        .with_identifier_format(flags::IdentifierFormat::Backtick)
-        .with_identifier_escape(flags::IdentifierEscape::Backslash)
-        .with_string_format(flags::StringFormat::SingleQuote)
-        .with_string_escape(flags::StringEscape::BackslashHex)
-        .with_bytes_format(flags::BytesFormat::PrefixBigBSlashX)
-        .with_function_filter(flags::FunctionFilter::InsideWhere)
-        .with_array_format(flags::ArrayFormat::Constructor)
-        .with_date_format(flags::DateFormat::Keyword)
-        .with_time_format(flags::TimeFormat::Keyword)
-        .with_timestamp_format(flags::TimestampFormat::WithTimezone)
-        .with_inet_format(flags::InetFormat::Unsupported)
-        .with_macaddr_format(flags::MacAddrFormat::Unsupported)
-        .with_uuid_format(flags::UuidFormat::Quoted)
-        .with_json_format(flags::JsonFormat::JsonKeyword)
-        .with_supports_similar_to(false)
-        .with_parenthesize_in_between(false)
-        .with_supports_double_colon(false),
-);
+pub const BIGQUERY_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig {
+    placeholder_character: '?',
+    placeholder_syntax: config::PlaceholderSyntax::Simple,
+    null_treatment: config::NullTreatment::InsideParens,
+    like_escape: config::LikeEscape::empty(),
+    like_any: config::LikeAny::OrExpansion,
+    ilike_expression: config::ILikeExpression::UseLikeLower,
+    rlike_expression: config::RLikeExpression::RegexpContains,
+    string_concat: config::StringConcat::Pipes,
+    bitwise_xor_spelling: config::BitwiseXorSpelling::Caret,
+    modulo_spelling: config::ModuloSpelling::Percent,
+    is_distinct_from_spelling: config::IsDistinctFromSpelling::Standard,
+    cast_try_cast: config::TryCast::SafeCast,
+    cast_double_colon: false,
+    trim_spelling: config::TrimSpelling::Function,
+    collate_spelling: config::CollateSpelling::FunctionString,
+    bitwise_operations: config::BitwiseOperations::AND
+        .union(config::BitwiseOperations::OR)
+        .union(config::BitwiseOperations::NOT)
+        .union(config::BitwiseOperations::SHL)
+        .union(config::BitwiseOperations::SHR),
+    bitwise_call_syntax: config::BitwiseCallSyntax::Infix,
+    tuple_syntax: config::TupleSyntax::Unsupported,
+    tuple_arity: config::TupleArity::empty(),
+    bit_format: config::BitFormat::Unsupported,
+    bool_format: config::BoolFormat::Keyword,
+    identifier_format: config::IdentifierFormat::Backtick,
+    identifier_escape: config::IdentifierEscape::Backslash,
+    string_format: config::StringFormat::SingleQuote,
+    string_escape: config::StringEscape::BackslashHex,
+    bytes_format: config::BytesFormat::PrefixBigBSlashX,
+    function_filter: config::FunctionFilter::InsideWhere,
+    array_format: config::ArrayFormat::Constructor,
+    date_format: config::DateFormat::Keyword,
+    time_format: config::TimeFormat::Keyword,
+    timestamp_format: config::TimestampFormat::WithTimezone,
+    inet_format: config::InetFormat::Unsupported,
+    macaddr_format: config::MacAddrFormat::Unsupported,
+    uuid_format: config::UuidFormat::Quoted,
+    json_format: config::JsonFormat::JsonKeyword,
+    supports_similar_to: false,
+});
 
 /// Databricks SQL dialect.
-pub const DATABRICKS_DIALECT: base::PyDialect = base::PyDialect(
-    flags::DialectFlags::new()
-        .with_placeholder_character('?' as u32)
-        .with_placeholder(flags::Placeholder::Simple)
-        .with_null_treatment(flags::NullTreatment::Postfix)
-        .with_like_escape(flags::LikeEscape::SCALAR)
-        .with_like_any(flags::LikeAny::PatternList)
-        .with_ilike_expression(flags::ILikeExpression::Standard)
-        .with_rlike_expression(flags::RLikeExpression::Standard)
-        .with_string_concat(flags::StringConcat::Pipes)
-        .with_xor(flags::XorSpelling::Caret)
-        .with_modulo(flags::Modulo::Percent)
-        .with_is_distinct_from(flags::IsDistinctFrom::Standard)
-        .with_try_cast(flags::TryCast::TryCast)
-        .with_trim(flags::Trim::SqlFrom)
-        .with_collate(flags::Collate::InfixIdent)
-        .with_bit_ops(flags::BitOp::INFIX.union(flags::BitOp::XOR))
-        .with_bit_call(flags::BitCall::Infix)
-        .with_tuple(flags::TupleSyntax::Struct)
-        .with_tuple_arity(flags::TupleArity::ONE)
-        .with_bit_format(flags::BitFormat::Unsupported)
-        .with_bool_format(flags::BoolFormat::Keyword)
-        .with_identifier_format(flags::IdentifierFormat::Backtick)
-        .with_identifier_escape(flags::IdentifierEscape::Double)
-        .with_string_format(flags::StringFormat::SingleQuote)
-        .with_string_escape(flags::StringEscape::BackslashUnicodeQuote)
-        .with_bytes_format(flags::BytesFormat::PrefixBigX)
-        .with_function_filter(flags::FunctionFilter::FilterWhere)
-        .with_array_format(flags::ArrayFormat::Unsupported)
-        .with_date_format(flags::DateFormat::Keyword)
-        .with_time_format(flags::TimeFormat::Quoted)
-        .with_timestamp_format(flags::TimestampFormat::WithTimezone)
-        .with_inet_format(flags::InetFormat::Unsupported)
-        .with_macaddr_format(flags::MacAddrFormat::Unsupported)
-        .with_uuid_format(flags::UuidFormat::Quoted)
-        .with_json_format(flags::JsonFormat::Quoted)
-        .with_supports_similar_to(false)
-        .with_parenthesize_in_between(false)
-        .with_supports_double_colon(true),
-);
+pub const DATABRICKS_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig {
+    placeholder_character: '?',
+    placeholder_syntax: config::PlaceholderSyntax::Simple,
+    null_treatment: config::NullTreatment::Postfix,
+    like_escape: config::LikeEscape::SCALAR,
+    like_any: config::LikeAny::PatternList,
+    ilike_expression: config::ILikeExpression::Standard,
+    rlike_expression: config::RLikeExpression::Standard,
+    string_concat: config::StringConcat::Pipes,
+    bitwise_xor_spelling: config::BitwiseXorSpelling::Caret,
+    modulo_spelling: config::ModuloSpelling::Percent,
+    is_distinct_from_spelling: config::IsDistinctFromSpelling::Standard,
+    cast_try_cast: config::TryCast::TryCast,
+    cast_double_colon: true,
+    trim_spelling: config::TrimSpelling::SqlFrom,
+    collate_spelling: config::CollateSpelling::InfixIdent,
+    bitwise_operations: config::BitwiseOperations::AND
+        .union(config::BitwiseOperations::OR)
+        .union(config::BitwiseOperations::NOT)
+        .union(config::BitwiseOperations::SHL)
+        .union(config::BitwiseOperations::SHR),
+    bitwise_call_syntax: config::BitwiseCallSyntax::Infix,
+    tuple_syntax: config::TupleSyntax::Struct,
+    tuple_arity: config::TupleArity::ONE,
+    bit_format: config::BitFormat::Unsupported,
+    bool_format: config::BoolFormat::Keyword,
+    identifier_format: config::IdentifierFormat::Backtick,
+    identifier_escape: config::IdentifierEscape::Double,
+    string_format: config::StringFormat::SingleQuote,
+    string_escape: config::StringEscape::BackslashUnicodeQuote,
+    bytes_format: config::BytesFormat::PrefixBigX,
+    function_filter: config::FunctionFilter::FilterWhere,
+    array_format: config::ArrayFormat::Unsupported,
+    date_format: config::DateFormat::Keyword,
+    time_format: config::TimeFormat::Quoted,
+    timestamp_format: config::TimestampFormat::WithTimezone,
+    inet_format: config::InetFormat::Unsupported,
+    macaddr_format: config::MacAddrFormat::Unsupported,
+    uuid_format: config::UuidFormat::Quoted,
+    json_format: config::JsonFormat::Quoted,
+    supports_similar_to: false,
+});
 
 /// DuckDB SQL dialect.
-pub const DUCKDB_DIALECT: base::PyDialect = base::PyDialect(
-    flags::DialectFlags::new()
-        .with_placeholder_character('$' as u32)
-        .with_placeholder(flags::Placeholder::Numbered)
-        .with_null_treatment(flags::NullTreatment::InsideParens)
-        .with_like_escape(flags::LikeEscape::SCALAR)
-        .with_like_any(flags::LikeAny::OrExpansion)
-        .with_ilike_expression(flags::ILikeExpression::Standard)
-        .with_rlike_expression(flags::RLikeExpression::RegexpMatches)
-        .with_string_concat(flags::StringConcat::Pipes)
-        .with_xor(flags::XorSpelling::Function)
-        .with_modulo(flags::Modulo::Percent)
-        .with_is_distinct_from(flags::IsDistinctFrom::Standard)
-        .with_try_cast(flags::TryCast::TryCast)
-        .with_trim(flags::Trim::Function)
-        .with_collate(flags::Collate::InfixIdent)
-        .with_bit_ops(flags::BitOp::INFIX.union(flags::BitOp::XOR))
-        .with_bit_call(flags::BitCall::Infix)
-        .with_tuple(flags::TupleSyntax::Row)
-        .with_tuple_arity(flags::TupleArity::EMPTY_AND_ONE)
-        .with_bit_format(flags::BitFormat::PrefixBigB)
-        .with_bool_format(flags::BoolFormat::Keyword)
-        .with_identifier_format(flags::IdentifierFormat::DoubleQuote)
-        .with_identifier_escape(flags::IdentifierEscape::Double)
-        .with_string_format(flags::StringFormat::SingleQuote)
-        .with_string_escape(flags::StringEscape::Quote)
-        .with_bytes_format(flags::BytesFormat::SlashXBlob)
-        .with_function_filter(flags::FunctionFilter::Filter)
-        .with_array_format(flags::ArrayFormat::List)
-        .with_date_format(flags::DateFormat::Keyword)
-        .with_time_format(flags::TimeFormat::Keyword)
-        .with_timestamp_format(flags::TimestampFormat::Timestamptz)
-        .with_inet_format(flags::InetFormat::Cast)
-        .with_macaddr_format(flags::MacAddrFormat::Unsupported)
-        .with_uuid_format(flags::UuidFormat::UuidKeyword)
-        .with_json_format(flags::JsonFormat::Quoted)
-        .with_supports_similar_to(true)
-        .with_parenthesize_in_between(false)
-        .with_supports_double_colon(true),
-);
+pub const DUCKDB_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig {
+    placeholder_character: '$',
+    placeholder_syntax: config::PlaceholderSyntax::Numbered,
+    null_treatment: config::NullTreatment::InsideParens,
+    like_escape: config::LikeEscape::SCALAR,
+    like_any: config::LikeAny::OrExpansion,
+    ilike_expression: config::ILikeExpression::Standard,
+    rlike_expression: config::RLikeExpression::RegexpMatches,
+    string_concat: config::StringConcat::Pipes,
+    bitwise_xor_spelling: config::BitwiseXorSpelling::Function,
+    modulo_spelling: config::ModuloSpelling::Percent,
+    is_distinct_from_spelling: config::IsDistinctFromSpelling::Standard,
+    cast_try_cast: config::TryCast::TryCast,
+    cast_double_colon: true,
+    trim_spelling: config::TrimSpelling::Function,
+    collate_spelling: config::CollateSpelling::InfixIdent,
+    bitwise_operations: config::BitwiseOperations::AND
+        .union(config::BitwiseOperations::OR)
+        .union(config::BitwiseOperations::NOT)
+        .union(config::BitwiseOperations::SHL)
+        .union(config::BitwiseOperations::SHR),
+    bitwise_call_syntax: config::BitwiseCallSyntax::Infix,
+    tuple_syntax: config::TupleSyntax::Row,
+    tuple_arity: config::TupleArity::ONE.union(config::TupleArity::EMPTY),
+    bit_format: config::BitFormat::PrefixBigB,
+    bool_format: config::BoolFormat::Keyword,
+    identifier_format: config::IdentifierFormat::DoubleQuote,
+    identifier_escape: config::IdentifierEscape::Double,
+    string_format: config::StringFormat::SingleQuote,
+    string_escape: config::StringEscape::Quote,
+    bytes_format: config::BytesFormat::SlashXBlob,
+    function_filter: config::FunctionFilter::Filter,
+    array_format: config::ArrayFormat::List,
+    date_format: config::DateFormat::Keyword,
+    time_format: config::TimeFormat::Keyword,
+    timestamp_format: config::TimestampFormat::Timestamptz,
+    inet_format: config::InetFormat::Cast,
+    macaddr_format: config::MacAddrFormat::Unsupported,
+    uuid_format: config::UuidFormat::UuidKeyword,
+    json_format: config::JsonFormat::Quoted,
+    supports_similar_to: true,
+});
 
 /// Hive SQL dialect.
-pub const HIVE_DIALECT: base::PyDialect = base::PyDialect(
-    flags::DialectFlags::new()
-        .with_placeholder_character('?' as u32)
-        .with_placeholder(flags::Placeholder::Simple)
-        .with_null_treatment(flags::NullTreatment::Unsupported)
-        .with_like_escape(flags::LikeEscape::empty())
-        .with_like_any(flags::LikeAny::OrExpansion)
-        .with_ilike_expression(flags::ILikeExpression::UseLikeLower)
-        .with_rlike_expression(flags::RLikeExpression::Standard)
-        .with_string_concat(flags::StringConcat::Pipes)
-        .with_xor(flags::XorSpelling::Caret)
-        .with_modulo(flags::Modulo::Percent)
-        .with_is_distinct_from(flags::IsDistinctFrom::NullSafeEqual)
-        .with_try_cast(flags::TryCast::Unsupported)
-        .with_trim(flags::Trim::SpacesOnly)
-        .with_collate(flags::Collate::Unsupported)
-        .with_bit_ops(flags::BitOp::INFIX.union(flags::BitOp::XOR))
-        .with_bit_call(flags::BitCall::Infix)
-        .with_tuple(flags::TupleSyntax::Struct)
-        .with_tuple_arity(flags::TupleArity::ONE)
-        .with_bit_format(flags::BitFormat::Unsupported)
-        .with_bool_format(flags::BoolFormat::Keyword)
-        .with_identifier_format(flags::IdentifierFormat::Backtick)
-        .with_identifier_escape(flags::IdentifierEscape::Double)
-        .with_string_format(flags::StringFormat::SingleQuote)
-        .with_string_escape(flags::StringEscape::BackslashUnicode)
-        .with_bytes_format(flags::BytesFormat::Unhex)
-        .with_function_filter(flags::FunctionFilter::Unsupported)
-        .with_array_format(flags::ArrayFormat::Function)
-        .with_date_format(flags::DateFormat::Keyword)
-        .with_time_format(flags::TimeFormat::Quoted)
-        .with_timestamp_format(flags::TimestampFormat::WithTimezone)
-        .with_inet_format(flags::InetFormat::Unsupported)
-        .with_macaddr_format(flags::MacAddrFormat::Unsupported)
-        .with_uuid_format(flags::UuidFormat::Quoted)
-        .with_json_format(flags::JsonFormat::Quoted)
-        .with_supports_similar_to(false)
-        .with_parenthesize_in_between(false)
-        .with_supports_double_colon(false),
-);
+pub const HIVE_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig {
+    placeholder_character: '?',
+    placeholder_syntax: config::PlaceholderSyntax::Simple,
+    null_treatment: config::NullTreatment::Unsupported,
+    like_escape: config::LikeEscape::empty(),
+    like_any: config::LikeAny::OrExpansion,
+    ilike_expression: config::ILikeExpression::UseLikeLower,
+    rlike_expression: config::RLikeExpression::Standard,
+    string_concat: config::StringConcat::Pipes,
+    bitwise_xor_spelling: config::BitwiseXorSpelling::Caret,
+    modulo_spelling: config::ModuloSpelling::Percent,
+    is_distinct_from_spelling: config::IsDistinctFromSpelling::NullSafeEqual,
+    cast_try_cast: config::TryCast::Unsupported,
+    cast_double_colon: false,
+    trim_spelling: config::TrimSpelling::SpacesOnly,
+    collate_spelling: config::CollateSpelling::Unsupported,
+    bitwise_operations: config::BitwiseOperations::AND
+        .union(config::BitwiseOperations::OR)
+        .union(config::BitwiseOperations::NOT)
+        .union(config::BitwiseOperations::SHL)
+        .union(config::BitwiseOperations::SHR),
+    bitwise_call_syntax: config::BitwiseCallSyntax::Infix,
+    tuple_syntax: config::TupleSyntax::Struct,
+    tuple_arity: config::TupleArity::ONE,
+    bit_format: config::BitFormat::Unsupported,
+    bool_format: config::BoolFormat::Keyword,
+    identifier_format: config::IdentifierFormat::Backtick,
+    identifier_escape: config::IdentifierEscape::Double,
+    string_format: config::StringFormat::SingleQuote,
+    string_escape: config::StringEscape::BackslashUnicode,
+    bytes_format: config::BytesFormat::Unhex,
+    function_filter: config::FunctionFilter::Unsupported,
+    array_format: config::ArrayFormat::Function,
+    date_format: config::DateFormat::Keyword,
+    time_format: config::TimeFormat::Quoted,
+    timestamp_format: config::TimestampFormat::WithTimezone,
+    inet_format: config::InetFormat::Unsupported,
+    macaddr_format: config::MacAddrFormat::Unsupported,
+    uuid_format: config::UuidFormat::Quoted,
+    json_format: config::JsonFormat::Quoted,
+    supports_similar_to: false,
+});
 
 /// Microsoft SQL Server dialect.
-pub const MSSQL_DIALECT: base::PyDialect = base::PyDialect(
-    flags::DialectFlags::new()
-        .with_placeholder_character('?' as u32)
-        .with_placeholder(flags::Placeholder::Simple)
-        .with_null_treatment(flags::NullTreatment::Postfix)
-        .with_like_escape(flags::LikeEscape::SCALAR)
-        .with_like_any(flags::LikeAny::OrExpansion)
-        .with_ilike_expression(flags::ILikeExpression::UseLike)
-        .with_rlike_expression(flags::RLikeExpression::Unsupported)
-        .with_string_concat(flags::StringConcat::Plus)
-        .with_xor(flags::XorSpelling::Caret)
-        .with_modulo(flags::Modulo::Percent)
-        .with_is_distinct_from(flags::IsDistinctFrom::Standard)
-        .with_try_cast(flags::TryCast::TryCast)
-        .with_trim(flags::Trim::SqlFrom)
-        .with_collate(flags::Collate::InfixIdent)
-        .with_bit_ops(flags::BitOp::NO_SHIFT.union(flags::BitOp::XOR))
-        .with_bit_call(flags::BitCall::Infix)
-        .with_tuple(flags::TupleSyntax::Unsupported)
-        .with_bit_format(flags::BitFormat::Unsupported)
-        .with_bool_format(flags::BoolFormat::Integer)
-        .with_identifier_format(flags::IdentifierFormat::SquareBracket)
-        .with_identifier_escape(flags::IdentifierEscape::Double)
-        .with_string_format(flags::StringFormat::PrefixBigN)
-        .with_string_escape(flags::StringEscape::Quote)
-        .with_bytes_format(flags::BytesFormat::PrefixZeroX)
-        .with_function_filter(flags::FunctionFilter::Unsupported)
-        .with_array_format(flags::ArrayFormat::Unsupported)
-        .with_date_format(flags::DateFormat::Quoted)
-        .with_time_format(flags::TimeFormat::Quoted)
-        .with_timestamp_format(flags::TimestampFormat::Quoted)
-        .with_inet_format(flags::InetFormat::Unsupported)
-        .with_macaddr_format(flags::MacAddrFormat::Unsupported)
-        .with_uuid_format(flags::UuidFormat::Quoted)
-        .with_json_format(flags::JsonFormat::Quoted)
-        .with_supports_similar_to(false)
-        .with_parenthesize_in_between(true)
-        .with_supports_double_colon(false),
-);
+pub const MSSQL_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig {
+    placeholder_character: '?',
+    placeholder_syntax: config::PlaceholderSyntax::Simple,
+    null_treatment: config::NullTreatment::Postfix,
+    like_escape: config::LikeEscape::SCALAR,
+    like_any: config::LikeAny::OrExpansion,
+    ilike_expression: config::ILikeExpression::UseLike,
+    rlike_expression: config::RLikeExpression::Unsupported,
+    string_concat: config::StringConcat::Plus,
+    bitwise_xor_spelling: config::BitwiseXorSpelling::Caret,
+    modulo_spelling: config::ModuloSpelling::Percent,
+    is_distinct_from_spelling: config::IsDistinctFromSpelling::Standard,
+    cast_try_cast: config::TryCast::TryCast,
+    cast_double_colon: false,
+    trim_spelling: config::TrimSpelling::SqlFrom,
+    collate_spelling: config::CollateSpelling::InfixIdent,
+    bitwise_operations: config::BitwiseOperations::AND
+        .union(config::BitwiseOperations::OR)
+        .union(config::BitwiseOperations::NOT),
+    bitwise_call_syntax: config::BitwiseCallSyntax::Infix,
+    tuple_syntax: config::TupleSyntax::Unsupported,
+    tuple_arity: config::TupleArity::empty(),
+    bit_format: config::BitFormat::Unsupported,
+    bool_format: config::BoolFormat::Integer,
+    identifier_format: config::IdentifierFormat::SquareBracket,
+    identifier_escape: config::IdentifierEscape::Double,
+    string_format: config::StringFormat::PrefixBigN,
+    string_escape: config::StringEscape::Quote,
+    bytes_format: config::BytesFormat::PrefixZeroX,
+    function_filter: config::FunctionFilter::Unsupported,
+    array_format: config::ArrayFormat::Unsupported,
+    date_format: config::DateFormat::Quoted,
+    time_format: config::TimeFormat::Quoted,
+    timestamp_format: config::TimestampFormat::Quoted,
+    inet_format: config::InetFormat::Unsupported,
+    macaddr_format: config::MacAddrFormat::Unsupported,
+    uuid_format: config::UuidFormat::Quoted,
+    json_format: config::JsonFormat::Quoted,
+    supports_similar_to: false,
+});
 
 /// MySQL dialect.
-pub const MYSQL_DIALECT: base::PyDialect = base::PyDialect(
-    flags::DialectFlags::new()
-        .with_placeholder_character('?' as u32)
-        .with_placeholder(flags::Placeholder::Simple)
-        .with_null_treatment(flags::NullTreatment::Unsupported)
-        .with_like_escape(flags::LikeEscape::SCALAR)
-        .with_like_any(flags::LikeAny::OrExpansion)
-        .with_ilike_expression(flags::ILikeExpression::UseLike)
-        .with_rlike_expression(flags::RLikeExpression::Standard)
-        .with_string_concat(flags::StringConcat::ConcatFunction)
-        .with_xor(flags::XorSpelling::Caret)
-        .with_modulo(flags::Modulo::Percent)
-        .with_is_distinct_from(flags::IsDistinctFrom::NullSafeEqual)
-        .with_try_cast(flags::TryCast::Unsupported)
-        .with_trim(flags::Trim::SqlFrom)
-        .with_collate(flags::Collate::InfixIdent)
-        .with_bit_ops(flags::BitOp::INFIX.union(flags::BitOp::XOR))
-        .with_bit_call(flags::BitCall::Infix)
-        .with_tuple(flags::TupleSyntax::Row)
-        .with_tuple_arity(flags::TupleArity::ONE)
-        .with_bit_format(flags::BitFormat::PrefixSmallB)
-        .with_bool_format(flags::BoolFormat::Integer)
-        .with_identifier_format(flags::IdentifierFormat::Backtick)
-        .with_identifier_escape(flags::IdentifierEscape::Double)
-        .with_string_format(flags::StringFormat::SingleQuote)
-        .with_string_escape(flags::StringEscape::BackslashMysql)
-        .with_bytes_format(flags::BytesFormat::PrefixBigX)
-        .with_function_filter(flags::FunctionFilter::Unsupported)
-        .with_array_format(flags::ArrayFormat::Unsupported)
-        .with_date_format(flags::DateFormat::Quoted)
-        .with_time_format(flags::TimeFormat::Quoted)
-        .with_timestamp_format(flags::TimestampFormat::Quoted)
-        .with_inet_format(flags::InetFormat::Unsupported)
-        .with_macaddr_format(flags::MacAddrFormat::Unsupported)
-        .with_uuid_format(flags::UuidFormat::Quoted)
-        .with_json_format(flags::JsonFormat::Quoted)
-        .with_supports_similar_to(false)
-        .with_parenthesize_in_between(false)
-        .with_supports_double_colon(false),
-);
+pub const MYSQL_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig {
+    placeholder_character: '?',
+    placeholder_syntax: config::PlaceholderSyntax::Simple,
+    null_treatment: config::NullTreatment::Unsupported,
+    like_escape: config::LikeEscape::SCALAR,
+    like_any: config::LikeAny::OrExpansion,
+    ilike_expression: config::ILikeExpression::UseLike,
+    rlike_expression: config::RLikeExpression::Standard,
+    string_concat: config::StringConcat::ConcatFunction,
+    bitwise_xor_spelling: config::BitwiseXorSpelling::Caret,
+    modulo_spelling: config::ModuloSpelling::Percent,
+    is_distinct_from_spelling: config::IsDistinctFromSpelling::NullSafeEqual,
+    cast_try_cast: config::TryCast::Unsupported,
+    trim_spelling: config::TrimSpelling::SqlFrom,
+    collate_spelling: config::CollateSpelling::InfixIdent,
+    bitwise_operations: config::BitwiseOperations::AND
+        .union(config::BitwiseOperations::OR)
+        .union(config::BitwiseOperations::NOT)
+        .union(config::BitwiseOperations::SHL)
+        .union(config::BitwiseOperations::SHR),
+    bitwise_call_syntax: config::BitwiseCallSyntax::Infix,
+    tuple_syntax: config::TupleSyntax::Row,
+    tuple_arity: config::TupleArity::ONE,
+    bit_format: config::BitFormat::PrefixSmallB,
+    bool_format: config::BoolFormat::Integer,
+    identifier_format: config::IdentifierFormat::Backtick,
+    identifier_escape: config::IdentifierEscape::Double,
+    string_format: config::StringFormat::SingleQuote,
+    string_escape: config::StringEscape::BackslashMysql,
+    bytes_format: config::BytesFormat::PrefixBigX,
+    function_filter: config::FunctionFilter::Unsupported,
+    array_format: config::ArrayFormat::Unsupported,
+    date_format: config::DateFormat::Quoted,
+    time_format: config::TimeFormat::Quoted,
+    timestamp_format: config::TimestampFormat::Quoted,
+    inet_format: config::InetFormat::Unsupported,
+    macaddr_format: config::MacAddrFormat::Unsupported,
+    uuid_format: config::UuidFormat::Quoted,
+    json_format: config::JsonFormat::Quoted,
+    supports_similar_to: false,
+    cast_double_colon: false,
+});
 
 /// Oracle SQL dialect.
-pub const ORACLE_DIALECT: base::PyDialect = base::PyDialect(
-    flags::DialectFlags::new()
-        .with_placeholder_character(':' as u32)
-        .with_placeholder(flags::Placeholder::Numbered)
-        .with_null_treatment(flags::NullTreatment::Postfix)
-        .with_like_escape(flags::LikeEscape::SCALAR)
-        .with_like_any(flags::LikeAny::OrExpansion)
-        .with_ilike_expression(flags::ILikeExpression::UseLikeLower)
-        .with_rlike_expression(flags::RLikeExpression::RegexpLike)
-        .with_string_concat(flags::StringConcat::Pipes)
-        .with_modulo(flags::Modulo::Function)
-        .with_is_distinct_from(flags::IsDistinctFrom::Unsupported)
-        .with_try_cast(flags::TryCast::Unsupported)
-        .with_trim(flags::Trim::SqlFrom)
-        .with_collate(flags::Collate::InfixIdent)
-        .with_bit_ops(flags::BitOp::AND)
-        .with_bit_call(flags::BitCall::BitFunction)
-        .with_tuple(flags::TupleSyntax::Unsupported)
-        .with_bit_format(flags::BitFormat::Unsupported)
-        .with_bool_format(flags::BoolFormat::Integer)
-        .with_identifier_format(flags::IdentifierFormat::DoubleQuote)
-        .with_identifier_escape(flags::IdentifierEscape::Double)
-        .with_string_format(flags::StringFormat::SingleQuote)
-        .with_string_escape(flags::StringEscape::Quote)
-        .with_bytes_format(flags::BytesFormat::HexToRaw)
-        .with_function_filter(flags::FunctionFilter::FilterWhere)
-        .with_array_format(flags::ArrayFormat::Unsupported)
-        .with_date_format(flags::DateFormat::Keyword)
-        .with_time_format(flags::TimeFormat::Quoted)
-        .with_timestamp_format(flags::TimestampFormat::WithTimezone)
-        .with_inet_format(flags::InetFormat::Unsupported)
-        .with_macaddr_format(flags::MacAddrFormat::Unsupported)
-        .with_uuid_format(flags::UuidFormat::Quoted)
-        .with_json_format(flags::JsonFormat::Quoted)
-        .with_supports_similar_to(false)
-        .with_parenthesize_in_between(false)
-        .with_supports_double_colon(false),
-);
+pub const ORACLE_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig {
+    placeholder_character: ':',
+    placeholder_syntax: config::PlaceholderSyntax::Numbered,
+    null_treatment: config::NullTreatment::Postfix,
+    like_escape: config::LikeEscape::SCALAR,
+    like_any: config::LikeAny::OrExpansion,
+    ilike_expression: config::ILikeExpression::UseLikeLower,
+    rlike_expression: config::RLikeExpression::RegexpLike,
+    string_concat: config::StringConcat::Pipes,
+    modulo_spelling: config::ModuloSpelling::Function,
+    is_distinct_from_spelling: config::IsDistinctFromSpelling::Unsupported,
+    cast_try_cast: config::TryCast::Unsupported,
+    trim_spelling: config::TrimSpelling::SqlFrom,
+    collate_spelling: config::CollateSpelling::InfixIdent,
+    bitwise_xor_spelling: config::BitwiseXorSpelling::Unsupported,
+    bitwise_operations: config::BitwiseOperations::AND,
+    bitwise_call_syntax: config::BitwiseCallSyntax::BitFunction,
+    tuple_syntax: config::TupleSyntax::Unsupported,
+    tuple_arity: config::TupleArity::empty(),
+    bit_format: config::BitFormat::Unsupported,
+    bool_format: config::BoolFormat::Integer,
+    identifier_format: config::IdentifierFormat::DoubleQuote,
+    identifier_escape: config::IdentifierEscape::Double,
+    string_format: config::StringFormat::SingleQuote,
+    string_escape: config::StringEscape::Quote,
+    bytes_format: config::BytesFormat::HexToRaw,
+    function_filter: config::FunctionFilter::FilterWhere,
+    array_format: config::ArrayFormat::Unsupported,
+    date_format: config::DateFormat::Keyword,
+    time_format: config::TimeFormat::Quoted,
+    timestamp_format: config::TimestampFormat::WithTimezone,
+    inet_format: config::InetFormat::Unsupported,
+    macaddr_format: config::MacAddrFormat::Unsupported,
+    uuid_format: config::UuidFormat::Quoted,
+    json_format: config::JsonFormat::Quoted,
+    supports_similar_to: false,
+    cast_double_colon: false,
+});
 
 /// PostgreSQL dialect.
-pub const POSTGRESQL_DIALECT: base::PyDialect = base::PyDialect(
-    flags::DialectFlags::new()
-        .with_placeholder_character('$' as u32)
-        .with_placeholder(flags::Placeholder::Numbered)
-        .with_null_treatment(flags::NullTreatment::Unsupported)
-        .with_like_escape(flags::LikeEscape::SCALAR)
-        .with_like_any(flags::LikeAny::ArrayConstructor)
-        .with_ilike_expression(flags::ILikeExpression::Standard)
-        .with_rlike_expression(flags::RLikeExpression::Tilde)
-        .with_string_concat(flags::StringConcat::Pipes)
-        .with_xor(flags::XorSpelling::Hash)
-        .with_modulo(flags::Modulo::Percent)
-        .with_is_distinct_from(flags::IsDistinctFrom::Standard)
-        .with_try_cast(flags::TryCast::Unsupported)
-        .with_trim(flags::Trim::SqlFrom)
-        .with_collate(flags::Collate::InfixIdent)
-        .with_bit_ops(flags::BitOp::INFIX.union(flags::BitOp::XOR))
-        .with_bit_call(flags::BitCall::Infix)
-        .with_tuple(flags::TupleSyntax::Row)
-        .with_tuple_arity(flags::TupleArity::EMPTY_AND_ONE)
-        .with_bit_format(flags::BitFormat::PrefixBigB)
-        .with_bool_format(flags::BoolFormat::Keyword)
-        .with_identifier_format(flags::IdentifierFormat::DoubleQuote)
-        .with_identifier_escape(flags::IdentifierEscape::Double)
-        .with_string_format(flags::StringFormat::PrefixBigE)
-        .with_string_escape(flags::StringEscape::BackslashHex)
-        .with_bytes_format(flags::BytesFormat::SlashXBytea)
-        .with_function_filter(flags::FunctionFilter::FilterWhere)
-        .with_array_format(flags::ArrayFormat::Constructor)
-        .with_date_format(flags::DateFormat::Keyword)
-        .with_time_format(flags::TimeFormat::Keyword)
-        .with_timestamp_format(flags::TimestampFormat::Timestamptz)
-        .with_inet_format(flags::InetFormat::Cast)
-        .with_macaddr_format(flags::MacAddrFormat::Cast)
-        .with_uuid_format(flags::UuidFormat::CastUuid)
-        .with_json_format(flags::JsonFormat::Quoted)
-        .with_supports_similar_to(true)
-        .with_parenthesize_in_between(false)
-        .with_supports_double_colon(true),
-);
+pub const POSTGRESQL_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig {
+    placeholder_character: '$',
+    placeholder_syntax: config::PlaceholderSyntax::Numbered,
+    null_treatment: config::NullTreatment::Unsupported,
+    like_escape: config::LikeEscape::SCALAR,
+    like_any: config::LikeAny::ArrayConstructor,
+    ilike_expression: config::ILikeExpression::Standard,
+    rlike_expression: config::RLikeExpression::Tilde,
+    string_concat: config::StringConcat::Pipes,
+    bitwise_xor_spelling: config::BitwiseXorSpelling::Hash,
+    modulo_spelling: config::ModuloSpelling::Percent,
+    is_distinct_from_spelling: config::IsDistinctFromSpelling::Standard,
+    cast_try_cast: config::TryCast::Unsupported,
+    trim_spelling: config::TrimSpelling::SqlFrom,
+    collate_spelling: config::CollateSpelling::InfixIdent,
+    bitwise_operations: config::BitwiseOperations::AND
+        .union(config::BitwiseOperations::OR)
+        .union(config::BitwiseOperations::NOT)
+        .union(config::BitwiseOperations::SHL)
+        .union(config::BitwiseOperations::SHR),
+    bitwise_call_syntax: config::BitwiseCallSyntax::Infix,
+    tuple_syntax: config::TupleSyntax::Row,
+    tuple_arity: config::TupleArity::EMPTY.union(config::TupleArity::ONE),
+    bit_format: config::BitFormat::PrefixBigB,
+    bool_format: config::BoolFormat::Keyword,
+    identifier_format: config::IdentifierFormat::DoubleQuote,
+    identifier_escape: config::IdentifierEscape::Double,
+    string_format: config::StringFormat::PrefixBigE,
+    string_escape: config::StringEscape::BackslashHex,
+    bytes_format: config::BytesFormat::SlashXBytea,
+    function_filter: config::FunctionFilter::FilterWhere,
+    array_format: config::ArrayFormat::Constructor,
+    date_format: config::DateFormat::Keyword,
+    time_format: config::TimeFormat::Keyword,
+    timestamp_format: config::TimestampFormat::Timestamptz,
+    inet_format: config::InetFormat::Cast,
+    macaddr_format: config::MacAddrFormat::Cast,
+    uuid_format: config::UuidFormat::CastUuid,
+    json_format: config::JsonFormat::Quoted,
+    supports_similar_to: true,
+    cast_double_colon: true,
+});
 
 /// Amazon Redshift dialect.
-pub const REDSHIFT_DIALECT: base::PyDialect = base::PyDialect(
-    flags::DialectFlags::new()
-        .with_placeholder_character('$' as u32)
-        .with_placeholder(flags::Placeholder::Numbered)
-        .with_null_treatment(flags::NullTreatment::Postfix)
-        .with_like_escape(flags::LikeEscape::SCALAR)
-        .with_like_any(flags::LikeAny::OrExpansion)
-        .with_ilike_expression(flags::ILikeExpression::Standard)
-        .with_rlike_expression(flags::RLikeExpression::Tilde)
-        .with_string_concat(flags::StringConcat::Pipes)
-        .with_modulo(flags::Modulo::Percent)
-        .with_is_distinct_from(flags::IsDistinctFrom::Unsupported)
-        .with_try_cast(flags::TryCast::TryCast)
-        .with_trim(flags::Trim::SqlFrom)
-        .with_collate(flags::Collate::FunctionString)
-        .with_bit_ops(flags::BitOp::AND_SHIFT)
-        .with_bit_call(flags::BitCall::Infix)
-        .with_tuple(flags::TupleSyntax::Unsupported)
-        .with_bit_format(flags::BitFormat::Unsupported)
-        .with_bool_format(flags::BoolFormat::Keyword)
-        .with_identifier_format(flags::IdentifierFormat::DoubleQuote)
-        .with_identifier_escape(flags::IdentifierEscape::Double)
-        .with_string_format(flags::StringFormat::SingleQuote)
-        .with_string_escape(flags::StringEscape::Quote)
-        .with_bytes_format(flags::BytesFormat::ToVarbyte)
-        .with_function_filter(flags::FunctionFilter::Unsupported)
-        .with_array_format(flags::ArrayFormat::Unsupported)
-        .with_date_format(flags::DateFormat::Quoted)
-        .with_time_format(flags::TimeFormat::Quoted)
-        .with_timestamp_format(flags::TimestampFormat::Quoted)
-        .with_inet_format(flags::InetFormat::Unsupported)
-        .with_macaddr_format(flags::MacAddrFormat::Unsupported)
-        .with_uuid_format(flags::UuidFormat::Quoted)
-        .with_json_format(flags::JsonFormat::Quoted)
-        .with_supports_similar_to(true)
-        .with_parenthesize_in_between(false)
-        .with_supports_double_colon(true),
-);
+pub const REDSHIFT_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig {
+    placeholder_character: '$',
+    placeholder_syntax: config::PlaceholderSyntax::Numbered,
+    null_treatment: config::NullTreatment::Postfix,
+    like_escape: config::LikeEscape::SCALAR,
+    like_any: config::LikeAny::OrExpansion,
+    ilike_expression: config::ILikeExpression::Standard,
+    rlike_expression: config::RLikeExpression::Tilde,
+    string_concat: config::StringConcat::Pipes,
+    modulo_spelling: config::ModuloSpelling::Percent,
+    is_distinct_from_spelling: config::IsDistinctFromSpelling::Unsupported,
+    cast_try_cast: config::TryCast::TryCast,
+    trim_spelling: config::TrimSpelling::SqlFrom,
+    collate_spelling: config::CollateSpelling::FunctionString,
+    bitwise_xor_spelling: config::BitwiseXorSpelling::Unsupported,
+    bitwise_operations: config::BitwiseOperations::AND
+        .union(config::BitwiseOperations::SHL)
+        .union(config::BitwiseOperations::SHR),
+    bitwise_call_syntax: config::BitwiseCallSyntax::Infix,
+    tuple_syntax: config::TupleSyntax::Unsupported,
+    tuple_arity: config::TupleArity::empty(),
+    bit_format: config::BitFormat::Unsupported,
+    bool_format: config::BoolFormat::Keyword,
+    identifier_format: config::IdentifierFormat::DoubleQuote,
+    identifier_escape: config::IdentifierEscape::Double,
+    string_format: config::StringFormat::SingleQuote,
+    string_escape: config::StringEscape::Quote,
+    bytes_format: config::BytesFormat::ToVarbyte,
+    function_filter: config::FunctionFilter::Unsupported,
+    array_format: config::ArrayFormat::Unsupported,
+    date_format: config::DateFormat::Quoted,
+    time_format: config::TimeFormat::Quoted,
+    timestamp_format: config::TimestampFormat::Quoted,
+    inet_format: config::InetFormat::Unsupported,
+    macaddr_format: config::MacAddrFormat::Unsupported,
+    uuid_format: config::UuidFormat::Quoted,
+    json_format: config::JsonFormat::Quoted,
+    supports_similar_to: true,
+    cast_double_colon: true,
+});
 
 /// Snowflake SQL dialect.
-pub const SNOWFLAKE_DIALECT: base::PyDialect = base::PyDialect(
-    flags::DialectFlags::new()
-        .with_placeholder_character(':' as u32)
-        .with_placeholder(flags::Placeholder::Numbered)
-        .with_null_treatment(flags::NullTreatment::Postfix)
-        .with_like_escape(flags::LikeEscape::SCALAR.union(flags::LikeEscape::ANY))
-        .with_like_any(flags::LikeAny::PatternList)
-        .with_ilike_expression(flags::ILikeExpression::Standard)
-        .with_rlike_expression(flags::RLikeExpression::Standard)
-        .with_string_concat(flags::StringConcat::Pipes)
-        .with_xor(flags::XorSpelling::BitFunction)
-        .with_modulo(flags::Modulo::Percent)
-        .with_is_distinct_from(flags::IsDistinctFrom::Standard)
-        .with_try_cast(flags::TryCast::TryCast)
-        .with_trim(flags::Trim::Function)
-        .with_collate(flags::Collate::FunctionString)
-        .with_bit_ops(flags::BitOp::INFIX.union(flags::BitOp::XOR))
-        .with_bit_call(flags::BitCall::BitFunction)
-        .with_tuple(flags::TupleSyntax::Unsupported)
-        .with_bit_format(flags::BitFormat::Unsupported)
-        .with_bool_format(flags::BoolFormat::Keyword)
-        .with_identifier_format(flags::IdentifierFormat::DoubleQuote)
-        .with_identifier_escape(flags::IdentifierEscape::Double)
-        .with_string_format(flags::StringFormat::SingleQuote)
-        .with_string_escape(flags::StringEscape::BackslashHexZero)
-        .with_bytes_format(flags::BytesFormat::ToBinary)
-        .with_function_filter(flags::FunctionFilter::Unsupported)
-        .with_array_format(flags::ArrayFormat::Unsupported)
-        .with_date_format(flags::DateFormat::Keyword)
-        .with_time_format(flags::TimeFormat::Quoted)
-        .with_timestamp_format(flags::TimestampFormat::Timestamptz)
-        .with_inet_format(flags::InetFormat::Unsupported)
-        .with_macaddr_format(flags::MacAddrFormat::Unsupported)
-        .with_uuid_format(flags::UuidFormat::Quoted)
-        .with_json_format(flags::JsonFormat::ParseJson)
-        .with_supports_similar_to(false)
-        .with_parenthesize_in_between(false)
-        .with_supports_double_colon(true),
-);
+pub const SNOWFLAKE_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig {
+    placeholder_character: ':',
+    placeholder_syntax: config::PlaceholderSyntax::Numbered,
+    null_treatment: config::NullTreatment::Postfix,
+    like_escape: config::LikeEscape::SCALAR.union(config::LikeEscape::ANY),
+    like_any: config::LikeAny::PatternList,
+    ilike_expression: config::ILikeExpression::Standard,
+    rlike_expression: config::RLikeExpression::Standard,
+    string_concat: config::StringConcat::Pipes,
+    bitwise_xor_spelling: config::BitwiseXorSpelling::BitFunction,
+    modulo_spelling: config::ModuloSpelling::Percent,
+    is_distinct_from_spelling: config::IsDistinctFromSpelling::Standard,
+    cast_try_cast: config::TryCast::TryCast,
+    trim_spelling: config::TrimSpelling::Function,
+    collate_spelling: config::CollateSpelling::FunctionString,
+    bitwise_operations: config::BitwiseOperations::AND
+        .union(config::BitwiseOperations::OR)
+        .union(config::BitwiseOperations::NOT)
+        .union(config::BitwiseOperations::SHL)
+        .union(config::BitwiseOperations::SHR),
+    bitwise_call_syntax: config::BitwiseCallSyntax::BitFunction,
+    tuple_syntax: config::TupleSyntax::Unsupported,
+    tuple_arity: config::TupleArity::empty(),
+    bit_format: config::BitFormat::Unsupported,
+    bool_format: config::BoolFormat::Keyword,
+    identifier_format: config::IdentifierFormat::DoubleQuote,
+    identifier_escape: config::IdentifierEscape::Double,
+    string_format: config::StringFormat::SingleQuote,
+    string_escape: config::StringEscape::BackslashHexZero,
+    bytes_format: config::BytesFormat::ToBinary,
+    function_filter: config::FunctionFilter::Unsupported,
+    array_format: config::ArrayFormat::Unsupported,
+    date_format: config::DateFormat::Keyword,
+    time_format: config::TimeFormat::Quoted,
+    timestamp_format: config::TimestampFormat::Timestamptz,
+    inet_format: config::InetFormat::Unsupported,
+    macaddr_format: config::MacAddrFormat::Unsupported,
+    uuid_format: config::UuidFormat::Quoted,
+    json_format: config::JsonFormat::ParseJson,
+    supports_similar_to: false,
+    cast_double_colon: true,
+});
 
 /// Apache Spark SQL dialect.
-pub const SPARK_DIALECT: base::PyDialect = base::PyDialect(
-    flags::DialectFlags::new()
-        .with_placeholder_character('?' as u32)
-        .with_placeholder(flags::Placeholder::Simple)
-        .with_null_treatment(flags::NullTreatment::Postfix)
-        .with_like_escape(flags::LikeEscape::SCALAR)
-        .with_like_any(flags::LikeAny::PatternList)
-        .with_ilike_expression(flags::ILikeExpression::Standard)
-        .with_rlike_expression(flags::RLikeExpression::Standard)
-        .with_string_concat(flags::StringConcat::Pipes)
-        .with_xor(flags::XorSpelling::Caret)
-        .with_modulo(flags::Modulo::Percent)
-        .with_is_distinct_from(flags::IsDistinctFrom::Standard)
-        .with_try_cast(flags::TryCast::TryCast)
-        .with_trim(flags::Trim::SqlFrom)
-        .with_collate(flags::Collate::Unsupported)
-        .with_bit_ops(flags::BitOp::INFIX.union(flags::BitOp::XOR))
-        .with_bit_call(flags::BitCall::Infix)
-        .with_tuple(flags::TupleSyntax::Struct)
-        .with_tuple_arity(flags::TupleArity::ONE)
-        .with_bit_format(flags::BitFormat::Unsupported)
-        .with_bool_format(flags::BoolFormat::Keyword)
-        .with_identifier_format(flags::IdentifierFormat::Backtick)
-        .with_identifier_escape(flags::IdentifierEscape::Double)
-        .with_string_format(flags::StringFormat::SingleQuote)
-        .with_string_escape(flags::StringEscape::BackslashUnicodeQuote)
-        .with_bytes_format(flags::BytesFormat::PrefixBigX)
-        .with_function_filter(flags::FunctionFilter::FilterWhere)
-        .with_array_format(flags::ArrayFormat::Function)
-        .with_date_format(flags::DateFormat::Keyword)
-        .with_time_format(flags::TimeFormat::Quoted)
-        .with_timestamp_format(flags::TimestampFormat::WithTimezone)
-        .with_inet_format(flags::InetFormat::Unsupported)
-        .with_macaddr_format(flags::MacAddrFormat::Unsupported)
-        .with_uuid_format(flags::UuidFormat::Quoted)
-        .with_json_format(flags::JsonFormat::Quoted)
-        .with_supports_similar_to(false)
-        .with_parenthesize_in_between(false)
-        .with_supports_double_colon(true),
-);
+pub const SPARK_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig {
+    placeholder_character: '?',
+    placeholder_syntax: config::PlaceholderSyntax::Simple,
+    null_treatment: config::NullTreatment::Postfix,
+    like_escape: config::LikeEscape::SCALAR,
+    like_any: config::LikeAny::PatternList,
+    ilike_expression: config::ILikeExpression::Standard,
+    rlike_expression: config::RLikeExpression::Standard,
+    string_concat: config::StringConcat::Pipes,
+    bitwise_xor_spelling: config::BitwiseXorSpelling::Caret,
+    modulo_spelling: config::ModuloSpelling::Percent,
+    is_distinct_from_spelling: config::IsDistinctFromSpelling::Standard,
+    cast_try_cast: config::TryCast::TryCast,
+    trim_spelling: config::TrimSpelling::SqlFrom,
+    collate_spelling: config::CollateSpelling::Unsupported,
+    bitwise_operations: config::BitwiseOperations::AND
+        .union(config::BitwiseOperations::OR)
+        .union(config::BitwiseOperations::NOT)
+        .union(config::BitwiseOperations::SHL)
+        .union(config::BitwiseOperations::SHR),
+    bitwise_call_syntax: config::BitwiseCallSyntax::Infix,
+    tuple_syntax: config::TupleSyntax::Struct,
+    tuple_arity: config::TupleArity::ONE,
+    bit_format: config::BitFormat::Unsupported,
+    bool_format: config::BoolFormat::Keyword,
+    identifier_format: config::IdentifierFormat::Backtick,
+    identifier_escape: config::IdentifierEscape::Double,
+    string_format: config::StringFormat::SingleQuote,
+    string_escape: config::StringEscape::BackslashUnicodeQuote,
+    bytes_format: config::BytesFormat::PrefixBigX,
+    function_filter: config::FunctionFilter::FilterWhere,
+    array_format: config::ArrayFormat::Function,
+    date_format: config::DateFormat::Keyword,
+    time_format: config::TimeFormat::Quoted,
+    timestamp_format: config::TimestampFormat::WithTimezone,
+    inet_format: config::InetFormat::Unsupported,
+    macaddr_format: config::MacAddrFormat::Unsupported,
+    uuid_format: config::UuidFormat::Quoted,
+    json_format: config::JsonFormat::Quoted,
+    supports_similar_to: false,
+    cast_double_colon: true,
+});
 
 /// SQLite dialect.
-pub const SQLITE_DIALECT: base::PyDialect = base::PyDialect(
-    flags::DialectFlags::new()
-        .with_placeholder_character('?' as u32)
-        .with_placeholder(flags::Placeholder::Numbered)
-        .with_null_treatment(flags::NullTreatment::Unsupported)
-        .with_like_escape(flags::LikeEscape::SCALAR)
-        .with_like_any(flags::LikeAny::OrExpansion)
-        .with_ilike_expression(flags::ILikeExpression::UseLike)
-        .with_rlike_expression(flags::RLikeExpression::Unsupported)
-        .with_string_concat(flags::StringConcat::Pipes)
-        .with_modulo(flags::Modulo::Percent)
-        .with_is_distinct_from(flags::IsDistinctFrom::Standard)
-        .with_try_cast(flags::TryCast::Unsupported)
-        .with_trim(flags::Trim::Function)
-        .with_collate(flags::Collate::InfixIdent)
-        .with_bit_ops(flags::BitOp::INFIX)
-        .with_bit_call(flags::BitCall::Infix)
-        .with_tuple(flags::TupleSyntax::Parentheses)
-        .with_bit_format(flags::BitFormat::Unsupported)
-        .with_bool_format(flags::BoolFormat::Integer)
-        .with_identifier_format(flags::IdentifierFormat::DoubleQuote)
-        .with_identifier_escape(flags::IdentifierEscape::Double)
-        .with_string_format(flags::StringFormat::SingleQuote)
-        .with_string_escape(flags::StringEscape::Quote)
-        .with_bytes_format(flags::BytesFormat::PrefixBigX)
-        .with_function_filter(flags::FunctionFilter::FilterWhere)
-        .with_array_format(flags::ArrayFormat::Unsupported)
-        .with_date_format(flags::DateFormat::Quoted)
-        .with_time_format(flags::TimeFormat::Quoted)
-        .with_timestamp_format(flags::TimestampFormat::Quoted)
-        .with_inet_format(flags::InetFormat::Unsupported)
-        .with_macaddr_format(flags::MacAddrFormat::Unsupported)
-        .with_uuid_format(flags::UuidFormat::Quoted)
-        .with_json_format(flags::JsonFormat::Quoted)
-        .with_supports_similar_to(false)
-        .with_parenthesize_in_between(false)
-        .with_supports_double_colon(false),
-);
+pub const SQLITE_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig {
+    placeholder_character: '?',
+    placeholder_syntax: config::PlaceholderSyntax::Numbered,
+    null_treatment: config::NullTreatment::Unsupported,
+    like_escape: config::LikeEscape::SCALAR,
+    like_any: config::LikeAny::OrExpansion,
+    ilike_expression: config::ILikeExpression::UseLike,
+    rlike_expression: config::RLikeExpression::Unsupported,
+    string_concat: config::StringConcat::Pipes,
+    modulo_spelling: config::ModuloSpelling::Percent,
+    is_distinct_from_spelling: config::IsDistinctFromSpelling::Standard,
+    cast_try_cast: config::TryCast::Unsupported,
+    trim_spelling: config::TrimSpelling::Function,
+    collate_spelling: config::CollateSpelling::InfixIdent,
+    bitwise_xor_spelling: config::BitwiseXorSpelling::Unsupported,
+    bitwise_operations: config::BitwiseOperations::AND
+        .union(config::BitwiseOperations::OR)
+        .union(config::BitwiseOperations::NOT)
+        .union(config::BitwiseOperations::SHL)
+        .union(config::BitwiseOperations::SHR),
+    bitwise_call_syntax: config::BitwiseCallSyntax::Infix,
+    tuple_syntax: config::TupleSyntax::Parentheses,
+    tuple_arity: config::TupleArity::EMPTY,
+    bit_format: config::BitFormat::Unsupported,
+    bool_format: config::BoolFormat::Integer,
+    identifier_format: config::IdentifierFormat::DoubleQuote,
+    identifier_escape: config::IdentifierEscape::Double,
+    string_format: config::StringFormat::SingleQuote,
+    string_escape: config::StringEscape::Quote,
+    bytes_format: config::BytesFormat::PrefixBigX,
+    function_filter: config::FunctionFilter::FilterWhere,
+    array_format: config::ArrayFormat::Unsupported,
+    date_format: config::DateFormat::Quoted,
+    time_format: config::TimeFormat::Quoted,
+    timestamp_format: config::TimestampFormat::Quoted,
+    inet_format: config::InetFormat::Unsupported,
+    macaddr_format: config::MacAddrFormat::Unsupported,
+    uuid_format: config::UuidFormat::Quoted,
+    json_format: config::JsonFormat::Quoted,
+    supports_similar_to: false,
+    cast_double_colon: false,
+});
 
 /// Teradata SQL dialect.
-pub const TERADATA_DIALECT: base::PyDialect = base::PyDialect(
-    flags::DialectFlags::new()
-        .with_placeholder_character('?' as u32)
-        .with_placeholder(flags::Placeholder::Simple)
-        .with_null_treatment(flags::NullTreatment::InsideParens)
-        .with_like_escape(flags::LikeEscape::SCALAR)
-        .with_like_any(flags::LikeAny::OrExpansion)
-        .with_ilike_expression(flags::ILikeExpression::UseLikeLower)
-        .with_rlike_expression(flags::RLikeExpression::Unsupported)
-        .with_string_concat(flags::StringConcat::Pipes)
-        .with_xor(flags::XorSpelling::BitFunction)
-        .with_modulo(flags::Modulo::Infix)
-        .with_is_distinct_from(flags::IsDistinctFrom::Unsupported)
-        .with_try_cast(flags::TryCast::TryCastWord)
-        .with_trim(flags::Trim::SqlFrom)
-        .with_collate(flags::Collate::Unsupported)
-        .with_bit_ops(flags::BitOp::INFIX.union(flags::BitOp::XOR))
-        .with_bit_call(flags::BitCall::ShiftFunction)
-        .with_tuple(flags::TupleSyntax::Unsupported)
-        .with_bit_format(flags::BitFormat::PostfixBigB)
-        .with_bool_format(flags::BoolFormat::Keyword)
-        .with_identifier_format(flags::IdentifierFormat::DoubleQuote)
-        .with_identifier_escape(flags::IdentifierEscape::Double)
-        .with_string_format(flags::StringFormat::SingleQuote)
-        .with_string_escape(flags::StringEscape::Quote)
-        .with_bytes_format(flags::BytesFormat::PostfixXbv)
-        .with_function_filter(flags::FunctionFilter::Unsupported)
-        .with_array_format(flags::ArrayFormat::Unsupported)
-        .with_date_format(flags::DateFormat::Keyword)
-        .with_time_format(flags::TimeFormat::Quoted)
-        .with_timestamp_format(flags::TimestampFormat::WithTimezone)
-        .with_inet_format(flags::InetFormat::Unsupported)
-        .with_macaddr_format(flags::MacAddrFormat::Unsupported)
-        .with_uuid_format(flags::UuidFormat::Quoted)
-        .with_json_format(flags::JsonFormat::Quoted)
-        .with_supports_similar_to(false)
-        .with_parenthesize_in_between(false)
-        .with_supports_double_colon(false),
-);
+pub const TERADATA_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig {
+    placeholder_character: '?',
+    placeholder_syntax: config::PlaceholderSyntax::Simple,
+    null_treatment: config::NullTreatment::InsideParens,
+    like_escape: config::LikeEscape::SCALAR,
+    like_any: config::LikeAny::OrExpansion,
+    ilike_expression: config::ILikeExpression::UseLikeLower,
+    rlike_expression: config::RLikeExpression::Unsupported,
+    string_concat: config::StringConcat::Pipes,
+    bitwise_xor_spelling: config::BitwiseXorSpelling::BitFunction,
+    modulo_spelling: config::ModuloSpelling::Infix,
+    is_distinct_from_spelling: config::IsDistinctFromSpelling::Unsupported,
+    cast_try_cast: config::TryCast::TryCastWord,
+    trim_spelling: config::TrimSpelling::SqlFrom,
+    collate_spelling: config::CollateSpelling::Unsupported,
+    bitwise_operations: config::BitwiseOperations::AND
+        .union(config::BitwiseOperations::OR)
+        .union(config::BitwiseOperations::NOT)
+        .union(config::BitwiseOperations::SHL)
+        .union(config::BitwiseOperations::SHR),
+    bitwise_call_syntax: config::BitwiseCallSyntax::ShiftFunction,
+    tuple_syntax: config::TupleSyntax::Unsupported,
+    tuple_arity: config::TupleArity::empty(),
+    bit_format: config::BitFormat::PostfixBigB,
+    bool_format: config::BoolFormat::Keyword,
+    identifier_format: config::IdentifierFormat::DoubleQuote,
+    identifier_escape: config::IdentifierEscape::Double,
+    string_format: config::StringFormat::SingleQuote,
+    string_escape: config::StringEscape::Quote,
+    bytes_format: config::BytesFormat::PostfixXbv,
+    function_filter: config::FunctionFilter::Unsupported,
+    array_format: config::ArrayFormat::Unsupported,
+    date_format: config::DateFormat::Keyword,
+    time_format: config::TimeFormat::Quoted,
+    timestamp_format: config::TimestampFormat::WithTimezone,
+    inet_format: config::InetFormat::Unsupported,
+    macaddr_format: config::MacAddrFormat::Unsupported,
+    uuid_format: config::UuidFormat::Quoted,
+    json_format: config::JsonFormat::Quoted,
+    supports_similar_to: false,
+    cast_double_colon: false,
+});

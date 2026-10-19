@@ -1,13 +1,14 @@
 use crate::internal::utils;
 
-use super::flags;
+use super::config::*;
 
 /// SQL dialect: quoting, literals, and which syntax is legal.
 ///
 /// Use a builtin such as `PostgreSql`, or build one from `OPT_*` flags.
 #[rapidquery_macros::pyclass("rapidquery.dialect.Dialect", skip_from_py_object)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct PyDialect(pub flags::DialectFlags);
+#[repr(transparent)]
+pub struct PyDialect(pub DialectConfig);
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDialect {
     type Error = pyo3::PyErr;
@@ -30,230 +31,117 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDialect {
     }
 }
 
-// One item is one constructor argument and one getter.
-// Enum items also export `OPT_*` constants.
-// Adding a flag is a new item here, plus the enum and the bitfield field.
-rapidquery_macros::dialect_options! {
-    char placeholder_character = '?';
+rapidquery_macros::pydialect_constructor!(
+    placeholder_character: char = '?',
 
-    enum Placeholder placeholder {
-        Simple => OPT_PLACEHOLDER_SIMPLE,
-        Numbered => OPT_PLACEHOLDER_NUMBERED,
-    }
+    #[enum_(Simple, Numbered)]
+    placeholder_syntax: PlaceholderSyntax = PlaceholderSyntax::default(),
 
-    enum NullTreatment null_treatment {
-        Unsupported => OPT_NULL_TREATMENT_UNSUPPORTED,
-        InsideParens => OPT_NULL_TREATMENT_INSIDE_PARENS,
-        Postfix => OPT_NULL_TREATMENT_POSTFIX,
-    }
+    #[bit(SCALAR, ANY)]
+    like_escape: LikeEscape = LikeEscape::SCALAR.bits(),
 
-    flags LikeEscape like_escape {
-        SCALAR => OPT_LIKE_ESCAPE_SCALAR,
-        ANY => OPT_LIKE_ESCAPE_ANY,
-    }
+    #[enum_(OrExpansion, ArrayConstructor, PatternList)]
+    like_any: LikeAny = LikeAny::default(),
 
-    enum LikeAny like_any {
-        OrExpansion => OPT_LIKE_ANY_OR_EXPANSION,
-        ArrayConstructor => OPT_LIKE_ANY_ARRAY_CONSTRUCTOR,
-        PatternList => OPT_LIKE_ANY_PATTERN_LIST,
-    }
+    #[enum_(Standard, UseLikeLower, UseLike)]
+    ilike_expression: ILikeExpression = ILikeExpression::default(),
 
-    enum ILikeExpression ilike_expression {
-        Standard => OPT_ILIKE_EXPRESSION_STANDARD,
-        UseLikeLower => OPT_ILIKE_EXPRESSION_USE_LIKE_LOWER,
-        UseLike => OPT_ILIKE_EXPRESSION_USE_LIKE,
-    }
+    #[enum_(Unsupported, Standard, Tilde, RegexpLike, RegexpContains, RegexpMatches)]
+    rlike_expression: RLikeExpression = RLikeExpression::default(),
 
-    enum RLikeExpression rlike_expression {
-        Unsupported => OPT_RLIKE_EXPRESSION_UNSUPPORTED,
-        Standard => OPT_RLIKE_EXPRESSION_STANDARD,
-        Tilde => OPT_RLIKE_EXPRESSION_TILDE,
-        RegexpLike => OPT_RLIKE_EXPRESSION_REGEXP_LIKE,
-        RegexpContains => OPT_RLIKE_EXPRESSION_REGEXP_CONTAINS,
-        RegexpMatches => OPT_RLIKE_EXPRESSION_REGEXP_MATCHES,
-    }
+    supports_similar_to: bool = false,
 
-    enum StringConcat string_concat {
-        Pipes => OPT_STRING_CONCAT_PIPES,
-        Plus => OPT_STRING_CONCAT_PLUS,
-        ConcatFunction => OPT_STRING_CONCAT_CONCAT_FUNCTION,
-    }
+    #[enum_(Unsupported, InsideParens, Postfix)]
+    null_treatment: NullTreatment = NullTreatment::default(),
 
-    // Default is infix AND, OR, NOT, and both shifts. XOR stays off until OPT_BIT_XOR is set.
-    flags BitOp bit_ops = flags::BitOp::INFIX.bits() {
-        AND => OPT_BIT_AND,
-        OR => OPT_BIT_OR,
-        NOT => OPT_BIT_NOT,
-        SHL => OPT_BIT_SHL,
-        SHR => OPT_BIT_SHR,
-        XOR => OPT_BIT_XOR,
-    }
+    #[enum_(Unsupported, Filter, FilterWhere, InsideWhere)]
+    function_filter: FunctionFilter = FunctionFilter::default(),
 
-    enum BitCall bit_call {
-        Infix => OPT_BIT_CALL_INFIX,
-        BitFunction => OPT_BIT_CALL_BIT_FUNCTION,
-        ShiftFunction => OPT_BIT_CALL_SHIFT_FUNCTION,
-    }
+    #[bit(AND, OR, NOT, SHL, SHR)]
+    bitwise_operations: BitwiseOperations = BitwiseOperations::AND
+        .union(BitwiseOperations::OR)
+        .union(BitwiseOperations::NOT)
+        .union(BitwiseOperations::SHL)
+        .union(BitwiseOperations::SHR)
+        .bits(),
 
-    enum XorSpelling xor {
-        Caret => OPT_XOR_CARET,
-        Hash => OPT_XOR_HASH,
-        Function => OPT_XOR_FUNCTION,
-        BitFunction => OPT_XOR_BIT_FUNCTION,
-    }
+    #[enum_(Infix, BitFunction, ShiftFunction)]
+    bitwise_call_syntax: BitwiseCallSyntax = BitwiseCallSyntax::default(),
 
-    enum Modulo modulo {
-        Percent => OPT_MODULO_PERCENT,
-        Function => OPT_MODULO_FUNCTION,
-        Infix => OPT_MODULO_INFIX,
-    }
+    #[enum_(Unsupported, Caret, Hash, Function, BitFunction)]
+    bitwise_xor_spelling: BitwiseXorSpelling = BitwiseXorSpelling::default(),
 
-    enum IsDistinctFrom is_distinct_from {
-        Unsupported => OPT_IS_DISTINCT_FROM_UNSUPPORTED,
-        Standard => OPT_IS_DISTINCT_FROM_STANDARD,
-        NullSafeEqual => OPT_IS_DISTINCT_FROM_NULL_SAFE_EQUAL,
-    }
+    #[enum_(DoubleQuote, Backtick, SquareBracket)]
+    identifier_format: IdentifierFormat = IdentifierFormat::default(),
 
-    enum TryCast try_cast {
-        Unsupported => OPT_TRY_CAST_UNSUPPORTED,
-        TryCast => OPT_TRY_CAST_TRY_CAST,
-        TryCastWord => OPT_TRY_CAST_TRY_CAST_WORD,
-        SafeCast => OPT_TRY_CAST_SAFE_CAST,
-    }
+    #[enum_(Double, Backslash)]
+    identifier_escape: IdentifierEscape = IdentifierEscape::default(),
 
-    enum Trim trim {
-        SqlFrom => OPT_TRIM_SQL_FROM,
-        Function => OPT_TRIM_FUNCTION,
-        SpacesOnly => OPT_TRIM_SPACES_ONLY,
-    }
+    #[enum_(SingleQuote, PrefixBigE, PrefixBigN)]
+    string_format: StringFormat = StringFormat::default(),
 
-    enum Collate collate {
-        Unsupported => OPT_COLLATE_UNSUPPORTED,
-        InfixIdent => OPT_COLLATE_INFIX_IDENT,
-        FunctionString => OPT_COLLATE_FUNCTION_STRING,
-    }
+    #[enum_(Quote, BackslashHex, BackslashMysql, BackslashUnicode, BackslashHexZero, BackslashUnicodeQuote)]
+    string_escape: StringEscape = StringEscape::default(),
 
-    enum TupleSyntax tuple {
-        Unsupported => OPT_TUPLE_UNSUPPORTED,
-        Row => OPT_TUPLE_ROW,
-        Struct => OPT_TUPLE_STRUCT,
-        Parentheses => OPT_TUPLE_PARENTHESES,
-    }
+    #[enum_(Pipes, Plus, ConcatFunction)]
+    string_concat: StringConcat = StringConcat::default(),
 
-    flags TupleArity tuple_arity {
-        EMPTY => OPT_TUPLE_EMPTY,
-        ONE => OPT_TUPLE_ONE,
-    }
+    #[enum_(Unsupported, TryCast, TryCastWord, SafeCast)]
+    cast_try_cast: TryCast = TryCast::default(),
 
-    enum BitFormat bit_format {
-        Unsupported => OPT_BIT_FORMAT_UNSUPPORTED,
-        PrefixBigB => OPT_BIT_FORMAT_PREFIX_BIG_B,
-        PrefixSmallB => OPT_BIT_FORMAT_PREFIX_SMALL_B,
-        PostfixBigB => OPT_BIT_FORMAT_POSTFIX_BIG_B,
-    }
+    cast_double_colon: bool = false,
 
-    enum BoolFormat bool_format {
-        Keyword => OPT_BOOL_FORMAT_KEYWORD,
-        Integer => OPT_BOOL_FORMAT_INTEGER,
-    }
+    #[enum_(Unsupported, Row, Struct, Parentheses)]
+    tuple_syntax: TupleSyntax = TupleSyntax::default(),
 
-    enum IdentifierFormat identifier_format {
-        DoubleQuote => OPT_IDENTIFIER_FORMAT_DOUBLE_QUOTE,
-        Backtick => OPT_IDENTIFIER_FORMAT_BACKTICK,
-        SquareBracket => OPT_IDENTIFIER_FORMAT_SQUARE_BRACKET,
-    }
+    #[bit(EMPTY, ONE)]
+    tuple_arity: TupleArity = TupleArity::EMPTY.union(TupleArity::ONE).bits(),
 
-    enum IdentifierEscape identifier_escape {
-        Double => OPT_IDENTIFIER_ESCAPE_DOUBLE,
-        Backslash => OPT_IDENTIFIER_ESCAPE_BACKSLASH,
-    }
+    #[enum_(Quoted, Keyword)]
+    date_format: DateFormat = DateFormat::default(),
 
-    enum StringFormat string_format {
-        SingleQuote => OPT_STRING_FORMAT_SINGLE_QUOTE,
-        PrefixBigE => OPT_STRING_FORMAT_PREFIX_BIG_E,
-        PrefixBigN => OPT_STRING_FORMAT_PREFIX_BIG_N,
-    }
+    #[enum_(Quoted, Keyword)]
+    time_format: TimeFormat = TimeFormat::default(),
 
-    enum StringEscape string_escape {
-        Quote => OPT_STRING_ESCAPE_QUOTE,
-        BackslashHex => OPT_STRING_ESCAPE_BACKSLASH_HEX,
-        BackslashMysql => OPT_STRING_ESCAPE_BACKSLASH_MYSQL,
-        BackslashUnicode => OPT_STRING_ESCAPE_BACKSLASH_UNICODE,
-        BackslashHexZero => OPT_STRING_ESCAPE_BACKSLASH_HEX_ZERO,
-        BackslashUnicodeQuote => OPT_STRING_ESCAPE_BACKSLASH_UNICODE_QUOTE,
-    }
+    #[enum_(Quoted, Timestamptz, WithTimezone)]
+    timestamp_format: TimestampFormat = TimestampFormat::default(),
 
-    enum BytesFormat bytes_format {
-        PrefixBigX => OPT_BYTES_FORMAT_PREFIX_BIG_X,
-        PrefixZeroX => OPT_BYTES_FORMAT_PREFIX_ZERO_X,
-        SlashXBytea => OPT_BYTES_FORMAT_SLASH_X_BYTEA,
-        PrefixBigBSlashX => OPT_BYTES_FORMAT_PREFIX_BIG_B_SLASH_X,
-        HexToRaw => OPT_BYTES_FORMAT_HEX_TO_RAW,
-        Unhex => OPT_BYTES_FORMAT_UNHEX,
-        ToVarbyte => OPT_BYTES_FORMAT_TO_VARBYTE,
-        PostfixXbv => OPT_BYTES_FORMAT_POSTFIX_XBV,
-        ToBinary => OPT_BYTES_FORMAT_TO_BINARY,
-        SlashXBlob => OPT_BYTES_FORMAT_SLASH_X_BLOB,
-    }
+    #[enum_(Keyword, Integer)]
+    bool_format: BoolFormat = BoolFormat::default(),
 
-    enum FunctionFilter function_filter {
-        Unsupported => OPT_FUNCTION_FILTER_UNSUPPORTED,
-        Filter => OPT_FUNCTION_FILTER_FILTER,
-        FilterWhere => OPT_FUNCTION_FILTER_FILTER_WHERE,
-        InsideWhere => OPT_FUNCTION_FILTER_INSIDE_WHERE,
-    }
+    #[enum_(Unsupported, PrefixBigB, PrefixSmallB, PostfixBigB)]
+    bit_format: BitFormat = BitFormat::default(),
 
-    enum ArrayFormat array_format {
-        Unsupported => OPT_ARRAY_FORMAT_UNSUPPORTED,
-        Constructor => OPT_ARRAY_FORMAT_CONSTRUCTOR,
-        List => OPT_ARRAY_FORMAT_LIST,
-        Function => OPT_ARRAY_FORMAT_FUNCTION,
-    }
+    #[enum_(PrefixBigX, PrefixZeroX, SlashXBytea, PrefixBigBSlashX, HexToRaw, Unhex, ToVarbyte, PostfixXbv, ToBinary, SlashXBlob)]
+    bytes_format: BytesFormat = BytesFormat::default(),
 
-    enum DateFormat date_format {
-        Quoted => OPT_DATE_FORMAT_QUOTED,
-        Keyword => OPT_DATE_FORMAT_KEYWORD,
-    }
+    #[enum_(Unsupported, Quoted, Cast)]
+    inet_format: InetFormat = InetFormat::default(),
 
-    enum TimeFormat time_format {
-        Quoted => OPT_TIME_FORMAT_QUOTED,
-        Keyword => OPT_TIME_FORMAT_KEYWORD,
-    }
+    #[enum_(Unsupported, Quoted, Cast)]
+    macaddr_format: MacAddrFormat = MacAddrFormat::default(),
 
-    enum TimestampFormat timestamp_format {
-        Quoted => OPT_TIMESTAMP_FORMAT_QUOTED,
-        Timestamptz => OPT_TIMESTAMP_FORMAT_TIMESTAMPTZ,
-        WithTimezone => OPT_TIMESTAMP_FORMAT_WITH_TIMEZONE,
-    }
+    #[enum_(Quoted, UuidKeyword, CastUuid)]
+    uuid_format: UuidFormat = UuidFormat::default(),
 
-    enum InetFormat inet_format {
-        Unsupported => OPT_INET_FORMAT_UNSUPPORTED,
-        Quoted => OPT_INET_FORMAT_QUOTED,
-        Cast => OPT_INET_FORMAT_CAST,
-    }
+    #[enum_(Quoted, JsonKeyword, ParseJson)]
+    json_format: JsonFormat = JsonFormat::default(),
 
-    enum MacAddrFormat macaddr_format {
-        Unsupported => OPT_MACADDR_FORMAT_UNSUPPORTED,
-        Quoted => OPT_MACADDR_FORMAT_QUOTED,
-        Cast => OPT_MACADDR_FORMAT_CAST,
-    }
+    #[enum_(Unsupported, Constructor, List, Function)]
+    array_format: ArrayFormat = ArrayFormat::default(),
 
-    enum UuidFormat uuid_format {
-        Quoted => OPT_UUID_FORMAT_QUOTED,
-        UuidKeyword => OPT_UUID_FORMAT_UUID_KEYWORD,
-        CastUuid => OPT_UUID_FORMAT_CAST_UUID,
-    }
+    #[enum_(Percent, Function, Infix)]
+    modulo_spelling: ModuloSpelling = ModuloSpelling::default(),
 
-    enum JsonFormat json_format {
-        Quoted => OPT_JSON_FORMAT_QUOTED,
-        JsonKeyword => OPT_JSON_FORMAT_JSON_KEYWORD,
-        ParseJson => OPT_JSON_FORMAT_PARSE_JSON,
-    }
+    #[enum_(Unsupported, Standard, NullSafeEqual)]
+    is_distinct_from_spelling: IsDistinctFromSpelling = IsDistinctFromSpelling::default(),
 
-    bool supports_similar_to = false;
-    bool parenthesize_in_between = false;
-    bool supports_double_colon = false;
-}
+    #[enum_(SqlFrom, Function, SpacesOnly)]
+    trim_spelling: TrimSpelling = TrimSpelling::default(),
+
+    #[enum_(Unsupported, InfixIdent, FunctionString)]
+    collate_spelling: CollateSpelling = CollateSpelling::default(),
+);
 
 #[pyo3::pymethods]
 impl PyDialect {

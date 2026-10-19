@@ -235,7 +235,7 @@ class TestExprMethods:
         assert name.not_rlike("a.*").get_negated() is True
 
         # One render per family. Dialect spellings stay on the constructor tests.
-        assert between.to_sql(PostgreSql) == '"name" BETWEEN 1 AND 3'
+        assert between.to_sql(PostgreSql) == '("name" BETWEEN 1 AND 3)'
         assert like.to_sql(PostgreSql) == "\"name\" LIKE E'a%' ESCAPE E'!'"
         assert similar.to_sql(PostgreSql) == "\"name\" SIMILAR TO E'a%'"
         assert regex.to_sql(PostgreSql) == "\"name\" ~ E'a.*'"
@@ -419,9 +419,12 @@ class TestTupleExpr:
         assert TupleExpr((1, 2), Ident("A")).to_sql(PostgreSql) == 'ROW(ROW(1, 2), "A")'
 
         assert TupleExpr(1, 2).to_sql(Sqlite) == "(1, 2)"
+
         with pytest.raises(RuntimeError, match="at least two elements"):
             TupleExpr(1).to_sql(Sqlite)
+
         assert TupleExpr(1, 2).to_sql(Spark) == "struct(1, 2)"
+
         with pytest.raises(RuntimeError, match="tuple values are not supported"):
             TupleExpr(1, 2).to_sql(BigQuery)
 
@@ -648,16 +651,16 @@ class TestInListExpr:
 
     def test_to_sql(self):
         lst = InListExpr(Ident("id"), [1, 2, 3])
-        assert lst.to_sql(PostgreSql) == '"id" IN (1, 2, 3)'
+        assert lst.to_sql(PostgreSql) == '("id" IN (1, 2, 3))'
 
         sql, params = lst.prepare(PostgreSql)
-        assert sql == '"id" IN ($1, $2, $3)'
+        assert sql == '("id" IN ($1, $2, $3))'
         assert params == (1, 2, 3)
 
         assert InListExpr(Ident("id"), []).to_sql(PostgreSql) == "FALSE"
         assert InListExpr(Ident("id"), [], negated=True).to_sql(PostgreSql) == "TRUE"
         assert InListExpr(Ident("id"), [], negated=True).to_sql(MySql) == "1"
-        assert InListExpr(Ident("id"), [1], negated=True).to_sql(PostgreSql) == ('"id" NOT IN (1)')
+        assert InListExpr(Ident("id"), [1], negated=True).to_sql(PostgreSql) == ('("id" NOT IN (1))')
         assert InListExpr(Ident("id"), [1, 2]).to_sql(MsSql) == "([id] IN (1, 2))"
         assert (
             BinaryExpr(
@@ -685,17 +688,17 @@ class TestBetweenExpr:
 
     def test_to_sql(self):
         bw = BetweenExpr(Ident("id"), BinaryExpr(Ident("old"), "|", 0), 10, negated=True)
-        assert bw.to_sql(PostgreSql) == '"id" NOT BETWEEN "old" | 0 AND 10'
+        assert bw.to_sql(PostgreSql) == '("id" NOT BETWEEN "old" | 0 AND 10)'
 
         bw = BetweenExpr(Ident("id"), 1, 10)
         assert BetweenExpr(Ident("id"), 1, 10, negated=True).to_sql(MsSql) == ("([id] NOT BETWEEN 1 AND 10)")
-        assert bw.to_sql(PostgreSql) == '"id" BETWEEN 1 AND 10'
+        assert bw.to_sql(PostgreSql) == '("id" BETWEEN 1 AND 10)'
 
         bw = BetweenExpr(Ident("id"), BinaryExpr(1, "AND", 2), 10)
-        assert bw.to_sql(PostgreSql) == '"id" BETWEEN (1 AND 2) AND 10'
+        assert bw.to_sql(PostgreSql) == '("id" BETWEEN (1 AND 2) AND 10)'
 
         sql, params = BetweenExpr(Ident("id"), 1, 10).prepare(PostgreSql)
-        assert sql == '"id" BETWEEN $1 AND $2'
+        assert sql == '("id" BETWEEN $1 AND $2)'
         assert params == (1, 10)
 
 

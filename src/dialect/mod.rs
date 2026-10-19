@@ -1,5 +1,5 @@
+pub mod config;
 pub mod errors;
-pub mod flags;
 
 mod base;
 mod builtin;
