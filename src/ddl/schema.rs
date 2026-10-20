@@ -1,5 +1,5 @@
 /// A `CREATE SCHEMA` statement.
-#[rapidquery_macros::pyclass("rapidquery.ddl.CreateSchema", skip_from_py_object)]
+#[rapidquery_macros::pyclass("rapidquery.ddl.CreateSchema")]
 #[derive(Debug, Clone)]
 pub struct PyCreateSchema {
     pub schema_name: arcstr::ArcStr,

@@ -1,7 +1,7 @@
 //! Transaction Control Language
 
 /// Base of every TCL statement. Construct a subclass, not this class.
-#[rapidquery_macros::pyclass("rapidquery.tcl.TransactionControlLanguage", subclass, skip_from_py_object)]
+#[rapidquery_macros::pyclass("rapidquery.tcl.TransactionControlLanguage", subclass)]
 #[derive(Debug, Clone, Copy)]
 pub struct PyTransactionControlLanguage;
 

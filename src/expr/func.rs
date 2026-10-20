@@ -10,7 +10,7 @@ use super::extractors::IdentExtractor;
 use super::extractors::LiteralExprExtractor;
 
 /// SQL function call. The name is an identifier, and each method returns a new call.
-#[rapidquery_macros::pyclass("rapidquery.expr.Function", skip_from_py_object, extends = PyExpr)]
+#[rapidquery_macros::pyclass("rapidquery.expr.Function", extends = PyExpr)]
 #[derive(Debug, Default)]
 pub struct PyFunction;
 

@@ -5,7 +5,7 @@ use crate::serializers::SerializerExtractor;
 use super::enum_::Value;
 
 /// Python object kept until SQL is rendered. `prepare` binds it; `to_sql` serializes it.
-#[rapidquery_macros::pyclass("rapidquery.expr.Value", skip_from_py_object, extends = super::base::PyExpr, generic)]
+#[rapidquery_macros::pyclass("rapidquery.expr.Value", extends = super::base::PyExpr, generic)]
 #[derive(Debug, Default)]
 pub struct PyValue;
 

@@ -18,7 +18,7 @@ macro_rules! empty_node {
     ) => {
         $(
             $(#[$meta])*
-            #[rapidquery_macros::pyclass("rapidquery.expr" + $pyname, skip_from_py_object, extends = PyExpr)]
+            #[rapidquery_macros::pyclass("rapidquery.expr" + $pyname, extends = PyExpr)]
             #[derive(Debug, Default)]
             pub struct $name;
 

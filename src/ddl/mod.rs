@@ -1,7 +1,7 @@
 //! Data Definition Language
 
 /// Base of every DDL statement. Construct a subclass, not this class.
-#[rapidquery_macros::pyclass("rapidquery.ddl.DataDefinitionLanguage", subclass, skip_from_py_object)]
+#[rapidquery_macros::pyclass("rapidquery.ddl.DataDefinitionLanguage", subclass)]
 #[derive(Debug, Clone, Copy)]
 pub struct PyDataDefinitionLanguage;
 

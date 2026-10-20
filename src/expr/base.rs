@@ -10,7 +10,7 @@ use crate::internal::utils;
 use super::enum_;
 
 /// Base of every SQL expression. Construct a subclass, not this class.
-#[rapidquery_macros::pyclass("rapidquery.expr.Expr", subclass, skip_from_py_object)]
+#[rapidquery_macros::pyclass("rapidquery.expr.Expr", subclass)]
 #[derive(Debug, Clone)]
 pub struct PyExpr(pub enum_::ExprInner);
 

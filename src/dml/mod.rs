@@ -1,7 +1,7 @@
 //! Data Manipulation Language
 
 /// Base of every DML statement. Construct a subclass, not this class.
-#[rapidquery_macros::pyclass("rapidquery.dml.DataManipulationLanguage", subclass, skip_from_py_object)]
+#[rapidquery_macros::pyclass("rapidquery.dml.DataManipulationLanguage", subclass)]
 #[derive(Debug, Clone, Copy)]
 pub struct PyDataManipulationLanguage;
 

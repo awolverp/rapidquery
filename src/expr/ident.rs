@@ -23,7 +23,7 @@ fn ident_part_to_pyobject<'py>(
 }
 
 /// Dotted SQL name. A string part is quoted; `Asterisk` is the wildcard.
-#[rapidquery_macros::pyclass("rapidquery.expr.Ident", skip_from_py_object, extends = super::base::PyExpr)]
+#[rapidquery_macros::pyclass("rapidquery.expr.Ident", extends = super::base::PyExpr)]
 #[derive(Debug, Default)]
 pub struct PyIdent;
 
@@ -102,7 +102,7 @@ impl PyIdent {
 }
 
 /// Identifier body written with no quote characters.
-#[rapidquery_macros::pyclass("rapidquery.expr.Unquote", skip_from_py_object, eq, hash)]
+#[rapidquery_macros::pyclass("rapidquery.expr.Unquote", eq, hash)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PyUnquote(pub arcstr::ArcStr);
 
@@ -131,7 +131,7 @@ impl PyUnquote {
 }
 
 /// SQL wildcard `*`, used as the last part of an identifier.
-#[rapidquery_macros::pyclass("rapidquery.expr.Asterisk", skip_from_py_object, eq, hash)]
+#[rapidquery_macros::pyclass("rapidquery.expr.Asterisk", eq, hash)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PyAsterisk;
 

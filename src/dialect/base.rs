@@ -5,7 +5,7 @@ use super::config::*;
 /// SQL dialect: quoting, literals, and which syntax is legal.
 ///
 /// Use a builtin such as `PostgreSql`, or build one from `OPT_*` flags.
-#[rapidquery_macros::pyclass("rapidquery.dialect.Dialect", skip_from_py_object)]
+#[rapidquery_macros::pyclass("rapidquery.dialect.Dialect")]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct PyDialect(pub DialectConfig);

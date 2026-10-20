@@ -1,7 +1,7 @@
 //! Data Control Language
 
 /// Base of every DCL statement. Construct a subclass, not this class.
-#[rapidquery_macros::pyclass("rapidquery.dcl.DataControlLanguage", subclass, skip_from_py_object)]
+#[rapidquery_macros::pyclass("rapidquery.dcl.DataControlLanguage", subclass)]
 #[derive(Debug, Clone, Copy)]
 pub struct PyDataControlLanguage;
 
