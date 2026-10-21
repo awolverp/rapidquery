@@ -26,10 +26,7 @@ where
 ///
 /// Shorthand for `PyExpr(expr).into_subclasses(py)`
 #[inline(always)]
-pub(super) fn into_subclasses<'py>(
-    py: pyo3::Python<'py>,
-    expr: enum_::ExprInner,
-) -> pyo3::PyResult<alias::BoundObject<'py>> {
+pub fn into_subclasses<'py>(py: pyo3::Python<'py>, expr: enum_::ExprInner) -> pyo3::PyResult<alias::BoundObject<'py>> {
     PyExpr(expr).into_subclasses(py)
 }
 
@@ -576,10 +573,9 @@ impl PyExpr {
     /// Render this expression as a parameterized statement.
     fn prepare<'py>(
         slf: pyo3::PyRef<'py, Self>,
-        py: pyo3::Python<'py>,
         dialect: crate::dialect::PyDialect,
     ) -> pyo3::PyResult<(String, alias::BoundObject<'py>)> {
-        let (sql, params) = sql::prepare(py, &slf.0, &dialect)?;
+        let (sql, params) = sql::prepare(slf.py(), &slf.0, &dialect)?;
 
         let params = unsafe {
             utils::iterator_to_tuple(
@@ -592,12 +588,8 @@ impl PyExpr {
     }
 
     /// Render this expression as raw SQL (values inlined as literals).
-    fn to_sql(
-        slf: pyo3::PyRef<'_, Self>,
-        py: pyo3::Python<'_>,
-        dialect: crate::dialect::PyDialect,
-    ) -> pyo3::PyResult<String> {
-        sql::write_sql(py, &slf.0, &dialect).map_err(Into::into)
+    fn to_sql(slf: pyo3::PyRef<'_, Self>, dialect: crate::dialect::PyDialect) -> pyo3::PyResult<String> {
+        sql::write_sql(slf.py(), &slf.0, &dialect).map_err(Into::into)
     }
 
     fn __repr__(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {

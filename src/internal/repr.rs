@@ -25,6 +25,12 @@ impl WriteRepr for String {
     }
 }
 
+impl WriteRepr for arcstr::ArcStr {
+    fn write_repr(self, buf: &mut String) {
+        write!(buf, "{self:?}").unwrap();
+    }
+}
+
 impl WriteRepr for char {
     fn write_repr(self, buf: &mut String) {
         write!(buf, "{self:?}").unwrap();

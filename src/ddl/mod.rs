@@ -1,5 +1,8 @@
 //! Data Definition Language
 
+mod schema;
+pub use schema::PyCreateSchema;
+
 /// Base of every DDL statement. Construct a subclass, not this class.
 #[rapidquery_macros::pyclass("rapidquery.ddl.DataDefinitionLanguage", subclass)]
 #[derive(Debug, Clone, Copy)]
@@ -9,4 +12,7 @@ pub struct PyDataDefinitionLanguage;
 pub mod ddl_mod {
     #[pymodule_export]
     use super::PyDataDefinitionLanguage;
+
+    #[pymodule_export]
+    use super::PyCreateSchema;
 }

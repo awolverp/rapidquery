@@ -311,6 +311,32 @@ pub struct DialectConfig {
     /// - FunctionString: `COLLATE(expr, 'body')`. The identifier body is a string literal.
     #[enum_(Unsupported, #[default] InfixIdent, FunctionString)]
     pub collate_spelling: CollateSpelling,
+
+    // --- DDL Schema ---
+    /// Supported independant schema features, or is it even supported?
+    ///
+    /// - UNSUPPORTED: Means dialect does not support schema.
+    /// - IF_NOT_EXISTS: Is dialect support `IF NOT EXISTS` clause?
+    /// - EMBEDDED_DDL: Is dialect support embedded DDL statements in `CREATE SCHEMA`?
+    #[bit(UNSUPPORTED=1<<0, IF_NOT_EXISTS=1<<1, EMBEDDED_DDL=1<<2)]
+    pub schema_features: SchemaFeatures,
+
+    /// `AUTHORIZATION` clause style. How the schema owner is specified.
+    ///
+    /// - Unsupported: Means dialect does not support `AUTHORIZATION` for schema.
+    /// - Forced: Means authorization is forced, and must schema_name = owner_name.
+    /// - Optional: Means `AUTHORIZATION` clause is supported and it's optional.
+    #[enum_(Unsupported, Forced, #[default] Optional)]
+    pub schema_authorization_style: SchemaAuthorizationStyle,
+
+    /// How schema location is expressed.
+    ///
+    /// - Unsupported: Means dialect does not support location for schema at all.
+    /// - LocationKeyword: `LOCATION location` clause.
+    /// - ManagedLocationKeyword: `MANAGED LOCATION location` clause.
+    /// - ExternalVolume: `EXTERNAL_VOLUME = location` clause.
+    #[enum_(Unsupported, #[default] LocationKeyword, ManagedLocationKeyword, ExternalVolume)]
+    pub schema_location_style: SchemaLocationStyle,
 }
 
 impl DialectConfig {

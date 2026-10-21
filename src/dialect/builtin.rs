@@ -43,6 +43,9 @@ pub const BIGQUERY_DIALECT: base::PyDialect = base::PyDialect(config::DialectCon
     uuid_format: config::UuidFormat::Quoted,
     json_format: config::JsonFormat::JsonKeyword,
     supports_similar_to: false,
+    schema_features: config::SchemaFeatures::IF_NOT_EXISTS,
+    schema_authorization_style: config::SchemaAuthorizationStyle::Unsupported,
+    schema_location_style: config::SchemaLocationStyle::Unsupported,
 });
 
 /// Databricks SQL dialect.
@@ -87,6 +90,9 @@ pub const DATABRICKS_DIALECT: base::PyDialect = base::PyDialect(config::DialectC
     uuid_format: config::UuidFormat::Quoted,
     json_format: config::JsonFormat::Quoted,
     supports_similar_to: false,
+    schema_features: config::SchemaFeatures::IF_NOT_EXISTS,
+    schema_authorization_style: config::SchemaAuthorizationStyle::Unsupported,
+    schema_location_style: config::SchemaLocationStyle::LocationKeyword,
 });
 
 /// DuckDB SQL dialect.
@@ -131,6 +137,9 @@ pub const DUCKDB_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfi
     uuid_format: config::UuidFormat::UuidKeyword,
     json_format: config::JsonFormat::Quoted,
     supports_similar_to: true,
+    schema_features: config::SchemaFeatures::IF_NOT_EXISTS,
+    schema_authorization_style: config::SchemaAuthorizationStyle::Unsupported,
+    schema_location_style: config::SchemaLocationStyle::Unsupported,
 });
 
 /// Hive SQL dialect.
@@ -175,6 +184,9 @@ pub const HIVE_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig 
     uuid_format: config::UuidFormat::Quoted,
     json_format: config::JsonFormat::Quoted,
     supports_similar_to: false,
+    schema_features: config::SchemaFeatures::IF_NOT_EXISTS,
+    schema_authorization_style: config::SchemaAuthorizationStyle::Unsupported,
+    schema_location_style: config::SchemaLocationStyle::LocationKeyword,
 });
 
 /// Microsoft SQL Server dialect.
@@ -217,6 +229,9 @@ pub const MSSQL_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig
     uuid_format: config::UuidFormat::Quoted,
     json_format: config::JsonFormat::Quoted,
     supports_similar_to: false,
+    schema_features: config::SchemaFeatures::EMBEDDED_DDL,
+    schema_authorization_style: config::SchemaAuthorizationStyle::Optional,
+    schema_location_style: config::SchemaLocationStyle::Unsupported,
 });
 
 /// MySQL dialect.
@@ -233,6 +248,7 @@ pub const MYSQL_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig
     modulo_spelling: config::ModuloSpelling::Percent,
     is_distinct_from_spelling: config::IsDistinctFromSpelling::NullSafeEqual,
     cast_try_cast: config::TryCast::Unsupported,
+    cast_double_colon: false,
     trim_spelling: config::TrimSpelling::SqlFrom,
     collate_spelling: config::CollateSpelling::InfixIdent,
     bitwise_operations: config::BitwiseOperations::AND
@@ -260,7 +276,9 @@ pub const MYSQL_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig
     uuid_format: config::UuidFormat::Quoted,
     json_format: config::JsonFormat::Quoted,
     supports_similar_to: false,
-    cast_double_colon: false,
+    schema_features: config::SchemaFeatures::IF_NOT_EXISTS,
+    schema_authorization_style: config::SchemaAuthorizationStyle::Unsupported,
+    schema_location_style: config::SchemaLocationStyle::Unsupported,
 });
 
 /// Oracle SQL dialect.
@@ -276,6 +294,7 @@ pub const ORACLE_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfi
     modulo_spelling: config::ModuloSpelling::Function,
     is_distinct_from_spelling: config::IsDistinctFromSpelling::Unsupported,
     cast_try_cast: config::TryCast::Unsupported,
+    cast_double_colon: false,
     trim_spelling: config::TrimSpelling::SqlFrom,
     collate_spelling: config::CollateSpelling::InfixIdent,
     bitwise_xor_spelling: config::BitwiseXorSpelling::Unsupported,
@@ -300,7 +319,9 @@ pub const ORACLE_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfi
     uuid_format: config::UuidFormat::Quoted,
     json_format: config::JsonFormat::Quoted,
     supports_similar_to: false,
-    cast_double_colon: false,
+    schema_features: config::SchemaFeatures::EMBEDDED_DDL,
+    schema_authorization_style: config::SchemaAuthorizationStyle::Forced,
+    schema_location_style: config::SchemaLocationStyle::Unsupported,
 });
 
 /// PostgreSQL dialect.
@@ -345,6 +366,9 @@ pub const POSTGRESQL_DIALECT: base::PyDialect = base::PyDialect(config::DialectC
     json_format: config::JsonFormat::Quoted,
     supports_similar_to: true,
     cast_double_colon: true,
+    schema_features: config::SchemaFeatures::IF_NOT_EXISTS.union(config::SchemaFeatures::EMBEDDED_DDL),
+    schema_authorization_style: config::SchemaAuthorizationStyle::Optional,
+    schema_location_style: config::SchemaLocationStyle::Unsupported,
 });
 
 /// Amazon Redshift dialect.
@@ -387,6 +411,9 @@ pub const REDSHIFT_DIALECT: base::PyDialect = base::PyDialect(config::DialectCon
     json_format: config::JsonFormat::Quoted,
     supports_similar_to: true,
     cast_double_colon: true,
+    schema_features: config::SchemaFeatures::IF_NOT_EXISTS.union(config::SchemaFeatures::EMBEDDED_DDL),
+    schema_authorization_style: config::SchemaAuthorizationStyle::Optional,
+    schema_location_style: config::SchemaLocationStyle::Unsupported,
 });
 
 /// Snowflake SQL dialect.
@@ -403,6 +430,7 @@ pub const SNOWFLAKE_DIALECT: base::PyDialect = base::PyDialect(config::DialectCo
     modulo_spelling: config::ModuloSpelling::Percent,
     is_distinct_from_spelling: config::IsDistinctFromSpelling::Standard,
     cast_try_cast: config::TryCast::TryCast,
+    cast_double_colon: true,
     trim_spelling: config::TrimSpelling::Function,
     collate_spelling: config::CollateSpelling::FunctionString,
     bitwise_operations: config::BitwiseOperations::AND
@@ -430,7 +458,9 @@ pub const SNOWFLAKE_DIALECT: base::PyDialect = base::PyDialect(config::DialectCo
     uuid_format: config::UuidFormat::Quoted,
     json_format: config::JsonFormat::ParseJson,
     supports_similar_to: false,
-    cast_double_colon: true,
+    schema_features: config::SchemaFeatures::IF_NOT_EXISTS,
+    schema_authorization_style: config::SchemaAuthorizationStyle::Unsupported,
+    schema_location_style: config::SchemaLocationStyle::ExternalVolume,
 });
 
 /// Apache Spark SQL dialect.
@@ -447,6 +477,7 @@ pub const SPARK_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig
     modulo_spelling: config::ModuloSpelling::Percent,
     is_distinct_from_spelling: config::IsDistinctFromSpelling::Standard,
     cast_try_cast: config::TryCast::TryCast,
+    cast_double_colon: true,
     trim_spelling: config::TrimSpelling::SqlFrom,
     collate_spelling: config::CollateSpelling::Unsupported,
     bitwise_operations: config::BitwiseOperations::AND
@@ -474,7 +505,9 @@ pub const SPARK_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig
     uuid_format: config::UuidFormat::Quoted,
     json_format: config::JsonFormat::Quoted,
     supports_similar_to: false,
-    cast_double_colon: true,
+    schema_features: config::SchemaFeatures::IF_NOT_EXISTS,
+    schema_authorization_style: config::SchemaAuthorizationStyle::Unsupported,
+    schema_location_style: config::SchemaLocationStyle::LocationKeyword,
 });
 
 /// SQLite dialect.
@@ -490,6 +523,7 @@ pub const SQLITE_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfi
     modulo_spelling: config::ModuloSpelling::Percent,
     is_distinct_from_spelling: config::IsDistinctFromSpelling::Standard,
     cast_try_cast: config::TryCast::Unsupported,
+    cast_double_colon: false,
     trim_spelling: config::TrimSpelling::Function,
     collate_spelling: config::CollateSpelling::InfixIdent,
     bitwise_xor_spelling: config::BitwiseXorSpelling::Unsupported,
@@ -518,7 +552,9 @@ pub const SQLITE_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfi
     uuid_format: config::UuidFormat::Quoted,
     json_format: config::JsonFormat::Quoted,
     supports_similar_to: false,
-    cast_double_colon: false,
+    schema_features: config::SchemaFeatures::UNSUPPORTED,
+    schema_authorization_style: config::SchemaAuthorizationStyle::Unsupported,
+    schema_location_style: config::SchemaLocationStyle::Unsupported,
 });
 
 /// Teradata SQL dialect.
@@ -535,6 +571,7 @@ pub const TERADATA_DIALECT: base::PyDialect = base::PyDialect(config::DialectCon
     modulo_spelling: config::ModuloSpelling::Infix,
     is_distinct_from_spelling: config::IsDistinctFromSpelling::Unsupported,
     cast_try_cast: config::TryCast::TryCastWord,
+    cast_double_colon: false,
     trim_spelling: config::TrimSpelling::SqlFrom,
     collate_spelling: config::CollateSpelling::Unsupported,
     bitwise_operations: config::BitwiseOperations::AND
@@ -562,5 +599,7 @@ pub const TERADATA_DIALECT: base::PyDialect = base::PyDialect(config::DialectCon
     uuid_format: config::UuidFormat::Quoted,
     json_format: config::JsonFormat::Quoted,
     supports_similar_to: false,
-    cast_double_colon: false,
+    schema_features: config::SchemaFeatures::empty(),
+    schema_authorization_style: config::SchemaAuthorizationStyle::Unsupported,
+    schema_location_style: config::SchemaLocationStyle::Unsupported,
 });
