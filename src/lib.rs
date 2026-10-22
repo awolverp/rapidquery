@@ -1,46 +1,65 @@
-#![allow(unused_unsafe)]
-#![allow(clippy::macro_metavars_in_unsafe)]
-#![allow(clippy::too_many_arguments)]
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
-#![warn(clippy::print_stdout)]
-#![warn(clippy::print_stderr)]
-#![warn(clippy::dbg_macro)]
-#![feature(optimize_attribute)]
-#![feature(once_cell_try)]
+#![allow(unsafe_op_in_unsafe_fn)]
+#![cfg_attr(feature = "nightly", feature(optimize_attribute))]
 
+pub mod data_type;
+pub mod dialect;
+pub mod expr;
 pub mod internal;
-mod typeref;
+pub mod serializers;
+pub mod typeref;
 
-mod common;
-mod mysql;
-mod postgres;
-mod query;
-mod schema;
-mod sqlite;
-mod sqltypes;
+pub mod dcl;
+pub mod ddl;
+pub mod dml;
+pub mod tcl;
 
-/// RapidQuery core which is written in Rust.
+/// RapidQuery native extension.
 #[pyo3::pymodule(gil_used = false)]
-mod _lib {
+mod _core {
     #[pymodule_export]
-    use super::common::common_module;
+    use super::dialect::dialect_mod;
+
     #[pymodule_export]
-    use super::mysql::mysql_module;
+    use super::serializers::serializers_mod;
+
     #[pymodule_export]
-    use super::postgres::postgres_module;
+    use super::expr::expr_mod;
+
     #[pymodule_export]
-    use super::query::query_module;
+    use super::ddl::ddl_mod;
+
     #[pymodule_export]
-    use super::schema::schema_module;
+    use super::dcl::dcl_mod;
+
     #[pymodule_export]
-    use super::sqlite::sqlite_module;
+    use super::dml::dml_mod;
+
     #[pymodule_export]
-    use super::sqltypes::sqltypes_module;
+    use super::tcl::tcl_mod;
 
     #[pymodule_init]
     #[cold]
     fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
+        use crate::internal::utils::PyModuleSubmoduleExt;
+        use pyo3::types::PyModuleMethods;
+
         crate::typeref::initialize_typeref(m.py());
-        Ok(())
+
+        m.add(
+            "_feature_only_stdlib_json",
+            cfg_select! {
+                feature = "only-stdlib-json" => true,
+                not(feature = "only-stdlib-json") => false,
+            },
+        )?;
+        m.add(
+            "_feature_only_orjson",
+            cfg_select! {
+                feature = "only-orjson" => true,
+                not(feature = "only-orjson") => false,
+            },
+        )?;
+
+        m.init_submodules()
     }
 }

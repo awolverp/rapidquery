@@ -1,67 +1,71 @@
 [package]
 name = "rapidquery"
-version = "0.1.0"
-edition = "2021"
+version = "0.2.0-alpha1"
+edition = "2024"
 description = "RapidQuery is the fastest, full-feature, and easy-to-use Python SQL query builder written in Rust."
-readme = "README.md"
-license = "GNU GPLv3"
 homepage = "https://github.com/awolverp/rapidquery"
 repository = "https://github.com/awolverp/rapidquery.git"
-authors = ["Ali Pooralijan <awolverp@gmail.com>"]
+license = "MIT"
+
+[workspace]
+members = ["rapidquery-macros"]
 
 [lib]
-name = "rapidquery"
 crate-type = ["cdylib", "rlib"]
-
-[profile.dev]
-lto = true
-panic = "unwind"
-strip = true
-
-[profile.release]
-codegen-units = 1
-debug = false
-incremental = false
-lto = true
-panic = "unwind"
-strip = true
+name = "rapidquery"
 
 [dependencies]
-pyo3 = { version = "0.28", default-features = false, features = ["macros", "extension-module", "chrono", "uuid", "rust_decimal", "generate-import-lib"] }
-pgvector = { version = "~0.4", default-features = false }
+arcstr = { version = "1.2" }
+bitflags = { version = "2.13.2", default-features = false }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+derive_more = { version = "2.1.1", default-features = false, features = ["display", "from_str"] }
+hashbrown = { version = "0.17.1", default-features = false, features = ["default-hasher", "allocator-api2", "inline-more"] }
 ipnetwork = { version = "0.20", default-features = false }
 mac_address = { version = "1.1", default-features = false }
-uuid = { version = "1.18.1", default-features = false, features = ["v4"] }
-chrono = { version = "0.4.27", default-features = false, features = ["clock"] }
-serde_json = { version = "1", default-features = false, features = ["std"] }
-rust_decimal = { version = "1.38.0", default-features = false }
-indexmap = { version = "2.12.0", default-features = false, features = ["std"]}
-parking_lot = { version = "0.12.4", default-features = false }
+once_cell = { version = "1.21.4", default-features = false }
+parking_lot = { version = "0.12", default-features = false }
+pyo3 = { version = "0.30.1", default-features = false, features = ["chrono", "macros", "multiple-pymethods", "py-clone"] }
+rapidquery-macros = { path = "rapidquery-macros" }
+smallvec = { version = "1.16.0", default-features = false }
+uuid = { version = "1.26.1", default-features = false }
 
-[dependencies.sea-query]
-version = "0.32.7"
-default-features = false
-features = [
-    "backend-mysql",
-    "backend-postgres",
-    "backend-sqlite",
-    "thread-safe",
-    "with-chrono",
-    "with-json",
-    "with-rust_decimal",
-    "with-uuid",
-    "with-ipnetwork",
-    "with-mac_address",
-    "postgres-array",
-    "postgres-interval",
-    "postgres-vector",
-    "hashable-value"
-]
+# ONLY for inspiring the source
+sea-query = { version = "1.0.2", default-features = false }
+# ONLY for inspiring the source
+sqlparser = { version = "0.62.0", default-features = false }
+
+[build-dependencies]
+pyo3-build-config = "0.30.1"
 
 [features]
-default = ["optimize"]
-optimize = []
+default = ["extension-module"]
+extension-module = ["pyo3/extension-module"]
+nightly = ["hashbrown/nightly"]
+
+# Test harness only. `extension-module` does not link libpython, so Rust tests
+# that touch Python use `--no-default-features --features auto-initialize`.
+auto-initialize = ["pyo3/auto-initialize"]
+
+# Testing feature
+only-orjson = []
+# Testing feature
+only-stdlib-json = []
 
 [lints.clippy]
 dbg_macro = "warn"
+print_stderr = "warn"
 print_stdout = "warn"
+
+[profile.dev]
+strip = false
+lto = true
+panic = "unwind"
+
+[profile.release]
+opt-level = 3
+debug = false
+strip = false
+lto = true
+panic = "abort"
+incremental = false
+codegen-units = 1
