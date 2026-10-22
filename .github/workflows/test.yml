@@ -76,7 +76,7 @@ jobs:
         run: maturin develop
 
       - name: "Run pytest"
-        run: pytest -v --workers auto
+        run: pytest -v -n auto
         env:
           HYPOTHESIS_PROFILE: slow
 
