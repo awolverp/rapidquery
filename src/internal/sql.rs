@@ -345,15 +345,11 @@ impl std::fmt::Write for ParameterizedSql<'_> {
 
 /// Render `self` into `out`. The writer chooses literal vs placeholder for values.
 pub trait WriteSql {
-    fn write_sql<W: SqlWriter>(
-        &self,
-        // NOTE FOR ME:
-        // Why `PyDialect` instead of Rust `Dialect`?
-        // because we accept custom serializers and custom serializer functions
-        // need to get dialect objects.
-        dialect: &PyDialect,
-        out: &mut W,
-    ) -> PrepareResult<()>;
+    // NOTE FOR ME:
+    // Why `PyDialect` instead of Rust `Dialect`?
+    // because we accept custom serializers and custom serializer functions
+    // need to get dialect objects.
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()>;
 }
 
 /// Render `stmt` as raw SQL (values inlined as literals).

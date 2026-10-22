@@ -18,6 +18,7 @@ name = "rapidquery"
 arcstr = { version = "1.2" }
 bitflags = { version = "2.13.2", default-features = false }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+derive_more = { version = "2.1.1", default-features = false, features = ["display", "from_str"] }
 hashbrown = { version = "0.17.1", default-features = false, features = ["default-hasher", "allocator-api2", "inline-more"] }
 ipnetwork = { version = "0.20", default-features = false }
 mac_address = { version = "1.1", default-features = false }

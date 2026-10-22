@@ -5,7 +5,7 @@ use super::config::*;
 /// SQL dialect: quoting, literals, and which syntax is legal.
 ///
 /// Use a builtin such as `PostgreSql`, or build one from `OPT_*` flags.
-#[rapidquery_macros::pyclass("rapidquery.dialect.Dialect")]
+#[rapidquery_macros::pyclass("rapidquery.dialect.Dialect", eq, hash)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct PyDialect(pub DialectConfig);
@@ -31,6 +31,9 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDialect {
     }
 }
 
+// FIXME: Set dialect default values as disabled/unsupported when possible,
+//        otherwise set a traditional one. So developer can predict the values
+//        without needing to specify all arguments.
 rapidquery_macros::pydialect_constructor!(
     placeholder_character: char = '?',
 
@@ -141,6 +144,15 @@ rapidquery_macros::pydialect_constructor!(
 
     #[enum_(Unsupported, InfixIdent, FunctionString)]
     collate_spelling: CollateSpelling = CollateSpelling::default(),
+
+    #[bit(UNSUPPORTED, IF_NOT_EXISTS, EMBEDDED_DDL, IS_DATABASE, DROP_CASCADE, DROP_RESTRICT)]
+    schema_features: SchemaFeatures = SchemaFeatures::empty().bits(),
+
+    #[enum_(Unsupported, Optional)]
+    schema_authorization_style: SchemaAuthorizationStyle = SchemaAuthorizationStyle::default(),
+
+    #[enum_(Unsupported, LocationKeyword, ManagedLocationKeyword, ExternalVolume)]
+    schema_location_style: SchemaLocationStyle = SchemaLocationStyle::default(),
 );
 
 #[pyo3::pymethods]
@@ -182,18 +194,5 @@ impl PyDialect {
         let mut buf = String::new();
         self.0.write_bytes(&mut buf, value)?;
         Ok(buf)
-    }
-
-    fn __eq__(&self, other: &pyo3::Bound<'_, Self>) -> bool {
-        self.0 == other.get().0
-    }
-
-    fn __hash__(&self) -> u64 {
-        use std::hash::Hash;
-        use std::hash::Hasher;
-
-        let mut hasher = std::hash::DefaultHasher::default();
-        self.0.hash(&mut hasher);
-        hasher.finish()
     }
 }

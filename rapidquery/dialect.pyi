@@ -8,6 +8,10 @@ OPT_ARRAY_FORMAT_CONSTRUCTOR: typing.Final[int]
 OPT_ARRAY_FORMAT_FUNCTION: typing.Final[int]
 OPT_ARRAY_FORMAT_LIST: typing.Final[int]
 OPT_ARRAY_FORMAT_UNSUPPORTED: typing.Final[int]
+OPT_BIT_FORMAT_POSTFIX_BIG_B: typing.Final[int]
+OPT_BIT_FORMAT_PREFIX_BIG_B: typing.Final[int]
+OPT_BIT_FORMAT_PREFIX_SMALL_B: typing.Final[int]
+OPT_BIT_FORMAT_UNSUPPORTED: typing.Final[int]
 OPT_BITWISE_CALL_SYNTAX_BIT_FUNCTION: typing.Final[int]
 OPT_BITWISE_CALL_SYNTAX_INFIX: typing.Final[int]
 OPT_BITWISE_CALL_SYNTAX_SHIFT_FUNCTION: typing.Final[int]
@@ -21,10 +25,6 @@ OPT_BITWISE_XOR_SPELLING_CARET: typing.Final[int]
 OPT_BITWISE_XOR_SPELLING_FUNCTION: typing.Final[int]
 OPT_BITWISE_XOR_SPELLING_HASH: typing.Final[int]
 OPT_BITWISE_XOR_SPELLING_UNSUPPORTED: typing.Final[int]
-OPT_BIT_FORMAT_POSTFIX_BIG_B: typing.Final[int]
-OPT_BIT_FORMAT_PREFIX_BIG_B: typing.Final[int]
-OPT_BIT_FORMAT_PREFIX_SMALL_B: typing.Final[int]
-OPT_BIT_FORMAT_UNSUPPORTED: typing.Final[int]
 OPT_BOOL_FORMAT_INTEGER: typing.Final[int]
 OPT_BOOL_FORMAT_KEYWORD: typing.Final[int]
 OPT_BYTES_FORMAT_HEX_TO_RAW: typing.Final[int]
@@ -89,6 +89,18 @@ OPT_RLIKE_EXPRESSION_REGEXP_MATCHES: typing.Final[int]
 OPT_RLIKE_EXPRESSION_STANDARD: typing.Final[int]
 OPT_RLIKE_EXPRESSION_TILDE: typing.Final[int]
 OPT_RLIKE_EXPRESSION_UNSUPPORTED: typing.Final[int]
+OPT_SCHEMA_AUTHORIZATION_STYLE_OPTIONAL: typing.Final[int]
+OPT_SCHEMA_AUTHORIZATION_STYLE_UNSUPPORTED: typing.Final[int]
+OPT_SCHEMA_FEATURES_EMBEDDED_DDL: typing.Final[int]
+OPT_SCHEMA_FEATURES_IF_NOT_EXISTS: typing.Final[int]
+OPT_SCHEMA_FEATURES_IS_DATABASE: typing.Final[int]
+OPT_SCHEMA_FEATURES_DROP_CASCADE: typing.Final[int]
+OPT_SCHEMA_FEATURES_DROP_RESTRICT: typing.Final[int]
+OPT_SCHEMA_FEATURES_UNSUPPORTED: typing.Final[int]
+OPT_SCHEMA_LOCATION_STYLE_EXTERNAL_VOLUME: typing.Final[int]
+OPT_SCHEMA_LOCATION_STYLE_LOCATION_KEYWORD: typing.Final[int]
+OPT_SCHEMA_LOCATION_STYLE_MANAGED_LOCATION_KEYWORD: typing.Final[int]
+OPT_SCHEMA_LOCATION_STYLE_UNSUPPORTED: typing.Final[int]
 OPT_STRING_CONCAT_CONCAT_FUNCTION: typing.Final[int]
 OPT_STRING_CONCAT_PIPES: typing.Final[int]
 OPT_STRING_CONCAT_PLUS: typing.Final[int]
@@ -101,11 +113,11 @@ OPT_STRING_ESCAPE_QUOTE: typing.Final[int]
 OPT_STRING_FORMAT_PREFIX_BIG_E: typing.Final[int]
 OPT_STRING_FORMAT_PREFIX_BIG_N: typing.Final[int]
 OPT_STRING_FORMAT_SINGLE_QUOTE: typing.Final[int]
+OPT_TIME_FORMAT_KEYWORD: typing.Final[int]
+OPT_TIME_FORMAT_QUOTED: typing.Final[int]
 OPT_TIMESTAMP_FORMAT_QUOTED: typing.Final[int]
 OPT_TIMESTAMP_FORMAT_TIMESTAMPTZ: typing.Final[int]
 OPT_TIMESTAMP_FORMAT_WITH_TIMEZONE: typing.Final[int]
-OPT_TIME_FORMAT_KEYWORD: typing.Final[int]
-OPT_TIME_FORMAT_QUOTED: typing.Final[int]
 OPT_TRIM_SPELLING_FUNCTION: typing.Final[int]
 OPT_TRIM_SPELLING_SPACES_ONLY: typing.Final[int]
 OPT_TRIM_SPELLING_SQL_FROM: typing.Final[int]
@@ -161,6 +173,9 @@ class Dialect:
         is_distinct_from_spelling: int = ...,
         trim_spelling: int = ...,
         collate_spelling: int = ...,
+        schema_features: int = ...,
+        schema_authorization_style: int = ...,
+        schema_location_style: int = ...,
     ) -> typing.Self:
         """
         Build a dialect from flags.
@@ -241,6 +256,12 @@ class Dialect:
     def tuple_syntax(self) -> int: ...
     @property
     def uuid_format(self) -> int: ...
+    @property
+    def schema_features(self) -> int: ...
+    @property
+    def schema_authorization_style(self) -> int: ...
+    @property
+    def schema_location_style(self) -> int: ...
     def write_boolean(self, value: bool) -> str:
         """
         Write `value` as this dialect's boolean literal.

@@ -59,6 +59,16 @@ impl<S: AsRef<str>> From<S> for IdentPart {
     }
 }
 
+impl PartialEq<&str> for IdentPart {
+    fn eq(&self, other: &&str) -> bool {
+        match self {
+            Self::Quote(x) => x.as_str() == *other,
+            Self::Unquote(x) => x.as_str() == *other,
+            Self::Asterisk => "*" == *other,
+        }
+    }
+}
+
 impl WriteSql for IdentPart {
     #[inline]
     fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
