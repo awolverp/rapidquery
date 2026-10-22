@@ -29,7 +29,7 @@ from rapidquery.serializers import (
 from tests.conftest import USING_ORJSON
 
 
-class ValidEnum(enum.StrEnum):
+class ValidEnum(str, enum.Enum):
     TEST = "test"
 
 
