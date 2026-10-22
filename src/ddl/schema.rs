@@ -33,8 +33,12 @@ impl sql::WriteSql for PyCreateSchema {
             .into());
         }
 
-        // CREATE SCHEMA
-        out.push_str("CREATE SCHEMA ");
+        // CREATE {SCHEMA | DATABASE}
+        if dialect.0.schema_features.contains(config::SchemaFeatures::IS_DATABASE) {
+            out.push_str("CREATE DATABASE ");
+        } else {
+            out.push_str("CREATE SCHEMA ");
+        }
 
         // ... [IF NOT EXISTS]
         if self.if_not_exists
@@ -46,7 +50,7 @@ impl sql::WriteSql for PyCreateSchema {
             out.push_str("IF NOT EXISTS ");
         }
 
-        // ... [name] AUTHORIZATION [owner_name]
+        // ... [<name>] [AUTHORIZATION <authorization>]
         match dialect.0.schema_authorization_style {
             config::SchemaAuthorizationStyle::Unsupported => {
                 if self.authorization.is_some() {
@@ -63,32 +67,14 @@ impl sql::WriteSql for PyCreateSchema {
                 self.name.write_sql(dialect, out)?;
 
                 if let Some(x) = &self.authorization {
-                    out.push_str(" AUTHORIZATION");
+                    out.push_str(" AUTHORIZATION ");
                     dialect.0.write_identifier(out, x)?;
                 }
-            }
-            config::SchemaAuthorizationStyle::Forced => {
-                // If we have authorization, it should be equal to name.
-                if let Some(x) = &self.authorization {
-                    let parts = self.name.parts();
-
-                    if parts.len() > 1 || parts[0] != x.as_str() {
-                        return Err(rapidquery_macros::pyerr!(
-                            PyRuntimeError,
-                            "AUTHORIZATION in CREATE SCHEMA is required by this dialect and schema \
-                            name needs to be equal to authorization. omit authorization, or set same name and authorization."
-                        )
-                        .into());
-                    }
-                }
-
-                out.push_str("AUTHORIZATION ");
-                self.name.write_sql(dialect, out)?;
             }
         }
 
         if let Some(x) = &self.location {
-            // ... (LOCATION | MANAGED LOCATION | EXTERNAL_VOLUME =) location
+            // ... {LOCATION | MANAGED LOCATION | EXTERNAL_VOLUME =} <location>
             match dialect.0.schema_location_style {
                 config::SchemaLocationStyle::Unsupported => {
                     return Err(rapidquery_macros::pyerr!(
@@ -119,7 +105,7 @@ impl sql::WriteSql for PyCreateSchema {
 #[pyo3::pymethods]
 impl PyCreateSchema {
     #[new]
-    #[pyo3(signature=(name, if_not_exists=false, authorization=None, location=None))]
+    #[pyo3(signature=(name, *, if_not_exists=false, authorization=None, location=None))]
     fn new(
         name: IdentExtractor,
         if_not_exists: bool,
@@ -167,6 +153,152 @@ impl PyCreateSchema {
             .keyword_true("if_not_exists", self.if_not_exists)
             .keyword("authorization", self.authorization.clone())
             .keyword("location", self.location.clone());
+
+        fmt.into_string()
+    }
+}
+
+/// Represents `CASCADE` and `RESTRICT` keywords in `DROP SCHEMA` statement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, derive_more::FromStr, derive_more::Display)]
+pub enum DropSchemaBehavior {
+    /// Emits `CASCADE`
+    #[display("CASCADE")]
+    Cascade,
+    /// Emits `RESTRICT`
+    #[display("RESTRICT")]
+    Restrict,
+}
+
+/// Represent a `DROP SCHEMA` statement.
+#[rapidquery_macros::pyclass("rapidquery.ddl.DropSchema", extends=super::PyDataDefinitionLanguage)]
+#[derive(Debug, Clone)]
+pub struct PyDropSchema {
+    /// Schema name e.g. `"datasets"`
+    pub name: Ident,
+
+    /// Emits `IF EXISTS`.
+    pub if_exists: bool,
+
+    /// `CASCADE` and `RESTRICT` keywords
+    pub behavior: Option<DropSchemaBehavior>,
+}
+
+impl sql::WriteSql for PyDropSchema {
+    fn write_sql<W: sql::SqlWriter>(&self, dialect: &crate::dialect::PyDialect, out: &mut W) -> sql::PrepareResult<()> {
+        if dialect.0.schema_features.contains(config::SchemaFeatures::UNSUPPORTED) {
+            return Err(rapidquery_macros::pyerr!(
+                PyRuntimeError,
+                "DROP SCHEMA statement is not supported by this dialect"
+            )
+            .into());
+        }
+
+        // DROP {SCHEMA | DATABASE}
+        if dialect.0.schema_features.contains(config::SchemaFeatures::IS_DATABASE) {
+            out.push_str("DROP DATABASE ");
+        } else {
+            out.push_str("DROP SCHEMA ");
+        }
+
+        // ... [IF EXISTS]
+        if self.if_exists
+            && dialect
+                .0
+                .schema_features
+                .contains(config::SchemaFeatures::IF_NOT_EXISTS)
+        {
+            out.push_str("IF EXISTS ");
+        }
+
+        // ... <name>
+        self.name.write_sql(dialect, out)?;
+
+        // ... [{CASCADE | RESTRICT}]
+        match self.behavior {
+            None => {}
+            Some(DropSchemaBehavior::Cascade) => {
+                if !dialect.0.schema_features.contains(config::SchemaFeatures::DROP_CASCADE) {
+                    return Err(rapidquery_macros::pyerr!(
+                        PyRuntimeError,
+                        "This dialect does not support CASCADE keyword in DROP SCHEMA statement"
+                    )
+                    .into());
+                }
+
+                out.push_str(" CASCADE");
+            }
+            Some(DropSchemaBehavior::Restrict) => {
+                if !dialect
+                    .0
+                    .schema_features
+                    .contains(config::SchemaFeatures::DROP_RESTRICT)
+                {
+                    return Err(rapidquery_macros::pyerr!(
+                        PyRuntimeError,
+                        "This dialect does not support RESTRICT keyword in DROP SCHEMA statement"
+                    )
+                    .into());
+                }
+
+                out.push_str(" RESTRICT");
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[pyo3::pymethods]
+impl PyDropSchema {
+    #[new]
+    #[pyo3(signature=(name, *, if_exists=false, behavior=None))]
+    fn new(
+        name: IdentExtractor,
+        if_exists: bool,
+        behavior: Option<&str>,
+    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+        use std::str::FromStr;
+
+        let result = Self {
+            name: name.0,
+            if_exists,
+            behavior: match behavior {
+                None => None,
+                Some(x) => Some(
+                    DropSchemaBehavior::from_str(x)
+                        .map_err(|_| rapidquery_macros::pyerr!(PyValueError, "invalid value for behavior: {}", x))?,
+                ),
+            },
+        };
+        Ok(pyo3::PyClassInitializer::from(super::PyDataDefinitionLanguage).add_subclass(result))
+    }
+
+    #[getter]
+    fn name<'a>(&self, py: pyo3::Python<'a>) -> pyo3::PyResult<alias::BoundObject<'a>> {
+        crate::expr::base::into_subclasses(py, self.name.clone().into())
+    }
+
+    #[getter]
+    fn if_exists(&self) -> bool {
+        self.if_exists
+    }
+
+    #[getter]
+    fn behavior(&self) -> Option<String> {
+        self.behavior.map(|x| x.to_string())
+    }
+
+    /// Render this expression as raw SQL (values inlined as literals).
+    fn to_sql(&self, py: pyo3::Python, dialect: crate::dialect::PyDialect) -> pyo3::PyResult<String> {
+        sql::write_sql(py, self, &dialect).map_err(Into::into)
+    }
+
+    fn __repr__(&self) -> String {
+        let mut fmt = repr::ReprFormatter::new_call("CreateSchema");
+
+        fmt.positional(self.name.python_repr())
+            .keyword_true("if_exists", self.if_exists)
+            .keyword("behavior", self.behavior.map(|x| x.to_string()));
 
         fmt.into_string()
     }

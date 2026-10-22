@@ -1,7 +1,9 @@
 //! Data Definition Language
 
 mod schema;
+pub use schema::DropSchemaBehavior;
 pub use schema::PyCreateSchema;
+pub use schema::PyDropSchema;
 
 /// Base of every DDL statement. Construct a subclass, not this class.
 #[rapidquery_macros::pyclass("rapidquery.ddl.DataDefinitionLanguage", subclass)]
@@ -15,4 +17,7 @@ pub mod ddl_mod {
 
     #[pymodule_export]
     use super::PyCreateSchema;
+
+    #[pymodule_export]
+    use super::PyDropSchema;
 }

@@ -145,10 +145,10 @@ rapidquery_macros::pydialect_constructor!(
     #[enum_(Unsupported, InfixIdent, FunctionString)]
     collate_spelling: CollateSpelling = CollateSpelling::default(),
 
-    #[bit(UNSUPPORTED, IF_NOT_EXISTS, EMBEDDED_DDL)]
+    #[bit(UNSUPPORTED, IF_NOT_EXISTS, EMBEDDED_DDL, IS_DATABASE, DROP_CASCADE, DROP_RESTRICT)]
     schema_features: SchemaFeatures = SchemaFeatures::empty().bits(),
 
-    #[enum_(Unsupported, Forced, Optional)]
+    #[enum_(Unsupported, Optional)]
     schema_authorization_style: SchemaAuthorizationStyle = SchemaAuthorizationStyle::default(),
 
     #[enum_(Unsupported, LocationKeyword, ManagedLocationKeyword, ExternalVolume)]

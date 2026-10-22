@@ -85,8 +85,7 @@ pub struct DialectConfig {
     /// Which bitwise operators a dialect can render.
     ///
     /// A missing flag rejects that operator. AND, OR, NOT, and the shifts share
-    /// one spelling ([`BitCall`]). XOR uses [`XorSpelling`] and only when
-    /// [`Self::XOR`] is set.
+    /// one spelling ([`BitCall`]). XOR uses [`XorSpelling`].
     #[bit(AND = 1 << 0, OR = 1 << 1, NOT = 1 << 2, SHL = 1 << 3, SHR = 1 << 4)]
     pub bitwise_operations: BitwiseOperations,
 
@@ -318,15 +317,17 @@ pub struct DialectConfig {
     /// - UNSUPPORTED: Means dialect does not support schema.
     /// - IF_NOT_EXISTS: Is dialect support `IF NOT EXISTS` clause?
     /// - EMBEDDED_DDL: Is dialect support embedded DDL statements in `CREATE SCHEMA`?
-    #[bit(UNSUPPORTED=1<<0, IF_NOT_EXISTS=1<<1, EMBEDDED_DDL=1<<2)]
+    /// - IS_DATABASE: Schema has same meaning as database in this dialect.
+    /// - DROP_CASCADE: Supports `CASCADE` keyword in `DROP SCHEMA`.
+    /// - DROP_RESTRICT: Supports `RESTRICT` keyword in `DROP SCHEMA`.
+    #[bit(UNSUPPORTED=1<<0, IF_NOT_EXISTS=1<<1, EMBEDDED_DDL=1<<2, IS_DATABASE=1<<3, DROP_CASCADE=1<<4, DROP_RESTRICT=1<<5)]
     pub schema_features: SchemaFeatures,
 
     /// `AUTHORIZATION` clause style. How the schema owner is specified.
     ///
     /// - Unsupported: Means dialect does not support `AUTHORIZATION` for schema.
-    /// - Forced: Means authorization is forced, and must schema_name = owner_name.
     /// - Optional: Means `AUTHORIZATION` clause is supported and it's optional.
-    #[enum_(Unsupported, Forced, #[default] Optional)]
+    #[enum_(Unsupported, #[default] Optional)]
     pub schema_authorization_style: SchemaAuthorizationStyle,
 
     /// How schema location is expressed.

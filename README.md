@@ -13,8 +13,8 @@ ASTs until being merged into default branch.
 
 ### DDL
 
-- [ ] CREATE SCHEMA
-- [ ] DROP SCHEMA
+- [x] CREATE SCHEMA
+- [x] DROP SCHEMA
 - [ ] CREATE TABLE
 - [ ] ALTER TABLE
 - [ ] DROP TABLE

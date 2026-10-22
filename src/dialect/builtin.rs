@@ -184,7 +184,7 @@ pub const HIVE_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig 
     uuid_format: config::UuidFormat::Quoted,
     json_format: config::JsonFormat::Quoted,
     supports_similar_to: false,
-    schema_features: config::SchemaFeatures::IF_NOT_EXISTS,
+    schema_features: config::SchemaFeatures::IF_NOT_EXISTS.union(config::SchemaFeatures::IS_DATABASE),
     schema_authorization_style: config::SchemaAuthorizationStyle::Unsupported,
     schema_location_style: config::SchemaLocationStyle::LocationKeyword,
 });
@@ -276,7 +276,7 @@ pub const MYSQL_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig
     uuid_format: config::UuidFormat::Quoted,
     json_format: config::JsonFormat::Quoted,
     supports_similar_to: false,
-    schema_features: config::SchemaFeatures::IF_NOT_EXISTS,
+    schema_features: config::SchemaFeatures::IF_NOT_EXISTS.union(config::SchemaFeatures::IS_DATABASE),
     schema_authorization_style: config::SchemaAuthorizationStyle::Unsupported,
     schema_location_style: config::SchemaLocationStyle::Unsupported,
 });
@@ -320,7 +320,7 @@ pub const ORACLE_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfi
     json_format: config::JsonFormat::Quoted,
     supports_similar_to: false,
     schema_features: config::SchemaFeatures::EMBEDDED_DDL,
-    schema_authorization_style: config::SchemaAuthorizationStyle::Forced,
+    schema_authorization_style: config::SchemaAuthorizationStyle::Unsupported,
     schema_location_style: config::SchemaLocationStyle::Unsupported,
 });
 
@@ -505,7 +505,7 @@ pub const SPARK_DIALECT: base::PyDialect = base::PyDialect(config::DialectConfig
     uuid_format: config::UuidFormat::Quoted,
     json_format: config::JsonFormat::Quoted,
     supports_similar_to: false,
-    schema_features: config::SchemaFeatures::IF_NOT_EXISTS,
+    schema_features: config::SchemaFeatures::IF_NOT_EXISTS.union(config::SchemaFeatures::IS_DATABASE),
     schema_authorization_style: config::SchemaAuthorizationStyle::Unsupported,
     schema_location_style: config::SchemaLocationStyle::LocationKeyword,
 });
@@ -599,7 +599,7 @@ pub const TERADATA_DIALECT: base::PyDialect = base::PyDialect(config::DialectCon
     uuid_format: config::UuidFormat::Quoted,
     json_format: config::JsonFormat::Quoted,
     supports_similar_to: false,
-    schema_features: config::SchemaFeatures::empty(),
+    schema_features: config::SchemaFeatures::UNSUPPORTED,
     schema_authorization_style: config::SchemaAuthorizationStyle::Unsupported,
     schema_location_style: config::SchemaLocationStyle::Unsupported,
 });

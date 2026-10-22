@@ -1,5 +1,6 @@
 """Data Definition Language"""
 
+import typing
 from typing import Self, final
 
 from rapidquery.dialect import Dialect
@@ -26,17 +27,21 @@ class DataDefinitionLanguage:
 
 @final
 class CreateSchema(DataDefinitionLanguage):
-    """Represents ``CREATE SCHEMA`` statement."""
+    """
+    Represents ``CREATE SCHEMA`` statement (and can be ``CREATE DATABASE`` statement).
+    """
 
     def __new__(
         cls,
         name: _IdentExtractor,
+        *,
         if_not_exists: bool = False,
         authorization: str | None = None,
         location: str | None = None,
     ) -> Self:
         """
-        Construct a new ``CREATE SCHEMA`` statement.
+        Construct a new ``CREATE SCHEMA`` statement. If the target dialect specified
+        ``OPT_SCHEMA_FEATURES_IS_DATABASE`` option, it generates ``CREATE DATABASE`` instead.
 
         Args:
             name: schema name e.g. `"analysis"`. Some dialects supports multipart names (like `"public"."analysis"`)
@@ -58,3 +63,36 @@ class CreateSchema(DataDefinitionLanguage):
     def authorization(self) -> str | None: ...
     @property
     def location(self) -> str | None: ...
+
+@final
+class DropSchema(DataDefinitionLanguage):
+    """
+    Represents ``DROP SCHEMA`` statement (and can be ``DROP DATABASE`` statement).
+    """
+
+    def __new__(
+        cls,
+        name: _IdentExtractor,
+        *,
+        if_exists: bool = False,
+        behavior: typing.Literal["CASCADE", "RESTRICT"] | str | None = None,
+    ) -> Self:
+        """
+        Construct a new ``DROP SCHEMA`` statement. If the target dialect specified
+        ``OPT_SCHEMA_FEATURES_IS_DATABASE`` option, it generates ``DROP DATABASE`` instead.
+
+        Args:
+            name: schema name e.g. `"analysis"`. Some dialects supports multipart names (like `"public"."analysis"`)
+                  so there's no limit and it is in your control.
+            if_exists: Emits ``IF EXISTS`` clause. Means do nothing if the schame doesn't exist.
+                       *If targeted dialect doesn't support this, it will be ignored.*
+            behavior: Emits ``CASCADE`` or ``RESTRICT`` keywords.
+        """
+        ...
+
+    @property
+    def name(self) -> Ident: ...
+    @property
+    def if_exists(self) -> bool: ...
+    @property
+    def behavior(self) -> typing.Literal["CASCADE", "RESTRICT"] | None: ...
