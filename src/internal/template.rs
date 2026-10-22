@@ -93,7 +93,7 @@ pub enum TemplateParseError {
 }
 impl std::error::Error for TemplateParseError {}
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct TemplateMatches {
     start: u16,
     end: u16,
@@ -102,10 +102,7 @@ struct TemplateMatches {
 
 /// A small, allocation-conscious template that expands `{key}` placeholders
 /// by writing directly to a [`fmt::Write`].
-///
-/// The template string is stored as an [`ArcStr`]. Placeholder positions are
-/// stored as plain numbers. Keys are `'static`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Template {
     tmpl: arcstr::ArcStr,
     matches: smallvec::SmallVec<[TemplateMatches; 1]>,
@@ -113,12 +110,6 @@ pub struct Template {
 
 impl Template {
     /// Parses a template string, locating every `{key}` whose name appears in `keys`.
-    ///
-    /// # Arguments
-    ///
-    /// * `tmpl` - The template text.
-    /// * `keys` - Static list of `(name, required)`.
-    /// * `minimum` - Minimum number of placeholders that must be found.
     ///
     /// # Errors
     ///
@@ -133,7 +124,7 @@ impl Template {
             return Err(TemplateParseError::TemplateIsTooLong);
         }
 
-        let mut matches: smallvec::SmallVec<[TemplateMatches; 1]> = smallvec::SmallVec::new();
+        let mut matches: smallvec::SmallVec<[TemplateMatches; 1]> = smallvec::SmallVec::with_capacity(minimum as usize);
         let bytes = tmpl.as_bytes();
         let mut required_mask = 0usize;
         let mut i = 0;
@@ -376,6 +367,16 @@ mod tests {
         t.write_to(&mut out, |_, _| Ok(())).unwrap();
 
         assert_eq!(out, "");
+    }
+
+    #[test]
+    fn empty_key() {
+        let t = Template::parse(":param_{}", &[("", true)], 1).unwrap();
+
+        let mut out = String::new();
+        t.write_to(&mut out, |_, w| w.write_char('1')).unwrap();
+
+        assert_eq!(out, ":param_1");
     }
 
     #[test]
