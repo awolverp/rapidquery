@@ -1,4 +1,4 @@
-use crate::internal::utils;
+use crate::internal::template;
 
 use super::errors::FormatError;
 
@@ -358,7 +358,7 @@ impl DialectConfig {
     #[inline]
     pub(super) fn escape_string<W: std::fmt::Write>(&self, writer: &mut W, string: &str) -> Result<(), FormatError> {
         let result = match self.string_escape {
-            StringEscape::Quote => utils::replace_to(string, '\'', "''", writer),
+            StringEscape::Quote => template::replace_to(string, '\'', "''", writer),
             StringEscape::BackslashHex => write_backslash_hex(writer, string),
             StringEscape::BackslashMysql => write_backslash_mysql(writer, string),
             StringEscape::BackslashUnicode => write_backslash_unicode(writer, string, false),
@@ -381,24 +381,24 @@ impl DialectConfig {
         match self.identifier_escape {
             IdentifierEscape::Double => match self.identifier_format {
                 IdentifierFormat::DoubleQuote => {
-                    utils::replace_to(ident, '"', "\"\"", writer)?;
+                    template::replace_to(ident, '"', "\"\"", writer)?;
                 }
                 IdentifierFormat::Backtick => {
-                    utils::replace_to(ident, '`', "``", writer)?;
+                    template::replace_to(ident, '`', "``", writer)?;
                 }
                 IdentifierFormat::SquareBracket => {
-                    utils::replace_to(ident, ']', "]]", writer)?;
+                    template::replace_to(ident, ']', "]]", writer)?;
                 }
             },
             IdentifierEscape::Backslash => match self.identifier_format {
                 IdentifierFormat::DoubleQuote => {
-                    utils::replace_to(ident, '"', "\\\"", writer)?;
+                    template::replace_to(ident, '"', "\\\"", writer)?;
                 }
                 IdentifierFormat::Backtick => {
                     write_identifier_backtick_escape(writer, ident)?;
                 }
                 IdentifierFormat::SquareBracket => {
-                    utils::replace_to(ident, ']', "\\]", writer)?;
+                    template::replace_to(ident, ']', "\\]", writer)?;
                 }
             },
         }

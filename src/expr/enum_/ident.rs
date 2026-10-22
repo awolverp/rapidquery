@@ -101,7 +101,7 @@ impl WriteSql for IdentPart {
 /// assert_eq!(ident.len(), 2);
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Ident(smallvec::SmallVec<[IdentPart; 4]>);
+pub struct Ident(smallvec::SmallVec<[IdentPart; 3]>);
 
 /// Why building an [`Ident`] failed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -168,7 +168,7 @@ impl Ident {
 
     /// Consume and yield the parts.
     #[inline]
-    pub fn into_parts(self) -> smallvec::SmallVec<[IdentPart; 4]> {
+    pub fn into_parts(self) -> smallvec::SmallVec<[IdentPart; 3]> {
         self.0
     }
 
@@ -208,7 +208,7 @@ impl Ident {
     /// Unquoted charset is enforced by [`IdentPart::unquoted`], not here.
     #[cfg_attr(feature = "nightly", optimize(speed))]
     pub fn from_parts(iter: impl IntoIterator<Item = IdentPart>) -> Result<Self, ParseIdentError> {
-        let mut parts = smallvec::SmallVec::<[IdentPart; 4]>::new();
+        let mut parts = smallvec::SmallVec::<[IdentPart; 3]>::new();
 
         for part in iter {
             if let Some(IdentPart::Asterisk) = parts.last() {
@@ -243,7 +243,7 @@ impl std::str::FromStr for Ident {
             return Err(ParseIdentError::Empty);
         }
 
-        let mut parts = smallvec::SmallVec::<[IdentPart; 4]>::new();
+        let mut parts = smallvec::SmallVec::<[IdentPart; 3]>::new();
 
         for chunk in s.splitn(Self::MAX_PARTS + 1, '.') {
             if chunk.is_empty() {

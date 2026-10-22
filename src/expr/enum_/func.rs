@@ -98,8 +98,8 @@ impl Function {
 
 impl WriteSql for Function {
     fn write_sql<W: SqlWriter>(&self, dialect: &crate::dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
-        // "name"([DISTINCT] args [IGNORE|RESPECT NULLS] [WHERE expr])
-        // [FILTER ([WHERE] expr)] [IGNORE|RESPECT NULLS]
+        // "name"([DISTINCT] args [{IGNORE|RESPECT} NULLS] [WHERE expr])
+        // [FILTER ([WHERE] expr)] [{IGNORE|RESPECT} NULLS]
         self.name.write_sql(dialect, out)?;
 
         let args_available = !self.args.is_empty();
