@@ -6,11 +6,11 @@ use pyo3::types::PyStringMethods;
 use crate::dialect::PyDialect;
 use crate::internal::alias;
 use crate::internal::repr;
-use crate::internal::sql::PrepareResult;
-use crate::internal::sql::SqlWriter;
-use crate::internal::sql::WriteSql;
 use crate::serializers::SerializerType;
 use crate::serializers::serializer_repr;
+use crate::sql::PrepareResult;
+use crate::sql::SqlWriter;
+use crate::sql::WriteSql;
 
 /// Python object plus the serializer that turns it into a SQL literal.
 ///

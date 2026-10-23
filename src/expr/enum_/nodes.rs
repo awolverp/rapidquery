@@ -8,13 +8,13 @@ use super::UnaryOp;
 use super::UnarySpacing;
 use crate::dialect;
 use crate::internal::repr;
-use crate::internal::sql::PrepareResult;
-use crate::internal::sql::SqlWriter;
-use crate::internal::sql::WriteSql;
-use crate::internal::sql::write_separated;
+use crate::sql::PrepareResult;
+use crate::sql::SqlWriter;
+use crate::sql::WriteSql;
+use crate::sql::write_separated;
 
 #[inline]
-fn unsupported(message: &'static str) -> crate::internal::sql::PrepareError {
+fn unsupported(message: &'static str) -> crate::sql::PrepareError {
     rapidquery_macros::pyerr!(PyRuntimeError, message).into()
 }
 
@@ -1023,7 +1023,7 @@ impl WriteSql for Custom {
                 if i + 1 < bytes.len() && bytes[i + 1] == b'}' {
                     out.push_str(&self.sql[start..i]);
                     if used >= self.args.len() {
-                        return Err(crate::internal::sql::PrepareError::CustomPlaceholders {
+                        return Err(crate::sql::PrepareError::CustomPlaceholders {
                             expected: used + 1,
                             got: self.args.len(),
                         });
@@ -1046,7 +1046,7 @@ impl WriteSql for Custom {
         out.push_str(&self.sql[start..]);
 
         if used != self.args.len() {
-            return Err(crate::internal::sql::PrepareError::CustomPlaceholders {
+            return Err(crate::sql::PrepareError::CustomPlaceholders {
                 expected: used,
                 got: self.args.len(),
             });

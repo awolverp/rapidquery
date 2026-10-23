@@ -3,7 +3,7 @@ use crate::expr::enum_::Ident;
 use crate::expr::extractors::IdentExtractor;
 use crate::internal::alias;
 use crate::internal::repr;
-use crate::internal::sql;
+use crate::sql;
 
 /// Represent a `CREATE SCHEMA` statement.
 #[rapidquery_macros::pyclass("rapidquery.ddl.CreateSchema", extends=super::PyDataDefinitionLanguage)]

@@ -810,17 +810,17 @@ fn binary(op: crate::expr::enum_::BinaryOp) -> crate::expr::enum_::Binary {
 fn render(
     py: pyo3::Python<'_>,
     flags: config::DialectConfig,
-    expr: &impl crate::internal::sql::WriteSql,
-) -> Result<String, crate::internal::sql::PrepareError> {
+    expr: &impl crate::sql::WriteSql,
+) -> Result<String, crate::sql::PrepareError> {
     let dialect = PyDialect(flags);
-    let mut buf = crate::internal::sql::BufferedSql::new(py);
+    let mut buf = crate::sql::BufferedSql::new(py);
     expr.write_sql(&dialect, &mut buf)?;
     Ok(buf.into_string())
 }
 
-fn error_text(err: crate::internal::sql::PrepareError) -> String {
+fn error_text(err: crate::sql::PrepareError) -> String {
     match err {
-        crate::internal::sql::PrepareError::Python(err) => err.to_string(),
+        crate::sql::PrepareError::Python(err) => err.to_string(),
         other => other.to_string(),
     }
 }

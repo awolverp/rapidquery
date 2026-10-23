@@ -3,10 +3,10 @@ use super::ident::Ident;
 
 use crate::dialect;
 use crate::internal::repr;
-use crate::internal::sql::PrepareResult;
-use crate::internal::sql::SqlWriter;
-use crate::internal::sql::WriteSql;
-use crate::internal::sql::write_separated;
+use crate::sql::PrepareResult;
+use crate::sql::SqlWriter;
+use crate::sql::WriteSql;
+use crate::sql::write_separated;
 
 /// How `NULL`s are treated in some window/aggregate functions.
 ///

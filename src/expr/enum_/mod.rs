@@ -14,9 +14,9 @@ pub use value::*;
 
 use crate::dialect::PyDialect;
 use crate::internal::repr::ReprFormatter;
-use crate::internal::sql::PrepareResult;
-use crate::internal::sql::SqlWriter;
-use crate::internal::sql::WriteSql;
+use crate::sql::PrepareResult;
+use crate::sql::SqlWriter;
+use crate::sql::WriteSql;
 
 /// SQL expression tree.
 ///

@@ -4,8 +4,8 @@
 //! empty frozen subclasses. Shared methods live on the base.
 
 use crate::internal::alias;
-use crate::internal::sql;
 use crate::internal::utils;
+use crate::sql;
 
 use super::enum_;
 
