@@ -6,8 +6,7 @@ use super::IsKind;
 use super::TrimWhere;
 use super::UnaryOp;
 use super::UnarySpacing;
-use crate::dialect::PyDialect;
-use crate::dialect::config;
+use crate::dialect;
 use crate::internal::repr;
 use crate::internal::sql::PrepareResult;
 use crate::internal::sql::SqlWriter;
@@ -56,28 +55,28 @@ impl Tuple {
 }
 
 impl WriteSql for Tuple {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
         let arity = self.items.len();
 
-        if dialect.0.tuple_syntax != config::TupleSyntax::Unsupported {
-            if arity == 0 && !dialect.0.tuple_arity.contains(config::TupleArity::EMPTY) {
+        if dialect.tuple.syntax != dialect::TupleSyntax::Unsupported {
+            if arity == 0 && !dialect.tuple.arity.contains(dialect::TupleArity::EMPTY) {
                 return Err(unsupported("empty tuple is not supported by this dialect"));
             }
-            if arity == 1 && !dialect.0.tuple_arity.contains(config::TupleArity::ONE) {
+            if arity == 1 && !dialect.tuple.arity.contains(dialect::TupleArity::ONE) {
                 return Err(unsupported("a tuple needs at least two elements on this dialect"));
             }
         }
-        match dialect.0.tuple_syntax {
-            config::TupleSyntax::Unsupported => {
+        match dialect.tuple.syntax {
+            dialect::TupleSyntax::Unsupported => {
                 return Err(unsupported("tuple values are not supported by this dialect"));
             }
-            config::TupleSyntax::Row => {
+            dialect::TupleSyntax::Row => {
                 out.push_str("ROW(");
             }
-            config::TupleSyntax::Struct => {
+            dialect::TupleSyntax::Struct => {
                 out.push_str("struct(");
             }
-            config::TupleSyntax::Parentheses => {
+            dialect::TupleSyntax::Parentheses => {
                 out.push_char('(');
             }
         }
@@ -124,20 +123,20 @@ impl Unary {
 }
 
 impl WriteSql for Unary {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
         if self.op == UnaryOp::BitNot {
-            if !dialect.0.bitwise_operations.contains(config::BitwiseOperations::NOT) {
+            if !dialect.bitwise.operations.contains(dialect::BitwiseOperations::NOT) {
                 return Err(unsupported("bitwise NOT is not supported by this dialect"));
             }
 
-            match dialect.0.bitwise_call_syntax {
-                config::BitwiseCallSyntax::Infix => {
+            match dialect.bitwise.syntax {
+                dialect::BitwiseSyntax::Infix => {
                     out.push_char('~');
                     return self
                         .expr
                         .write_operand(dialect, out, UnaryOp::BitNot.precedence(), true);
                 }
-                config::BitwiseCallSyntax::BitFunction | config::BitwiseCallSyntax::ShiftFunction => {
+                dialect::BitwiseSyntax::BitFunction | dialect::BitwiseSyntax::ShiftFunction => {
                     out.push_str("BITNOT(");
                     self.expr.write_sql(dialect, out)?;
                     out.push_char(')');
@@ -210,7 +209,7 @@ fn is_arithmetic_binary_op(op: &BinaryOp) -> bool {
 /// `name(left, right)` with an unquoted function name.
 #[inline]
 fn write_binary_call<W: SqlWriter>(
-    dialect: &PyDialect,
+    dialect: &dialect::PyDialect,
     out: &mut W,
     name: &str,
     left: &ExprInner,
@@ -235,21 +234,21 @@ fn write_binary_call<W: SqlWriter>(
 #[allow(clippy::too_many_arguments)]
 fn write_bit_op<W: SqlWriter>(
     bin: &Binary,
-    dialect: &PyDialect,
+    dialect: &dialect::PyDialect,
     out: &mut W,
-    op: config::BitwiseOperations,
+    op: dialect::BitwiseOperations,
     infix: &str,
     bit_fn: &str,
     shift_fn: &str,
     missing: &'static str,
 ) -> PrepareResult<()> {
-    if !dialect.0.bitwise_operations.contains(op) {
+    if !dialect.bitwise.operations.contains(op) {
         return Err(unsupported(missing));
     }
-    match dialect.0.bitwise_call_syntax {
-        config::BitwiseCallSyntax::Infix => write_infix(bin, dialect, out, infix, false),
-        config::BitwiseCallSyntax::BitFunction => write_binary_call(dialect, out, bit_fn, &bin.left, &bin.right),
-        config::BitwiseCallSyntax::ShiftFunction => write_binary_call(dialect, out, shift_fn, &bin.left, &bin.right),
+    match dialect.bitwise.syntax {
+        dialect::BitwiseSyntax::Infix => write_infix(bin, dialect, out, infix, false),
+        dialect::BitwiseSyntax::BitFunction => write_binary_call(dialect, out, bit_fn, &bin.left, &bin.right),
+        dialect::BitwiseSyntax::ShiftFunction => write_binary_call(dialect, out, shift_fn, &bin.left, &bin.right),
     }
 }
 
@@ -262,7 +261,7 @@ fn write_bit_op<W: SqlWriter>(
 #[inline]
 fn write_infix<W: SqlWriter>(
     bin: &Binary,
-    dialect: &PyDialect,
+    dialect: &dialect::PyDialect,
     out: &mut W,
     spelling: &str,
     paren_arithmetic: bool,
@@ -277,7 +276,7 @@ fn write_infix<W: SqlWriter>(
 
 #[inline]
 fn write_infix_side<W: SqlWriter>(
-    dialect: &PyDialect,
+    dialect: &dialect::PyDialect,
     out: &mut W,
     expr: &ExprInner,
     prec: u8,
@@ -294,36 +293,43 @@ fn write_infix_side<W: SqlWriter>(
 }
 
 impl WriteSql for Binary {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
         match &self.op {
-            BinaryOp::StringConcat => match dialect.0.string_concat {
-                config::StringConcat::ConcatFunction => {
-                    write_binary_call(dialect, out, "CONCAT", &self.left, &self.right)
-                }
-                config::StringConcat::Pipes => write_infix(self, dialect, out, "||", true),
-                config::StringConcat::Plus => write_infix(self, dialect, out, "+", true),
-            },
-            BinaryOp::BitXor => match dialect.0.bitwise_xor_spelling {
-                config::BitwiseXorSpelling::Unsupported => {
+            BinaryOp::StringConcat => {
+                _ = dialect.string.concat.write_to_result(
+                    out,
+                    // keys are `left` and `right`
+                    |key, out| match key {
+                        "left" => self.left.write_sql(dialect, out),
+                        "right" => self.right.write_sql(dialect, out),
+                        _ => unreachable!(),
+                    },
+                );
+                Ok(())
+            }
+            BinaryOp::BitXor => match dialect.bitwise.xor {
+                dialect::BitwiseXorSpelling::Unsupported => {
                     Err(unsupported("bitwise XOR is not supported by this dialect"))
                 }
-                config::BitwiseXorSpelling::Caret => write_infix(self, dialect, out, "^", false),
-                config::BitwiseXorSpelling::Hash => write_infix(self, dialect, out, "#", false),
-                config::BitwiseXorSpelling::Function => write_binary_call(dialect, out, "xor", &self.left, &self.right),
-                config::BitwiseXorSpelling::BitFunction => {
+                dialect::BitwiseXorSpelling::Caret => write_infix(self, dialect, out, "^", false),
+                dialect::BitwiseXorSpelling::Hash => write_infix(self, dialect, out, "#", false),
+                dialect::BitwiseXorSpelling::Function => {
+                    write_binary_call(dialect, out, "xor", &self.left, &self.right)
+                }
+                dialect::BitwiseXorSpelling::BitFunction => {
                     write_binary_call(dialect, out, "BITXOR", &self.left, &self.right)
                 }
             },
-            BinaryOp::Mod => match dialect.0.modulo_spelling {
-                config::ModuloSpelling::Percent => write_infix(self, dialect, out, "%", false),
-                config::ModuloSpelling::Function => write_binary_call(dialect, out, "MOD", &self.left, &self.right),
-                config::ModuloSpelling::Infix => write_infix(self, dialect, out, "MOD", false),
+            BinaryOp::Mod => match dialect.operator.modulo {
+                dialect::ModuloSpelling::Percent => write_infix(self, dialect, out, "%", false),
+                dialect::ModuloSpelling::Function => write_binary_call(dialect, out, "MOD", &self.left, &self.right),
+                dialect::ModuloSpelling::Infix => write_infix(self, dialect, out, "MOD", false),
             },
             BinaryOp::BitAnd => write_bit_op(
                 self,
                 dialect,
                 out,
-                config::BitwiseOperations::AND,
+                dialect::BitwiseOperations::AND,
                 "&",
                 "BITAND",
                 "BITAND",
@@ -333,7 +339,7 @@ impl WriteSql for Binary {
                 self,
                 dialect,
                 out,
-                config::BitwiseOperations::OR,
+                dialect::BitwiseOperations::OR,
                 "|",
                 "BITOR",
                 "BITOR",
@@ -343,7 +349,7 @@ impl WriteSql for Binary {
                 self,
                 dialect,
                 out,
-                config::BitwiseOperations::SHL,
+                dialect::BitwiseOperations::SHL,
                 "<<",
                 "BITSHIFTLEFT",
                 "SHIFTLEFT",
@@ -353,7 +359,7 @@ impl WriteSql for Binary {
                 self,
                 dialect,
                 out,
-                config::BitwiseOperations::SHR,
+                dialect::BitwiseOperations::SHR,
                 ">>",
                 "BITSHIFTRIGHT",
                 "SHIFTRIGHT",
@@ -405,7 +411,7 @@ impl Is {
 }
 
 impl WriteSql for Is {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
         self.expr.write_operand(dialect, out, Self::PRECEDENCE, false)?;
         if self.negated {
             out.push_str(" IS NOT ");
@@ -458,12 +464,12 @@ impl IsDistinctFrom {
 }
 
 impl WriteSql for IsDistinctFrom {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
-        match dialect.0.is_distinct_from_spelling {
-            config::IsDistinctFromSpelling::Unsupported => {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
+        match dialect.operator.is_distinct_from {
+            dialect::IsDistinctFromSpelling::Unsupported => {
                 Err(unsupported("IS DISTINCT FROM is not supported by this dialect"))
             }
-            config::IsDistinctFromSpelling::Standard => {
+            dialect::IsDistinctFromSpelling::Standard => {
                 self.left.write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 if self.negated {
                     out.push_str(" IS NOT DISTINCT FROM ");
@@ -472,7 +478,7 @@ impl WriteSql for IsDistinctFrom {
                 }
                 self.right.write_operand(dialect, out, Self::PRECEDENCE, true)
             }
-            config::IsDistinctFromSpelling::NullSafeEqual => {
+            dialect::IsDistinctFromSpelling::NullSafeEqual => {
                 // `<=>` is null-safe equal, i.e. `IS NOT DISTINCT FROM`.
                 if !self.negated {
                     out.push_str("NOT (");
@@ -535,10 +541,10 @@ impl InList {
 }
 
 impl WriteSql for InList {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
         if self.list.is_empty() {
             // `x IN ()` is false and `x NOT IN ()` is true, including when `x` is NULL.
-            dialect.0.write_boolean(out, self.negated)?;
+            dialect.literal.write_boolean(out.sql_mut(), self.negated);
             return Ok(());
         }
 
@@ -605,7 +611,7 @@ impl Between {
 }
 
 impl WriteSql for Between {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
         // SQL Server ranks `AND` above `IN`/`BETWEEN`/`OR`, and those four share
         // a level evaluated left to right. The parentheses keep the predicate
         // from being parsed as part of the left operand.
@@ -670,7 +676,7 @@ impl Cast {
         Ok(fmt)
     }
 
-    fn write_call<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W, name: &str) -> PrepareResult<()> {
+    fn write_call<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W, name: &str) -> PrepareResult<()> {
         out.push_str(name);
         out.push_char('(');
         self.expr.write_sql(dialect, out)?;
@@ -682,17 +688,26 @@ impl Cast {
 }
 
 impl WriteSql for Cast {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
         match self.kind {
             CastKind::Cast => self.write_call(dialect, out, "CAST"),
-            CastKind::TryCast => match dialect.0.cast_try_cast {
-                config::TryCast::Unsupported => Err(unsupported("try cast is not supported by this dialect")),
-                config::TryCast::TryCast => self.write_call(dialect, out, "TRY_CAST"),
-                config::TryCast::TryCastWord => self.write_call(dialect, out, "TRYCAST"),
-                config::TryCast::SafeCast => self.write_call(dialect, out, "SAFE_CAST"),
-            },
+            CastKind::TryCast => {
+                if let Some(tmpl) = &dialect.cast.try_cast {
+                    tmpl.write_to_result(
+                        out,
+                        // keys are `expr` and `type`
+                        |key, out| match key {
+                            "expr" => self.expr.write_sql(dialect, out),
+                            "type" => self.data_type_name.write_sql(dialect, out),
+                            _ => unreachable!(),
+                        },
+                    )
+                } else {
+                    Err(unsupported("try cast is not supported by this dialect"))
+                }
+            }
             CastKind::DoubleColon => {
-                if !dialect.0.cast_double_colon {
+                if !dialect.cast.supports_double_colon {
                     return Err(unsupported("double-colon cast is not supported by this dialect"));
                 }
                 out.push_char('(');
@@ -755,7 +770,7 @@ impl Trim {
 }
 
 #[inline]
-fn write_trim_function<W: SqlWriter>(trim: &Trim, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+fn write_trim_function<W: SqlWriter>(trim: &Trim, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
     let name = match trim.where_ {
         TrimWhere::Both => "TRIM",
         TrimWhere::Leading => "LTRIM",
@@ -773,9 +788,9 @@ fn write_trim_function<W: SqlWriter>(trim: &Trim, dialect: &PyDialect, out: &mut
 }
 
 impl WriteSql for Trim {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
-        match dialect.0.trim_spelling {
-            config::TrimSpelling::SqlFrom => {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
+        match dialect.operator.trim {
+            dialect::TrimSpelling::SqlFrom => {
                 out.push_str("TRIM(");
                 match (&self.where_, &self.characters) {
                     (TrimWhere::Both, None) => self.expr.write_sql(dialect, out)?,
@@ -800,8 +815,8 @@ impl WriteSql for Trim {
                 out.push_char(')');
                 Ok(())
             }
-            config::TrimSpelling::Function => write_trim_function(self, dialect, out),
-            config::TrimSpelling::SpacesOnly => {
+            dialect::TrimSpelling::Function => write_trim_function(self, dialect, out),
+            dialect::TrimSpelling::SpacesOnly => {
                 if self.characters.is_some() {
                     return Err(unsupported("trim characters are not supported by this dialect"));
                 }
@@ -848,15 +863,15 @@ impl Collate {
 }
 
 impl WriteSql for Collate {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
-        match dialect.0.collate_spelling {
-            config::CollateSpelling::Unsupported => Err(unsupported("COLLATE is not supported by this dialect")),
-            config::CollateSpelling::InfixIdent => {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
+        match dialect.operator.collate {
+            dialect::CollateSpelling::Unsupported => Err(unsupported("COLLATE is not supported by this dialect")),
+            dialect::CollateSpelling::InfixIdent => {
                 self.expr.write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 out.push_str(" COLLATE ");
                 self.collation.write_sql(dialect, out)
             }
-            config::CollateSpelling::FunctionString => {
+            dialect::CollateSpelling::FunctionString => {
                 let body = match self.collation.parts() {
                     [super::IdentPart::Quote(body) | super::IdentPart::Unquote(body)] if !body.is_empty() => {
                         body.as_str()
@@ -868,7 +883,7 @@ impl WriteSql for Collate {
                 out.push_str("COLLATE(");
                 self.expr.write_sql(dialect, out)?;
                 out.push_str(", ");
-                dialect.0.write_string_literal(out, body)?;
+                dialect.string.write_string_literal(out.sql_mut(), body)?;
                 out.push_char(')');
                 Ok(())
             }
@@ -927,7 +942,7 @@ impl Case {
 }
 
 impl WriteSql for Case {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
         out.push_str("CASE");
         if let Some(operand) = &self.operand {
             out.push_char(' ');
@@ -990,7 +1005,7 @@ impl Custom {
 
 impl WriteSql for Custom {
     #[cfg_attr(feature = "nightly", optimize(speed))]
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
         let bytes = self.sql.as_bytes();
         let mut i = 0;
         let mut start = 0;

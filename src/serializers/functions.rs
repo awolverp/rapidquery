@@ -1,9 +1,7 @@
 use pyo3::types::PyAnyMethods;
 use pyo3::types::PyTzInfoAccess;
 
-use crate::dialect::PyDialect;
-use crate::dialect::config;
-use crate::dialect::errors::FormatError;
+use crate::dialect;
 use crate::internal::alias;
 use crate::internal::utils;
 use std::fmt::Write;
@@ -22,34 +20,6 @@ pub(super) unsafe fn pyobject_string(py: pyo3::Python<'_>, ptr: *mut pyo3::ffi::
     let out = utils::borrow_py_str_buffer(py, s).map(str::to_owned);
     pyo3::ffi::Py_DECREF(s);
     out
-}
-
-#[inline(always)]
-fn write_quoted(dialect: &config::DialectConfig, out: &mut String, raw: &str) -> pyo3::PyResult<()> {
-    dialect.write_string_literal(out, raw).map_err(Into::into)
-}
-
-#[inline]
-fn write_with_keyword(
-    dialect: &config::DialectConfig,
-    out: &mut String,
-    keyword: Option<&str>,
-    raw: &str,
-) -> pyo3::PyResult<()> {
-    if let Some(keyword) = keyword {
-        out.push_str(keyword);
-        out.push(' ');
-    }
-    write_quoted(dialect, out, raw)
-}
-
-#[inline(always)]
-fn timestamp_keyword(format: config::TimestampFormat, aware: bool) -> Option<&'static str> {
-    match format {
-        config::TimestampFormat::Quoted => None,
-        config::TimestampFormat::Timestamptz => Some(if aware { "TIMESTAMPTZ" } else { "TIMESTAMP" }),
-        config::TimestampFormat::WithTimezone => Some(if aware { "TIMESTAMP WITH TIMEZONE" } else { "TIMESTAMP" }),
-    }
 }
 
 #[inline]
@@ -123,12 +93,12 @@ pub(super) unsafe fn write_float(
 pub(super) unsafe fn write_bool(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &config::DialectConfig,
+    cfg: &dialect::LiteralConfig,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     if pyo3::ffi::PyBool_Check(ptr) == 1 {
         let value = pyo3::ffi::Py_True() == ptr;
-        dialect.write_boolean(out, value)?;
+        cfg.write_boolean(out, value);
         Ok(())
     } else {
         rapidquery_macros::pyerr!(
@@ -143,11 +113,11 @@ pub(super) unsafe fn write_bool(
 pub(super) unsafe fn write_str(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &config::DialectConfig,
+    cfg: &dialect::StringConfig,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     if pyo3::ffi::PyUnicode_Check(ptr) == 1 {
-        return dialect
+        return cfg
             .write_string_literal(out, utils::borrow_py_str_buffer(py, ptr)?)
             .map_err(Into::into);
     }
@@ -163,9 +133,13 @@ pub(super) unsafe fn write_str(
 pub(super) unsafe fn write_uuid(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &config::DialectConfig,
+    cfg: &dialect::LiteralConfig,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
+    let Some(tmpl) = &cfg.uuid else {
+        return Err(dialect::errors::FormatError::Unsupported("UuidSerializer").into());
+    };
+
     let text = if crate::typeref::check_exact(ptr, crate::typeref::STD_UUID_TYPE) {
         pyobject_string(py, ptr)?
     } else if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
@@ -182,25 +156,19 @@ pub(super) unsafe fn write_uuid(
         );
     };
 
-    match dialect.uuid_format {
-        config::UuidFormat::Quoted => write_quoted(dialect, out, &text),
-        config::UuidFormat::UuidKeyword => {
-            out.push_str("UUID ");
-            write_quoted(dialect, out, &text)
-        }
-        config::UuidFormat::CastUuid => {
-            write_quoted(dialect, out, &text)?;
-            out.push_str("::uuid");
-            Ok(())
-        }
-    }
+    tmpl.write_to(
+        out,
+        // no special keys
+        |_, out| out.push_str(text.as_str()),
+    );
+    Ok(())
 }
 
 #[inline]
 pub(super) unsafe fn write_bytes(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &config::DialectConfig,
+    cfg: &dialect::LiteralConfig,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     if pyo3::ffi::PyBytes_CheckExact(ptr) == 1 {
@@ -208,9 +176,8 @@ pub(super) unsafe fn write_bytes(
         let len = pyo3::ffi::PyBytes_Size(ptr) as usize;
         debug_assert!(!buf.is_null());
 
-        dialect
-            .write_bytes(out, std::slice::from_raw_parts(buf, len))
-            .map_err(Into::into)
+        cfg.write_bytes(out, std::slice::from_raw_parts(buf, len));
+        Ok(())
     } else {
         rapidquery_macros::pyerr!(
             Err(PyTypeError),
@@ -223,9 +190,13 @@ pub(super) unsafe fn write_bytes(
 pub(super) unsafe fn write_bit(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &config::DialectConfig,
+    cfg: &dialect::LiteralConfig,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
+    if cfg.bit.is_none() {
+        return Err(dialect::errors::FormatError::Unsupported("BitSerializer").into());
+    }
+
     if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
         let raw = utils::borrow_py_str_buffer(py, ptr)?;
 
@@ -237,7 +208,7 @@ pub(super) unsafe fn write_bit(
             );
         }
 
-        dialect.write_bits(out, raw).map_err(Into::into)
+        cfg.write_bits(out, raw).map_err(Into::into)
     } else {
         rapidquery_macros::pyerr!(
             Err(PyTypeError),
@@ -251,44 +222,38 @@ pub(super) unsafe fn write_bit(
 pub(super) unsafe fn write_json(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &config::DialectConfig,
+    literal_cfg: &dialect::LiteralConfig,
+    string_cfg: &dialect::StringConfig,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
-    crate::internal::modules::json_dumps(unsafe { pyo3::Bound::from_borrowed_ptr(py, ptr) }, |text| match dialect
-        .json_format
-    {
-        config::JsonFormat::Quoted => write_quoted(dialect, out, text),
-        config::JsonFormat::JsonKeyword => {
-            out.push_str("JSON ");
-            write_quoted(dialect, out, text)
-        }
-        config::JsonFormat::ParseJson => {
-            out.push_str("PARSE_JSON(");
-            write_quoted(dialect, out, text)?;
-            out.push(')');
+    crate::internal::modules::json_dumps(
+        unsafe { pyo3::Bound::from_borrowed_ptr(py, ptr) },
+        // write result into `out`
+        |text| {
+            literal_cfg.json.write_to_result(
+                out,
+                // no special keys
+                |_, out| string_cfg.write_string_literal(out, text),
+            )?;
             Ok(())
-        }
-    })
+        },
+    )
 }
 
 #[inline]
 pub(super) unsafe fn write_date(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &config::DialectConfig,
+    cfg: &dialect::TemporalConfig,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     if crate::typeref::check_exact(ptr, crate::typeref::STD_DATE_TYPE) {
         let val: pyo3::Bound<'_, pyo3::types::PyDate> = pyo3::Bound::from_borrowed_ptr(py, ptr).cast_into()?;
-
         let date: chrono::NaiveDate = val.extract()?;
-        let mut body = String::new();
-        let _ = date.format("%Y-%m-%d").write_to(&mut body);
-        let keyword = match dialect.date_format {
-            config::DateFormat::Quoted => None,
-            config::DateFormat::Keyword => Some("DATE"),
-        };
-        write_with_keyword(dialect, out, keyword, &body)
+
+        cfg.date
+            .write_to(out, |_, out| date.format("%Y-%m-%d").write_to(out).expect(""));
+        Ok(())
     } else {
         rapidquery_macros::pyerr!(
             Err(PyTypeError),
@@ -301,20 +266,16 @@ pub(super) unsafe fn write_date(
 pub(super) unsafe fn write_time(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &config::DialectConfig,
+    cfg: &dialect::TemporalConfig,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     if crate::typeref::check_exact(ptr, crate::typeref::STD_TIME_TYPE) {
         let val: pyo3::Bound<'_, pyo3::types::PyTime> = pyo3::Bound::from_borrowed_ptr(py, ptr).cast_into()?;
-
         let time: chrono::NaiveTime = val.extract()?;
-        let mut body = String::new();
-        let _ = time.format("%H:%M:%S%.f").write_to(&mut body);
-        let keyword = match dialect.time_format {
-            config::TimeFormat::Quoted => None,
-            config::TimeFormat::Keyword => Some("TIME"),
-        };
-        write_with_keyword(dialect, out, keyword, &body)
+
+        cfg.date
+            .write_to(out, |_, out| time.format("%H:%M:%S%.f").write_to(out).expect(""));
+        Ok(())
     } else {
         rapidquery_macros::pyerr!(
             Err(PyTypeError),
@@ -328,7 +289,7 @@ pub(super) unsafe fn write_time(
 pub(super) unsafe fn write_datetime(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &config::DialectConfig,
+    cfg: &dialect::TemporalConfig,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
     use chrono::TimeZone;
@@ -338,15 +299,19 @@ pub(super) unsafe fn write_datetime(
 
         if val.get_tzinfo().is_none() {
             let datetime: chrono::NaiveDateTime = val.extract()?;
-            let mut body = String::new();
-            let _ = datetime.format("%Y-%m-%d %H:%M:%S%.f").write_to(&mut body);
-            return write_with_keyword(dialect, out, timestamp_keyword(dialect.timestamp_format, false), &body);
+
+            cfg.datetime_naive.write_to(out, |_, out| {
+                datetime.format("%Y-%m-%d %H:%M:%S%.f").write_to(out).expect("")
+            });
+            return Ok(());
         }
 
         let datetime: chrono::DateTime<chrono::FixedOffset> = val.extract()?;
-        let mut body = String::new();
-        let _ = datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").write_to(&mut body);
-        return write_with_keyword(dialect, out, timestamp_keyword(dialect.timestamp_format, true), &body);
+
+        cfg.datetime_aware.write_to(out, |_, out| {
+            datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").write_to(out).expect("")
+        });
+        return Ok(());
     }
 
     if pyo3::ffi::PyLong_CheckExact(ptr) == 1 {
@@ -358,9 +323,10 @@ pub(super) unsafe fn write_datetime(
 
         return match chrono::Utc.timestamp_opt(num, 0) {
             chrono::offset::LocalResult::Single(datetime) => {
-                let mut body = String::new();
-                let _ = datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").write_to(&mut body);
-                write_with_keyword(dialect, out, timestamp_keyword(dialect.timestamp_format, true), &body)
+                cfg.datetime_aware.write_to(out, |_, out| {
+                    datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").write_to(out).expect("")
+                });
+                return Ok(());
             }
             _ => rapidquery_macros::pyerr!(
                 Err(PyOverflowError),
@@ -374,9 +340,10 @@ pub(super) unsafe fn write_datetime(
         let num = pyo3::ffi::PyFloat_AsDouble(ptr);
         return match chrono::Utc.timestamp_opt(num.trunc() as i64, (num.fract() * 1_000_000_000.0) as u32) {
             chrono::offset::LocalResult::Single(datetime) => {
-                let mut body = String::new();
-                let _ = datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").write_to(&mut body);
-                write_with_keyword(dialect, out, timestamp_keyword(dialect.timestamp_format, true), &body)
+                cfg.datetime_aware.write_to(out, |_, out| {
+                    datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").write_to(out).expect("")
+                });
+                return Ok(());
             }
             _ => rapidquery_macros::pyerr!(
                 Err(PyOverflowError),
@@ -396,54 +363,54 @@ pub(super) unsafe fn write_datetime(
 pub(super) unsafe fn write_inet(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &config::DialectConfig,
+    cfg: &dialect::LiteralConfig,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
+    let Some(tmpl) = &cfg.inet else {
+        return Err(dialect::errors::FormatError::Unsupported("InetSerializer").into());
+    };
+
     let text = pyobject_string(py, ptr)?;
     let net =
         ipnetwork::IpNetwork::from_str(&text).map_err(|e| rapidquery_macros::pyerr!(PyValueError, e.to_string()))?;
+
     let body = net.to_string();
 
-    match dialect.inet_format {
-        config::InetFormat::Unsupported => Err(FormatError::Unsupported("InetSerializer").into()),
-        config::InetFormat::Quoted => write_quoted(dialect, out, &body),
-        config::InetFormat::Cast => {
-            write_quoted(dialect, out, &body)?;
-            out.push_str("::inet");
-            Ok(())
-        }
-    }
+    let _ = tmpl.write_to_result(out, |_, out| out.write_str(&body));
+    Ok(())
 }
 
 pub(super) unsafe fn write_macaddr(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &config::DialectConfig,
+    cfg: &dialect::LiteralConfig,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
+    let Some(tmpl) = &cfg.inet else {
+        return Err(dialect::errors::FormatError::Unsupported("InetSerializer").into());
+    };
+
     let text = pyobject_string(py, ptr)?;
     let addr =
         mac_address::MacAddress::from_str(&text).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+
     let body = addr.to_string();
 
-    match dialect.macaddr_format {
-        config::MacAddrFormat::Unsupported => Err(FormatError::Unsupported("MacAddressSerializer").into()),
-        config::MacAddrFormat::Quoted => write_quoted(dialect, out, &body),
-        config::MacAddrFormat::Cast => {
-            write_quoted(dialect, out, &body)?;
-            out.push_str("::macaddr");
-            Ok(())
-        }
-    }
+    let _ = tmpl.write_to_result(out, |_, out| out.write_str(&body));
+    Ok(())
 }
 
 pub(super) unsafe fn write_array(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &PyDialect,
+    dialect: &dialect::PyDialect,
     element: &super::inner::SerializerType,
     out: &mut String,
 ) -> pyo3::PyResult<()> {
+    let Some(tmpl) = &dialect.literal.array else {
+        return Err(dialect::errors::FormatError::Unsupported("ArraySerializer").into());
+    };
+
     let (len, getter): (
         isize,
         unsafe fn(*mut pyo3::ffi::PyObject, isize) -> *mut pyo3::ffi::PyObject,
@@ -459,43 +426,30 @@ pub(super) unsafe fn write_array(
         );
     };
 
-    let close = match dialect.0.array_format {
-        config::ArrayFormat::Unsupported => {
-            return Err(FormatError::Unsupported("ArraySerializer").into());
-        }
-        config::ArrayFormat::Constructor => {
-            out.push_str("ARRAY[");
-            ']'
-        }
-        config::ArrayFormat::List => {
-            out.push('[');
-            ']'
-        }
-        config::ArrayFormat::Function => {
-            out.push_str("array(");
-            ')'
-        }
-    };
-
-    for i in 0..len {
-        if i > 0 {
-            out.push_str(", ");
-        }
-        let item = getter(ptr, i);
-        if item.is_null() {
-            return Err(pyo3::PyErr::fetch(py));
-        }
-        let borrowed = alias::BoundObject::from_borrowed_ptr(py, item);
-        element.serialize(dialect, &borrowed, out)?;
-    }
-    out.push(close);
-    Ok(())
+    tmpl.write_to_result(
+        out,
+        // no special keys
+        |_, out| {
+            for i in 0..len {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                let item = getter(ptr, i);
+                if item.is_null() {
+                    return Err(pyo3::PyErr::fetch(py));
+                }
+                let borrowed = alias::BoundObject::from_borrowed_ptr(py, item);
+                element.serialize(dialect, &borrowed, out)?;
+            }
+            Ok(())
+        },
+    )
 }
 
 pub(super) unsafe fn write_custom(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    dialect: &PyDialect,
+    dialect: &dialect::PyDialect,
     function: &pyo3::Py<pyo3::PyAny>,
     object: &alias::BoundObject<'_>,
     out: &mut String,

@@ -74,7 +74,7 @@ impl WriteSql for IdentPart {
     fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
         match self {
             Self::Quote(name) => {
-                dialect.0.write_identifier(out, name.as_str())?;
+                dialect.write_identifier(out.sql_mut(), name.as_str());
             }
             Self::Unquote(name) => {
                 out.push_str(name.as_str());

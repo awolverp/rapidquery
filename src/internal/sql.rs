@@ -3,13 +3,13 @@
 //! [`WriteSql`] walks a node into a [`SqlWriter`]. [`BufferedSql`] inlines values.
 //! [`ParameterizedSql`] binds them as placeholders.
 
+// FIXME: revert change: move this file into root folder
+
 use std::fmt::Write;
 
 use pyo3::types::PyAnyMethods;
 
-use crate::dialect::PyDialect;
-use crate::dialect::config::PlaceholderSyntax;
-use crate::dialect::errors::FormatError;
+use crate::dialect;
 use crate::internal::alias;
 use crate::serializers::SerializerType;
 
@@ -51,25 +51,25 @@ impl From<std::fmt::Error> for PrepareError {
     }
 }
 
-impl From<FormatError> for PrepareError {
-    fn from(err: FormatError) -> Self {
+impl From<dialect::errors::FormatError> for PrepareError {
+    fn from(err: dialect::errors::FormatError) -> Self {
         match err {
-            FormatError::Write => Self::Write,
+            dialect::errors::FormatError::Write => Self::Write,
             other => Self::Python(other.into()),
         }
     }
 }
 
-impl From<FormatError> for pyo3::PyErr {
-    fn from(err: FormatError) -> Self {
+impl From<dialect::errors::FormatError> for pyo3::PyErr {
+    fn from(err: dialect::errors::FormatError) -> Self {
         match err {
-            FormatError::Write => {
+            dialect::errors::FormatError::Write => {
                 rapidquery_macros::pyerr!(PyRuntimeError, "failed to write SQL")
             }
-            FormatError::NulInString => {
+            dialect::errors::FormatError::NulInString => {
                 rapidquery_macros::pyerr!(PyValueError, "NUL is not allowed in a string literal")
             }
-            FormatError::Unsupported(name) => {
+            dialect::errors::FormatError::Unsupported(name) => {
                 rapidquery_macros::pyerr!(PyNotImplementedError, "this dialect does not support {}", name)
             }
         }
@@ -109,6 +109,8 @@ pub type PrepareParams = smallvec::SmallVec<[alias::PyObject; 1]>;
 /// [`BufferedSql`] inlines values. [`ParameterizedSql`] binds them. Other methods
 /// only append text.
 pub trait SqlWriter: std::fmt::Write {
+    fn sql_mut(&mut self) -> &mut String;
+
     fn push_str(&mut self, s: &str) -> &mut Self;
 
     #[inline]
@@ -128,7 +130,7 @@ pub trait SqlWriter: std::fmt::Write {
     /// unused.
     fn push_value(
         &mut self,
-        dialect: &PyDialect,
+        dialect: &dialect::PyDialect,
         serializer: &SerializerType,
         object: &alias::PyObject,
     ) -> PrepareResult<()>;
@@ -182,6 +184,11 @@ impl<'py> BufferedSql<'py> {
 
 impl<'py> SqlWriter for BufferedSql<'py> {
     #[inline]
+    fn sql_mut(&mut self) -> &mut String {
+        &mut self.sql
+    }
+
+    #[inline]
     fn push_str(&mut self, s: &str) -> &mut Self {
         self.sql.push_str(s);
         self
@@ -195,7 +202,7 @@ impl<'py> SqlWriter for BufferedSql<'py> {
 
     fn push_value(
         &mut self,
-        dialect: &PyDialect,
+        dialect: &dialect::PyDialect,
         serializer: &SerializerType,
         object: &alias::PyObject,
     ) -> PrepareResult<()> {
@@ -287,24 +294,23 @@ impl<'py> ParameterizedSql<'py> {
 impl ParameterizedSql<'_> {
     /// Register `param` and append its placeholder to the SQL in one step.
     #[inline]
-    pub fn push_param(&mut self, dialect: &PyDialect, param: alias::PyObject) -> &mut Self {
-        match dialect.0.placeholder_syntax {
-            PlaceholderSyntax::Simple => {
-                self.sql.push(dialect.0.placeholder_character);
-            }
-            PlaceholderSyntax::Numbered => {
-                self.sql.push(dialect.0.placeholder_character);
-                let _ = write!(self.sql, "{}", self.next_id);
-                self.next_id += 1;
-            }
-        }
+    pub fn push_param(&mut self, dialect: &dialect::PyDialect, param: alias::PyObject) -> &mut Self {
+        dialect
+            .placeholder
+            .write_to(&mut self.sql, |_, out| write!(out, "{}", self.next_id).expect(""));
 
+        self.next_id += 1;
         self.params.push(param);
         self
     }
 }
 
 impl SqlWriter for ParameterizedSql<'_> {
+    #[inline]
+    fn sql_mut(&mut self) -> &mut String {
+        &mut self.sql
+    }
+
     #[inline]
     fn push_str(&mut self, s: &str) -> &mut Self {
         self.sql.push_str(s);
@@ -320,7 +326,7 @@ impl SqlWriter for ParameterizedSql<'_> {
     #[inline]
     fn push_value(
         &mut self,
-        dialect: &PyDialect,
+        dialect: &dialect::PyDialect,
         _serializer: &SerializerType,
         object: &alias::PyObject,
     ) -> PrepareResult<()> {
@@ -345,15 +351,15 @@ impl std::fmt::Write for ParameterizedSql<'_> {
 
 /// Render `self` into `out`. The writer chooses literal vs placeholder for values.
 pub trait WriteSql {
-    // NOTE FOR ME:
-    // Why `PyDialect` instead of Rust `Dialect`?
-    // because we accept custom serializers and custom serializer functions
-    // need to get dialect objects.
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()>;
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()>;
 }
 
 /// Render `stmt` as raw SQL (values inlined as literals).
-pub fn write_sql<'py, T: WriteSql>(py: pyo3::Python<'py>, stmt: &T, dialect: &PyDialect) -> PrepareResult<String> {
+pub fn write_sql<'py, T: WriteSql>(
+    py: pyo3::Python<'py>,
+    stmt: &T,
+    dialect: &dialect::PyDialect,
+) -> PrepareResult<String> {
     let mut buf = BufferedSql::with_capacity(py, 256);
     stmt.write_sql(dialect, &mut buf)?;
     Ok(buf.into_string())
@@ -363,7 +369,7 @@ pub fn write_sql<'py, T: WriteSql>(py: pyo3::Python<'py>, stmt: &T, dialect: &Py
 pub fn prepare<'py, T: WriteSql>(
     py: pyo3::Python<'py>,
     stmt: &T,
-    dialect: &PyDialect,
+    dialect: &dialect::PyDialect,
 ) -> PrepareResult<(String, PrepareParams)> {
     let mut context = ParameterizedSql::with_capacity(py, 256);
     stmt.write_sql(dialect, &mut context)?;
@@ -376,7 +382,7 @@ pub fn prepare<'py, T: WriteSql>(
 /// Use `","` / `", "` for lists and `" AND "` / `" OR "` for predicates.
 #[cfg_attr(feature = "nightly", optimize(speed))]
 pub fn write_separated<'a, T, W>(
-    dialect: &PyDialect,
+    dialect: &dialect::PyDialect,
     out: &mut W,
     items: impl IntoIterator<Item = &'a T>,
     separator: &str,

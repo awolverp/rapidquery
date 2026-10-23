@@ -343,12 +343,12 @@ pub struct DialectConfig {
 impl DialectConfig {
     /// Write a boolean literal (`TRUE`/`FALSE` or `1`/`0`).
     #[inline]
-    pub fn write_boolean<W: std::fmt::Write>(&self, writer: &mut W, value: bool) -> Result<(), FormatError> {
+    pub fn write_boolean(&self, writer: &mut String, value: bool) {
         match (self.bool_format, value) {
-            (BoolFormat::Integer, false) => writer.write_str("0")?,
-            (BoolFormat::Integer, true) => writer.write_str("1")?,
-            (BoolFormat::Keyword, false) => writer.write_str("FALSE")?,
-            (BoolFormat::Keyword, true) => writer.write_str("TRUE")?,
+            (BoolFormat::Integer, false) => writer.push_("0")?,
+            (BoolFormat::Integer, true) => writer.push_("1")?,
+            (BoolFormat::Keyword, false) => writer.push_("FALSE")?,
+            (BoolFormat::Keyword, true) => writer.push_("TRUE")?,
         }
 
         Ok(())

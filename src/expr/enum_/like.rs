@@ -1,22 +1,27 @@
 //! `LIKE` / `ILIKE` / `LIKE ANY` / `SIMILAR TO` / `RLIKE` AST nodes.
 
 use super::ExprInner;
-use crate::dialect::PyDialect;
-use crate::dialect::config;
+use crate::dialect;
 use crate::internal::repr;
 use crate::internal::sql::PrepareResult;
 use crate::internal::sql::SqlWriter;
 use crate::internal::sql::WriteSql;
 use crate::internal::sql::write_separated;
 
-pub(super) fn write_escape<W: SqlWriter>(dialect: &PyDialect, out: &mut W, escape: Option<char>) -> PrepareResult<()> {
+pub(super) fn write_escape<W: SqlWriter>(
+    dialect: &dialect::PyDialect,
+    out: &mut W,
+    escape: Option<char>,
+) -> PrepareResult<()> {
     let Some(c) = escape else {
         return Ok(());
     };
 
     out.push_str(" ESCAPE ");
     let mut buf = [0u8; 4];
-    dialect.0.write_string_literal(out, c.encode_utf8(&mut buf))?;
+    dialect
+        .string
+        .write_string_literal(out.sql_mut(), c.encode_utf8(&mut buf))?;
 
     Ok(())
 }
@@ -96,7 +101,7 @@ impl Like {
 }
 
 fn write_like_operand<W: SqlWriter>(
-    dialect: &PyDialect,
+    dialect: &dialect::PyDialect,
     out: &mut W,
     expr: &ExprInner,
     wrap_lower: bool,
@@ -126,7 +131,7 @@ fn write_like_infix<W: SqlWriter>(out: &mut W, negated: bool, ilike: bool) {
 }
 
 fn write_like_pattern_list<W: SqlWriter>(
-    dialect: &PyDialect,
+    dialect: &dialect::PyDialect,
     out: &mut W,
     patterns: &[ExprInner],
     wrap_lower: bool,
@@ -147,17 +152,17 @@ fn write_like_pattern_list<W: SqlWriter>(
 /// `ESCAPE` is legal on this form. `native_any` is `LIKE ANY` that is not an
 /// `OR` expansion.
 #[inline]
-fn like_escape_allowed(syntax: config::LikeEscape, native_any: bool) -> bool {
+fn like_escape_allowed(syntax: dialect::LikeEscape, native_any: bool) -> bool {
     if native_any {
-        syntax.contains(config::LikeEscape::ANY)
+        syntax.contains(dialect::LikeEscape::ANY)
     } else {
-        syntax.contains(config::LikeEscape::SCALAR)
+        syntax.contains(dialect::LikeEscape::SCALAR)
     }
 }
 
 #[inline]
 fn ensure_like_escape_is_supported(
-    syntax: config::LikeEscape,
+    syntax: dialect::LikeEscape,
     escape: Option<char>,
     native_any: bool,
 ) -> PrepareResult<()> {
@@ -178,7 +183,7 @@ fn ensure_like_escape_is_supported(
 
 /// `[NOT] (x LIKE|ILIKE ANY (ARRAY?[…]) [ESCAPE char])`
 fn write_like_any_native<W: SqlWriter>(
-    dialect: &PyDialect,
+    dialect: &dialect::PyDialect,
     out: &mut W,
     like: &Like,
     patterns: &[ExprInner],
@@ -211,21 +216,25 @@ fn write_like_any_native<W: SqlWriter>(
 }
 
 impl WriteSql for Like {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
         let (ilike, wrap_lower) = if self.case_sensitive {
             (false, false)
         } else {
-            match dialect.0.ilike_expression {
-                config::ILikeExpression::Standard => (true, false),
-                config::ILikeExpression::UseLike => (false, false),
-                config::ILikeExpression::UseLikeLower => (false, true),
+            match dialect.like.ilike {
+                dialect::ILikeStrategy::Unsupported => {
+                    return Err(
+                        rapidquery_macros::pyerr!(PyRuntimeError, "ILIKE is not supported by this dialect").into(),
+                    );
+                }
+                dialect::ILikeStrategy::Standard => (true, false),
+                dialect::ILikeStrategy::UseLikeLower => (false, true),
             }
         };
 
         ensure_like_escape_is_supported(
-            dialect.0.like_escape,
+            dialect.like.escape,
             self.escape,
-            matches!(self.pattern, LikePattern::Any(_)) && !matches!(dialect.0.like_any, config::LikeAny::OrExpansion),
+            matches!(self.pattern, LikePattern::Any(_)) && !matches!(dialect.like.any, dialect::LikeAny::OrExpansion),
         )?;
 
         match &self.pattern {
@@ -235,14 +244,14 @@ impl WriteSql for Like {
                 write_like_operand(dialect, out, pattern, wrap_lower, true)?;
                 write_escape(dialect, out, self.escape)
             }
-            LikePattern::Any(patterns) => match dialect.0.like_any {
-                config::LikeAny::ArrayConstructor => {
+            LikePattern::Any(patterns) => match dialect.like.any {
+                dialect::LikeAny::ArrayConstructor => {
                     write_like_any_native(dialect, out, self, patterns, ilike, wrap_lower, true)
                 }
-                config::LikeAny::PatternList => {
+                dialect::LikeAny::PatternList => {
                     write_like_any_native(dialect, out, self, patterns, ilike, wrap_lower, false)
                 }
-                config::LikeAny::OrExpansion => {
+                dialect::LikeAny::OrExpansion => {
                     let sep = if self.negated { " AND " } else { " OR " };
                     out.push_char('(');
                     for (i, pattern) in patterns.iter().enumerate() {
@@ -303,8 +312,8 @@ impl SimilarTo {
 }
 
 impl WriteSql for SimilarTo {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
-        if !dialect.0.supports_similar_to {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
+        if !dialect.like.supports_similar_to {
             return Err(
                 rapidquery_macros::pyerr!(PyRuntimeError, "SIMILAR TO is not supported by this dialect",).into(),
             );
@@ -363,7 +372,7 @@ impl RLike {
 
 /// `NOT? name(expr, pattern)` — unquoted function rewrite.
 fn write_regex_call<W: SqlWriter>(
-    dialect: &PyDialect,
+    dialect: &dialect::PyDialect,
     out: &mut W,
     name: &str,
     negated: bool,
@@ -383,12 +392,12 @@ fn write_regex_call<W: SqlWriter>(
 }
 
 impl WriteSql for RLike {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
-        match dialect.0.rlike_expression {
-            config::RLikeExpression::Unsupported => {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
+        match dialect.like.regex {
+            dialect::RegexSpelling::Unsupported => {
                 Err(rapidquery_macros::pyerr!(PyRuntimeError, "RLIKE is not supported by this dialect",).into())
             }
-            config::RLikeExpression::Standard => {
+            dialect::RegexSpelling::Standard => {
                 self.expr.write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 if self.negated {
                     out.push_str(" NOT RLIKE ");
@@ -397,18 +406,18 @@ impl WriteSql for RLike {
                 }
                 self.pattern.write_operand(dialect, out, Self::PRECEDENCE, true)
             }
-            config::RLikeExpression::Tilde => {
+            dialect::RegexSpelling::Tilde => {
                 self.expr.write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 out.push_str(if self.negated { " !~ " } else { " ~ " });
                 self.pattern.write_operand(dialect, out, Self::PRECEDENCE, true)
             }
-            config::RLikeExpression::RegexpLike => {
+            dialect::RegexSpelling::RegexpLike => {
                 write_regex_call(dialect, out, "REGEXP_LIKE", self.negated, &self.expr, &self.pattern)
             }
-            config::RLikeExpression::RegexpContains => {
+            dialect::RegexSpelling::RegexpContains => {
                 write_regex_call(dialect, out, "REGEXP_CONTAINS", self.negated, &self.expr, &self.pattern)
             }
-            config::RLikeExpression::RegexpMatches => {
+            dialect::RegexSpelling::RegexpMatches => {
                 write_regex_call(dialect, out, "regexp_matches", self.negated, &self.expr, &self.pattern)
             }
         }

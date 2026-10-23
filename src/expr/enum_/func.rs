@@ -1,7 +1,7 @@
 use super::ExprInner;
 use super::ident::Ident;
 
-use crate::dialect::config;
+use crate::dialect;
 use crate::internal::repr;
 use crate::internal::sql::PrepareResult;
 use crate::internal::sql::SqlWriter;
@@ -109,12 +109,14 @@ impl WriteSql for Function {
 
         write_separated(dialect, out, &self.args, ", ")?;
 
-        if self.null_treatment.is_some() && matches!(dialect.0.null_treatment, config::NullTreatment::Unsupported) {
+        if self.null_treatment.is_some()
+            && matches!(dialect.aggregate.null_treatment, dialect::NullTreatment::Unsupported)
+        {
             return Err(
                 rapidquery_macros::pyerr!(PyRuntimeError, "null_treatment is not supported by this dialect",).into(),
             );
         }
-        if self.filter.is_some() && matches!(dialect.0.function_filter, config::FunctionFilter::Unsupported) {
+        if self.filter.is_some() && matches!(dialect.aggregate.function_filter, dialect::FunctionFilter::Unsupported) {
             return Err(
                 rapidquery_macros::pyerr!(PyRuntimeError, "function filter is not supported by this dialect",).into(),
             );
@@ -122,7 +124,7 @@ impl WriteSql for Function {
 
         // Inside parens IGNORE/RESPECT NULLS
         if let Some(x) = self.null_treatment
-            && matches!(dialect.0.null_treatment, config::NullTreatment::InsideParens)
+            && matches!(dialect.aggregate.null_treatment, dialect::NullTreatment::InsideParens)
         {
             out.push_char_if(args_available, ' ');
             out.push_str(x.as_sql());
@@ -130,7 +132,7 @@ impl WriteSql for Function {
 
         // Inside parens WHERE filter
         if let Some(x) = &self.filter
-            && matches!(dialect.0.function_filter, config::FunctionFilter::InsideWhere)
+            && matches!(dialect.aggregate.function_filter, dialect::FunctionFilter::InsideWhere)
         {
             out.push_char_if(args_available, ' ');
             out.push_str("WHERE ");
@@ -141,14 +143,14 @@ impl WriteSql for Function {
 
         // FILTER, then postfix IGNORE/RESPECT NULLS (immediately before OVER).
         if let Some(x) = &self.filter {
-            match dialect.0.function_filter {
-                config::FunctionFilter::FilterWhere => {
+            match dialect.aggregate.function_filter {
+                dialect::FunctionFilter::FilterWhere => {
                     out.push_char(' ');
                     out.push_str("FILTER (WHERE ");
                     x.write_sql(dialect, out)?;
                     out.push_char(')');
                 }
-                config::FunctionFilter::Filter => {
+                dialect::FunctionFilter::Filter => {
                     out.push_char(' ');
                     out.push_str("FILTER (");
                     x.write_sql(dialect, out)?;
@@ -159,7 +161,7 @@ impl WriteSql for Function {
         }
 
         if let Some(x) = self.null_treatment
-            && matches!(dialect.0.null_treatment, config::NullTreatment::Postfix)
+            && matches!(dialect.aggregate.null_treatment, dialect::NullTreatment::Postfix)
         {
             out.push_char(' ');
             out.push_str(x.as_sql());
