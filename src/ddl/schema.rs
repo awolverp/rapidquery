@@ -123,8 +123,8 @@ impl PyCreateSchema {
     }
 
     /// Render this expression as raw SQL (values inlined as literals).
-    fn to_sql(&self, py: pyo3::Python, dialect: crate::dialect::PyDialect) -> pyo3::PyResult<String> {
-        sql::write_sql(py, self, &dialect)
+    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> pyo3::PyResult<String> {
+        sql::write_sql(dialect.py(), self, dialect.get())
     }
 
     fn __repr__(&self) -> String {
@@ -259,8 +259,8 @@ impl PyDropSchema {
     }
 
     /// Render this expression as raw SQL (values inlined as literals).
-    fn to_sql(&self, py: pyo3::Python, dialect: crate::dialect::PyDialect) -> pyo3::PyResult<String> {
-        sql::write_sql(py, self, &dialect)
+    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> pyo3::PyResult<String> {
+        sql::write_sql(dialect.py(), self, dialect.get())
     }
 
     fn __repr__(&self) -> String {

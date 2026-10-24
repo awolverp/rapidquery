@@ -53,10 +53,16 @@ lint-rust:
 .PHONY: lint  ## Lint rust and python source files
 lint: lint-python lint-rust
 
+.PHONY: test-rust  ## Run Rust tests
+test-rust:
+	cargo test --workspace --no-default-features --features auto-initialize
+
+.PHONY: test-python  ## Run Python tests
+test-python:
+	uv run pytest -v -n auto
+
 .PHONY: test  ## Run all tests
-test:
-	cargo test --workspace --all --no-default-features --features auto-initialize
-	uv run pytest -n auto
+test: test-rust test-python
 
 .PHONY: all  ## Run the standard set of checks performed in CI
 all: format lint build-dev test

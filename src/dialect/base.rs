@@ -1,5 +1,4 @@
 use crate::internal::template;
-use crate::internal::utils;
 
 #[rapidquery_macros::pyclass("rapidquery.dialect.LikeConfig", from_py_object, eq, hash)]
 #[rapidquery_macros::define_options]
@@ -99,15 +98,24 @@ rapidquery_macros::pyo3_constructor! {
 #[rapidquery_macros::pyclass("rapidquery.dialect.StringConfig", from_py_object, eq, hash)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StringConfig {
-    /// String template e.g. `E'{quote}'`
+    /// String template e.g. `E'{hex}'`
     ///
-    /// Template key specify escaping method:
-    /// - `quote`: Escape `'` → `''`. Other characters are unchanged.
-    /// - `hex`: Escape `\\`, `\'`, `\n`, `\r`, `\t`; other C0/DEL as `\xNN`.
-    /// - `mysql`: (MySQL-specific) Like `hex`, but also `\"` and `\Z` for 0x1A; tab and other controls pass through.
-    /// - `unicode`: Other C0/DEL as `\uNNNN`. No `\"`.
-    /// - `hex_zero`: Other C0/DEL as `\xNN`.
-    /// - `unicode_quote`: `unicode` plus `\"`.
+    /// The template key picks how the text is escaped. A string containing `NUL` is rejected.
+    /// Pick a key that escapes the delimiter used in your template: `'{single}'` or `"{double}"`.
+    ///
+    /// Escape by doubling (other characters are unchanged):
+    /// - `single`: `'` → `''` (standard SQL, SQL Server, Oracle, SQLite, ...)
+    /// - `double`: `"` → `""`
+    ///
+    /// Escape with a backslash (`\` is always escaped):
+    /// - `hex`: Escape `\\`, `\'`, `\n`, `\r`, `\t`; other C0/DEL as `\xNN`. `"` is unchanged.
+    /// - `hex_quote`: `hex` plus `\"`. Use it for `"` delimited strings.
+    /// - `mysql`: (MySQL-specific) Escape `\\`, `\'`, `\"`, `\n`, `\r` and `\Z` for 0x1A; tab and other controls pass through.
+    /// - `unicode`: Like `hex`, but other C0/DEL as `\uNNNN`. `"` is unchanged.
+    /// - `unicode_quote`: `unicode` plus `\"`. Use it for `"` delimited strings.
+    ///
+    /// Only use a backslash key when the target database really reads backslash escapes
+    /// inside string literals (e.g. MySQL, BigQuery, Hive, Spark, or PostgreSQL `E'...'`).
     ///
     /// Prefer using `StringConfig::write_string_literal` instead of directly using this template.
     pub template: template::Template,
@@ -120,7 +128,7 @@ pub struct StringConfig {
 
 rapidquery_macros::pyo3_constructor! {
     StringConfig => export_string_config_options {
-        template: template(quote?, hex?, mysql?, unicode?, hex_zero?, unicode_quote?; 1) = "'{quote}'",
+        template: template(single?, double?, hex?, hex_quote?, mysql?, unicode?, unicode_quote?; 1) = "'{single}'",
         concat: template(left, right; 2) = "{left} || {right}",
     }
 }
@@ -384,9 +392,24 @@ pub struct PyDialect {
 
     /// Identifier template e.g. `"{double}"`
     ///
-    /// Template key specify escaping method:
-    /// - `double`: Escape identifier delimiters with doubling.
-    /// - `backslash`: Escape identifier delimiters with backslash.
+    /// The template key picks which character is escaped and how. Pick the key
+    /// that matches the delimiter in your template, e.g. `` `{backtick}` `` or `[{bracket}]`.
+    ///
+    /// Escape by doubling (`x` becomes `xx`; other characters are unchanged):
+    /// - `double`: `"` (PostgreSQL, SQLite, Oracle, Snowflake, ...)
+    /// - `single`: `'`
+    /// - `bracket`: `]` (SQL Server)
+    /// - `backtick`: `` ` `` (MySQL, Hive, Spark, Databricks, ...)
+    ///
+    /// Escape with a backslash (`\` and the delimiter get a backslash; `\n`, `\r`, `\t` are
+    /// written as escapes; other control characters as `\xNN`):
+    /// - `slashdouble`: `"`
+    /// - `slashsingle`: `'`
+    /// - `slashbracket`: `]`
+    /// - `slashbacktick`: `` ` `` (BigQuery)
+    ///
+    /// Only use a `slash*` key when the target database really reads backslash
+    /// escapes inside quoted identifiers.
     pub identifier: template::Template,
 
     /// String literal format, escaping, and concatenation.
@@ -414,34 +437,16 @@ pub struct PyDialect {
     pub schema: SchemaConfig,
 }
 
-// NOTE: using `crate::typeref::check_exact` has better performance than PyO3 default `FromPyObject`.
-impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDialect {
-    type Error = pyo3::PyErr;
-
-    fn extract(obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>) -> Result<Self, Self::Error> {
-        unsafe {
-            // SAFETY: `obj` is a borrowed `&Bound<PyAny>`, so `as_ptr()` is a
-            // live `PyObject*`.
-            if crate::typeref::check_exact(obj.as_ptr(), crate::typeref::DIALECT_TYPE) {
-                let cast = obj.cast_unchecked::<Self>();
-                return Ok(cast.get().clone());
-            }
-
-            rapidquery_macros::pyerr!(
-                Err(PyTypeError),
-                "expected Dialect, got {}",
-                utils::get_type_name(obj.py(), obj.as_ptr())
-            )
-        }
-    }
-}
-
 rapidquery_macros::pyo3_constructor! {
     PyDialect => export_pydialect_options {
         placeholder: template(_; 1) = "?{}",
         like: class LikeConfig = LikeConfig::default(),
         bitwise: class BitwiseConfig = BitwiseConfig::default(),
-        identifier: template(double?, backslash?; 1) = "\"{double}\"",
+        identifier: template(
+            double?, single?, bracket?, backtick?,
+            slashdouble?, slashsingle?, slashbracket?, slashbacktick?;
+            1
+        ) = "\"{double}\"",
         string: class StringConfig = StringConfig::default(),
         cast: class CastConfig = CastConfig::default(),
         tuple: class TupleConfig = TupleConfig::default(),

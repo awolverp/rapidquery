@@ -28,9 +28,13 @@ pub struct PySerializer(pub SerializerType);
 #[pyo3::pymethods]
 impl PySerializer {
     /// Renders `object` as a SQL literal for `dialect`.
-    fn serialize(&self, dialect: crate::dialect::PyDialect, object: alias::BoundObject<'_>) -> pyo3::PyResult<String> {
+    fn serialize(
+        &self,
+        dialect: pyo3::Bound<'_, crate::dialect::PyDialect>,
+        object: alias::BoundObject<'_>,
+    ) -> pyo3::PyResult<String> {
         let mut buf = String::new();
-        self.0.serialize(&dialect, &object, &mut buf)?;
+        self.0.serialize(dialect.get(), &object, &mut buf)?;
         Ok(buf)
     }
 

@@ -73,18 +73,20 @@ impl base::StringConfig {
 
         self.template.write_to(
             writer,
-            // quote: Escape ' → ''. Other characters are unchanged.
+            // single: Escape ' → ''. Other characters are unchanged.
+            // double: Escape " → "". Other characters are unchanged.
             // hex: Escape \\, \', \n, \r, \t; other C0/DEL as \xNN.
+            // hex_quote: hex plus \".
             // mysql: (MySQL-specific) Like hex, but also \" and \Z for 0x1A; tab and other controls pass through.
             // unicode: Other C0/DEL as \uNNNN. No \".
-            // hex_zero: Other C0/DEL as \xNN.
             // unicode_quote: unicode plus \".
             |key, out| match key {
-                "quote" => template::replace_to(raw, '\'', "''", out),
-                "hex" => write_backslash_hex(out, raw),
+                "single" => template::replace_to(raw, '\'', "''", out),
+                "double" => template::replace_to(raw, '"', "\"\"", out),
+                "hex" => write_backslash_hex(out, raw, false),
+                "hex_quote" => write_backslash_hex(out, raw, true),
                 "mysql" => write_backslash_mysql(out, raw),
                 "unicode" => write_backslash_unicode(out, raw, false),
-                "hex_zero" => write_backslash_hex_zero(out, raw),
                 "unicode_quote" => write_backslash_unicode(out, raw, true),
                 _ => unreachable!("invalid key - write_string_literal"),
             },
@@ -99,11 +101,20 @@ impl base::PyDialect {
     pub fn write_identifier<W: writer::FastWrite>(&self, writer: &mut W, ident: &str) {
         self.identifier.write_to(
             writer,
-            // double: Escape identifier delimiters with doubling.
-            // backslash: Escape identifier delimiters with backslash
+            // double:   `"` -> `""`
+            // single:   `'` -> `''`
+            // bracket:  `]` -> `]]`
+            // backtick: `` ` `` -> ``` `` ```
+            // slash*:   backslash style, see `write_identifier_backslash_escape`
             |key, out| match key {
                 "double" => template::replace_to(ident, '"', "\"\"", out),
-                "backslash" => write_identifier_backtick_escape(out, ident),
+                "single" => template::replace_to(ident, '\'', "''", out),
+                "bracket" => template::replace_to(ident, ']', "]]", out),
+                "backtick" => template::replace_to(ident, '`', "``", out),
+                "slashdouble" => write_identifier_backslash_escape(out, ident, b'"', "\\\""),
+                "slashsingle" => write_identifier_backslash_escape(out, ident, b'\'', "\\'"),
+                "slashbracket" => write_identifier_backslash_escape(out, ident, b']', "\\]"),
+                "slashbacktick" => write_identifier_backslash_escape(out, ident, b'`', "\\`"),
                 _ => unreachable!("invalid key - write_identifier"),
             },
         )
@@ -174,12 +185,22 @@ fn write_unicode4_escape<W: writer::FastWrite>(writer: &mut W, code: u32) {
     write_hex2(writer, code as u8)
 }
 
-/// Use the string escape table, plus `\``.
+/// Backslash-style identifier escape for the delimiter byte `quote`.
 ///
-/// `'` is left as itself. Only known escapes are emitted.
-fn write_identifier_backtick_escape<W: writer::FastWrite>(writer: &mut W, ident: &str) {
+/// `quote` must be an ASCII byte (so it is always a char boundary in UTF-8) and
+/// `escaped` is what it becomes, e.g. `b'"'` and `"\\\""`. The backslash itself
+/// is always escaped, otherwise an identifier ending in `\` would swallow the
+/// closing delimiter. Other quote characters are left as they are.
+fn write_identifier_backslash_escape<W: writer::FastWrite>(
+    writer: &mut W,
+    ident: &str,
+    quote: u8,
+    escaped: &'static str,
+) {
+    debug_assert!(quote.is_ascii());
     write_span_escapes(writer, ident, |b| match b {
         b'\\' => SpanEscape::Literal("\\\\"),
+        b if b == quote => SpanEscape::Literal(escaped),
         b'`' => SpanEscape::Literal("\\`"),
         b'\n' => SpanEscape::Literal("\\n"),
         b'\r' => SpanEscape::Literal("\\r"),
@@ -243,10 +264,11 @@ fn write_span_escapes<W: writer::FastWrite>(writer: &mut W, string: &str, mut cl
     write_byte_span(writer, bytes, start, bytes.len())
 }
 
-fn write_backslash_hex<W: writer::FastWrite>(writer: &mut W, string: &str) {
+fn write_backslash_hex<W: writer::FastWrite>(writer: &mut W, string: &str, escape_double_quote: bool) {
     write_span_escapes(writer, string, |b| match b {
         b'\\' => SpanEscape::Literal("\\\\"),
         b'\'' => SpanEscape::Literal("\\'"),
+        b'"' if escape_double_quote => SpanEscape::Literal("\\\""),
         b'\n' => SpanEscape::Literal("\\n"),
         b'\r' => SpanEscape::Literal("\\r"),
         b'\t' => SpanEscape::Literal("\\t"),
@@ -282,15 +304,137 @@ fn write_backslash_unicode<W: writer::FastWrite>(writer: &mut W, string: &str, e
     })
 }
 
-fn write_backslash_hex_zero<W: writer::FastWrite>(writer: &mut W, string: &str) {
-    write_span_escapes(writer, string, |b| match b {
-        b'\\' => SpanEscape::Literal("\\\\"),
-        b'\'' => SpanEscape::Literal("\\'"),
-        b'\n' => SpanEscape::Literal("\\n"),
-        b'\r' => SpanEscape::Literal("\\r"),
-        b'\t' => SpanEscape::Literal("\\t"),
-        0 => SpanEscape::Literal("\\0"),
-        b if b < 32 || b == 127 => SpanEscape::HexByte,
-        _ => SpanEscape::Keep,
-    })
+#[cfg(test)]
+mod tests {
+    use crate::dialect::PyDialect;
+    use crate::dialect::StringConfig;
+    use crate::internal::template::Template;
+
+    const KEYS: &[(&str, bool)] = &[
+        ("double", false),
+        ("single", false),
+        ("bracket", false),
+        ("backtick", false),
+        ("slashdouble", false),
+        ("slashsingle", false),
+        ("slashbracket", false),
+        ("slashbacktick", false),
+    ];
+
+    fn render(tmpl: &str, ident: &str) -> String {
+        let d = PyDialect {
+            identifier: Template::parse(tmpl, KEYS, 1, 1).unwrap(),
+            ..Default::default()
+        };
+
+        let mut out = String::new();
+        d.write_identifier(&mut out, ident);
+        out
+    }
+
+    #[test]
+    fn doubling_keys() {
+        assert_eq!(render(r#""{double}""#, r#"a"b"#), r#""a""b""#);
+        assert_eq!(render("'{single}'", "a'b"), "'a''b'");
+        assert_eq!(render("[{bracket}]", "a]b"), "[a]]b]");
+        assert_eq!(render("`{backtick}`", "a`b"), "`a``b`");
+    }
+
+    #[test]
+    fn doubling_keys_leave_other_delimiters_alone() {
+        assert_eq!(render(r#""{double}""#, "it's `x` [y]"), r#""it's `x` [y]""#);
+        assert_eq!(render("`{backtick}`", r#"a"b"#), r#"`a"b`"#);
+        assert_eq!(render("[{bracket}]", "a[b"), "[a[b]");
+    }
+
+    #[test]
+    fn slash_keys_escape_delimiter() {
+        assert_eq!(render(r#""{slashdouble}""#, r#"a"b"#), r#""a\"b""#);
+        assert_eq!(render("'{slashsingle}'", "a'b"), r"'a\'b'");
+        assert_eq!(render("[{slashbracket}]", "a]b"), r"[a\]b]");
+        assert_eq!(render("`{slashbacktick}`", "a`b"), r"`a\`b`");
+    }
+
+    #[test]
+    fn slash_keys_escape_the_backslash_itself() {
+        // An identifier ending in `\` must not escape the closing delimiter.
+        assert_eq!(render(r#""{slashdouble}""#, r"a\"), r#""a\\""#);
+        assert_eq!(render("`{slashbacktick}`", r"a\`"), r"`a\\\``");
+    }
+
+    #[test]
+    fn slash_keys_escape_control_characters() {
+        assert_eq!(render("`{slashbacktick}`", "a\nb\tc\rd"), r"`a\nb\tc\rd`");
+        assert_eq!(render("`{slashbacktick}`", "a\u{1}b"), r"`a\x01b`");
+    }
+
+    #[test]
+    fn non_ascii_is_kept() {
+        assert_eq!(render("`{slashbacktick}`", "é`"), r"`é\``");
+        assert_eq!(render("`{backtick}`", "日本`"), "`日本```");
+    }
+
+    const STRING_KEYS: &[(&str, bool)] = &[
+        ("single", false),
+        ("double", false),
+        ("hex", false),
+        ("hex_quote", false),
+        ("mysql", false),
+        ("unicode", false),
+        ("unicode_quote", false),
+    ];
+
+    fn render_string(tmpl: &str, raw: &str) -> Result<String, crate::dialect::errors::FormatError> {
+        let c = StringConfig {
+            template: Template::parse(tmpl, STRING_KEYS, 1, 1).unwrap(),
+            ..Default::default()
+        };
+
+        let mut out = String::new();
+        c.write_string_literal(&mut out, raw)?;
+        Ok(out)
+    }
+
+    #[test]
+    fn string_doubling_keys() {
+        assert_eq!(render_string("'{single}'", "it's").unwrap(), "'it''s'");
+        assert_eq!(
+            render_string("\"{double}\"", "say \"hi\"").unwrap(),
+            "\"say \"\"hi\"\"\""
+        );
+        // The other quote is left alone.
+        assert_eq!(render_string("'{single}'", "a\"b").unwrap(), "'a\"b'");
+        assert_eq!(render_string("\"{double}\"", "it's").unwrap(), "\"it's\"");
+    }
+
+    #[test]
+    fn string_hex_keys() {
+        assert_eq!(render_string("'{hex}'", "a'b\\c\n").unwrap(), r"'a\'b\\c\n'");
+        assert_eq!(render_string("'{hex}'", "a\"b").unwrap(), "'a\"b'");
+        assert_eq!(render_string("'{hex}'", "a\u{1}").unwrap(), r"'a\x01'");
+        assert_eq!(render_string("\"{hex_quote}\"", "a\"b'c\\").unwrap(), r#""a\"b\'c\\""#);
+        assert_eq!(render_string("\"{hex_quote}\"", "a\u{1}").unwrap(), r#""a\x01""#);
+    }
+
+    #[test]
+    fn string_unicode_keys() {
+        assert_eq!(render_string("'{unicode}'", "a\u{1}\"").unwrap(), "'a\\u0001\"'");
+        assert_eq!(
+            render_string("'{unicode_quote}'", "a\u{1}\"").unwrap(),
+            "'a\\u0001\\\"'"
+        );
+    }
+
+    #[test]
+    fn string_mysql_key() {
+        assert_eq!(render_string("'{mysql}'", "a\"b\u{1a}\t").unwrap(), "'a\\\"b\\Z\t'");
+    }
+
+    #[test]
+    fn string_rejects_nul() {
+        assert_eq!(
+            render_string("'{single}'", "a\0b"),
+            Err(crate::dialect::errors::FormatError::NulInString)
+        );
+    }
 }

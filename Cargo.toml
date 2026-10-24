@@ -29,12 +29,12 @@ rapidquery-macros = { path = "rapidquery-macros" }
 smallvec = { version = "1.16.0", default-features = false }
 uuid = { version = "1.26.1", default-features = false }
 
+itoa = { version = "1.0.18", default-features = false }
 # ONLY for inspiring the source
 sea-query = { version = "1.0.2", default-features = false }
 # ONLY for inspiring the source
 sqlparser = { version = "0.62.0", default-features = false }
 zmij = { version = "1.0.23", default-features = false }
-itoa = { version = "1.0.18", default-features = false }
 
 [build-dependencies]
 pyo3-build-config = "0.30.1"
@@ -59,15 +59,13 @@ print_stderr = "warn"
 print_stdout = "warn"
 
 [profile.dev]
-strip = false
 lto = true
-panic = "unwind"
 
 [profile.release]
 opt-level = 3
 debug = false
 strip = false
 lto = true
-panic = "abort"
+panic = "unwind"
 incremental = false
 codegen-units = 1

@@ -572,14 +572,14 @@ impl PyExpr {
 
     /// Render this expression as a parameterized statement.
     fn prepare<'py>(
-        slf: pyo3::PyRef<'py, Self>,
-        dialect: crate::dialect::PyDialect,
+        &self,
+        dialect: pyo3::Bound<'py, crate::dialect::PyDialect>,
     ) -> pyo3::PyResult<(String, alias::BoundObject<'py>)> {
-        let (sql, params) = sql::prepare(slf.py(), &slf.0, &dialect)?;
+        let (sql, params) = sql::prepare(dialect.py(), &self.0, dialect.get())?;
 
         let params = unsafe {
             utils::iterator_to_tuple(
-                slf.py(),
+                dialect.py(),
                 params.len() as isize,
                 params.into_iter().map(|x| Ok(x.into_ptr())),
             )?
@@ -588,8 +588,8 @@ impl PyExpr {
     }
 
     /// Render this expression as raw SQL (values inlined as literals).
-    fn to_sql(slf: pyo3::PyRef<'_, Self>, dialect: crate::dialect::PyDialect) -> pyo3::PyResult<String> {
-        sql::write_sql(slf.py(), &slf.0, &dialect)
+    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> pyo3::PyResult<String> {
+        sql::write_sql(dialect.py(), &self.0, dialect.get())
     }
 
     fn __repr__(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {

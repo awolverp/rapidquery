@@ -33,7 +33,7 @@ pub trait SqlWriter: FastWrite {
 ///
 /// ```
 /// pyo3::Python::attach(|py| {
-///     let buf = rapidquery::internal::sql::Buffered::new(py);
+///     let buf = rapidquery::sql::Buffered::new(py);
 ///     assert_eq!(buf.as_str(), "");
 /// });
 /// ```
@@ -106,7 +106,7 @@ impl<'py> SqlWriter for Buffer<'py> {
 ///
 /// ```
 /// pyo3::Python::attach(|py| {
-///     let sql = rapidquery::internal::sql::Parameterized::new(py);
+///     let sql = rapidquery::sql::Parameterized::new(py);
 ///     assert_eq!(sql.sql(), "");
 ///     assert!(sql.params().is_empty());
 /// });
