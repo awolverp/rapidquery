@@ -3,7 +3,6 @@ use super::ident::Ident;
 
 use crate::dialect;
 use crate::internal::repr;
-use crate::sql::PrepareResult;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
 use crate::sql::write_separated;
@@ -97,64 +96,66 @@ impl Function {
 }
 
 impl WriteSql for Function {
-    fn write_sql<W: SqlWriter>(&self, dialect: &crate::dialect::PyDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &crate::dialect::PyDialect, out: &mut W) -> pyo3::PyResult<()> {
         // "name"([DISTINCT] args [{IGNORE|RESPECT} NULLS] [WHERE expr])
         // [FILTER ([WHERE] expr)] [{IGNORE|RESPECT} NULLS]
         self.name.write_sql(dialect, out)?;
 
         let args_available = !self.args.is_empty();
 
-        out.push_char('(');
-        out.push_str_if(self.distinct && args_available, "DISTINCT ");
+        out.write('(');
+        out.write_str_if(self.distinct && args_available, "DISTINCT ");
 
         write_separated(dialect, out, &self.args, ", ")?;
 
         if self.null_treatment.is_some()
             && matches!(dialect.aggregate.null_treatment, dialect::NullTreatment::Unsupported)
         {
-            return Err(
-                rapidquery_macros::pyerr!(PyRuntimeError, "null_treatment is not supported by this dialect",).into(),
-            );
+            return Err(rapidquery_macros::pyerr!(
+                PyRuntimeError,
+                "null_treatment is not supported by this dialect",
+            ));
         }
         if self.filter.is_some() && matches!(dialect.aggregate.function_filter, dialect::FunctionFilter::Unsupported) {
-            return Err(
-                rapidquery_macros::pyerr!(PyRuntimeError, "function filter is not supported by this dialect",).into(),
-            );
+            return Err(rapidquery_macros::pyerr!(
+                PyRuntimeError,
+                "function filter is not supported by this dialect",
+            ));
         }
 
         // Inside parens IGNORE/RESPECT NULLS
         if let Some(x) = self.null_treatment
             && matches!(dialect.aggregate.null_treatment, dialect::NullTreatment::InsideParens)
         {
-            out.push_char_if(args_available, ' ');
-            out.push_str(x.as_sql());
+            out.write_if(args_available, ' ');
+            out.write_str(x.as_sql());
         }
 
         // Inside parens WHERE filter
         if let Some(x) = &self.filter
             && matches!(dialect.aggregate.function_filter, dialect::FunctionFilter::InsideWhere)
         {
-            out.push_char_if(args_available, ' ');
-            out.push_str("WHERE ");
+            out.write_if(args_available, ' ');
+            out.write_str("WHERE ");
             x.write_sql(dialect, out)?;
         }
 
-        out.push_char(')');
+        out.write(')');
 
         // FILTER, then postfix IGNORE/RESPECT NULLS (immediately before OVER).
         if let Some(x) = &self.filter {
             match dialect.aggregate.function_filter {
                 dialect::FunctionFilter::FilterWhere => {
-                    out.push_char(' ');
-                    out.push_str("FILTER (WHERE ");
+                    out.write(' ');
+                    out.write_str("FILTER (WHERE ");
                     x.write_sql(dialect, out)?;
-                    out.push_char(')');
+                    out.write(')');
                 }
                 dialect::FunctionFilter::Filter => {
-                    out.push_char(' ');
-                    out.push_str("FILTER (");
+                    out.write(' ');
+                    out.write_str("FILTER (");
                     x.write_sql(dialect, out)?;
-                    out.push_char(')');
+                    out.write(')');
                 }
                 _ => {}
             }
@@ -163,8 +164,8 @@ impl WriteSql for Function {
         if let Some(x) = self.null_treatment
             && matches!(dialect.aggregate.null_treatment, dialect::NullTreatment::Postfix)
         {
-            out.push_char(' ');
-            out.push_str(x.as_sql());
+            out.write(' ');
+            out.write_str(x.as_sql());
         }
 
         Ok(())

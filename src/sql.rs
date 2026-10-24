@@ -1,139 +1,29 @@
 //! SQL text buffers.
 //!
-//! [`WriteSql`] walks a node into a [`SqlWriter`]. [`BufferedSql`] inlines values.
-//! [`ParameterizedSql`] binds them as placeholders.
-
-// FIXME: revert change: move this file into root folder
-
-use std::fmt::Write;
-
-use pyo3::types::PyAnyMethods;
+//! [`WriteSql`] walks a node into a [`SqlWriter`]. [`Buffer`] inlines values.
+//! [`Parameterized`] binds them as placeholders.
 
 use crate::dialect;
 use crate::internal::alias;
+use crate::internal::writer::FastWrite;
 use crate::serializers::SerializerType;
 
-/// Error produced while building SQL.
-#[derive(Debug)]
-pub enum PrepareError {
-    /// A [`std::fmt::Write`] implementation returned [`std::fmt::Error`].
-    Write,
-    /// An error that originated in Python (e.g. from `.extract()`).
-    Python(pyo3::PyErr),
-    /// A `Custom` template had a different number of `{}` slots than args.
-    CustomPlaceholders { expected: usize, got: usize },
-}
-
-impl std::fmt::Display for PrepareError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Write => f.write_str("failed to write SQL"),
-            Self::Python(err) => write!(f, "{err}"),
-            Self::CustomPlaceholders { expected, got } => {
-                write!(f, "custom expression has {expected} placeholders but {got} arguments")
-            }
-        }
-    }
-}
-
-impl std::error::Error for PrepareError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Write | Self::CustomPlaceholders { .. } => None,
-            Self::Python(err) => Some(err),
-        }
-    }
-}
-
-impl From<std::fmt::Error> for PrepareError {
-    fn from(_: std::fmt::Error) -> Self {
-        Self::Write
-    }
-}
-
-impl From<dialect::errors::FormatError> for PrepareError {
-    fn from(err: dialect::errors::FormatError) -> Self {
-        match err {
-            dialect::errors::FormatError::Write => Self::Write,
-            other => Self::Python(other.into()),
-        }
-    }
-}
-
-impl From<dialect::errors::FormatError> for pyo3::PyErr {
-    fn from(err: dialect::errors::FormatError) -> Self {
-        match err {
-            dialect::errors::FormatError::Write => {
-                rapidquery_macros::pyerr!(PyRuntimeError, "failed to write SQL")
-            }
-            dialect::errors::FormatError::NulInString => {
-                rapidquery_macros::pyerr!(PyValueError, "NUL is not allowed in a string literal")
-            }
-            dialect::errors::FormatError::Unsupported(name) => {
-                rapidquery_macros::pyerr!(PyNotImplementedError, "this dialect does not support {}", name)
-            }
-        }
-    }
-}
-
-impl From<pyo3::PyErr> for PrepareError {
-    fn from(err: pyo3::PyErr) -> Self {
-        Self::Python(err)
-    }
-}
-
-impl From<PrepareError> for pyo3::PyErr {
-    fn from(err: PrepareError) -> Self {
-        match err {
-            PrepareError::Python(err) => err,
-            PrepareError::Write => {
-                rapidquery_macros::pyerr!(PyRuntimeError, "failed to write SQL")
-            }
-            PrepareError::CustomPlaceholders { expected, got } => {
-                rapidquery_macros::pyerr!(
-                    PyValueError,
-                    "custom expression has {} placeholders but {} arguments",
-                    expected,
-                    got
-                )
-            }
-        }
-    }
-}
-
-pub type PrepareResult<T> = Result<T, PrepareError>;
-pub type PrepareParams = smallvec::SmallVec<[alias::PyObject; 1]>;
+pub type PrepareParams = Vec<alias::PyObject>;
 
 /// Destination for [`WriteSql`].
 ///
-/// [`BufferedSql`] inlines values. [`ParameterizedSql`] binds them. Other methods
+/// [`Buffered`] inlines values. [`Parameterized`] binds them. Other methods
 /// only append text.
-pub trait SqlWriter: std::fmt::Write {
-    fn sql_mut(&mut self) -> &mut String;
-
-    fn push_str(&mut self, s: &str) -> &mut Self;
-
-    #[inline]
-    fn push_str_if(&mut self, cond: bool, s: &str) -> &mut Self {
-        if cond { self.push_str(s) } else { self }
-    }
-
-    fn push_char(&mut self, c: char) -> &mut Self;
-
-    #[inline]
-    fn push_char_if(&mut self, cond: bool, c: char) -> &mut Self {
-        if cond { self.push_char(c) } else { self }
-    }
-
+pub trait SqlWriter: FastWrite {
     /// Raw (`SqlBuf`): `None` → `NULL`, else `serializer.serialize` into the
     /// SQL buffer. Prepared: bind `object` as a placeholder; `serializer` is
     /// unused.
-    fn push_value(
+    fn write_value(
         &mut self,
         dialect: &dialect::PyDialect,
         serializer: &SerializerType,
         object: &alias::PyObject,
-    ) -> PrepareResult<()>;
+    ) -> pyo3::PyResult<()>;
 }
 
 /// SQL buffer that inlines values. It does not keep a parameter list.
@@ -143,16 +33,16 @@ pub trait SqlWriter: std::fmt::Write {
 ///
 /// ```
 /// pyo3::Python::attach(|py| {
-///     let buf = rapidquery::internal::sql::BufferedSql::new(py);
+///     let buf = rapidquery::internal::sql::Buffered::new(py);
 ///     assert_eq!(buf.as_str(), "");
 /// });
 /// ```
-pub struct BufferedSql<'py> {
+pub struct Buffer<'py> {
     py: pyo3::Python<'py>,
     sql: String,
 }
 
-impl<'py> BufferedSql<'py> {
+impl<'py> Buffer<'py> {
     #[inline]
     pub fn new(py: pyo3::Python<'py>) -> Self {
         Self { py, sql: String::new() }
@@ -172,60 +62,39 @@ impl<'py> BufferedSql<'py> {
     }
 
     #[inline]
-    pub fn as_str(&self) -> &str {
-        &self.sql
-    }
-
-    #[inline]
     pub fn into_string(self) -> String {
         self.sql
     }
 }
 
-impl<'py> SqlWriter for BufferedSql<'py> {
+impl<'py> FastWrite for Buffer<'py> {
     #[inline]
-    fn sql_mut(&mut self) -> &mut String {
-        &mut self.sql
+    fn write(&mut self, val: char) {
+        self.sql.write(val);
     }
 
     #[inline]
-    fn push_str(&mut self, s: &str) -> &mut Self {
-        self.sql.push_str(s);
-        self
+    fn write_str(&mut self, val: &str) {
+        self.sql.write_str(val);
     }
+}
 
+impl<'py> SqlWriter for Buffer<'py> {
     #[inline]
-    fn push_char(&mut self, c: char) -> &mut Self {
-        self.sql.push(c);
-        self
-    }
-
-    fn push_value(
+    fn write_value(
         &mut self,
         dialect: &dialect::PyDialect,
         serializer: &SerializerType,
         object: &alias::PyObject,
-    ) -> PrepareResult<()> {
+    ) -> pyo3::PyResult<()> {
+        use pyo3::types::PyAnyMethods;
+
         let bound = object.bind(self.py);
         if bound.is_none() {
             self.sql.push_str("NULL");
             return Ok(());
         }
         serializer.serialize(dialect, bound, &mut self.sql)?;
-        Ok(())
-    }
-}
-
-impl<'py> std::fmt::Write for BufferedSql<'py> {
-    #[inline]
-    fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        self.sql.push_str(s);
-        Ok(())
-    }
-
-    #[inline]
-    fn write_char(&mut self, c: char) -> std::fmt::Result {
-        self.sql.push(c);
         Ok(())
     }
 }
@@ -237,19 +106,19 @@ impl<'py> std::fmt::Write for BufferedSql<'py> {
 ///
 /// ```
 /// pyo3::Python::attach(|py| {
-///     let sql = rapidquery::internal::sql::ParameterizedSql::new(py);
+///     let sql = rapidquery::internal::sql::Parameterized::new(py);
 ///     assert_eq!(sql.sql(), "");
 ///     assert!(sql.params().is_empty());
 /// });
 /// ```
-pub struct ParameterizedSql<'py> {
+pub struct Parameterized<'py> {
     py: pyo3::Python<'py>,
     sql: String,
     params: PrepareParams,
     next_id: usize,
 }
 
-impl<'py> ParameterizedSql<'py> {
+impl<'py> Parameterized<'py> {
     #[inline]
     pub fn new(py: pyo3::Python<'py>) -> Self {
         Self {
@@ -276,28 +145,18 @@ impl<'py> ParameterizedSql<'py> {
     }
 
     #[inline]
-    pub fn sql(&self) -> &str {
-        self.sql.as_str()
-    }
-
-    #[inline]
-    pub fn params(&self) -> &PrepareParams {
-        &self.params
-    }
-
-    #[inline]
     pub fn into_parts(self) -> (String, PrepareParams) {
         (self.sql, self.params)
     }
 }
 
-impl ParameterizedSql<'_> {
+impl Parameterized<'_> {
     /// Register `param` and append its placeholder to the SQL in one step.
     #[inline]
     pub fn push_param(&mut self, dialect: &dialect::PyDialect, param: alias::PyObject) -> &mut Self {
         dialect
             .placeholder
-            .write_to(&mut self.sql, |_, out| write!(out, "{}", self.next_id).expect(""));
+            .write_to(&mut self.sql, |_, out| out.write_int(self.next_id));
 
         self.next_id += 1;
         self.params.push(param);
@@ -305,37 +164,32 @@ impl ParameterizedSql<'_> {
     }
 }
 
-impl SqlWriter for ParameterizedSql<'_> {
+impl<'py> FastWrite for Parameterized<'py> {
     #[inline]
-    fn sql_mut(&mut self) -> &mut String {
-        &mut self.sql
+    fn write(&mut self, val: char) {
+        self.sql.write(val);
     }
 
     #[inline]
-    fn push_str(&mut self, s: &str) -> &mut Self {
-        self.sql.push_str(s);
-        self
+    fn write_str(&mut self, val: &str) {
+        self.sql.write_str(val);
     }
+}
 
+impl SqlWriter for Parameterized<'_> {
     #[inline]
-    fn push_char(&mut self, c: char) -> &mut Self {
-        self.sql.push(c);
-        self
-    }
-
-    #[inline]
-    fn push_value(
+    fn write_value(
         &mut self,
         dialect: &dialect::PyDialect,
         _serializer: &SerializerType,
         object: &alias::PyObject,
-    ) -> PrepareResult<()> {
+    ) -> pyo3::PyResult<()> {
         self.push_param(dialect, object.clone_ref(self.py));
         Ok(())
     }
 }
 
-impl std::fmt::Write for ParameterizedSql<'_> {
+impl std::fmt::Write for Parameterized<'_> {
     #[inline]
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
         self.sql.push_str(s);
@@ -351,7 +205,7 @@ impl std::fmt::Write for ParameterizedSql<'_> {
 
 /// Render `self` into `out`. The writer chooses literal vs placeholder for values.
 pub trait WriteSql {
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> PrepareResult<()>;
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> pyo3::PyResult<()>;
 }
 
 /// Render `stmt` as raw SQL (values inlined as literals).
@@ -359,8 +213,8 @@ pub fn write_sql<'py, T: WriteSql>(
     py: pyo3::Python<'py>,
     stmt: &T,
     dialect: &dialect::PyDialect,
-) -> PrepareResult<String> {
-    let mut buf = BufferedSql::with_capacity(py, 256);
+) -> pyo3::PyResult<String> {
+    let mut buf = Buffer::with_capacity(py, 256);
     stmt.write_sql(dialect, &mut buf)?;
     Ok(buf.into_string())
 }
@@ -370,8 +224,8 @@ pub fn prepare<'py, T: WriteSql>(
     py: pyo3::Python<'py>,
     stmt: &T,
     dialect: &dialect::PyDialect,
-) -> PrepareResult<(String, PrepareParams)> {
-    let mut context = ParameterizedSql::with_capacity(py, 256);
+) -> pyo3::PyResult<(String, PrepareParams)> {
+    let mut context = Parameterized::with_capacity(py, 256);
     stmt.write_sql(dialect, &mut context)?;
     Ok(context.into_parts())
 }
@@ -386,7 +240,7 @@ pub fn write_separated<'a, T, W>(
     out: &mut W,
     items: impl IntoIterator<Item = &'a T>,
     separator: &str,
-) -> PrepareResult<()>
+) -> pyo3::PyResult<()>
 where
     T: WriteSql + 'a,
     W: SqlWriter,
@@ -394,7 +248,7 @@ where
     let mut first = true;
     for item in items {
         if !first {
-            out.push_str(separator);
+            out.write_str(separator);
         }
         first = false;
         item.write_sql(dialect, out)?;

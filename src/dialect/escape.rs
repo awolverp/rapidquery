@@ -1,4 +1,5 @@
 use crate::internal::template;
+use crate::internal::writer;
 
 use super::base;
 use super::errors;
@@ -6,12 +7,20 @@ use super::errors;
 impl base::LiteralConfig {
     /// Write a boolean literal (`TRUE`/`FALSE` or `1`/`0`).
     #[inline]
-    pub fn write_boolean(&self, writer: &mut String, value: bool) {
+    pub fn write_boolean<W: writer::FastWrite>(&self, writer: &mut W, value: bool) {
         match (self.boolean, value) {
-            (base::BoolFormat::Integer, false) => writer.push('0'),
-            (base::BoolFormat::Integer, true) => writer.push('1'),
-            (base::BoolFormat::Keyword, false) => writer.push_str("FALSE"),
-            (base::BoolFormat::Keyword, true) => writer.push_str("TRUE"),
+            (base::BoolFormat::Integer, false) => {
+                writer.write('0');
+            }
+            (base::BoolFormat::Integer, true) => {
+                writer.write('1');
+            }
+            (base::BoolFormat::Keyword, false) => {
+                writer.write_str("FALSE");
+            }
+            (base::BoolFormat::Keyword, true) => {
+                writer.write_str("TRUE");
+            }
         }
     }
 
@@ -20,14 +29,14 @@ impl base::LiteralConfig {
     /// Native formats embed `bits` as-is. Callers must pass only `'0'` and `'1'`;
     /// that is checked with `debug_assert!`.
     #[inline]
-    pub fn write_bits(&self, writer: &mut String, bits: &str) -> Result<(), errors::FormatError> {
+    pub fn write_bits<W: writer::FastWrite>(&self, writer: &mut W, bits: &str) -> Result<(), errors::FormatError> {
         debug_assert!(
             bits.chars().all(|c| c == '0' || c == '1'),
             "write_bits: invalid input: {bits}"
         );
 
         if let Some(template) = &self.bit {
-            template.write_to(writer, |_, out| out.push_str(bits));
+            template.write_to(writer, |_, out| out.write_str(bits));
             Ok(())
         } else {
             Err(errors::FormatError::Unsupported("BitSerializer"))
@@ -36,7 +45,7 @@ impl base::LiteralConfig {
 
     /// Write `bytes` as a native blob/bytea/varbyte literal.
     #[inline]
-    pub fn write_bytes(&self, writer: &mut String, bytes: &[u8]) {
+    pub fn write_bytes<W: writer::FastWrite>(&self, writer: &mut W, bytes: &[u8]) {
         self.bytes.write_to(
             writer,
             // hex: bytes as hex (e.g. DEADBEEF)
@@ -53,7 +62,11 @@ impl base::LiteralConfig {
 impl base::StringConfig {
     /// Escape `raw` and wrap it as a complete string literal.
     #[inline]
-    pub fn write_string_literal(&self, writer: &mut String, raw: &str) -> Result<(), errors::FormatError> {
+    pub fn write_string_literal<W: writer::FastWrite>(
+        &self,
+        writer: &mut W,
+        raw: &str,
+    ) -> Result<(), errors::FormatError> {
         if raw.contains('\0') {
             return Err(errors::FormatError::NulInString);
         }
@@ -83,7 +96,7 @@ impl base::StringConfig {
 impl base::PyDialect {
     /// Escape `ident` and wrap it in this dialect's identifier delimiters.
     #[inline]
-    pub fn write_identifier(&self, writer: &mut String, ident: &str) {
+    pub fn write_identifier<W: writer::FastWrite>(&self, writer: &mut W, ident: &str) {
         self.identifier.write_to(
             writer,
             // double: Escape identifier delimiters with doubling.
@@ -101,17 +114,17 @@ const HEX_DIGITS: &[u8; 16] = b"0123456789ABCDEF";
 
 /// Write `byte` as two uppercase hex digits.
 #[inline]
-fn write_hex2(writer: &mut String, byte: u8) {
+fn write_hex2<W: writer::FastWrite>(writer: &mut W, byte: u8) {
     let buf = [HEX_DIGITS[(byte >> 4) as usize], HEX_DIGITS[(byte & 0x0F) as usize]];
     // SAFETY: HEX_DIGITS is ASCII, so `buf` is valid UTF-8.
-    writer.push_str(unsafe { std::str::from_utf8_unchecked(&buf) })
+    writer.write_str(unsafe { std::str::from_utf8_unchecked(&buf) })
 }
 
 /// Write `bytes` as a contiguous uppercase hex run (`DEADBEEF`).
 ///
 /// 64 raw bytes fill a 128-byte stack buffer and are written once.
 #[inline]
-fn bytes_to_hex(writer: &mut String, bytes: &[u8]) {
+fn bytes_to_hex<W: writer::FastWrite>(writer: &mut W, bytes: &[u8]) {
     let mut buf = [0u8; 128];
     for chunk in bytes.chunks(64) {
         for (i, &byte) in chunk.iter().enumerate() {
@@ -121,7 +134,7 @@ fn bytes_to_hex(writer: &mut String, bytes: &[u8]) {
         }
         let n = chunk.len() * 2;
         // SAFETY: `buf[..n]` is filled only from `HEX_DIGITS` (ASCII).
-        writer.push_str(unsafe { std::str::from_utf8_unchecked(&buf[..n]) });
+        writer.write_str(unsafe { std::str::from_utf8_unchecked(&buf[..n]) });
     }
 }
 
@@ -129,7 +142,7 @@ fn bytes_to_hex(writer: &mut String, bytes: &[u8]) {
 ///
 /// 32 raw bytes fill a 128-byte stack buffer and are written once.
 #[inline]
-fn write_bytes_slash_x(writer: &mut String, bytes: &[u8]) {
+fn write_bytes_slash_x<W: writer::FastWrite>(writer: &mut W, bytes: &[u8]) {
     let mut buf = [0u8; 128];
     for chunk in bytes.chunks(32) {
         for (i, &byte) in chunk.iter().enumerate() {
@@ -141,22 +154,22 @@ fn write_bytes_slash_x(writer: &mut String, bytes: &[u8]) {
         }
         let n = chunk.len() * 4;
         // SAFETY: `buf[..n]` is ASCII (`\`, `x`, and hex digits).
-        writer.push_str(unsafe { std::str::from_utf8_unchecked(&buf[..n]) });
+        writer.write_str(unsafe { std::str::from_utf8_unchecked(&buf[..n]) });
     }
 }
 
 /// Write `\xNN` for a single byte (uppercase hex).
 #[inline]
-fn write_byte_hex_escape(writer: &mut String, byte: u8) {
-    writer.push_str("\\x");
+fn write_byte_hex_escape<W: writer::FastWrite>(writer: &mut W, byte: u8) {
+    writer.write_str("\\x");
     write_hex2(writer, byte)
 }
 
 /// Write `\uNNNN` for a codepoint that fits in 16 bits.
 #[inline]
-fn write_unicode4_escape(writer: &mut String, code: u32) {
+fn write_unicode4_escape<W: writer::FastWrite>(writer: &mut W, code: u32) {
     debug_assert!(code <= 0xFFFF);
-    writer.push_str("\\u");
+    writer.write_str("\\u");
     write_hex2(writer, (code >> 8) as u8);
     write_hex2(writer, code as u8)
 }
@@ -164,7 +177,7 @@ fn write_unicode4_escape(writer: &mut String, code: u32) {
 /// Use the string escape table, plus `\``.
 ///
 /// `'` is left as itself. Only known escapes are emitted.
-fn write_identifier_backtick_escape(writer: &mut String, ident: &str) {
+fn write_identifier_backtick_escape<W: writer::FastWrite>(writer: &mut W, ident: &str) {
     write_span_escapes(writer, ident, |b| match b {
         b'\\' => SpanEscape::Literal("\\\\"),
         b'`' => SpanEscape::Literal("\\`"),
@@ -182,13 +195,13 @@ fn write_identifier_backtick_escape(writer: &mut String, ident: &str) {
 /// `bytes` is the raw view of a `&str`. Callers split only on ASCII bytes,
 /// which are char boundaries, or at `bytes.len()`.
 #[inline]
-fn write_byte_span(writer: &mut String, bytes: &[u8], from: usize, to: usize) {
+fn write_byte_span<W: writer::FastWrite>(writer: &mut W, bytes: &[u8], from: usize, to: usize) {
     if from == to {
         return;
     }
     // SAFETY: see invariant above.
     let chunk = unsafe { bytes.get_unchecked(from..to) };
-    writer.push_str(unsafe { std::str::from_utf8_unchecked(chunk) })
+    writer.write_str(unsafe { std::str::from_utf8_unchecked(chunk) })
 }
 
 enum SpanEscape {
@@ -200,7 +213,7 @@ enum SpanEscape {
 
 /// Copy each plain span with one `write_str`. Special bytes are ASCII.
 #[cfg_attr(feature = "nightly", optimize(speed))]
-fn write_span_escapes(writer: &mut String, string: &str, mut classify: impl FnMut(u8) -> SpanEscape) {
+fn write_span_escapes<W: writer::FastWrite>(writer: &mut W, string: &str, mut classify: impl FnMut(u8) -> SpanEscape) {
     let bytes = string.as_bytes();
     let mut start = 0;
     let mut i = 0;
@@ -209,7 +222,7 @@ fn write_span_escapes(writer: &mut String, string: &str, mut classify: impl FnMu
             SpanEscape::Keep => i += 1,
             SpanEscape::Literal(repl) => {
                 write_byte_span(writer, bytes, start, i);
-                writer.push_str(repl);
+                writer.write_str(repl);
                 i += 1;
                 start = i;
             }
@@ -230,7 +243,7 @@ fn write_span_escapes(writer: &mut String, string: &str, mut classify: impl FnMu
     write_byte_span(writer, bytes, start, bytes.len())
 }
 
-fn write_backslash_hex(writer: &mut String, string: &str) {
+fn write_backslash_hex<W: writer::FastWrite>(writer: &mut W, string: &str) {
     write_span_escapes(writer, string, |b| match b {
         b'\\' => SpanEscape::Literal("\\\\"),
         b'\'' => SpanEscape::Literal("\\'"),
@@ -242,7 +255,7 @@ fn write_backslash_hex(writer: &mut String, string: &str) {
     })
 }
 
-fn write_backslash_mysql(writer: &mut String, string: &str) {
+fn write_backslash_mysql<W: writer::FastWrite>(writer: &mut W, string: &str) {
     write_span_escapes(writer, string, |b| match b {
         b'\\' => SpanEscape::Literal("\\\\"),
         b'\'' => SpanEscape::Literal("\\'"),
@@ -255,7 +268,7 @@ fn write_backslash_mysql(writer: &mut String, string: &str) {
     })
 }
 
-fn write_backslash_unicode(writer: &mut String, string: &str, escape_double_quote: bool) {
+fn write_backslash_unicode<W: writer::FastWrite>(writer: &mut W, string: &str, escape_double_quote: bool) {
     write_span_escapes(writer, string, |b| match b {
         b'\\' => SpanEscape::Literal("\\\\"),
         b'\'' => SpanEscape::Literal("\\'"),
@@ -269,7 +282,7 @@ fn write_backslash_unicode(writer: &mut String, string: &str, escape_double_quot
     })
 }
 
-fn write_backslash_hex_zero(writer: &mut String, string: &str) {
+fn write_backslash_hex_zero<W: writer::FastWrite>(writer: &mut W, string: &str) {
     write_span_escapes(writer, string, |b| match b {
         b'\\' => SpanEscape::Literal("\\\\"),
         b'\'' => SpanEscape::Literal("\\'"),

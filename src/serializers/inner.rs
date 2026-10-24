@@ -2,6 +2,7 @@ use crate::dialect::PyDialect;
 use crate::internal::alias;
 use crate::internal::modules;
 use crate::internal::utils;
+use crate::internal::writer;
 
 /// A thin enum which specifies the serializer type.
 ///
@@ -154,14 +155,12 @@ impl SerializerType {
         // * -> Unspecified
         Ok(Self::Unspecified)
     }
-}
 
-impl SerializerType {
-    pub fn serialize(
+    pub fn serialize<W: writer::FastWrite>(
         &self,
         dialect: &PyDialect,
         object: &alias::BoundObject<'_>,
-        out: &mut String,
+        out: &mut W,
     ) -> pyo3::PyResult<()> {
         let py = object.py();
         let ptr = object.as_ptr();
@@ -184,7 +183,7 @@ impl SerializerType {
                 Self::Array(element) => super::functions::write_array(py, ptr, dialect, element, out),
                 Self::Unspecified => {
                     let text = super::functions::pyobject_string(py, ptr)?;
-                    out.push_str(&text);
+                    out.write_str(&text);
                     Ok(())
                 }
                 Self::Custom(s) => super::functions::write_custom(py, ptr, dialect, s, object, out),

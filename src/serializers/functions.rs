@@ -4,7 +4,7 @@ use pyo3::types::PyTzInfoAccess;
 use crate::dialect;
 use crate::internal::alias;
 use crate::internal::utils;
-use std::fmt::Write;
+use crate::internal::writer;
 use std::str::FromStr;
 
 /// `str(obj)` copied into a Rust `String`.
@@ -23,10 +23,10 @@ pub(super) unsafe fn pyobject_string(py: pyo3::Python<'_>, ptr: *mut pyo3::ffi::
 }
 
 #[inline]
-pub(super) unsafe fn write_integer(
+pub(super) unsafe fn write_integer<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    out: &mut String,
+    out: &mut W,
 ) -> pyo3::PyResult<()> {
     if pyo3::ffi::PyLong_Check(ptr) != 1 {
         return rapidquery_macros::pyerr!(
@@ -42,7 +42,7 @@ pub(super) unsafe fn write_integer(
     if overflow != 0 {
         // Fallback to `str(obj)` for very long integers.
         let text = pyobject_string(py, ptr)?;
-        out.push_str(&text);
+        out.write_str(&text);
         return Ok(());
     }
 
@@ -50,15 +50,15 @@ pub(super) unsafe fn write_integer(
         return Err(pyo3::PyErr::fetch(py));
     }
 
-    let _ = write!(out, "{n}");
+    out.write_int(n);
     Ok(())
 }
 
 #[inline]
-pub(super) unsafe fn write_float(
+pub(super) unsafe fn write_float<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
-    out: &mut String,
+    out: &mut W,
 ) -> pyo3::PyResult<()> {
     if pyo3::ffi::PyFloat_CheckExact(ptr) == 1 {
         let v = pyo3::ffi::PyFloat_AsDouble(ptr);
@@ -70,15 +70,14 @@ pub(super) unsafe fn write_float(
             );
         }
 
-        // `{:?}` so `1.0` stays  distinct from `1`
-        let _ = write!(out, "{v:?}");
+        out.write_float(v);
         return Ok(());
     }
 
     if pyo3::ffi::PyLong_CheckExact(ptr) == 1 || crate::typeref::check_exact(ptr, crate::typeref::STD_DECIMAL_TYPE) {
         // Fallback to `str(obj)` for int/decimal.Decimal
         let text = pyobject_string(py, ptr)?;
-        out.push_str(&text);
+        out.write_str(&text);
         return Ok(());
     }
 
@@ -90,11 +89,11 @@ pub(super) unsafe fn write_float(
 }
 
 #[inline]
-pub(super) unsafe fn write_bool(
+pub(super) unsafe fn write_bool<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::LiteralConfig,
-    out: &mut String,
+    out: &mut W,
 ) -> pyo3::PyResult<()> {
     if pyo3::ffi::PyBool_Check(ptr) == 1 {
         let value = pyo3::ffi::Py_True() == ptr;
@@ -110,11 +109,11 @@ pub(super) unsafe fn write_bool(
 }
 
 #[inline]
-pub(super) unsafe fn write_str(
+pub(super) unsafe fn write_str<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::StringConfig,
-    out: &mut String,
+    out: &mut W,
 ) -> pyo3::PyResult<()> {
     if pyo3::ffi::PyUnicode_Check(ptr) == 1 {
         return cfg
@@ -130,11 +129,11 @@ pub(super) unsafe fn write_str(
 }
 
 #[inline]
-pub(super) unsafe fn write_uuid(
+pub(super) unsafe fn write_uuid<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::LiteralConfig,
-    out: &mut String,
+    out: &mut W,
 ) -> pyo3::PyResult<()> {
     let Some(tmpl) = &cfg.uuid else {
         return Err(dialect::errors::FormatError::Unsupported("UuidSerializer").into());
@@ -159,17 +158,17 @@ pub(super) unsafe fn write_uuid(
     tmpl.write_to(
         out,
         // no special keys
-        |_, out| out.push_str(text.as_str()),
+        |_, out| out.write_str(text.as_str()),
     );
     Ok(())
 }
 
 #[inline]
-pub(super) unsafe fn write_bytes(
+pub(super) unsafe fn write_bytes<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::LiteralConfig,
-    out: &mut String,
+    out: &mut W,
 ) -> pyo3::PyResult<()> {
     if pyo3::ffi::PyBytes_CheckExact(ptr) == 1 {
         let buf = pyo3::ffi::PyBytes_AsString(ptr) as *const u8;
@@ -187,11 +186,11 @@ pub(super) unsafe fn write_bytes(
     }
 }
 
-pub(super) unsafe fn write_bit(
+pub(super) unsafe fn write_bit<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::LiteralConfig,
-    out: &mut String,
+    out: &mut W,
 ) -> pyo3::PyResult<()> {
     if cfg.bit.is_none() {
         return Err(dialect::errors::FormatError::Unsupported("BitSerializer").into());
@@ -219,12 +218,12 @@ pub(super) unsafe fn write_bit(
 }
 
 #[inline]
-pub(super) unsafe fn write_json(
+pub(super) unsafe fn write_json<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     literal_cfg: &dialect::LiteralConfig,
     string_cfg: &dialect::StringConfig,
-    out: &mut String,
+    out: &mut W,
 ) -> pyo3::PyResult<()> {
     crate::internal::modules::json_dumps(
         unsafe { pyo3::Bound::from_borrowed_ptr(py, ptr) },
@@ -241,18 +240,18 @@ pub(super) unsafe fn write_json(
 }
 
 #[inline]
-pub(super) unsafe fn write_date(
+pub(super) unsafe fn write_date<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::TemporalConfig,
-    out: &mut String,
+    out: &mut W,
 ) -> pyo3::PyResult<()> {
     if crate::typeref::check_exact(ptr, crate::typeref::STD_DATE_TYPE) {
         let val: pyo3::Bound<'_, pyo3::types::PyDate> = pyo3::Bound::from_borrowed_ptr(py, ptr).cast_into()?;
         let date: chrono::NaiveDate = val.extract()?;
 
         cfg.date
-            .write_to(out, |_, out| date.format("%Y-%m-%d").write_to(out).expect(""));
+            .write_to(out, |_, out| out.write_str(&date.format("%Y-%m-%d").to_string()));
         Ok(())
     } else {
         rapidquery_macros::pyerr!(
@@ -263,18 +262,18 @@ pub(super) unsafe fn write_date(
     }
 }
 
-pub(super) unsafe fn write_time(
+pub(super) unsafe fn write_time<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::TemporalConfig,
-    out: &mut String,
+    out: &mut W,
 ) -> pyo3::PyResult<()> {
     if crate::typeref::check_exact(ptr, crate::typeref::STD_TIME_TYPE) {
         let val: pyo3::Bound<'_, pyo3::types::PyTime> = pyo3::Bound::from_borrowed_ptr(py, ptr).cast_into()?;
         let time: chrono::NaiveTime = val.extract()?;
 
         cfg.date
-            .write_to(out, |_, out| time.format("%H:%M:%S%.f").write_to(out).expect(""));
+            .write_to(out, |_, out| out.write_str(&time.format("%H:%M:%S%.f").to_string()));
         Ok(())
     } else {
         rapidquery_macros::pyerr!(
@@ -286,11 +285,11 @@ pub(super) unsafe fn write_time(
 }
 
 #[inline]
-pub(super) unsafe fn write_datetime(
+pub(super) unsafe fn write_datetime<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::TemporalConfig,
-    out: &mut String,
+    out: &mut W,
 ) -> pyo3::PyResult<()> {
     use chrono::TimeZone;
 
@@ -301,7 +300,7 @@ pub(super) unsafe fn write_datetime(
             let datetime: chrono::NaiveDateTime = val.extract()?;
 
             cfg.datetime_naive.write_to(out, |_, out| {
-                datetime.format("%Y-%m-%d %H:%M:%S%.f").write_to(out).expect("")
+                out.write_str(&datetime.format("%Y-%m-%d %H:%M:%S%.f").to_string())
             });
             return Ok(());
         }
@@ -309,7 +308,7 @@ pub(super) unsafe fn write_datetime(
         let datetime: chrono::DateTime<chrono::FixedOffset> = val.extract()?;
 
         cfg.datetime_aware.write_to(out, |_, out| {
-            datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").write_to(out).expect("")
+            out.write_str(&datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").to_string())
         });
         return Ok(());
     }
@@ -324,7 +323,7 @@ pub(super) unsafe fn write_datetime(
         return match chrono::Utc.timestamp_opt(num, 0) {
             chrono::offset::LocalResult::Single(datetime) => {
                 cfg.datetime_aware.write_to(out, |_, out| {
-                    datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").write_to(out).expect("")
+                    out.write_str(&datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").to_string())
                 });
                 return Ok(());
             }
@@ -341,7 +340,7 @@ pub(super) unsafe fn write_datetime(
         return match chrono::Utc.timestamp_opt(num.trunc() as i64, (num.fract() * 1_000_000_000.0) as u32) {
             chrono::offset::LocalResult::Single(datetime) => {
                 cfg.datetime_aware.write_to(out, |_, out| {
-                    datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").write_to(out).expect("")
+                    out.write_str(&datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").to_string())
                 });
                 return Ok(());
             }
@@ -360,11 +359,11 @@ pub(super) unsafe fn write_datetime(
     )
 }
 
-pub(super) unsafe fn write_inet(
+pub(super) unsafe fn write_inet<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::LiteralConfig,
-    out: &mut String,
+    out: &mut W,
 ) -> pyo3::PyResult<()> {
     let Some(tmpl) = &cfg.inet else {
         return Err(dialect::errors::FormatError::Unsupported("InetSerializer").into());
@@ -376,15 +375,15 @@ pub(super) unsafe fn write_inet(
 
     let body = net.to_string();
 
-    let _ = tmpl.write_to_result(out, |_, out| out.write_str(&body));
+    tmpl.write_to(out, |_, out| out.write_str(&body));
     Ok(())
 }
 
-pub(super) unsafe fn write_macaddr(
+pub(super) unsafe fn write_macaddr<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::LiteralConfig,
-    out: &mut String,
+    out: &mut W,
 ) -> pyo3::PyResult<()> {
     let Some(tmpl) = &cfg.inet else {
         return Err(dialect::errors::FormatError::Unsupported("InetSerializer").into());
@@ -396,16 +395,16 @@ pub(super) unsafe fn write_macaddr(
 
     let body = addr.to_string();
 
-    let _ = tmpl.write_to_result(out, |_, out| out.write_str(&body));
+    tmpl.write_to(out, |_, out| out.write_str(&body));
     Ok(())
 }
 
-pub(super) unsafe fn write_array(
+pub(super) unsafe fn write_array<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     dialect: &dialect::PyDialect,
     element: &super::inner::SerializerType,
-    out: &mut String,
+    out: &mut W,
 ) -> pyo3::PyResult<()> {
     let Some(tmpl) = &dialect.literal.array else {
         return Err(dialect::errors::FormatError::Unsupported("ArraySerializer").into());
@@ -431,9 +430,8 @@ pub(super) unsafe fn write_array(
         // no special keys
         |_, out| {
             for i in 0..len {
-                if i > 0 {
-                    out.push_str(", ");
-                }
+                out.write_str_if(i > 0, ", ");
+
                 let item = getter(ptr, i);
                 if item.is_null() {
                     return Err(pyo3::PyErr::fetch(py));
@@ -446,13 +444,13 @@ pub(super) unsafe fn write_array(
     )
 }
 
-pub(super) unsafe fn write_custom(
+pub(super) unsafe fn write_custom<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     dialect: &dialect::PyDialect,
     function: &pyo3::Py<pyo3::PyAny>,
     object: &alias::BoundObject<'_>,
-    out: &mut String,
+    out: &mut W,
 ) -> pyo3::PyResult<()> {
     let _ = ptr;
 
@@ -465,6 +463,6 @@ pub(super) unsafe fn write_custom(
         );
     }
 
-    out.push_str(utils::borrow_py_str_buffer(py, output.as_ptr())?);
+    out.write_str(utils::borrow_py_str_buffer(py, output.as_ptr())?);
     Ok(())
 }

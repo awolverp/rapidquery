@@ -589,7 +589,7 @@ impl PyExpr {
 
     /// Render this expression as raw SQL (values inlined as literals).
     fn to_sql(slf: pyo3::PyRef<'_, Self>, dialect: crate::dialect::PyDialect) -> pyo3::PyResult<String> {
-        sql::write_sql(slf.py(), &slf.0, &dialect).map_err(Into::into)
+        sql::write_sql(slf.py(), &slf.0, &dialect)
     }
 
     fn __repr__(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<String> {

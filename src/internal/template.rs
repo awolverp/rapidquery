@@ -1,4 +1,6 @@
-//! Allocation-conscious string replacement that writes directly to a [`fmt::Write`].
+//! Allocation-conscious string replacement that writes directly to a [`writer::FastWrite`].
+
+use crate::internal::writer;
 
 // FIXME: Use `std::str::pattern::Pattern` when it's stable
 /// A search needle that can be located inside a UTF-8 haystack.
@@ -54,9 +56,10 @@ impl ReplacePattern for &str {
 /// Matches are non-overlapping and searched left to right, same as [`str::replace`].
 /// Empty `&str` needles are ignored (no infinite loop, input is copied as-is).
 #[inline]
-pub fn replace_to<P>(haystack: &str, from: P, to: &str, out: &mut String)
+pub fn replace_to<P, W>(haystack: &str, from: P, to: &str, out: &mut W)
 where
     P: ReplacePattern,
+    W: writer::FastWrite,
 {
     // Single ASCII byte → single ASCII byte: still go through the generic loop.
     // `str::find(char)` already uses memchr, which beats a hand-rolled byte scan
@@ -67,8 +70,8 @@ where
 
     while let Some((rel, len)) = from.find(&haystack[search_at..]) {
         let start = search_at + rel;
-        out.push_str(&haystack[last_end..start]);
-        out.push_str(to);
+        out.write_str(&haystack[last_end..start]);
+        out.write_str(to);
         last_end = start + len;
         search_at = last_end;
 
@@ -78,7 +81,7 @@ where
         }
     }
 
-    out.push_str(&haystack[last_end..])
+    out.write_str(&haystack[last_end..]);
 }
 
 #[derive(Debug, Clone, Copy, derive_more::Display)]
@@ -101,8 +104,7 @@ struct TemplateMatches {
     key: &'static str,
 }
 
-/// A small, allocation-conscious template that expands `{key}` placeholders
-/// by writing directly to a [`fmt::Write`].
+/// A small, allocation-conscious template that expands `{key}` placeholders;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Template {
     tmpl: arcstr::ArcStr,
@@ -193,14 +195,11 @@ impl Template {
     ///
     /// `fill` is called for each placeholder with its key name and the writer.
     /// It is responsible for writing the replacement (or nothing).
-    ///
-    /// # Panics
-    /// We're accepting `out` as `std::fmt::Write`, but it should not return `std::fmt::Error`.
     #[inline]
     #[cfg_attr(feature = "nightly", optimize(speed))]
     pub fn write_to_result<E, F, W>(&self, out: &mut W, mut fill: F) -> Result<(), E>
     where
-        W: std::fmt::Write,
+        W: writer::FastWrite,
         F: FnMut(&'static str, &mut W) -> Result<(), E>,
     {
         let s = self.tmpl.as_str();
@@ -208,7 +207,7 @@ impl Template {
 
         for m in self.matches.iter() {
             if last < m.start {
-                out.write_str(&s[last as usize..m.start as usize]).expect("");
+                out.write_str(&s[last as usize..m.start as usize]);
             }
 
             fill(m.key, out)?;
@@ -216,7 +215,7 @@ impl Template {
         }
 
         if (last as usize) < s.len() {
-            out.write_str(&s[last as usize..]).expect("");
+            out.write_str(&s[last as usize..]);
         }
 
         Ok(())
@@ -226,14 +225,11 @@ impl Template {
     ///
     /// `fill` is called for each placeholder with its key name and the writer.
     /// It is responsible for writing the replacement (or nothing).
-    ///
-    /// # Panics
-    /// We're accepting `out` as `std::fmt::Write`, but it should not return `std::fmt::Error`.
     #[inline]
     #[cfg_attr(feature = "nightly", optimize(speed))]
     pub fn write_to<F, W>(&self, out: &mut W, mut fill: F)
     where
-        W: std::fmt::Write,
+        W: writer::FastWrite,
         F: FnMut(&'static str, &mut W),
     {
         let s = self.tmpl.as_str();
@@ -241,7 +237,7 @@ impl Template {
 
         for m in self.matches.iter() {
             if last < m.start {
-                out.write_str(&s[last as usize..m.start as usize]).expect("");
+                out.write_str(&s[last as usize..m.start as usize]);
             }
 
             fill(m.key, out);
@@ -249,7 +245,7 @@ impl Template {
         }
 
         if (last as usize) < s.len() {
-            out.write_str(&s[last as usize..]).expect("");
+            out.write_str(&s[last as usize..]);
         }
     }
 }

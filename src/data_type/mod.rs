@@ -187,12 +187,8 @@ impl std::fmt::Display for DataTypeName {
 }
 
 impl sql::WriteSql for DataTypeName {
-    fn write_sql<W: sql::SqlWriter>(
-        &self,
-        _dialect: &crate::dialect::PyDialect,
-        out: &mut W,
-    ) -> sql::PrepareResult<()> {
-        out.push_str(self.as_str());
+    fn write_sql<W: sql::SqlWriter>(&self, _dialect: &crate::dialect::PyDialect, out: &mut W) -> pyo3::PyResult<()> {
+        out.write_str(self.as_str());
         Ok(())
     }
 }

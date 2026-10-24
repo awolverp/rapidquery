@@ -8,7 +8,6 @@ use crate::internal::alias;
 use crate::internal::repr;
 use crate::serializers::SerializerType;
 use crate::serializers::serializer_repr;
-use crate::sql::PrepareResult;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
 
@@ -56,8 +55,8 @@ impl Value {
 }
 
 impl WriteSql for Value {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
-        out.push_value(dialect, &self.serializer, &self.object)
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> pyo3::PyResult<()> {
+        out.write_value(dialect, &self.serializer, &self.object)
     }
 }
 

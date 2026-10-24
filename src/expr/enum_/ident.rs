@@ -2,7 +2,6 @@
 
 use crate::dialect::PyDialect;
 use crate::internal::repr;
-use crate::sql::PrepareResult;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
 use crate::sql::write_separated;
@@ -71,16 +70,16 @@ impl PartialEq<&str> for IdentPart {
 
 impl WriteSql for IdentPart {
     #[inline]
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> pyo3::PyResult<()> {
         match self {
             Self::Quote(name) => {
-                dialect.write_identifier(out.sql_mut(), name.as_str());
+                dialect.write_identifier(out, name.as_str());
             }
             Self::Unquote(name) => {
-                out.push_str(name.as_str());
+                out.write_str(name.as_str());
             }
             Self::Asterisk => {
-                out.push_char('*');
+                out.write('*');
             }
         }
         Ok(())
@@ -268,7 +267,7 @@ impl std::str::FromStr for Ident {
 
 impl WriteSql for Ident {
     #[inline]
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> pyo3::PyResult<()> {
         write_separated(dialect, out, &self.0, ".")
     }
 }

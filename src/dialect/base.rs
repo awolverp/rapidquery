@@ -327,9 +327,6 @@ pub struct SchemaConfig {
 
     /// How schema location is expressed e.g. `LOCATION {}` (value is escaped and includes quotes itself).
     pub location: Option<template::Template>,
-
-    /// How schema location is expressed e.g. `COMMENT {}` (value is escaped and includes quotes itself).
-    pub comment: Option<template::Template>,
 }
 
 rapidquery_macros::pyo3_constructor! {
@@ -339,7 +336,6 @@ rapidquery_macros::pyo3_constructor! {
         } = empty,
         authorization: enum SchemaAuthorizationStyle { Unsupported, Optional } = Unsupported,
         location: Option<template(_; 1)> = None,
-        comment: Option<template(_; 1)> = None,
     }
 }
 
@@ -445,7 +441,7 @@ rapidquery_macros::pyo3_constructor! {
         placeholder: template(_; 1) = "?{}",
         like: class LikeConfig = LikeConfig::default(),
         bitwise: class BitwiseConfig = BitwiseConfig::default(),
-        identifier: template(_; 1) = "\"{}\"",
+        identifier: template(double?, backslash?; 1) = "\"{double}\"",
         string: class StringConfig = StringConfig::default(),
         cast: class CastConfig = CastConfig::default(),
         tuple: class TupleConfig = TupleConfig::default(),
