@@ -392,11 +392,11 @@ fn write_regex_call<W: SqlWriter>(
 impl WriteSql for RLike {
     fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> pyo3::PyResult<()> {
         match dialect.like.regex {
-            dialect::RegexSpelling::Unsupported => Err(rapidquery_macros::pyerr!(
+            dialect::LikeRegex::Unsupported => Err(rapidquery_macros::pyerr!(
                 PyRuntimeError,
                 "RLIKE is not supported by this dialect",
             )),
-            dialect::RegexSpelling::Standard => {
+            dialect::LikeRegex::Standard => {
                 self.expr.write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 if self.negated {
                     out.write_str(" NOT RLIKE ");
@@ -405,18 +405,18 @@ impl WriteSql for RLike {
                 }
                 self.pattern.write_operand(dialect, out, Self::PRECEDENCE, true)
             }
-            dialect::RegexSpelling::Tilde => {
+            dialect::LikeRegex::Tilde => {
                 self.expr.write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 out.write_str(if self.negated { " !~ " } else { " ~ " });
                 self.pattern.write_operand(dialect, out, Self::PRECEDENCE, true)
             }
-            dialect::RegexSpelling::RegexpLike => {
+            dialect::LikeRegex::RegexpLike => {
                 write_regex_call(dialect, out, "REGEXP_LIKE", self.negated, &self.expr, &self.pattern)
             }
-            dialect::RegexSpelling::RegexpContains => {
+            dialect::LikeRegex::RegexpContains => {
                 write_regex_call(dialect, out, "REGEXP_CONTAINS", self.negated, &self.expr, &self.pattern)
             }
-            dialect::RegexSpelling::RegexpMatches => {
+            dialect::LikeRegex::RegexpMatches => {
                 write_regex_call(dialect, out, "regexp_matches", self.negated, &self.expr, &self.pattern)
             }
         }

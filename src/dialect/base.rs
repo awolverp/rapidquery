@@ -24,9 +24,9 @@ pub struct LikeConfig {
 
     /// Does the dialect support `ILIKE`, or should we fall back?
     ///
+    /// - Unsupported
     /// - Standard: Native `ILIKE`.
     /// - UseLikeLower: Use `LIKE` with `LOWER()`.
-    /// - UseLike: Fall back to case-sensitive `LIKE`.
     #[define(enum { #[default] Unsupported, Standard, UseLikeLower })]
     pub ilike: ILikeStrategy,
 
@@ -39,7 +39,7 @@ pub struct LikeConfig {
     /// - RegexpContains: `REGEXP_CONTAINS(expr, pattern)`.
     /// - RegexpMatches: `regexp_matches(expr, pattern)`.
     #[define(enum { #[default] Unsupported, Standard, Tilde, RegexpLike, RegexpContains, RegexpMatches })]
-    pub regex: RegexSpelling,
+    pub regex: LikeRegex,
 
     /// Whether the dialect supports the `SIMILAR TO` predicate.
     pub supports_similar_to: bool,
@@ -50,7 +50,7 @@ rapidquery_macros::pyo3_constructor! {
         escape: bits LikeEscape { SCALAR, ANY } = empty,
         any: enum LikeAny { OrExpansion, ArrayConstructor, PatternList } = OrExpansion,
         ilike: enum ILikeStrategy { Unsupported, Standard, UseLikeLower } = Unsupported,
-        regex: enum RegexSpelling {
+        regex: enum LikeRegex {
             Unsupported, Standard, Tilde, RegexpLike, RegexpContains, RegexpMatches
         } = Unsupported,
         supports_similar_to: bool = false,
@@ -84,14 +84,14 @@ pub struct BitwiseConfig {
     /// - Function: `xor(left, right)`.
     /// - BitFunction: `BITXOR(left, right)`.
     #[define(enum { #[default] Unsupported, Caret, Hash, Function, BitFunction })]
-    pub xor: BitwiseXorSpelling,
+    pub xor: BitwiseXor,
 }
 
 rapidquery_macros::pyo3_constructor! {
     BitwiseConfig => export_bitwise_config_options {
         operations: bits BitwiseOperations { AND, OR, NOT, SHL, SHR } = empty,
         syntax: enum BitwiseSyntax { Infix, BitFunction, ShiftFunction } = Infix,
-        xor: enum BitwiseXorSpelling { Unsupported, Caret, Hash, Function, BitFunction } = Unsupported,
+        xor: enum BitwiseXor { Unsupported, Caret, Hash, Function, BitFunction } = Unsupported,
     }
 }
 
@@ -224,7 +224,7 @@ pub struct LiteralConfig {
 
     /// The way dialect accepts literal bit values e.g. `B'{}'`
     ///
-    /// Prefer using `StringConfig::write_bytes` instead of directly using this template.
+    /// Prefer using `StringConfig::write_bits` instead of directly using this template.
     pub bit: Option<template::Template>,
 
     /// The way dialect accepts literal bytes values e.g. `X'{hex}'`
@@ -275,7 +275,7 @@ pub struct OperatorConfig {
     /// - Function: `MOD(left, right)`.
     /// - Infix: `left MOD right`.
     #[define(enum { #[default] Percent, Function, Infix })]
-    pub modulo: ModuloSpelling,
+    pub modulo: OperatorModulo,
 
     /// How `IS [NOT] DISTINCT FROM` is spelled.
     ///
@@ -283,7 +283,7 @@ pub struct OperatorConfig {
     /// - Standard: `left IS [NOT] DISTINCT FROM right`.
     /// - NullSafeEqual: `<=>` is null-safe equal (`IS NOT DISTINCT FROM`). `IS DISTINCT FROM` is `NOT (left <=> right)`.
     #[define(enum { #[default] Unsupported, Standard, NullSafeEqual })]
-    pub is_distinct_from: IsDistinctFromSpelling,
+    pub is_distinct_from: IsDistinctFrom,
 
     /// How `TRIM` is spelled.
     ///
@@ -291,7 +291,7 @@ pub struct OperatorConfig {
     /// - Function: `TRIM` / `LTRIM` / `RTRIM` `(expr[, chars])`.
     /// - SpacesOnly: `TRIM` / `LTRIM` / `RTRIM` `(expr)`. A character set raises.
     #[define(enum { #[default] SqlFrom, Function, SpacesOnly })]
-    pub trim: TrimSpelling,
+    pub trim: OperatorTrim,
 
     /// How `COLLATE` is spelled.
     ///
@@ -299,15 +299,15 @@ pub struct OperatorConfig {
     /// - InfixIdent: `expr COLLATE ident`.
     /// - FunctionString: `COLLATE(expr, 'body')`. The identifier body is a string literal.
     #[define(enum { #[default] Unsupported, InfixIdent, FunctionString })]
-    pub collate: CollateSpelling,
+    pub collate: OperatorCollate,
 }
 
 rapidquery_macros::pyo3_constructor! {
     OperatorConfig => export_operator_config_options {
-        modulo: enum ModuloSpelling { Percent, Function, Infix } = Percent,
-        is_distinct_from: enum IsDistinctFromSpelling { Unsupported, Standard, NullSafeEqual } = Unsupported,
-        trim: enum TrimSpelling { SqlFrom, Function, SpacesOnly } = SqlFrom,
-        collate: enum CollateSpelling { Unsupported, InfixIdent, FunctionString } = Unsupported,
+        modulo: enum OperatorModulo { Percent, Function, Infix } = Percent,
+        is_distinct_from: enum IsDistinctFrom { Unsupported, Standard, NullSafeEqual } = Unsupported,
+        trim: enum OperatorTrim { SqlFrom, Function, SpacesOnly } = SqlFrom,
+        collate: enum OperatorCollate { Unsupported, InfixIdent, FunctionString } = Unsupported,
     }
 }
 
@@ -331,7 +331,7 @@ pub struct SchemaConfig {
     /// - Unsupported: Means dialect does not support `AUTHORIZATION` for schema.
     /// - Optional: Means `AUTHORIZATION` clause is supported and it's optional.
     #[define(enum { #[default] Unsupported, Optional })]
-    pub authorization: SchemaAuthorizationStyle,
+    pub authorization: SchemaAuthorization,
 
     /// How schema location is expressed e.g. `LOCATION {}` (value is escaped and includes quotes itself).
     pub location: Option<template::Template>,
@@ -342,7 +342,7 @@ rapidquery_macros::pyo3_constructor! {
         features: bits SchemaFeatures {
             SUPPORTED, IF_NOT_EXISTS, EMBEDDED_DDL, IS_DATABASE, DROP_CASCADE, DROP_RESTRICT
         } = empty,
-        authorization: enum SchemaAuthorizationStyle { Unsupported, Optional } = Unsupported,
+        authorization: enum SchemaAuthorization { Unsupported, Optional } = Unsupported,
         location: Option<template(_; 1)> = None,
     }
 }

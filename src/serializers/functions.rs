@@ -272,7 +272,7 @@ pub(super) unsafe fn write_time<W: writer::FastWrite>(
         let val: pyo3::Bound<'_, pyo3::types::PyTime> = pyo3::Bound::from_borrowed_ptr(py, ptr).cast_into()?;
         let time: chrono::NaiveTime = val.extract()?;
 
-        cfg.date
+        cfg.time
             .write_to(out, |_, out| out.write_str(&time.format("%H:%M:%S%.f").to_string()));
         Ok(())
     } else {
@@ -385,8 +385,8 @@ pub(super) unsafe fn write_macaddr<W: writer::FastWrite>(
     cfg: &dialect::LiteralConfig,
     out: &mut W,
 ) -> pyo3::PyResult<()> {
-    let Some(tmpl) = &cfg.inet else {
-        return Err(dialect::errors::FormatError::Unsupported("InetSerializer").into());
+    let Some(tmpl) = &cfg.macaddr else {
+        return Err(dialect::errors::FormatError::Unsupported("MacAddressSerializer").into());
     };
 
     let text = pyobject_string(py, ptr)?;

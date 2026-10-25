@@ -307,22 +307,16 @@ impl WriteSql for Binary {
                 Ok(())
             }
             BinaryOp::BitXor => match dialect.bitwise.xor {
-                dialect::BitwiseXorSpelling::Unsupported => {
-                    Err(unsupported("bitwise XOR is not supported by this dialect"))
-                }
-                dialect::BitwiseXorSpelling::Caret => write_infix(self, dialect, out, "^", false),
-                dialect::BitwiseXorSpelling::Hash => write_infix(self, dialect, out, "#", false),
-                dialect::BitwiseXorSpelling::Function => {
-                    write_binary_call(dialect, out, "xor", &self.left, &self.right)
-                }
-                dialect::BitwiseXorSpelling::BitFunction => {
-                    write_binary_call(dialect, out, "BITXOR", &self.left, &self.right)
-                }
+                dialect::BitwiseXor::Unsupported => Err(unsupported("bitwise XOR is not supported by this dialect")),
+                dialect::BitwiseXor::Caret => write_infix(self, dialect, out, "^", false),
+                dialect::BitwiseXor::Hash => write_infix(self, dialect, out, "#", false),
+                dialect::BitwiseXor::Function => write_binary_call(dialect, out, "xor", &self.left, &self.right),
+                dialect::BitwiseXor::BitFunction => write_binary_call(dialect, out, "BITXOR", &self.left, &self.right),
             },
             BinaryOp::Mod => match dialect.operator.modulo {
-                dialect::ModuloSpelling::Percent => write_infix(self, dialect, out, "%", false),
-                dialect::ModuloSpelling::Function => write_binary_call(dialect, out, "MOD", &self.left, &self.right),
-                dialect::ModuloSpelling::Infix => write_infix(self, dialect, out, "MOD", false),
+                dialect::OperatorModulo::Percent => write_infix(self, dialect, out, "%", false),
+                dialect::OperatorModulo::Function => write_binary_call(dialect, out, "MOD", &self.left, &self.right),
+                dialect::OperatorModulo::Infix => write_infix(self, dialect, out, "MOD", false),
             },
             BinaryOp::BitAnd => write_bit_op(
                 self,
@@ -465,10 +459,10 @@ impl IsDistinctFrom {
 impl WriteSql for IsDistinctFrom {
     fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> pyo3::PyResult<()> {
         match dialect.operator.is_distinct_from {
-            dialect::IsDistinctFromSpelling::Unsupported => {
+            dialect::IsDistinctFrom::Unsupported => {
                 Err(unsupported("IS DISTINCT FROM is not supported by this dialect"))
             }
-            dialect::IsDistinctFromSpelling::Standard => {
+            dialect::IsDistinctFrom::Standard => {
                 self.left.write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 if self.negated {
                     out.write_str(" IS NOT DISTINCT FROM ");
@@ -477,7 +471,7 @@ impl WriteSql for IsDistinctFrom {
                 }
                 self.right.write_operand(dialect, out, Self::PRECEDENCE, true)
             }
-            dialect::IsDistinctFromSpelling::NullSafeEqual => {
+            dialect::IsDistinctFrom::NullSafeEqual => {
                 // `<=>` is null-safe equal, i.e. `IS NOT DISTINCT FROM`.
                 if !self.negated {
                     out.write_str("NOT (");
@@ -789,7 +783,7 @@ fn write_trim_function<W: SqlWriter>(trim: &Trim, dialect: &dialect::PyDialect, 
 impl WriteSql for Trim {
     fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> pyo3::PyResult<()> {
         match dialect.operator.trim {
-            dialect::TrimSpelling::SqlFrom => {
+            dialect::OperatorTrim::SqlFrom => {
                 out.write_str("TRIM(");
                 match (&self.where_, &self.characters) {
                     (TrimWhere::Both, None) => self.expr.write_sql(dialect, out)?,
@@ -814,8 +808,8 @@ impl WriteSql for Trim {
                 out.write(')');
                 Ok(())
             }
-            dialect::TrimSpelling::Function => write_trim_function(self, dialect, out),
-            dialect::TrimSpelling::SpacesOnly => {
+            dialect::OperatorTrim::Function => write_trim_function(self, dialect, out),
+            dialect::OperatorTrim::SpacesOnly => {
                 if self.characters.is_some() {
                     return Err(unsupported("trim characters are not supported by this dialect"));
                 }
@@ -864,13 +858,13 @@ impl Collate {
 impl WriteSql for Collate {
     fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> pyo3::PyResult<()> {
         match dialect.operator.collate {
-            dialect::CollateSpelling::Unsupported => Err(unsupported("COLLATE is not supported by this dialect")),
-            dialect::CollateSpelling::InfixIdent => {
+            dialect::OperatorCollate::Unsupported => Err(unsupported("COLLATE is not supported by this dialect")),
+            dialect::OperatorCollate::InfixIdent => {
                 self.expr.write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 out.write_str(" COLLATE ");
                 self.collation.write_sql(dialect, out)
             }
-            dialect::CollateSpelling::FunctionString => {
+            dialect::OperatorCollate::FunctionString => {
                 let body = match self.collation.parts() {
                     [super::IdentPart::Quote(body) | super::IdentPart::Unquote(body)] if !body.is_empty() => {
                         body.as_str()

@@ -292,7 +292,7 @@ fn screaming_snake(s: &str) -> String {
     out
 }
 
-/// Name of the exported module constant: `OPT_<FIELD>_<ITEM>`.
+/// Name of the exported module constant: `OPT_<TYPE_NAME>_<ITEM>`.
 fn const_name(field: &Ident, item: &Ident) -> String {
     format!(
         "OPT_{}_{}",
@@ -508,22 +508,29 @@ impl Field {
     }
 
     fn exports(&self) -> Vec<TokenStream> {
-        let name = &self.name;
         match &self.kind {
-            Kind::Enum { ty, variants } => variants
-                .iter()
-                .map(|v| {
-                    let c = const_name(name, v);
-                    quote!(module.add(#c, <#ty>::#v as u8)?;)
-                })
-                .collect(),
-            Kind::Bits { ty, flags } => flags
-                .iter()
-                .map(|f| {
-                    let c = const_name(name, f);
-                    quote!(module.add(#c, <#ty>::#f.bits())?;)
-                })
-                .collect(),
+            Kind::Enum { ty, variants } => {
+                let Type::Path(type_name) = ty else { unreachable!() };
+
+                variants
+                    .iter()
+                    .map(|v| {
+                        let c = const_name(type_name.path.get_ident().unwrap(), v);
+                        quote!(module.add(#c, <#ty>::#v as u8)?;)
+                    })
+                    .collect()
+            }
+            Kind::Bits { ty, flags } => {
+                let Type::Path(type_name) = ty else { unreachable!() };
+
+                flags
+                    .iter()
+                    .map(|f| {
+                        let c = const_name(type_name.path.get_ident().unwrap(), f);
+                        quote!(module.add(#c, <#ty>::#f.bits())?;)
+                    })
+                    .collect()
+            }
             _ => Vec::new(),
         }
     }

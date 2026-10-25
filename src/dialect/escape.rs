@@ -30,6 +30,7 @@ impl base::LiteralConfig {
     /// that is checked with `debug_assert!`.
     #[inline]
     pub fn write_bits<W: writer::FastWrite>(&self, writer: &mut W, bits: &str) -> Result<(), errors::FormatError> {
+        // FIXME: return an error for invalid bits
         debug_assert!(
             bits.chars().all(|c| c == '0' || c == '1'),
             "write_bits: invalid input: {bits}"
@@ -59,6 +60,40 @@ impl base::LiteralConfig {
     }
 }
 
+#[pyo3::pymethods]
+impl base::LiteralConfig {
+    #[pyo3(signature = (value, /))]
+    fn serialize_boolean(&self, value: bool) -> String {
+        let mut buf = String::new();
+        self.write_boolean(&mut buf, value);
+        buf
+    }
+
+    #[pyo3(signature = (value, /))]
+    fn serialize_bits(&self, value: &str) -> pyo3::PyResult<String> {
+        if value.is_empty() || !value.bytes().all(|b| b == b'0' || b == b'1') {
+            return rapidquery_macros::pyerr!(
+                Err(PyValueError),
+                "expected a string of '0'/'1' for bit serialization, got {:?}",
+                value
+            );
+        }
+
+        let mut buf = String::new();
+        self.write_bits(&mut buf, value)?;
+        Ok(buf)
+    }
+
+    #[pyo3(signature = (value, /))]
+    fn serialize_bytes(&self, value: pyo3::Bound<'_, pyo3::types::PyBytes>) -> String {
+        use pyo3::types::PyBytesMethods;
+
+        let mut buf = String::new();
+        self.write_bytes(&mut buf, value.as_bytes());
+        buf
+    }
+}
+
 impl base::StringConfig {
     /// Escape `raw` and wrap it as a complete string literal.
     #[inline]
@@ -67,6 +102,7 @@ impl base::StringConfig {
         writer: &mut W,
         raw: &str,
     ) -> Result<(), errors::FormatError> {
+        // FIXME: we can accept NUL on some dialects
         if raw.contains('\0') {
             return Err(errors::FormatError::NulInString);
         }
@@ -92,6 +128,16 @@ impl base::StringConfig {
             },
         );
         Ok(())
+    }
+}
+
+#[pyo3::pymethods]
+impl base::StringConfig {
+    #[pyo3(signature = (value, /))]
+    fn serialize_string(&self, value: &str) -> pyo3::PyResult<String> {
+        let mut buf = String::new();
+        self.write_string_literal(&mut buf, value)?;
+        Ok(buf)
     }
 }
 

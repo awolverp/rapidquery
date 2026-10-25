@@ -186,7 +186,7 @@ class TestBitSerializer:
     def test_follows_bit_format_when_supported(self, dialect: Dialect):
         expected = BIT_SQL.get(dialect)
         if expected is None:
-            with pytest.raises(NotImplementedError, match="does not support BitSerializer"):
+            with pytest.raises(RuntimeError, match="does not support BitSerializer"):
                 BitSerializer().serialize(dialect, "10")
             return
         assert BitSerializer().serialize(dialect, "10") == expected
@@ -293,7 +293,7 @@ class TestDateTimeSerializers:
 class TestInetSerializer:
     def test_canonical_cidr(self, dialect: Dialect):
         if dialect not in (PostgreSql, DuckDb):
-            with pytest.raises(NotImplementedError, match="does not support InetSerializer"):
+            with pytest.raises(RuntimeError, match="does not support InetSerializer"):
                 InetSerializer().serialize(dialect, "192.168.1.1")
             return
         s = InetSerializer()
@@ -319,7 +319,7 @@ class TestInetSerializer:
 class TestMacAddressSerializer:
     def test_canonical_form(self, dialect: Dialect):
         if dialect != PostgreSql:
-            with pytest.raises(NotImplementedError, match="does not support MacAddressSerializer"):
+            with pytest.raises(RuntimeError, match="does not support MacAddressSerializer"):
                 MacAddressSerializer().serialize(dialect, "01:23:45:67:89:ab")
             return
         s = MacAddressSerializer()
@@ -345,7 +345,7 @@ class TestArraySerializer:
         s = ArraySerializer(IntegerSerializer())
         expected = ARRAY_SQL.get(dialect)
         if expected is None:
-            with pytest.raises(NotImplementedError, match="does not support ArraySerializer"):
+            with pytest.raises(RuntimeError, match="does not support ArraySerializer"):
                 s.serialize(dialect, [1, 2, 3])
             return
         assert s.serialize(dialect, [1, 2, 3]) == expected
@@ -370,7 +370,7 @@ class TestArraySerializer:
             s.serialize(PG, [1, "x"])
 
     def test_nested_unsupported_element(self):
-        with pytest.raises(NotImplementedError, match="does not support BitSerializer"):
+        with pytest.raises(RuntimeError, match="does not support BitSerializer"):
             ArraySerializer(BitSerializer()).serialize(BigQuery, ["10"])
 
 
@@ -385,13 +385,13 @@ class TestCustomSerializer:
 
 
 def test_unsupported_serializer_error_message():
-    with pytest.raises(NotImplementedError, match="does not support BitSerializer"):
+    with pytest.raises(RuntimeError, match="does not support BitSerializer"):
         BitSerializer().serialize(Sqlite, "10")
-    with pytest.raises(NotImplementedError, match="does not support ArraySerializer"):
+    with pytest.raises(RuntimeError, match="does not support ArraySerializer"):
         ArraySerializer(IntegerSerializer()).serialize(MySql, [1, 2])
-    with pytest.raises(NotImplementedError, match="does not support InetSerializer"):
+    with pytest.raises(RuntimeError, match="does not support InetSerializer"):
         InetSerializer().serialize(Sqlite, "192.168.1.1")
-    with pytest.raises(NotImplementedError, match="does not support MacAddressSerializer"):
+    with pytest.raises(RuntimeError, match="does not support MacAddressSerializer"):
         MacAddressSerializer().serialize(DuckDb, "01:23:45:67:89:ab")
 
 

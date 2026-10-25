@@ -47,7 +47,7 @@ impl sql::WriteSql for PyCreateSchema {
 
         // ... [<name>] [AUTHORIZATION <authorization>]
         match dialect.schema.authorization {
-            dialect::SchemaAuthorizationStyle::Unsupported => {
+            dialect::SchemaAuthorization::Unsupported => {
                 if self.authorization.is_some() {
                     return Err(rapidquery_macros::pyerr!(
                         PyRuntimeError,
@@ -57,7 +57,7 @@ impl sql::WriteSql for PyCreateSchema {
 
                 self.name.write_sql(dialect, out)?;
             }
-            dialect::SchemaAuthorizationStyle::Optional => {
+            dialect::SchemaAuthorization::Optional => {
                 self.name.write_sql(dialect, out)?;
 
                 if let Some(x) = &self.authorization {
@@ -76,6 +76,7 @@ impl sql::WriteSql for PyCreateSchema {
                 ));
             };
 
+            out.write(' ');
             tmpl.write_to_result(out, |_, out| dialect.string.write_string_literal(out, x.as_str()))?;
         }
 
