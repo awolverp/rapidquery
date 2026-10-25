@@ -176,7 +176,7 @@ impl Template {
         }
 
         if matches.len() > maximum as usize {
-            return Err(TemplateParseError::TooManyPlaceholder(minimum, matches.len()));
+            return Err(TemplateParseError::TooManyPlaceholder(maximum, matches.len()));
         }
 
         for (idx, (key, required)) in keys.iter().enumerate() {

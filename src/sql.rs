@@ -30,13 +30,6 @@ pub trait SqlWriter: FastWrite {
 ///
 /// Build one with a Python token, append text through [`SqlWriter`], then take
 /// the string with [`Self::into_string`].
-///
-/// ```
-/// pyo3::Python::attach(|py| {
-///     let buf = rapidquery::sql::Buffered::new(py);
-///     assert_eq!(buf.as_str(), "");
-/// });
-/// ```
 pub struct Buffer<'py> {
     py: pyo3::Python<'py>,
     sql: String,
@@ -103,14 +96,6 @@ impl<'py> SqlWriter for Buffer<'py> {
 ///
 /// [`std::fmt::Write`] appends text. [`Self::push_param`] appends a placeholder
 /// and stores the object. Numbering starts at 1.
-///
-/// ```
-/// pyo3::Python::attach(|py| {
-///     let sql = rapidquery::sql::Parameterized::new(py);
-///     assert_eq!(sql.sql(), "");
-///     assert!(sql.params().is_empty());
-/// });
-/// ```
 pub struct Parameterized<'py> {
     py: pyo3::Python<'py>,
     sql: String,

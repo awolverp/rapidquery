@@ -16,6 +16,8 @@ pub mod dialect_mod {
     #[pymodule_export]
     use super::LikeConfig;
     #[pymodule_export]
+    use super::LiteralConfig;
+    #[pymodule_export]
     use super::OperatorConfig;
     #[pymodule_export]
     use super::PyDialect;

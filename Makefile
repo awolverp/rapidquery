@@ -55,11 +55,12 @@ lint: lint-python lint-rust
 
 .PHONY: test-rust  ## Run Rust tests
 test-rust:
-	cargo test --workspace --no-default-features --features auto-initialize
+	cargo test --workspace --no-default-features --features auto-initialize --all-targets
 
 .PHONY: test-python  ## Run Python tests
 test-python:
 	uv run pytest -v -n auto
+	bash scripts/check_dialect_stub.sh
 
 .PHONY: test  ## Run all tests
 test: test-rust test-python

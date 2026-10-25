@@ -381,7 +381,10 @@ rapidquery_macros::pyo3_constructor! {
 #[rapidquery_macros::define_options]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PyDialect {
-    /// Positional parameter template e.g. `'?{}'`
+    /// Positional parameter template e.g. `'?{}'` or `'?'`.
+    ///
+    /// `{}` is the 1-based index and may be omitted. `'?'` writes the marker
+    /// alone. `'${}'` writes `$1`, `$2`, and so on.
     pub placeholder: template::Template,
 
     /// `LIKE` / `ILIKE` / regex configuration.
@@ -439,7 +442,8 @@ pub struct PyDialect {
 
 rapidquery_macros::pyo3_constructor! {
     PyDialect => export_pydialect_options {
-        placeholder: template(_; 1) = "?{}",
+        // `?` on the key lets a dialect omit `{}` (`'?'` writes the marker alone).
+        placeholder: template(_?; 0..=1) = "?{}",
         like: class LikeConfig = LikeConfig::default(),
         bitwise: class BitwiseConfig = BitwiseConfig::default(),
         identifier: template(
