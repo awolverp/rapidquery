@@ -1,3 +1,5 @@
+#![allow(clippy::redundant_field_names)]
+
 use crate::internal::template;
 
 #[rapidquery_macros::pyclass("rapidquery.dialect.LikeConfig", from_py_object, eq, hash)]

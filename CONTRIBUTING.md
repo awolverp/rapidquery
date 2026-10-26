@@ -44,7 +44,7 @@ You'll need the following prerequisites:
 - uv
 - git - For version control
 - make - For running development commands (or use nmake on Windows)
-- Rust - Both stable and nightly (nightly is used for formatting)
+- Rust - Nightly version
 
 Fork the repository on GitHub and clone your fork locally.
 

@@ -18,12 +18,56 @@ env:
   UV_PYTHON_DOWNLOADS: 0
 
 jobs:
+  test-rust-stable:
+    if: github.event.pull_request.draft == false
+
+    name: "Rust Stable (Python 3.14)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: github.event_name == 'pull_request' && github.run_attempt == 1
+        with:
+          lookup-only: false
+          shared-key: "3.14"
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: 3.14
+
+      - name: "Install uv"
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+
+      - name: "Create and activate .venv"
+        run: |
+          uv venv .venv --python 3.14
+          echo ".venv/bin" >> "$GITHUB_PATH"
+          echo "PYO3_PYTHON=.venv/bin/python3" >> "$GITHUB_ENV"
+
+      - name: "Install dependencies"
+        run: uv sync --group dev
+
+      - name: "Run maturin"
+        run: maturin develop
+
+      - name: "Run pytest"
+        run: pytest -v -n auto
+        env:
+          HYPOTHESIS_PROFILE: slow
+
   test-python:
     if: github.event.pull_request.draft == false
 
     name: ${{ matrix.python-version }}
     runs-on: ubuntu-latest
-    continue-on-error: ${{ endsWith(matrix.python-version, 't') }}
     strategy:
       fail-fast: false
       matrix:
@@ -45,7 +89,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@nightly
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         if: github.event_name == 'pull_request' && github.run_attempt == 1
@@ -73,9 +117,18 @@ jobs:
         run: uv sync --group dev
 
       - name: "Run maturin"
-        run: maturin develop
+        run: maturin develop --features nightly
 
       - name: "Run pytest"
+        run: pytest -v -n auto
+        env:
+          HYPOTHESIS_PROFILE: slow
+
+      # Recompile and test the package without nightly feature
+      - name: "Run maturin (without nightly feature)"
+        run: maturin develop --features nightly
+
+      - name: "Run pytest (without nightly feature)"
         run: pytest -v -n auto
         env:
           HYPOTHESIS_PROFILE: slow
@@ -95,7 +148,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@nightly
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -123,9 +176,18 @@ jobs:
         run: uv pip install --group dev
 
       - name: "Run maturin"
-        run: maturin develop
+        run: maturin develop --features nightly
 
       - name: "Run pytest"
+        run: pytest -v -n auto
+        env:
+          HYPOTHESIS_PROFILE: slow
+
+      # Recompile and test the package without nightly feature
+      - name: "Run maturin (without nightly feature)"
+        run: maturin develop --features nightly
+
+      - name: "Run pytest (without nightly feature)"
         run: pytest -v -n auto
         env:
           HYPOTHESIS_PROFILE: slow
