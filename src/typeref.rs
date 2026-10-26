@@ -1,8 +1,5 @@
 //! Interned `PyTypeObject*` cache.
 
-// Dialect types
-pub(crate) static mut DIALECT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-
 // Serializer types
 pub(crate) static mut SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
@@ -37,6 +34,7 @@ unsafe fn get_type_object_for<T: pyo3::PyTypeInfo>(py: pyo3::Python) -> *mut pyo
 /// `PyImport_ImportModule` / dict lookup are not null-checked. A missing
 /// stdlib module currently yields a null pointer (and a later crash if
 /// dereferenced). Call only during module init, when the stdlib is present.
+#[cfg_attr(feature = "nightly", optimize(size))]
 unsafe fn look_up_type_object(
     module_name: &std::ffi::CStr,
     member_name: &std::ffi::CStr,
@@ -56,7 +54,34 @@ macro_rules! multiple_get_type_object_for {
     };
 }
 
+#[cfg(not(PyPy))]
+#[cfg_attr(feature = "nightly", optimize(size))]
+unsafe fn look_up_datetime() {
+    unsafe {
+        pyo3::ffi::PyDateTime_IMPORT();
+        let datetime_capsule =
+            pyo3::ffi::PyCapsule_Import(c"datetime.datetime_CAPI".as_ptr(), 1).cast::<pyo3::ffi::PyDateTime_CAPI>();
+
+        debug_assert!(!datetime_capsule.is_null());
+
+        STD_DATETIME_TYPE = (*datetime_capsule).DateTimeType;
+        STD_DATE_TYPE = (*datetime_capsule).DateType;
+        STD_TIME_TYPE = (*datetime_capsule).TimeType;
+    }
+}
+
+#[cfg(PyPy)]
+#[cfg_attr(feature = "nightly", optimize(size))]
+unsafe fn look_up_datetime() {
+    unsafe {
+        STD_DATETIME_TYPE = look_up_type_object(c"datetime", c"datetime");
+        STD_DATE_TYPE = look_up_type_object(c"datetime", c"date");
+        STD_TIME_TYPE = look_up_type_object(c"datetime", c"time");
+    }
+}
+
 #[cold]
+#[cfg_attr(feature = "nightly", optimize(size))]
 fn _initialize_typeref(py: pyo3::Python) {
     unsafe {
         // SAFETY: called once from [`initialize_typeref`] while the GIL is
@@ -65,8 +90,6 @@ fn _initialize_typeref(py: pyo3::Python) {
         // are only read.
         multiple_get_type_object_for!(
             py,
-            // dialects
-            crate::dialect::PyDialect => DIALECT_TYPE,
             // serializers
             crate::serializers::PySerializer => SERIALIZER_TYPE,
             // exprs
@@ -80,13 +103,7 @@ fn _initialize_typeref(py: pyo3::Python) {
         STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");
         STD_UUID_TYPE = look_up_type_object(c"uuid", c"UUID");
 
-        pyo3::ffi::PyDateTime_IMPORT();
-        let datetime_capsule =
-            pyo3::ffi::PyCapsule_Import(c"datetime.datetime_CAPI".as_ptr(), 1).cast::<pyo3::ffi::PyDateTime_CAPI>();
-
-        STD_DATETIME_TYPE = (*datetime_capsule).DateTimeType;
-        STD_DATE_TYPE = (*datetime_capsule).DateType;
-        STD_TIME_TYPE = (*datetime_capsule).TimeType;
+        look_up_datetime();
     }
 }
 

@@ -36,12 +36,13 @@ build-prod:
 format:
 	uv run ruff check --fix .
 	uv run ruff format .
-	cargo +nightly fmt
+	cargo +nightly fmt --all
 
 .PHONY: lint-python  ## Lint python source files
 lint-python:
 	uv run ruff check .
 	uv run ruff format --check .
+	pyright rapidquery
 
 .PHONY: lint-rust  ## Lint rust source files
 lint-rust:
