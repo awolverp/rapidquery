@@ -1,5 +1,5 @@
+use std::fmt;
 use std::fmt::Write;
-use std::fmt::{self};
 
 /// A value rendered straight into a [`ReprFormatter`] buffer.
 ///

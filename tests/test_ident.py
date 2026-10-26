@@ -1,5 +1,3 @@
-import typing
-
 import pytest
 
 from rapidquery import Asterisk, Ident, Unquote

@@ -6,6 +6,7 @@ pub mod dialect;
 pub mod expr;
 pub mod internal;
 pub mod serializers;
+pub mod sql;
 pub mod typeref;
 
 pub mod dcl;
@@ -40,7 +41,7 @@ mod _core {
     #[pymodule_init]
     #[cold]
     fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
-        use crate::internal::utils::PyModuleSubmoduleExt;
+        use crate::internal::submodule_ext::PyModuleSubmoduleExt;
         use pyo3::types::PyModuleMethods;
 
         crate::typeref::initialize_typeref(m.py());

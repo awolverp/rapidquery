@@ -30,7 +30,11 @@ class TestCreateSchema:
     def test_is_database(self):
         stmt = rq.ddl.CreateSchema("name")
 
-        dl = rq.dialect.Dialect(schema_features=rq.dialect.OPT_SCHEMA_FEATURES_IS_DATABASE)
+        dl = rq.dialect.Dialect(
+            schema=rq.dialect.SchemaConfig(
+                features=rq.dialect.OPT_SCHEMA_FEATURES_SUPPORTED | rq.dialect.OPT_SCHEMA_FEATURES_IS_DATABASE
+            )
+        )
         assert stmt.to_sql(dl) == 'CREATE DATABASE "name"'
 
     def test_if_not_exists(self):
@@ -40,19 +44,30 @@ class TestCreateSchema:
         assert stmt.to_sql(rq.dialect.PostgreSql) == 'CREATE SCHEMA IF NOT EXISTS "name"'
 
         # Should ignore IF NOT EXISTS when a dialect doesn't support it
-        assert stmt.to_sql(rq.dialect.Dialect()) == 'CREATE SCHEMA "name"'
+        dl = rq.dialect.Dialect(schema=rq.dialect.SchemaConfig(features=rq.dialect.OPT_SCHEMA_FEATURES_SUPPORTED))
+        assert stmt.to_sql(dl) == 'CREATE SCHEMA "name"'
 
     def test_authorization(self):
         stmt = rq.ddl.CreateSchema("name", authorization="user")
         assert stmt.authorization == "user"
 
         # Unsupported
-        dl = rq.dialect.Dialect(schema_authorization_style=rq.dialect.OPT_SCHEMA_AUTHORIZATION_STYLE_UNSUPPORTED)
+        dl = rq.dialect.Dialect(
+            schema=rq.dialect.SchemaConfig(
+                features=rq.dialect.OPT_SCHEMA_FEATURES_SUPPORTED,
+                authorization=rq.dialect.OPT_SCHEMA_AUTHORIZATION_UNSUPPORTED,
+            )
+        )
         with pytest.raises(RuntimeError, match="supported"):
             _ = stmt.to_sql(dl)
 
         # Optional
-        dl = rq.dialect.Dialect(schema_authorization_style=rq.dialect.OPT_SCHEMA_AUTHORIZATION_STYLE_OPTIONAL)
+        dl = rq.dialect.Dialect(
+            schema=rq.dialect.SchemaConfig(
+                features=rq.dialect.OPT_SCHEMA_FEATURES_SUPPORTED,
+                authorization=rq.dialect.OPT_SCHEMA_AUTHORIZATION_OPTIONAL,
+            )
+        )
         assert stmt.to_sql(dl) == 'CREATE SCHEMA "name" AUTHORIZATION "user"'
 
         stmt = rq.ddl.CreateSchema("name", authorization=None)
@@ -63,30 +78,22 @@ class TestCreateSchema:
         assert stmt.location == "s3://depts/finance"
 
         # Unsupported
-        dl = rq.dialect.Dialect(schema_location_style=rq.dialect.OPT_SCHEMA_LOCATION_STYLE_UNSUPPORTED)
+        dl = rq.dialect.Dialect(
+            schema=rq.dialect.SchemaConfig(
+                features=rq.dialect.OPT_SCHEMA_FEATURES_SUPPORTED,
+                location=None,
+            )
+        )
         with pytest.raises(RuntimeError, match="supported"):
             _ = stmt.to_sql(dl)
 
-        # Location Keyword
         dl = rq.dialect.Dialect(
-            string_format=rq.dialect.OPT_STRING_FORMAT_SINGLE_QUOTE,
-            schema_location_style=rq.dialect.OPT_SCHEMA_LOCATION_STYLE_LOCATION_KEYWORD,
+            schema=rq.dialect.SchemaConfig(
+                features=rq.dialect.OPT_SCHEMA_FEATURES_SUPPORTED,
+                location="LOCATION {}",
+            )
         )
         assert stmt.to_sql(dl) == "CREATE SCHEMA \"name\" LOCATION 's3://depts/finance'"
-
-        # ManagedLocation Keyword
-        dl = rq.dialect.Dialect(
-            string_format=rq.dialect.OPT_STRING_FORMAT_SINGLE_QUOTE,
-            schema_location_style=rq.dialect.OPT_SCHEMA_LOCATION_STYLE_MANAGED_LOCATION_KEYWORD,
-        )
-        assert stmt.to_sql(dl) == "CREATE SCHEMA \"name\" MANAGED LOCATION 's3://depts/finance'"
-
-        # External Volume
-        dl = rq.dialect.Dialect(
-            string_format=rq.dialect.OPT_STRING_FORMAT_SINGLE_QUOTE,
-            schema_location_style=rq.dialect.OPT_SCHEMA_LOCATION_STYLE_EXTERNAL_VOLUME,
-        )
-        assert stmt.to_sql(dl) == "CREATE SCHEMA \"name\" EXTERNAL_VOLUME = 's3://depts/finance'"
 
 
 class TestDropSchema:
@@ -126,7 +133,8 @@ class TestDropSchema:
         assert stmt.to_sql(rq.dialect.PostgreSql) == 'DROP SCHEMA IF EXISTS "name"'
 
         # Should ignore IF EXISTS when a dialect doesn't support it
-        assert stmt.to_sql(rq.dialect.Dialect()) == 'DROP SCHEMA "name"'
+        dl = rq.dialect.Dialect(schema=rq.dialect.SchemaConfig(features=rq.dialect.OPT_SCHEMA_FEATURES_SUPPORTED))
+        assert stmt.to_sql(dl) == 'DROP SCHEMA "name"'
 
     def test_behavior(self):
         stmt = rq.ddl.DropSchema("name", behavior="CASCADE")
@@ -138,7 +146,11 @@ class TestDropSchema:
             _ = stmt.to_sql(dl)
 
         # CASCADE Supported
-        dl = rq.dialect.Dialect(schema_features=rq.dialect.OPT_SCHEMA_FEATURES_DROP_CASCADE)
+        dl = rq.dialect.Dialect(
+            schema=rq.dialect.SchemaConfig(
+                features=rq.dialect.OPT_SCHEMA_FEATURES_SUPPORTED | rq.dialect.OPT_SCHEMA_FEATURES_DROP_CASCADE,
+            )
+        )
         assert stmt.to_sql(dl) == 'DROP SCHEMA "name" CASCADE'
 
         # CASCADE Unsupported
@@ -150,7 +162,11 @@ class TestDropSchema:
         stmt = rq.ddl.DropSchema("name", behavior="RESTRICT")
         assert stmt.behavior == "RESTRICT"
 
-        dl = rq.dialect.Dialect(schema_features=rq.dialect.OPT_SCHEMA_FEATURES_DROP_RESTRICT)
+        dl = rq.dialect.Dialect(
+            schema=rq.dialect.SchemaConfig(
+                features=rq.dialect.OPT_SCHEMA_FEATURES_SUPPORTED | rq.dialect.OPT_SCHEMA_FEATURES_DROP_RESTRICT,
+            )
+        )
         assert stmt.to_sql(dl) == 'DROP SCHEMA "name" RESTRICT'
 
         # RESTRICT Unsupported

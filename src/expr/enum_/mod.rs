@@ -14,9 +14,8 @@ pub use value::*;
 
 use crate::dialect::PyDialect;
 use crate::internal::repr::ReprFormatter;
-use crate::internal::sql::PrepareResult;
-use crate::internal::sql::SqlWriter;
-use crate::internal::sql::WriteSql;
+use crate::sql::SqlWriter;
+use crate::sql::WriteSql;
 
 /// SQL expression tree.
 ///
@@ -128,15 +127,15 @@ impl ExprInner {
         out: &mut W,
         parent_prec: u8,
         paren_if_equal: bool,
-    ) -> PrepareResult<()> {
+    ) -> pyo3::PyResult<()> {
         let child_prec = self.precedence();
         let paren = child_prec > parent_prec || (paren_if_equal && child_prec == parent_prec);
         if paren {
-            out.push_char('(');
+            out.write('(');
         }
         self.write_sql(dialect, out)?;
         if paren {
-            out.push_char(')');
+            out.write(')');
         }
         Ok(())
     }
@@ -168,7 +167,7 @@ impl ExprInner {
 
 impl WriteSql for ExprInner {
     #[cfg_attr(feature = "nightly", optimize(speed))]
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> pyo3::PyResult<()> {
         match self {
             Self::Ident(x) => x.write_sql(dialect, out),
             Self::Value(x) => x.write_sql(dialect, out),

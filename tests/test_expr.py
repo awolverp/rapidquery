@@ -529,9 +529,9 @@ class TestBinaryExpr:
         assert params == (10,)
 
         concat = BinaryExpr(1, "||", BinaryExpr(2, "+", 3))
-        assert concat.to_sql(PostgreSql) == "1 || (2 + 3)"
-        assert concat.to_sql(Sqlite) == "1 || (2 + 3)"
-        assert concat.to_sql(MsSql) == "1 + (2 + 3)"
+        assert concat.to_sql(PostgreSql) == "1 || 2 + 3"
+        assert concat.to_sql(Sqlite) == "1 || 2 + 3"
+        assert concat.to_sql(MsSql) == "1 + 2 + 3"
         assert concat.to_sql(MySql) == "CONCAT(1, 2 + 3)"
         assert BinaryExpr(BinaryExpr(1, "||", 2), "||", 3).to_sql(MySql) == "CONCAT(CONCAT(1, 2), 3)"
 

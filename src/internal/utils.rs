@@ -1,8 +1,4 @@
-mod strings;
-mod submodule_ext;
-
-pub use strings::*;
-pub use submodule_ext::*;
+//! Utility functions
 
 /// Borrow the cached UTF-8 buffer of a Python `str`.
 ///

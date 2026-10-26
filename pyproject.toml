@@ -55,8 +55,8 @@ dev = [
 
 build = ["maturin == 1.15.0"]
 lint = [
-  "mypy>=2.3.1",
   "pre-commit>=4.6.2",
+  "pyright>=1.1.414",
   "ruff>=0.16.9",
 ]
 test = [

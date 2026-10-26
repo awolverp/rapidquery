@@ -6,11 +6,10 @@ use pyo3::types::PyStringMethods;
 use crate::dialect::PyDialect;
 use crate::internal::alias;
 use crate::internal::repr;
-use crate::internal::sql::PrepareResult;
-use crate::internal::sql::SqlWriter;
-use crate::internal::sql::WriteSql;
 use crate::serializers::SerializerType;
 use crate::serializers::serializer_repr;
+use crate::sql::SqlWriter;
+use crate::sql::WriteSql;
 
 /// Python object plus the serializer that turns it into a SQL literal.
 ///
@@ -56,8 +55,8 @@ impl Value {
 }
 
 impl WriteSql for Value {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
-        out.push_value(dialect, &self.serializer, &self.object)
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> pyo3::PyResult<()> {
+        out.write_value(dialect, &self.serializer, &self.object)
     }
 }
 

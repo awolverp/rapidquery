@@ -2,10 +2,9 @@
 
 use crate::dialect::PyDialect;
 use crate::internal::repr;
-use crate::internal::sql::PrepareResult;
-use crate::internal::sql::SqlWriter;
-use crate::internal::sql::WriteSql;
-use crate::internal::sql::write_separated;
+use crate::sql::SqlWriter;
+use crate::sql::WriteSql;
+use crate::sql::write_separated;
 
 /// One segment of a dotted identifier.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -71,16 +70,16 @@ impl PartialEq<&str> for IdentPart {
 
 impl WriteSql for IdentPart {
     #[inline]
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> pyo3::PyResult<()> {
         match self {
             Self::Quote(name) => {
-                dialect.0.write_identifier(out, name.as_str())?;
+                dialect.write_identifier(out, name.as_str());
             }
             Self::Unquote(name) => {
-                out.push_str(name.as_str());
+                out.write_str(name.as_str());
             }
             Self::Asterisk => {
-                out.push_char('*');
+                out.write('*');
             }
         }
         Ok(())
@@ -101,7 +100,7 @@ impl WriteSql for IdentPart {
 /// assert_eq!(ident.len(), 2);
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Ident(smallvec::SmallVec<[IdentPart; 4]>);
+pub struct Ident(smallvec::SmallVec<[IdentPart; 3]>);
 
 /// Why building an [`Ident`] failed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -168,7 +167,7 @@ impl Ident {
 
     /// Consume and yield the parts.
     #[inline]
-    pub fn into_parts(self) -> smallvec::SmallVec<[IdentPart; 4]> {
+    pub fn into_parts(self) -> smallvec::SmallVec<[IdentPart; 3]> {
         self.0
     }
 
@@ -208,7 +207,7 @@ impl Ident {
     /// Unquoted charset is enforced by [`IdentPart::unquoted`], not here.
     #[cfg_attr(feature = "nightly", optimize(speed))]
     pub fn from_parts(iter: impl IntoIterator<Item = IdentPart>) -> Result<Self, ParseIdentError> {
-        let mut parts = smallvec::SmallVec::<[IdentPart; 4]>::new();
+        let mut parts = smallvec::SmallVec::<[IdentPart; 3]>::new();
 
         for part in iter {
             if let Some(IdentPart::Asterisk) = parts.last() {
@@ -243,7 +242,7 @@ impl std::str::FromStr for Ident {
             return Err(ParseIdentError::Empty);
         }
 
-        let mut parts = smallvec::SmallVec::<[IdentPart; 4]>::new();
+        let mut parts = smallvec::SmallVec::<[IdentPart; 3]>::new();
 
         for chunk in s.splitn(Self::MAX_PARTS + 1, '.') {
             if chunk.is_empty() {
@@ -268,7 +267,7 @@ impl std::str::FromStr for Ident {
 
 impl WriteSql for Ident {
     #[inline]
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> PrepareResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> pyo3::PyResult<()> {
         write_separated(dialect, out, &self.0, ".")
     }
 }
