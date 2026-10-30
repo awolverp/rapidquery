@@ -126,7 +126,7 @@ jobs:
 
       # Recompile and test the package without nightly feature
       - name: "Run maturin (without nightly feature)"
-        run: maturin develop --features nightly
+        run: maturin develop
 
       - name: "Run pytest (without nightly feature)"
         run: pytest -v -n auto
@@ -185,7 +185,7 @@ jobs:
 
       # Recompile and test the package without nightly feature
       - name: "Run maturin (without nightly feature)"
-        run: maturin develop --features nightly
+        run: maturin develop
 
       - name: "Run pytest (without nightly feature)"
         run: pytest -v -n auto
