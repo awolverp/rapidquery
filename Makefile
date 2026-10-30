@@ -25,18 +25,18 @@ rebuild-lockfiles: .uv
 .PHONY: build-dev  ## Build the development version of the package
 build-dev:
 	@rm -f rapidquery/*.so
-	$(uv-run-no-sync) maturin develop --uv
+	$(uv-run-no-sync) maturin develop --uv --features nightly
 
 .PHONY: build-prod  ## Build the production version of the package
 build-prod:
 	@rm -f rapidquery/*.so
-	$(uv-run-no-sync) maturin develop --uv --release
+	$(uv-run-no-sync) maturin develop --uv --release --features nightly
 
 .PHONY: format  ## Auto-format rust and python source files
 format:
 	uv run ruff check --fix .
 	uv run ruff format .
-	cargo +nightly fmt --all
+	cargo fmt --all
 
 .PHONY: lint-python  ## Lint python source files
 lint-python:
@@ -46,8 +46,8 @@ lint-python:
 
 .PHONY: lint-rust  ## Lint rust source files
 lint-rust:
-	cargo +nightly fmt --version
-	cargo +nightly fmt --all -- --check
+	cargo fmt --version
+	cargo fmt --all -- --check
 	cargo clippy --version
 	cargo clippy --tests -- -D warnings
 
@@ -56,7 +56,7 @@ lint: lint-python lint-rust
 
 .PHONY: test-rust  ## Run Rust tests
 test-rust:
-	cargo test --workspace --no-default-features --features auto-initialize --all-targets
+	cargo test --workspace --no-default-features --features auto-initialize,nightly --all-targets
 
 .PHONY: test-python  ## Run Python tests
 test-python:

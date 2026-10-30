@@ -1,3 +1,5 @@
+#![allow(clippy::redundant_field_names)]
+
 use crate::error;
 use crate::internal::template;
 
