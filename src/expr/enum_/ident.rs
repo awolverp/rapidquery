@@ -1,6 +1,7 @@
 //! SQL identifiers.
 
 use crate::dialect::PyDialect;
+use crate::error;
 use crate::internal::repr;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
@@ -21,10 +22,10 @@ impl IdentPart {
     /// Quoted part whose body is `s`.
     ///
     /// `"*"` is a quoted identifier named star, not [`IdentPart::Asterisk`].
-    pub fn quoted(s: impl AsRef<str>) -> Result<Self, ParseIdentError> {
+    pub fn quoted(s: impl AsRef<str>) -> Result<Self, IdentParseError> {
         let s = s.as_ref();
         if s.is_empty() {
-            return Err(ParseIdentError::EmptyChunk);
+            return Err(IdentParseError::EmptyChunk);
         }
         Ok(Self::Quote(arcstr::ArcStr::from(s)))
     }
@@ -32,13 +33,13 @@ impl IdentPart {
     /// Unquoted part whose body is `s`.
     ///
     /// Rejects anything that is not `[A-Za-z_][A-Za-z0-9_]*`.
-    pub fn unquoted(s: impl AsRef<str>) -> Result<Self, ParseIdentError> {
+    pub fn unquoted(s: impl AsRef<str>) -> Result<Self, IdentParseError> {
         let s = s.as_ref();
         if s.is_empty() {
-            return Err(ParseIdentError::EmptyChunk);
+            return Err(IdentParseError::EmptyChunk);
         }
         if !is_safe_unquoted(s) {
-            return Err(ParseIdentError::InvalidUnquoted);
+            return Err(IdentParseError::InvalidUnquoted(arcstr::ArcStr::from(s)));
         }
         Ok(Self::Unquote(arcstr::ArcStr::from(s)))
     }
@@ -70,7 +71,7 @@ impl PartialEq<&str> for IdentPart {
 
 impl WriteSql for IdentPart {
     #[inline]
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> pyo3::PyResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> error::Result<()> {
         match self {
             Self::Quote(name) => {
                 dialect.write_identifier(out, name.as_str());
@@ -103,8 +104,8 @@ impl WriteSql for IdentPart {
 pub struct Ident(smallvec::SmallVec<[IdentPart; 3]>);
 
 /// Why building an [`Ident`] failed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParseIdentError {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IdentParseError {
     /// No parts (empty string, empty constructor).
     Empty,
     /// A quoted or unquoted part was the empty string (`"a..b"`, `""` as a part).
@@ -113,23 +114,26 @@ pub enum ParseIdentError {
     TooManyParts,
     /// `*` appeared before the last part (`*.id`).
     AsteriskNotLast,
-    /// Unquoted body was not a simple ASCII identifier.
-    InvalidUnquoted,
+    /// Unquoted body was not a simple ASCII identifier. Holds the rejected text.
+    InvalidUnquoted(arcstr::ArcStr),
 }
 
-impl std::fmt::Display for ParseIdentError {
+impl std::fmt::Display for IdentParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Self::Empty => "identifier is empty",
-            Self::EmptyChunk => "identifier has an empty part",
-            Self::TooManyParts => "identifier has too many parts",
-            Self::AsteriskNotLast => "asterisk must be the last identifier part",
-            Self::InvalidUnquoted => "unquoted identifier is not a simple ASCII name",
-        })
+        match self {
+            Self::Empty => f.write_str("identifier is empty"),
+            Self::EmptyChunk => f.write_str("identifier has an empty part"),
+            Self::TooManyParts => write!(f, "identifier has too many parts; the maximum is {}", Ident::MAX_PARTS),
+            Self::AsteriskNotLast => f.write_str("asterisk must be the last identifier part"),
+            Self::InvalidUnquoted(name) => write!(
+                f,
+                "unquoted identifier {name:?} is not a simple ASCII name; expected [A-Za-z_][A-Za-z0-9_]*"
+            ),
+        }
     }
 }
 
-impl std::error::Error for ParseIdentError {}
+impl std::error::Error for IdentParseError {}
 
 /// `[A-Za-z_][A-Za-z0-9_]*`. Empty string is not safe.
 fn is_safe_unquoted(s: &str) -> bool {
@@ -206,19 +210,19 @@ impl Ident {
     ///
     /// Unquoted charset is enforced by [`IdentPart::unquoted`], not here.
     #[cfg_attr(feature = "nightly", optimize(speed))]
-    pub fn from_parts(iter: impl IntoIterator<Item = IdentPart>) -> Result<Self, ParseIdentError> {
+    pub fn from_parts(iter: impl IntoIterator<Item = IdentPart>) -> Result<Self, IdentParseError> {
         let mut parts = smallvec::SmallVec::<[IdentPart; 3]>::new();
 
         for part in iter {
             if let Some(IdentPart::Asterisk) = parts.last() {
-                return Err(ParseIdentError::AsteriskNotLast);
+                return Err(IdentParseError::AsteriskNotLast);
             }
             if parts.len() >= Self::MAX_PARTS {
-                return Err(ParseIdentError::TooManyParts);
+                return Err(IdentParseError::TooManyParts);
             }
             match &part {
                 IdentPart::Quote(name) | IdentPart::Unquote(name) if name.is_empty() => {
-                    return Err(ParseIdentError::EmptyChunk);
+                    return Err(IdentParseError::EmptyChunk);
                 }
                 IdentPart::Quote(_) | IdentPart::Unquote(_) | IdentPart::Asterisk => {}
             }
@@ -226,7 +230,7 @@ impl Ident {
         }
 
         if parts.is_empty() {
-            return Err(ParseIdentError::Empty);
+            return Err(IdentParseError::Empty);
         }
 
         Ok(Self(parts))
@@ -234,22 +238,22 @@ impl Ident {
 }
 
 impl std::str::FromStr for Ident {
-    type Err = ParseIdentError;
+    type Err = IdentParseError;
 
     #[cfg_attr(feature = "nightly", optimize(speed))]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.is_empty() {
-            return Err(ParseIdentError::Empty);
+            return Err(IdentParseError::Empty);
         }
 
         let mut parts = smallvec::SmallVec::<[IdentPart; 3]>::new();
 
         for chunk in s.splitn(Self::MAX_PARTS + 1, '.') {
             if chunk.is_empty() {
-                return Err(ParseIdentError::EmptyChunk);
+                return Err(IdentParseError::EmptyChunk);
             }
             if parts.len() >= Self::MAX_PARTS {
-                return Err(ParseIdentError::TooManyParts);
+                return Err(IdentParseError::TooManyParts);
             }
             // A bare `*` only makes sense as the final part (e.g. `table.*`).
             // If another part follows, demote the previous `*` to a quoted star.
@@ -267,7 +271,7 @@ impl std::str::FromStr for Ident {
 
 impl WriteSql for Ident {
     #[inline]
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> pyo3::PyResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> error::Result<()> {
         write_separated(dialect, out, &self.0, ".")
     }
 }

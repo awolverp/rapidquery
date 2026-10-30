@@ -1,3 +1,4 @@
+use crate::error;
 use std::str::FromStr;
 
 use pyo3::types::PyAnyMethods;
@@ -58,7 +59,7 @@ pub struct IdentExtractor(pub Ident);
 fn extract_expr(
     obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::PyAny>,
     str_as_ident: bool,
-) -> pyo3::PyResult<ExprInner> {
+) -> error::Result<ExprInner> {
     let ptr = obj.as_ptr();
     unsafe {
         if crate::typeref::check(ptr, crate::typeref::EXPR_TYPE) {
@@ -68,8 +69,7 @@ fn extract_expr(
 
         if crate::typeref::check_exact(ptr, crate::typeref::UNQUOTE_TYPE) {
             let unquote = obj.cast_unchecked::<super::ident::PyUnquote>();
-            let part = IdentPart::unquoted(unquote.get().0.as_str())
-                .map_err(|err| rapidquery_macros::pyerr!(PyValueError, "{}", err))?;
+            let part = IdentPart::unquoted(unquote.get().0.as_str()).map_err(error::Error::from)?;
 
             return Ok(ExprInner::Ident(Ident::from_one(part)));
         }
@@ -83,7 +83,7 @@ fn extract_expr(
 
             // a bare `str` becomes [`ExprInner::Ident`] if `str_as_ident`
             if str_as_ident {
-                let inner = Ident::from_str(s).map_err(|err| rapidquery_macros::pyerr!(PyValueError, "{}", err))?;
+                let inner = Ident::from_str(s)?;
 
                 return Ok(ExprInner::Ident(inner));
             }
@@ -116,11 +116,7 @@ fn extract_expr(
             return Ok(expr.get().0.clone());
         },
         mismatches: {
-            return rapidquery_macros::pyerr!(
-                Err(PyTypeError),
-                "__expr__ protocol attribute returns non-expr type: {}",
-                utils::get_type_name(obj.py(), protocol.as_ptr())
-            )
+            return Err(error::Error::Expected { expected: "__expr__ protocol attribute returned a non-expr", got: utils::get_type_name(obj.py(), protocol.as_ptr()) });
         }
     }
 
@@ -131,7 +127,7 @@ fn extract_expr(
 ///
 /// A Python `str` is never a sequence. An already-built `TupleExpr` is a
 /// single pattern; a raw `tuple`/`list` is ANY.
-pub fn extract_like_pattern(obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::PyAny>) -> pyo3::PyResult<LikePattern> {
+pub fn extract_like_pattern(obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::PyAny>) -> error::Result<LikePattern> {
     let ptr = obj.as_ptr();
     unsafe {
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
@@ -149,13 +145,13 @@ pub fn extract_like_pattern(obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::
     Ok(LikePattern::One(Box::new(extract_expr(obj, false)?)))
 }
 
-fn extract_like_any<'py>(iter: impl IntoIterator<Item = pyo3::Bound<'py, pyo3::PyAny>>) -> pyo3::PyResult<LikePattern> {
+fn extract_like_any<'py>(iter: impl IntoIterator<Item = pyo3::Bound<'py, pyo3::PyAny>>) -> error::Result<LikePattern> {
     let mut items = Vec::new();
     for item in iter {
         items.push(item.extract::<LiteralExprExtractor>()?.0);
     }
     if items.is_empty() {
-        return rapidquery_macros::pyerr!(Err(PyValueError), "LIKE ANY pattern list is empty");
+        return Err(error::Error::EmptyLikeAny);
     }
     Ok(LikePattern::Any(items))
 }
@@ -169,14 +165,14 @@ pub(super) enum ExtractedIdentArgument {
 #[inline]
 pub(super) fn extract_ident_argument(
     obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::PyAny>,
-) -> pyo3::PyResult<ExtractedIdentArgument> {
+) -> error::Result<ExtractedIdentArgument> {
     let ptr = obj.as_ptr();
     unsafe {
         // SAFETY: `ptr` is a live borrowed `PyObject`. Type pointers are
         // interned in `initialize_typeref` before any extractor runs.
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
             let s = utils::borrow_py_str_buffer(obj.py(), ptr)?;
-            let part = IdentPart::quoted(s).map_err(|e| rapidquery_macros::pyerr!(PyValueError, "{}", e))?;
+            let part = IdentPart::quoted(s)?;
 
             return Ok(ExtractedIdentArgument::Part(part));
         }
@@ -194,8 +190,7 @@ pub(super) fn extract_ident_argument(
 
         if crate::typeref::check_exact(ptr, crate::typeref::UNQUOTE_TYPE) {
             let unquote = obj.cast_unchecked::<super::ident::PyUnquote>();
-            let part = IdentPart::unquoted(unquote.get().0.as_str())
-                .map_err(|e| rapidquery_macros::pyerr!(PyValueError, "{}", e))?;
+            let part = IdentPart::unquoted(unquote.get().0.as_str())?;
 
             return Ok(ExtractedIdentArgument::Part(part));
         }
@@ -221,23 +216,18 @@ pub(super) fn extract_ident_argument(
             }
         },
         mismatches: {
-            return rapidquery_macros::pyerr!(
-                Err(PyTypeError),
-                "__ident__ protocol attribute returns non-ident type: {}",
-                utils::get_type_name(obj.py(), protocol.as_ptr())
-            )
+            return Err(error::Error::Expected { expected: "__ident__ protocol attribute returned a non-ident", got: utils::get_type_name(obj.py(), protocol.as_ptr()) });
         }
     }
 
-    rapidquery_macros::pyerr!(
-        Err(PyTypeError),
-        "expected str, Ident, Unquote or Asterisk, got {}",
-        unsafe { crate::internal::utils::get_type_name(obj.py(), obj.as_ptr()) }
-    )
+    Err(error::Error::Expected {
+        expected: "expected a str, Ident, Unquote, or Asterisk",
+        got: unsafe { crate::internal::utils::get_type_name(obj.py(), obj.as_ptr()) },
+    })
 }
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for LiteralExprExtractor {
-    type Error = pyo3::PyErr;
+    type Error = error::Error;
 
     #[inline]
     fn extract(obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>) -> Result<Self, Self::Error> {
@@ -246,7 +236,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for LiteralExprExtractor {
 }
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for IdentExtractor {
-    type Error = pyo3::PyErr;
+    type Error = error::Error;
 
     #[inline]
     fn extract(obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>) -> Result<Self, Self::Error> {
@@ -254,7 +244,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for IdentExtractor {
             // SAFETY: `ptr` is a live borrowed `PyObject`.
             if pyo3::ffi::PyUnicode_CheckExact(obj.as_ptr()) == 1 {
                 let s = utils::borrow_py_str_buffer(obj.py(), obj.as_ptr())?;
-                let inner = Ident::from_str(s).map_err(|e| rapidquery_macros::pyerr!(PyValueError, "{}", e))?;
+                let inner = Ident::from_str(s)?;
 
                 return Ok(Self(inner));
             }

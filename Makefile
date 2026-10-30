@@ -66,7 +66,7 @@ test-python:
 test: test-rust test-python
 
 .PHONY: all  ## Run the standard set of checks performed in CI
-all: format lint build-dev test
+all: format build-dev lint test
 
 .PHONY: clean  ## Clear local caches and build artifacts
 clean:

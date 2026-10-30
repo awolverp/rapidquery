@@ -1,5 +1,3 @@
-pub mod errors;
-
 mod base;
 mod escape;
 

@@ -1,4 +1,5 @@
 use crate::dialect;
+use crate::error;
 use crate::expr::enum_::Ident;
 use crate::expr::extractors::IdentExtractor;
 use crate::internal::alias;
@@ -24,12 +25,12 @@ pub struct PyCreateSchema {
 }
 
 impl sql::WriteSql for PyCreateSchema {
-    fn write_sql<W: sql::SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> pyo3::PyResult<()> {
+    fn write_sql<W: sql::SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> error::Result<()> {
         if !dialect.schema.features.contains(dialect::SchemaFeatures::SUPPORTED) {
-            return Err(rapidquery_macros::pyerr!(
-                PyRuntimeError,
-                "CREATE SCHEMA statement is not supported by this dialect"
-            ));
+            return Err(error::Error::Unsupported {
+                feature: "CREATE SCHEMA is not supported by this dialect",
+                fix: "set schema.features to include OPT_SCHEMA_FEATURES_SUPPORTED",
+            });
         }
 
         // CREATE {SCHEMA | DATABASE}
@@ -49,10 +50,10 @@ impl sql::WriteSql for PyCreateSchema {
         match dialect.schema.authorization {
             dialect::SchemaAuthorization::Unsupported => {
                 if self.authorization.is_some() {
-                    return Err(rapidquery_macros::pyerr!(
-                        PyRuntimeError,
-                        "authorization is not supported in CREATE SCHEMA by this dialect"
-                    ));
+                    return Err(error::Error::Unsupported {
+                        feature: "authorization is not supported in CREATE SCHEMA by this dialect",
+                        fix: "set schema.authorization to OPT_SCHEMA_AUTHORIZATION_OPTIONAL",
+                    });
                 }
 
                 self.name.write_sql(dialect, out)?;
@@ -70,10 +71,10 @@ impl sql::WriteSql for PyCreateSchema {
         if let Some(x) = &self.location {
             // ... {LOCATION | MANAGED LOCATION | EXTERNAL_VOLUME =} <location>
             let Some(tmpl) = &dialect.schema.location else {
-                return Err(rapidquery_macros::pyerr!(
-                    PyRuntimeError,
-                    "location is not supported in CREATE SCHEMA by this dialect"
-                ));
+                return Err(error::Error::Unsupported {
+                    feature: "location is not supported in CREATE SCHEMA by this dialect",
+                    fix: "set schema.location to a template such as \" LOCATION {}\"",
+                });
             };
 
             out.write(' ');
@@ -124,7 +125,7 @@ impl PyCreateSchema {
     }
 
     /// Render this expression as raw SQL (values inlined as literals).
-    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> pyo3::PyResult<String> {
+    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> error::Result<String> {
         sql::write_sql(dialect.py(), self, dialect.get())
     }
 
@@ -166,12 +167,12 @@ pub struct PyDropSchema {
 }
 
 impl sql::WriteSql for PyDropSchema {
-    fn write_sql<W: sql::SqlWriter>(&self, dialect: &crate::dialect::PyDialect, out: &mut W) -> pyo3::PyResult<()> {
+    fn write_sql<W: sql::SqlWriter>(&self, dialect: &crate::dialect::PyDialect, out: &mut W) -> error::Result<()> {
         if !dialect.schema.features.contains(dialect::SchemaFeatures::SUPPORTED) {
-            return Err(rapidquery_macros::pyerr!(
-                PyRuntimeError,
-                "DROP SCHEMA statement is not supported by this dialect"
-            ));
+            return Err(error::Error::Unsupported {
+                feature: "DROP SCHEMA is not supported by this dialect",
+                fix: "set schema.features to include OPT_SCHEMA_FEATURES_SUPPORTED",
+            });
         }
 
         // DROP {SCHEMA | DATABASE}
@@ -195,20 +196,20 @@ impl sql::WriteSql for PyDropSchema {
             None => {}
             Some(DropSchemaBehavior::Cascade) => {
                 if !dialect.schema.features.contains(dialect::SchemaFeatures::DROP_CASCADE) {
-                    return Err(rapidquery_macros::pyerr!(
-                        PyRuntimeError,
-                        "This dialect does not support CASCADE keyword in DROP SCHEMA statement"
-                    ));
+                    return Err(error::Error::Unsupported {
+                        feature: "CASCADE is not supported in DROP SCHEMA by this dialect",
+                        fix: "set schema.features to include OPT_SCHEMA_FEATURES_DROP_CASCADE",
+                    });
                 }
 
                 out.write_str(" CASCADE");
             }
             Some(DropSchemaBehavior::Restrict) => {
                 if !dialect.schema.features.contains(dialect::SchemaFeatures::DROP_RESTRICT) {
-                    return Err(rapidquery_macros::pyerr!(
-                        PyRuntimeError,
-                        "This dialect does not support RESTRICT keyword in DROP SCHEMA statement"
-                    ));
+                    return Err(error::Error::Unsupported {
+                        feature: "RESTRICT is not supported in DROP SCHEMA by this dialect",
+                        fix: "set schema.features to include OPT_SCHEMA_FEATURES_DROP_RESTRICT",
+                    });
                 }
 
                 out.write_str(" RESTRICT");
@@ -227,7 +228,7 @@ impl PyDropSchema {
         name: IdentExtractor,
         if_exists: bool,
         behavior: Option<&str>,
-    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+    ) -> error::Result<pyo3::PyClassInitializer<Self>> {
         use std::str::FromStr;
 
         let result = Self {
@@ -237,7 +238,7 @@ impl PyDropSchema {
                 None => None,
                 Some(x) => Some(
                     DropSchemaBehavior::from_str(x)
-                        .map_err(|_| rapidquery_macros::pyerr!(PyValueError, "invalid value for behavior: {}", x))?,
+                        .map_err(|_| error::Error::InvalidSchemaBehavior { value: x.to_owned() })?,
                 ),
             },
         };
@@ -260,7 +261,7 @@ impl PyDropSchema {
     }
 
     /// Render this expression as raw SQL (values inlined as literals).
-    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> pyo3::PyResult<String> {
+    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> error::Result<String> {
         sql::write_sql(dialect.py(), self, dialect.get())
     }
 

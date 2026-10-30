@@ -292,6 +292,14 @@ fn screaming_snake(s: &str) -> String {
     out
 }
 
+/// Single-segment type name used for `OPT_*` constants.
+fn enum_type_ident(ty: &Type) -> &Ident {
+    match ty {
+        Type::Path(type_name) => type_name.path.get_ident().expect("enum/bits type is a single ident"),
+        _ => panic!("enum/bits type is a single ident"),
+    }
+}
+
 /// Name of the exported module constant: `OPT_<TYPE_NAME>_<ITEM>`.
 fn const_name(field: &Ident, item: &Ident) -> String {
     format!(
@@ -362,31 +370,53 @@ impl Field {
     /// May `return Err(..)` / use `?`, so it must be used inside `__new__`.
     fn convert(&self, value: &TokenStream) -> TokenStream {
         let name_str = self.name.unraw().to_string();
-        let value_error = quote!(::pyo3::exceptions::PyValueError);
 
         match &self.kind {
             Kind::Plain(_) | Kind::Class(_) => value.clone(),
 
-            Kind::Enum { ty, variants } => quote! {
-                match #value {
-                    #( __x if __x == <#ty>::#variants as u8 => <#ty>::#variants, )*
-                    __x => return ::core::result::Result::Err(
-                        #value_error::new_err(format!("invalid value {} for `{}`", __x, #name_str)),
-                    ),
+            Kind::Enum { ty, variants } => {
+                let type_ident = enum_type_ident(ty);
+                let names: Vec<_> = variants.iter().map(|v| const_name(type_ident, v)).collect();
+                let values = 0..variants.len() as u8;
+                quote! {
+                    match #value {
+                        #( __x if __x == <#ty>::#variants as u8 => <#ty>::#variants, )*
+                        __x => return ::core::result::Result::Err(
+                            error::Error::InvalidEnumOptionField {
+                                field: #name_str,
+                                value: __x,
+                                expected: error::format_options(&[#(#names),*], &[#(#values),*]),
+                            },
+                        ),
+                    }
                 }
-            },
+            }
 
-            Kind::Bits { ty, .. } => quote! {
-                <#ty>::from_bits(#value).ok_or_else(|| {
-                    #value_error::new_err(format!("invalid bits {:#b} for `{}`", #value, #name_str))
-                })?
-            },
+            Kind::Bits { ty, flags } => {
+                let type_ident = enum_type_ident(ty);
+                let names: Vec<_> = flags.iter().map(|flag| const_name(type_ident, flag)).collect();
+                quote! {
+                    <#ty>::from_bits(#value).ok_or_else(|| {
+                        error::Error::InvalidBitOptionField {
+                            field: #name_str,
+                            value: #value,
+                            expected: error::format_options(
+                                &[#(#names),*],
+                                &[#(<#ty>::#flags.bits()),*],
+                            ),
+                        }
+                    })?
+                }
+            }
 
             Kind::Template { keys, min, max } => {
                 let keys = template_keys(keys);
                 quote! {
                     template::Template::parse(#value, #keys, #min, #max)
-                        .map_err(|e| #value_error::new_err(e.to_string()))?
+                        .map_err(|reason| error::Error::InvalidTemplate {
+                            field: #name_str,
+                            reason,
+                        })?
                 }
             }
         }
@@ -605,7 +635,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         #[cold]
         fn #export_fn(
             module: &::pyo3::Bound<'_, ::pyo3::types::PyModule>,
-        ) -> ::pyo3::PyResult<()> {
+        ) -> pyo3::PyResult<()> {
             use ::pyo3::types::PyModuleMethods;
             #(#exports)*
             Ok(())
@@ -620,7 +650,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 clippy::fn_params_excessive_bools,
                 clippy::cognitive_complexity
             )]
-            fn __new__(#(#params),*) -> ::pyo3::PyResult<Self> {
+            fn __new__(#(#params),*) -> error::Result<Self> {
                 Ok(Self { #(#inits),* })
             }
 

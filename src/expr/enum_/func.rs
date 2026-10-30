@@ -1,5 +1,6 @@
 use super::ExprInner;
 use super::ident::Ident;
+use crate::error;
 
 use crate::dialect;
 use crate::internal::repr;
@@ -66,7 +67,7 @@ pub struct Function {
 }
 
 impl Function {
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> error::Result<repr::ReprFormatter> {
         let mut fmt = repr::ReprFormatter::new_call("Function");
 
         fmt.positional(self.name.python_repr());
@@ -96,7 +97,7 @@ impl Function {
 }
 
 impl WriteSql for Function {
-    fn write_sql<W: SqlWriter>(&self, dialect: &crate::dialect::PyDialect, out: &mut W) -> pyo3::PyResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &crate::dialect::PyDialect, out: &mut W) -> error::Result<()> {
         // "name"([DISTINCT] args [{IGNORE|RESPECT} NULLS] [WHERE expr])
         // [FILTER ([WHERE] expr)] [{IGNORE|RESPECT} NULLS]
         self.name.write_sql(dialect, out)?;
@@ -111,16 +112,16 @@ impl WriteSql for Function {
         if self.null_treatment.is_some()
             && matches!(dialect.aggregate.null_treatment, dialect::NullTreatment::Unsupported)
         {
-            return Err(rapidquery_macros::pyerr!(
-                PyRuntimeError,
-                "null_treatment is not supported by this dialect",
-            ));
+            return Err(error::Error::Unsupported {
+                feature: "null_treatment is not supported by this dialect",
+                fix: "set aggregate.null_treatment to OPT_NULL_TREATMENT_INSIDE_PARENS or OPT_NULL_TREATMENT_POSTFIX",
+            });
         }
         if self.filter.is_some() && matches!(dialect.aggregate.function_filter, dialect::FunctionFilter::Unsupported) {
-            return Err(rapidquery_macros::pyerr!(
-                PyRuntimeError,
-                "function filter is not supported by this dialect",
-            ));
+            return Err(error::Error::Unsupported {
+                feature: "function filter is not supported by this dialect",
+                fix: "set aggregate.function_filter to OPT_FUNCTION_FILTER_FILTER, OPT_FUNCTION_FILTER_FILTER_WHERE, or OPT_FUNCTION_FILTER_INSIDE_WHERE",
+            });
         }
 
         // Inside parens IGNORE/RESPECT NULLS

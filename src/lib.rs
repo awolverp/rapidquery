@@ -3,6 +3,7 @@
 
 pub mod data_type;
 pub mod dialect;
+pub mod error;
 pub mod expr;
 pub mod internal;
 pub mod serializers;

@@ -5,6 +5,7 @@ mod inner;
 
 pub use inner::SerializerType;
 
+use crate::error;
 use crate::internal::alias;
 use crate::internal::repr;
 
@@ -32,7 +33,7 @@ impl PySerializer {
         &self,
         dialect: pyo3::Bound<'_, crate::dialect::PyDialect>,
         object: alias::BoundObject<'_>,
-    ) -> pyo3::PyResult<String> {
+    ) -> error::Result<String> {
         let mut buf = String::new();
         self.0.serialize(dialect.get(), &object, &mut buf)?;
         Ok(buf)
@@ -96,7 +97,7 @@ macro_rules! impl_unit_serializers {
             pub fn into_subclasses<'py>(
                 self,
                 py: pyo3::Python<'py>,
-            ) -> pyo3::PyResult<alias::BoundObject<'py>> {
+            ) -> error::Result<alias::BoundObject<'py>> {
                 match &self.0 {
                     $(
                         SerializerType::$variant {..} => {
@@ -105,6 +106,7 @@ macro_rules! impl_unit_serializers {
                                 pyo3::PyClassInitializer::from(self).add_subclass($name),
                             )
                             .map(|x| x.into_any())
+                            .map_err(error::Error::from)
                         }
                     )+
 
@@ -114,6 +116,7 @@ macro_rules! impl_unit_serializers {
                             pyo3::PyClassInitializer::from(self).add_subclass(PyArraySerializer),
                         )
                         .map(|x| x.into_any())
+                        .map_err(error::Error::from)
                     },
                     SerializerType::Custom(_) => {
                         pyo3::Bound::new(
@@ -121,6 +124,7 @@ macro_rules! impl_unit_serializers {
                             pyo3::PyClassInitializer::from(self).add_subclass(PyCustomSerializer),
                         )
                         .map(|x| x.into_any())
+                        .map_err(error::Error::from)
                     }
                 }
             }
@@ -192,7 +196,7 @@ impl PyArraySerializer {
     /// Returns:
     ///     The `Serializer` passed to the constructor.
     #[getter]
-    fn get_element(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+    fn get_element(slf: pyo3::PyRef<'_, Self>) -> error::Result<alias::BoundObject<'_>> {
         let base = slf.as_super();
         match &base.0 {
             SerializerType::Array(element) => PySerializer((**element).clone()).into_subclasses(slf.py()),
@@ -210,10 +214,13 @@ pub struct PyCustomSerializer;
 impl PyCustomSerializer {
     /// Build a serializer. `function(dialect, object)` must return `str`.
     #[new]
-    fn __new__(function: alias::PyObject) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+    fn __new__(py: pyo3::Python<'_>, function: alias::PyObject) -> error::Result<pyo3::PyClassInitializer<Self>> {
         unsafe {
             if pyo3::ffi::PyCallable_Check(function.as_ptr()) != 1 {
-                return rapidquery_macros::pyerr!(Err(PyTypeError), "the 'function' parameter must be callable");
+                return Err(error::Error::Expected {
+                    expected: "expected a callable for the 'function' parameter",
+                    got: crate::internal::utils::get_type_name(py, function.as_ptr()),
+                });
             }
         }
         let inner = SerializerType::Custom(function);
@@ -246,7 +253,7 @@ impl PyCustomSerializer {
 pub struct SerializerExtractor(pub SerializerType);
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for SerializerExtractor {
-    type Error = pyo3::PyErr;
+    type Error = error::Error;
 
     fn extract(obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>) -> Result<Self, Self::Error> {
         let ptr = obj.as_ptr();
@@ -260,8 +267,9 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for SerializerExtractor {
             }
         }
 
-        rapidquery_macros::pyerr!(Err(PyTypeError), "expected Serializer, got {}", unsafe {
-            crate::internal::utils::get_type_name(obj.py(), obj.as_ptr())
+        Err(error::Error::Expected {
+            expected: "expected a Serializer",
+            got: unsafe { crate::internal::utils::get_type_name(obj.py(), obj.as_ptr()) },
         })
     }
 }
