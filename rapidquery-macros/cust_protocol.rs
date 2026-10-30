@@ -97,7 +97,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     1 => Some(pyo3::Bound::from_owned_ptr(#bound_object.py(), attribute)),
                     0 => None,
                     _ => {
-                        return Err(pyo3::PyErr::fetch(#bound_object.py()))
+                        return Err(pyo3::PyErr::fetch(#bound_object.py()).into())
                     }
                 }
             };
@@ -109,7 +109,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
                 if attribute.is_null() {
                     if pyo3::ffi::PyErr_ExceptionMatches(pyo3::ffi::PyExc_AttributeError) != 1 {
-                        return Err(pyo3::PyErr::fetch(#bound_object.py()));
+                        return Err(pyo3::PyErr::fetch(#bound_object.py()).into());
                     } else {
                         pyo3::ffi::PyErr_Clear();
                         None

@@ -1,5 +1,6 @@
 //! A Python object plus the [`Serializer`] used to emit it as SQL.
 
+use crate::error;
 use pyo3::types::PyAnyMethods;
 use pyo3::types::PyStringMethods;
 
@@ -36,11 +37,11 @@ impl Value {
     }
 
     #[inline]
-    pub fn infer_bound(bound: alias::BoundObject) -> pyo3::PyResult<Self> {
+    pub fn infer_bound(bound: alias::BoundObject) -> error::Result<Self> {
         SerializerType::infer_bound(&bound).map(|x| Self::new(bound.unbind(), x))
     }
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> error::Result<repr::ReprFormatter> {
         let obj_repr = self.object.bind(py).repr()?;
         let text = obj_repr.to_cow()?;
 
@@ -55,7 +56,7 @@ impl Value {
 }
 
 impl WriteSql for Value {
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> pyo3::PyResult<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> error::Result<()> {
         out.write_value(dialect, &self.serializer, &self.object)
     }
 }

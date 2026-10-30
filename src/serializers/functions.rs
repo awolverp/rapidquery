@@ -1,3 +1,4 @@
+use crate::error;
 use pyo3::types::PyAnyMethods;
 use pyo3::types::PyTzInfoAccess;
 
@@ -27,13 +28,12 @@ pub(super) unsafe fn write_integer<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     out: &mut W,
-) -> pyo3::PyResult<()> {
+) -> error::Result<()> {
     if pyo3::ffi::PyLong_Check(ptr) != 1 {
-        return rapidquery_macros::pyerr!(
-            Err(PyTypeError),
-            "expected int for integer serialization, got {}",
-            utils::get_type_name(py, ptr)
-        );
+        return Err(error::Error::Expected {
+            expected: "expected an int to serialize an integer",
+            got: utils::get_type_name(py, ptr),
+        });
     }
 
     let mut overflow = 0i32;
@@ -47,7 +47,7 @@ pub(super) unsafe fn write_integer<W: writer::FastWrite>(
     }
 
     if n == -1 && !pyo3::ffi::PyErr_Occurred().is_null() {
-        return Err(pyo3::PyErr::fetch(py));
+        return Err(pyo3::PyErr::fetch(py).into());
     }
 
     out.write_int(n);
@@ -59,15 +59,11 @@ pub(super) unsafe fn write_float<W: writer::FastWrite>(
     py: pyo3::Python<'_>,
     ptr: *mut pyo3::ffi::PyObject,
     out: &mut W,
-) -> pyo3::PyResult<()> {
+) -> error::Result<()> {
     if pyo3::ffi::PyFloat_CheckExact(ptr) == 1 {
         let v = pyo3::ffi::PyFloat_AsDouble(ptr);
         if !v.is_finite() {
-            return rapidquery_macros::pyerr!(
-                Err(PyValueError),
-                "cannot serialize non-finite float {} as a numeric literal",
-                v
-            );
+            return Err(error::Error::NonFiniteFloat { value: v });
         }
 
         out.write_float(v);
@@ -81,11 +77,10 @@ pub(super) unsafe fn write_float<W: writer::FastWrite>(
         return Ok(());
     }
 
-    rapidquery_macros::pyerr!(
-        Err(PyTypeError),
-        "expected float/int/Decimal for numeric serialization, got {}",
-        utils::get_type_name(py, ptr)
-    )
+    Err(error::Error::Expected {
+        expected: "expected a float, int, or decimal.Decimal to serialize a number",
+        got: utils::get_type_name(py, ptr),
+    })
 }
 
 #[inline]
@@ -94,17 +89,16 @@ pub(super) unsafe fn write_bool<W: writer::FastWrite>(
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::LiteralConfig,
     out: &mut W,
-) -> pyo3::PyResult<()> {
+) -> error::Result<()> {
     if pyo3::ffi::PyBool_Check(ptr) == 1 {
         let value = pyo3::ffi::Py_True() == ptr;
         cfg.write_boolean(out, value);
         Ok(())
     } else {
-        rapidquery_macros::pyerr!(
-            Err(PyTypeError),
-            "expected bool for boolean serialization, got {}",
-            utils::get_type_name(py, ptr)
-        )
+        Err(error::Error::Expected {
+            expected: "expected a bool to serialize a boolean",
+            got: utils::get_type_name(py, ptr),
+        })
     }
 }
 
@@ -114,18 +108,15 @@ pub(super) unsafe fn write_str<W: writer::FastWrite>(
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::StringConfig,
     out: &mut W,
-) -> pyo3::PyResult<()> {
+) -> error::Result<()> {
     if pyo3::ffi::PyUnicode_Check(ptr) == 1 {
-        return cfg
-            .write_string_literal(out, utils::borrow_py_str_buffer(py, ptr)?)
-            .map_err(Into::into);
+        return cfg.write_string_literal(out, utils::borrow_py_str_buffer(py, ptr)?);
     }
 
-    rapidquery_macros::pyerr!(
-        Err(PyTypeError),
-        "expected str for string serialization, got {}",
-        utils::get_type_name(py, ptr)
-    )
+    Err(error::Error::Expected {
+        expected: "expected a str to serialize a string",
+        got: utils::get_type_name(py, ptr),
+    })
 }
 
 #[inline]
@@ -134,9 +125,12 @@ pub(super) unsafe fn write_uuid<W: writer::FastWrite>(
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::LiteralConfig,
     out: &mut W,
-) -> pyo3::PyResult<()> {
+) -> error::Result<()> {
     let Some(tmpl) = &cfg.uuid else {
-        return Err(dialect::errors::FormatError::Unsupported("UuidSerializer").into());
+        return Err(error::Error::Unsupported {
+            feature: "UUID values are not supported by this dialect",
+            fix: "set literal.uuid to a template such as \"'{}'\"",
+        });
     };
 
     let text = if crate::typeref::check_exact(ptr, crate::typeref::STD_UUID_TYPE) {
@@ -144,15 +138,14 @@ pub(super) unsafe fn write_uuid<W: writer::FastWrite>(
     } else if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
         let borrowed = utils::borrow_py_str_buffer(py, ptr)?;
         uuid::Uuid::try_parse(borrowed)
-            .map_err(|e| rapidquery_macros::pyerr!(PyValueError, "invalid uuid str: {}", e))?
+            .map_err(|e| error::Error::InvalidUuid { detail: e.to_string() })?
             .hyphenated()
             .to_string()
     } else {
-        return rapidquery_macros::pyerr!(
-            Err(PyTypeError),
-            "expected uuid.UUID/str for UUID serialization, got {}",
-            utils::get_type_name(py, ptr)
-        );
+        return Err(error::Error::Expected {
+            expected: "expected a uuid.UUID or str to serialize a UUID",
+            got: utils::get_type_name(py, ptr),
+        });
     };
 
     tmpl.write_to(
@@ -169,7 +162,7 @@ pub(super) unsafe fn write_bytes<W: writer::FastWrite>(
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::LiteralConfig,
     out: &mut W,
-) -> pyo3::PyResult<()> {
+) -> error::Result<()> {
     if pyo3::ffi::PyBytes_CheckExact(ptr) == 1 {
         let buf = pyo3::ffi::PyBytes_AsString(ptr) as *const u8;
         let len = pyo3::ffi::PyBytes_Size(ptr) as usize;
@@ -178,11 +171,10 @@ pub(super) unsafe fn write_bytes<W: writer::FastWrite>(
         cfg.write_bytes(out, std::slice::from_raw_parts(buf, len));
         Ok(())
     } else {
-        rapidquery_macros::pyerr!(
-            Err(PyTypeError),
-            "expected bytes for binary serialization, got {}",
-            utils::get_type_name(py, ptr)
-        )
+        Err(error::Error::Expected {
+            expected: "expected bytes to serialize binary data",
+            got: utils::get_type_name(py, ptr),
+        })
     }
 }
 
@@ -191,29 +183,27 @@ pub(super) unsafe fn write_bit<W: writer::FastWrite>(
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::LiteralConfig,
     out: &mut W,
-) -> pyo3::PyResult<()> {
+) -> error::Result<()> {
     if cfg.bit.is_none() {
-        return Err(dialect::errors::FormatError::Unsupported("BitSerializer").into());
+        return Err(error::Error::Unsupported {
+            feature: "bit strings are not supported by this dialect",
+            fix: "set literal.bit to a template such as \"B'{}'\"",
+        });
     }
 
     if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
         let raw = utils::borrow_py_str_buffer(py, ptr)?;
 
         if raw.is_empty() || !raw.bytes().all(|b| b == b'0' || b == b'1') {
-            return rapidquery_macros::pyerr!(
-                Err(PyValueError),
-                "expected a string of '0'/'1' for bit serialization, got {:?}",
-                raw
-            );
+            return Err(error::Error::InvalidBitString { value: raw.to_owned() });
         }
 
-        cfg.write_bits(out, raw).map_err(Into::into)
+        cfg.write_bits(out, raw)
     } else {
-        rapidquery_macros::pyerr!(
-            Err(PyTypeError),
-            "expected str of bits for bit serialization, got {}",
-            utils::get_type_name(py, ptr)
-        )
+        Err(error::Error::Expected {
+            expected: "expected a str of '0' and '1' to serialize a bit string",
+            got: utils::get_type_name(py, ptr),
+        })
     }
 }
 
@@ -224,7 +214,7 @@ pub(super) unsafe fn write_json<W: writer::FastWrite>(
     literal_cfg: &dialect::LiteralConfig,
     string_cfg: &dialect::StringConfig,
     out: &mut W,
-) -> pyo3::PyResult<()> {
+) -> error::Result<()> {
     crate::internal::modules::json_dumps(
         unsafe { pyo3::Bound::from_borrowed_ptr(py, ptr) },
         // write result into `out`
@@ -245,7 +235,7 @@ pub(super) unsafe fn write_date<W: writer::FastWrite>(
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::TemporalConfig,
     out: &mut W,
-) -> pyo3::PyResult<()> {
+) -> error::Result<()> {
     if crate::typeref::check_exact(ptr, crate::typeref::STD_DATE_TYPE) {
         let val: pyo3::Bound<'_, pyo3::types::PyDate> = pyo3::Bound::from_borrowed_ptr(py, ptr).cast_into()?;
         let date: chrono::NaiveDate = val.extract()?;
@@ -254,11 +244,10 @@ pub(super) unsafe fn write_date<W: writer::FastWrite>(
             .write_to(out, |_, out| out.write_str(&date.format("%Y-%m-%d").to_string()));
         Ok(())
     } else {
-        rapidquery_macros::pyerr!(
-            Err(PyTypeError),
-            "expected datetime.date for date serialization, got {}",
-            utils::get_type_name(py, ptr)
-        )
+        Err(error::Error::Expected {
+            expected: "expected a datetime.date to serialize a date",
+            got: utils::get_type_name(py, ptr),
+        })
     }
 }
 
@@ -267,7 +256,7 @@ pub(super) unsafe fn write_time<W: writer::FastWrite>(
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::TemporalConfig,
     out: &mut W,
-) -> pyo3::PyResult<()> {
+) -> error::Result<()> {
     if crate::typeref::check_exact(ptr, crate::typeref::STD_TIME_TYPE) {
         let val: pyo3::Bound<'_, pyo3::types::PyTime> = pyo3::Bound::from_borrowed_ptr(py, ptr).cast_into()?;
         let time: chrono::NaiveTime = val.extract()?;
@@ -276,11 +265,10 @@ pub(super) unsafe fn write_time<W: writer::FastWrite>(
             .write_to(out, |_, out| out.write_str(&time.format("%H:%M:%S%.f").to_string()));
         Ok(())
     } else {
-        rapidquery_macros::pyerr!(
-            Err(PyTypeError),
-            "expected datetime.time for time serialization, got {}",
-            utils::get_type_name(py, ptr)
-        )
+        Err(error::Error::Expected {
+            expected: "expected a datetime.time to serialize a time",
+            got: utils::get_type_name(py, ptr),
+        })
     }
 }
 
@@ -290,7 +278,7 @@ pub(super) unsafe fn write_datetime<W: writer::FastWrite>(
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::TemporalConfig,
     out: &mut W,
-) -> pyo3::PyResult<()> {
+) -> error::Result<()> {
     use chrono::TimeZone;
 
     if crate::typeref::check_exact(ptr, crate::typeref::STD_DATETIME_TYPE) {
@@ -317,7 +305,7 @@ pub(super) unsafe fn write_datetime<W: writer::FastWrite>(
         let mut has_overflow: i32 = 0;
         let num = pyo3::ffi::PyLong_AsLongLongAndOverflow(ptr, &mut has_overflow);
         if has_overflow != 0 {
-            return rapidquery_macros::pyerr!(Err(PyOverflowError), "out of range");
+            return Err(error::Error::DatetimeOutOfRange);
         }
 
         return match chrono::Utc.timestamp_opt(num, 0) {
@@ -325,13 +313,9 @@ pub(super) unsafe fn write_datetime<W: writer::FastWrite>(
                 cfg.datetime_aware.write_to(out, |_, out| {
                     out.write_str(&datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").to_string())
                 });
-                return Ok(());
+                Ok(())
             }
-            _ => rapidquery_macros::pyerr!(
-                Err(PyOverflowError),
-                "timestamp is invalid for datetime serialization: {}",
-                num
-            ),
+            _ => Err(error::Error::InvalidTimestamp { value: num.to_string() }),
         };
     }
 
@@ -342,21 +326,16 @@ pub(super) unsafe fn write_datetime<W: writer::FastWrite>(
                 cfg.datetime_aware.write_to(out, |_, out| {
                     out.write_str(&datetime.format("%Y-%m-%d %H:%M:%S%.f%:z").to_string())
                 });
-                return Ok(());
+                Ok(())
             }
-            _ => rapidquery_macros::pyerr!(
-                Err(PyOverflowError),
-                "timestamp is invalid for datetime serialization: {}",
-                num
-            ),
+            _ => Err(error::Error::InvalidTimestamp { value: num.to_string() }),
         };
     }
 
-    rapidquery_macros::pyerr!(
-        Err(PyTypeError),
-        "expected datetime.datetime/int/float for datetime serialization, got {}",
-        utils::get_type_name(py, ptr)
-    )
+    Err(error::Error::Expected {
+        expected: "expected a datetime.datetime, int, or float to serialize a datetime",
+        got: utils::get_type_name(py, ptr),
+    })
 }
 
 pub(super) unsafe fn write_inet<W: writer::FastWrite>(
@@ -364,14 +343,19 @@ pub(super) unsafe fn write_inet<W: writer::FastWrite>(
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::LiteralConfig,
     out: &mut W,
-) -> pyo3::PyResult<()> {
+) -> error::Result<()> {
     let Some(tmpl) = &cfg.inet else {
-        return Err(dialect::errors::FormatError::Unsupported("InetSerializer").into());
+        return Err(error::Error::Unsupported {
+            feature: "inet values are not supported by this dialect",
+            fix: "set literal.inet to a template such as \"'{}'::inet\"",
+        });
     };
 
     let text = pyobject_string(py, ptr)?;
-    let net =
-        ipnetwork::IpNetwork::from_str(&text).map_err(|e| rapidquery_macros::pyerr!(PyValueError, e.to_string()))?;
+    let net = ipnetwork::IpNetwork::from_str(&text).map_err(|e| error::Error::InvalidInet {
+        text: text.clone(),
+        detail: e.to_string(),
+    })?;
 
     let body = net.to_string();
 
@@ -384,14 +368,19 @@ pub(super) unsafe fn write_macaddr<W: writer::FastWrite>(
     ptr: *mut pyo3::ffi::PyObject,
     cfg: &dialect::LiteralConfig,
     out: &mut W,
-) -> pyo3::PyResult<()> {
+) -> error::Result<()> {
     let Some(tmpl) = &cfg.macaddr else {
-        return Err(dialect::errors::FormatError::Unsupported("MacAddressSerializer").into());
+        return Err(error::Error::Unsupported {
+            feature: "macaddr values are not supported by this dialect",
+            fix: "set literal.macaddr to a template such as \"'{}'::macaddr\"",
+        });
     };
 
     let text = pyobject_string(py, ptr)?;
-    let addr =
-        mac_address::MacAddress::from_str(&text).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let addr = mac_address::MacAddress::from_str(&text).map_err(|e| error::Error::InvalidMac {
+        text: text.clone(),
+        detail: e.to_string(),
+    })?;
 
     let body = addr.to_string();
 
@@ -405,9 +394,12 @@ pub(super) unsafe fn write_array<W: writer::FastWrite>(
     dialect: &dialect::PyDialect,
     element: &super::inner::SerializerType,
     out: &mut W,
-) -> pyo3::PyResult<()> {
+) -> error::Result<()> {
     let Some(tmpl) = &dialect.literal.array else {
-        return Err(dialect::errors::FormatError::Unsupported("ArraySerializer").into());
+        return Err(error::Error::Unsupported {
+            feature: "arrays are not supported by this dialect",
+            fix: "set literal.array to a template such as \"ARRAY[{}]\"",
+        });
     };
 
     let (len, getter): (
@@ -418,11 +410,10 @@ pub(super) unsafe fn write_array<W: writer::FastWrite>(
     } else if pyo3::ffi::PyTuple_CheckExact(ptr) == 1 {
         (pyo3::ffi::PyTuple_Size(ptr), |p, i| pyo3::ffi::PyTuple_GetItem(p, i))
     } else {
-        return rapidquery_macros::pyerr!(
-            Err(PyTypeError),
-            "expected list/tuple for array serialization, got {}",
-            utils::get_type_name(py, ptr)
-        );
+        return Err(error::Error::Expected {
+            expected: "expected a list or tuple to serialize an array",
+            got: utils::get_type_name(py, ptr),
+        });
     };
 
     tmpl.write_to_result(
@@ -434,7 +425,7 @@ pub(super) unsafe fn write_array<W: writer::FastWrite>(
 
                 let item = getter(ptr, i);
                 if item.is_null() {
-                    return Err(pyo3::PyErr::fetch(py));
+                    return Err(pyo3::PyErr::fetch(py).into());
                 }
                 let borrowed = alias::BoundObject::from_borrowed_ptr(py, item);
                 element.serialize(dialect, &borrowed, out)?;
@@ -451,16 +442,15 @@ pub(super) unsafe fn write_custom<W: writer::FastWrite>(
     function: &pyo3::Py<pyo3::PyAny>,
     object: &alias::BoundObject<'_>,
     out: &mut W,
-) -> pyo3::PyResult<()> {
+) -> error::Result<()> {
     let _ = ptr;
 
     let output = function.call1(py, (dialect.clone(), object))?;
     if pyo3::ffi::PyUnicode_CheckExact(output.as_ptr()) != 1 {
-        return rapidquery_macros::pyerr!(
-            Err(PyTypeError),
-            "custom serializer must return str, got {}",
-            utils::get_type_name(py, output.as_ptr())
-        );
+        return Err(error::Error::Expected {
+            expected: "expected the custom serializer to return str",
+            got: utils::get_type_name(py, output.as_ptr()),
+        });
     }
 
     out.write_str(utils::borrow_py_str_buffer(py, output.as_ptr())?);

@@ -1,4 +1,5 @@
 use crate::dialect::PyDialect;
+use crate::error;
 use crate::internal::alias;
 use crate::internal::modules;
 use crate::internal::utils;
@@ -71,7 +72,7 @@ impl std::hash::Hash for SerializerType {
 }
 
 impl SerializerType {
-    pub fn infer_bound(bound: &alias::BoundObject) -> pyo3::PyResult<Self> {
+    pub fn infer_bound(bound: &alias::BoundObject) -> error::Result<Self> {
         unsafe {
             let object_ptr = bound.as_ptr();
             let object_type_ptr = pyo3::ffi::Py_TYPE(object_ptr);
@@ -144,11 +145,7 @@ impl SerializerType {
                 return Ok(serializer.get().0.clone());
             },
             mismatches: {
-                return rapidquery_macros::pyerr!(
-                    Err(PyTypeError),
-                    "__serializer__ protocol attribute returns non-serializer type: {}",
-                    utils::get_type_name(bound.py(), protocol.as_ptr())
-                )
+                return Err(error::Error::Expected { expected: "__serializer__ protocol attribute returned a non-serializer", got: utils::get_type_name(bound.py(), protocol.as_ptr()) });
             }
         }
 
@@ -161,7 +158,7 @@ impl SerializerType {
         dialect: &PyDialect,
         object: &alias::BoundObject<'_>,
         out: &mut W,
-    ) -> pyo3::PyResult<()> {
+    ) -> error::Result<()> {
         let py = object.py();
         let ptr = object.as_ptr();
 

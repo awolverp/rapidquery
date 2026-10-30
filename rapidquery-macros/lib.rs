@@ -3,7 +3,6 @@ use proc_macro::TokenStream;
 mod cust_protocol;
 mod define_options;
 mod pyclass;
-mod pyerr;
 mod pyo3_constructor;
 
 /// Defines a pyo3 class with a required module path.
@@ -20,20 +19,6 @@ mod pyo3_constructor;
 #[proc_macro_attribute]
 pub fn pyclass(attr: TokenStream, item: TokenStream) -> TokenStream {
     match pyclass::expand(attr.into(), item.into()) {
-        Ok(tokens) => tokens.into(),
-        Err(err) => err.to_compile_error().into(),
-    }
-}
-
-/// Builds a [`PyErr`], or `Err(PyErr)` when the name is wrapped in `Err`.
-///
-/// ```ignore
-/// pyerr!(PyTypeError, "bad {}", x)
-/// pyerr!(Err(PyValueError))
-/// ```
-#[proc_macro]
-pub fn pyerr(input: TokenStream) -> TokenStream {
-    match pyerr::expand(input.into()) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }

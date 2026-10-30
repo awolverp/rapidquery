@@ -1,3 +1,4 @@
+use crate::error;
 use pyo3::types::PyAnyMethods;
 use pyo3::types::PyTupleMethods;
 
@@ -28,12 +29,13 @@ impl PyFunction {
         }
     }
 
-    fn wrap(py: pyo3::Python<'_>, inner: super::enum_::Function) -> pyo3::PyResult<alias::PyObject> {
+    fn wrap(py: pyo3::Python<'_>, inner: super::enum_::Function) -> error::Result<alias::PyObject> {
         pyo3::Py::new(
             py,
             pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self),
         )
         .map(pyo3::Py::into_any)
+        .map_err(error::Error::from)
     }
 }
 
@@ -45,7 +47,7 @@ impl PyFunction {
         name: IdentExtractor,
         args: alias::ArgsType<'_>,
         distinct: bool,
-    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+    ) -> error::Result<pyo3::PyClassInitializer<Self>> {
         let mut extracted = Vec::with_capacity(args.len());
         for item in args.iter() {
             extracted.push(item.extract::<LiteralExprExtractor>()?.0);
@@ -62,21 +64,21 @@ impl PyFunction {
     }
 
     /// Return a copy whose filter predicate is `predicate`.
-    fn filter(slf: pyo3::PyRef<'_, Self>, predicate: LiteralExprExtractor) -> pyo3::PyResult<alias::PyObject> {
+    fn filter(slf: pyo3::PyRef<'_, Self>, predicate: LiteralExprExtractor) -> error::Result<alias::PyObject> {
         let mut inner = Self::inner(&slf).clone();
         inner.filter = Some(Box::new(predicate.0));
         Self::wrap(slf.py(), inner)
     }
 
     /// Return a copy that writes `IGNORE NULLS`.
-    fn ignore_nulls(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::PyObject> {
+    fn ignore_nulls(slf: pyo3::PyRef<'_, Self>) -> error::Result<alias::PyObject> {
         let mut inner = Self::inner(&slf).clone();
         inner.null_treatment = Some(NullTreatment::IgnoreNulls);
         Self::wrap(slf.py(), inner)
     }
 
     /// Return a copy that writes `RESPECT NULLS`.
-    fn respect_nulls(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::PyObject> {
+    fn respect_nulls(slf: pyo3::PyRef<'_, Self>) -> error::Result<alias::PyObject> {
         let mut inner = Self::inner(&slf).clone();
         inner.null_treatment = Some(NullTreatment::RespectNulls);
         Self::wrap(slf.py(), inner)

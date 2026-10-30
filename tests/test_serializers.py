@@ -200,7 +200,7 @@ class TestUuidSerializer:
         assert serializer.serialize(dialect, uuid.UUID(_UUID)) == expected
 
     def test_unsupported(self):
-        with pytest.raises(RuntimeError, match="does not support UuidSerializer"):
+        with pytest.raises(RuntimeError, match="literal.uuid"):
             UuidSerializer().serialize(Dialect(), _UUID)
 
     def test_invalid_str(self):
@@ -251,7 +251,7 @@ class TestBitSerializer:
         assert BitSerializer().serialize(_literal(bit=template), "10") == expected
 
     def test_unsupported(self):
-        with pytest.raises(RuntimeError, match="does not support BitSerializer"):
+        with pytest.raises(RuntimeError, match="literal.bit"):
             BitSerializer().serialize(Dialect(), "10")
 
     def test_rejects_non_bit_string(self):
@@ -399,7 +399,7 @@ class TestInetSerializer:
         assert InetSerializer().serialize(_literal(inet=template), obj) == template.replace("{}", inner)
 
     def test_unsupported(self):
-        with pytest.raises(RuntimeError, match="does not support InetSerializer"):
+        with pytest.raises(RuntimeError, match="literal.inet"):
             InetSerializer().serialize(Dialect(), "192.168.1.1")
 
     def test_invalid_address(self):
@@ -416,7 +416,7 @@ class TestMacAddressSerializer:
         assert serializer.serialize(dialect, "01-23-45-67-89-AB") == expected
 
     def test_unsupported(self):
-        with pytest.raises(RuntimeError, match="does not support MacAddressSerializer"):
+        with pytest.raises(RuntimeError, match="literal.macaddr"):
             MacAddressSerializer().serialize(Dialect(), "01:23:45:67:89:ab")
 
     def test_invalid_address(self):
@@ -452,7 +452,7 @@ class TestArraySerializer:
         assert nested_serializer.serialize(dialect, [[1, 2], [3]]) == nested
 
     def test_unsupported(self):
-        with pytest.raises(RuntimeError, match="does not support ArraySerializer"):
+        with pytest.raises(RuntimeError, match="literal.array"):
             ArraySerializer(IntegerSerializer()).serialize(Dialect(), [1, 2])
 
     def test_rejects_non_sequence_and_bad_element(self):
@@ -465,7 +465,7 @@ class TestArraySerializer:
 
     def test_nested_unsupported_element(self):
         dialect = _literal(array="ARRAY[{}]")
-        with pytest.raises(RuntimeError, match="does not support BitSerializer"):
+        with pytest.raises(RuntimeError, match="literal.bit"):
             ArraySerializer(BitSerializer()).serialize(dialect, ["10"])
 
 

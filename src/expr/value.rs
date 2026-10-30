@@ -1,3 +1,4 @@
+use crate::error;
 use crate::internal::alias;
 use crate::serializers::PySerializer;
 use crate::serializers::SerializerExtractor;
@@ -32,7 +33,7 @@ impl PyValue {
     fn __new__(
         object: alias::BoundObject,
         serializer: Option<SerializerExtractor>,
-    ) -> pyo3::PyResult<pyo3::PyClassInitializer<Self>> {
+    ) -> error::Result<pyo3::PyClassInitializer<Self>> {
         // handle Value(Value(...), new_serializer)
         if unsafe { crate::typeref::check_exact(object.as_ptr(), crate::typeref::VALUE_TYPE) } {
             let expr = unsafe { object.cast_unchecked::<super::base::PyExpr>() };
@@ -72,7 +73,7 @@ impl PyValue {
     }
 
     /// Serializer used by `to_sql`.
-    fn get_serializer(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
+    fn get_serializer(slf: pyo3::PyRef<'_, Self>) -> error::Result<alias::BoundObject<'_>> {
         PySerializer(Self::inner(&slf).serializer.clone()).into_subclasses(slf.py())
     }
 }

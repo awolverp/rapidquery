@@ -3,6 +3,7 @@
 //! The result is borrowed and passed to a callback so the SQL writer can
 //! escape it without an intermediate `String`.
 
+use crate::error;
 use once_cell::sync::OnceCell;
 use pyo3::types::PyAnyMethods;
 use pyo3::types::PyModule;
@@ -27,12 +28,12 @@ enum JsonDumper {
 
 static DUMPER: OnceCell<JsonDumper> = OnceCell::new();
 
-fn init_orjson(module: &pyo3::Bound<'_, PyModule>) -> pyo3::PyResult<JsonDumper> {
+fn init_orjson(module: &pyo3::Bound<'_, PyModule>) -> error::Result<JsonDumper> {
     let dumps = module.getattr("dumps")?.unbind();
     Ok(JsonDumper::Orjson { dumps })
 }
 
-fn init_stdlib(py: pyo3::Python<'_>) -> pyo3::PyResult<JsonDumper> {
+fn init_stdlib(py: pyo3::Python<'_>) -> error::Result<JsonDumper> {
     let module = py.import("json")?;
     let dumps = module.getattr("dumps")?.unbind();
     let kwnames = PyTuple::new(py, ["ensure_ascii", "allow_nan", "separators"])?.unbind();
@@ -47,20 +48,20 @@ fn init_stdlib(py: pyo3::Python<'_>) -> pyo3::PyResult<JsonDumper> {
 
 #[cfg(feature = "only-orjson")]
 #[cold]
-fn init_import(py: pyo3::Python<'_>) -> pyo3::PyResult<JsonDumper> {
+fn init_import(py: pyo3::Python<'_>) -> error::Result<JsonDumper> {
     let module = py.import("orjson")?;
     init_orjson(&module)
 }
 
 #[cfg(feature = "only-stdlib-json")]
 #[cold]
-fn init_import(py: pyo3::Python<'_>) -> pyo3::PyResult<JsonDumper> {
+fn init_import(py: pyo3::Python<'_>) -> error::Result<JsonDumper> {
     init_stdlib(py)
 }
 
 #[cfg(not(any(feature = "only-stdlib-json", feature = "only-orjson")))]
 #[cold]
-fn init_import(py: pyo3::Python<'_>) -> pyo3::PyResult<JsonDumper> {
+fn init_import(py: pyo3::Python<'_>) -> error::Result<JsonDumper> {
     if let Ok(module) = py.import("orjson")
         && let Ok(dumper) = init_orjson(&module)
     {
@@ -79,8 +80,8 @@ fn init_import(py: pyo3::Python<'_>) -> pyo3::PyResult<JsonDumper> {
 unsafe fn visit_json_text(
     py: pyo3::Python<'_>,
     result: *mut pyo3::ffi::PyObject,
-    f: impl FnOnce(&str) -> pyo3::PyResult<()>,
-) -> pyo3::PyResult<()> {
+    f: impl FnOnce(&str) -> error::Result<()>,
+) -> error::Result<()> {
     if pyo3::ffi::PyBytes_CheckExact(result) == 1 {
         let buf = pyo3::ffi::PyBytes_AsString(result) as *const u8;
         let len = pyo3::ffi::PyBytes_Size(result) as usize;
@@ -95,11 +96,10 @@ unsafe fn visit_json_text(
         return f(borrow_py_str_buffer(py, result)?);
     }
 
-    rapidquery_macros::pyerr!(
-        Err(PyTypeError),
-        "JSON dumps must return bytes or str, got {}",
-        crate::internal::utils::get_type_name(py, result)
-    )
+    Err(error::Error::Expected {
+        expected: "expected JSON dumps to return bytes or str",
+        got: crate::internal::utils::get_type_name(py, result),
+    })
 }
 
 /// JSON-encode `obj` and pass the text to `f` before dropping the dumps result.
@@ -108,10 +108,7 @@ unsafe fn visit_json_text(
 /// `obj` must be a valid borrowed Python object. The GIL must be held.
 #[inline]
 #[cfg_attr(feature = "nightly", optimize(speed))]
-pub unsafe fn dumps(
-    obj: pyo3::Bound<'_, pyo3::PyAny>,
-    f: impl FnOnce(&str) -> pyo3::PyResult<()>,
-) -> pyo3::PyResult<()> {
+pub unsafe fn dumps(obj: pyo3::Bound<'_, pyo3::PyAny>, f: impl FnOnce(&str) -> error::Result<()>) -> error::Result<()> {
     let py = obj.py();
     let dumper = DUMPER.get_or_try_init(|| init_import(py))?;
 
@@ -129,7 +126,7 @@ pub unsafe fn dumps(
     };
 
     if result.is_null() {
-        return Err(pyo3::PyErr::fetch(py));
+        return Err(pyo3::PyErr::fetch(py).into());
     }
 
     let out = unsafe { visit_json_text(py, result, f) };

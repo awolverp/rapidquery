@@ -86,8 +86,10 @@ class TemplateCase:
     def __init__(self, keys: Sequence[str], minimum: int, maximum: int | None = None) -> None:
         if minimum < 0:
             raise ValueError("minimum must be >= 0")
+
         self.minimum = minimum
         self.maximum = minimum if maximum is None else maximum
+
         if self.minimum > self.maximum:
             raise ValueError("minimum is greater than maximum")
 
@@ -98,9 +100,12 @@ class TemplateCase:
             name = key[:-1] if optional else key
             if name == "_":
                 name = ""
+
             parsed.append((name, "{" + name + "}", not optional))
+
         if not parsed:
             raise ValueError("expected at least one template key")
+
         self._keys = parsed
 
     def valid(self) -> list[str]:

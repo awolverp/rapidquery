@@ -92,7 +92,7 @@ pub enum TemplateParseError {
     RequiredKeyNotFound(&'static str),
     #[display("placeholders are missing (minimum {_0}, {_1} found)")]
     MissingPlaceholder(u8, usize),
-    #[display("too many placeholders (maximum is {_0} , {_1} found)")]
+    #[display("too many placeholders (maximum is {_0}, {_1} found)")]
     TooManyPlaceholder(u8, usize),
 }
 impl std::error::Error for TemplateParseError {}
