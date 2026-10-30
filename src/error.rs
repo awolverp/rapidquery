@@ -28,9 +28,8 @@ pub enum Error {
     #[display("{expected}, got {got}")]
     Expected { expected: &'static str, got: String },
 
-    /// `feature` says what this dialect cannot do. `fix` says which field to change.
-    #[display("{feature} (hint: {fix})")]
-    Unsupported { feature: &'static str, fix: &'static str },
+    #[display("{feature} is not supported by this dialect")]
+    Unsupported { feature: &'static str },
 
     #[display("invalid template for `{field}`: {reason}")]
     InvalidTemplate {

@@ -127,10 +127,7 @@ pub(super) unsafe fn write_uuid<W: writer::FastWrite>(
     out: &mut W,
 ) -> error::Result<()> {
     let Some(tmpl) = &cfg.uuid else {
-        return Err(error::Error::Unsupported {
-            feature: "UUID values are not supported by this dialect",
-            fix: "set literal.uuid to a template such as \"'{}'\"",
-        });
+        return Err(error::Error::Unsupported { feature: "UUID value" });
     };
 
     let text = if crate::typeref::check_exact(ptr, crate::typeref::STD_UUID_TYPE) {
@@ -185,10 +182,7 @@ pub(super) unsafe fn write_bit<W: writer::FastWrite>(
     out: &mut W,
 ) -> error::Result<()> {
     if cfg.bit.is_none() {
-        return Err(error::Error::Unsupported {
-            feature: "bit strings are not supported by this dialect",
-            fix: "set literal.bit to a template such as \"B'{}'\"",
-        });
+        return Err(error::Error::Unsupported { feature: "bit string" });
     }
 
     if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
@@ -345,10 +339,7 @@ pub(super) unsafe fn write_inet<W: writer::FastWrite>(
     out: &mut W,
 ) -> error::Result<()> {
     let Some(tmpl) = &cfg.inet else {
-        return Err(error::Error::Unsupported {
-            feature: "inet values are not supported by this dialect",
-            fix: "set literal.inet to a template such as \"'{}'::inet\"",
-        });
+        return Err(error::Error::Unsupported { feature: "inet value" });
     };
 
     let text = pyobject_string(py, ptr)?;
@@ -371,8 +362,7 @@ pub(super) unsafe fn write_macaddr<W: writer::FastWrite>(
 ) -> error::Result<()> {
     let Some(tmpl) = &cfg.macaddr else {
         return Err(error::Error::Unsupported {
-            feature: "macaddr values are not supported by this dialect",
-            fix: "set literal.macaddr to a template such as \"'{}'::macaddr\"",
+            feature: "macaddr value",
         });
     };
 
@@ -396,10 +386,7 @@ pub(super) unsafe fn write_array<W: writer::FastWrite>(
     out: &mut W,
 ) -> error::Result<()> {
     let Some(tmpl) = &dialect.literal.array else {
-        return Err(error::Error::Unsupported {
-            feature: "arrays are not supported by this dialect",
-            fix: "set literal.array to a template such as \"ARRAY[{}]\"",
-        });
+        return Err(error::Error::Unsupported { feature: "array" });
     };
 
     let (len, getter): (

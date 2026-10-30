@@ -113,14 +113,12 @@ impl WriteSql for Function {
             && matches!(dialect.aggregate.null_treatment, dialect::NullTreatment::Unsupported)
         {
             return Err(error::Error::Unsupported {
-                feature: "null_treatment is not supported by this dialect",
-                fix: "set aggregate.null_treatment to OPT_NULL_TREATMENT_INSIDE_PARENS or OPT_NULL_TREATMENT_POSTFIX",
+                feature: "Function.null_treatment",
             });
         }
         if self.filter.is_some() && matches!(dialect.aggregate.function_filter, dialect::FunctionFilter::Unsupported) {
             return Err(error::Error::Unsupported {
-                feature: "function filter is not supported by this dialect",
-                fix: "set aggregate.function_filter to OPT_FUNCTION_FILTER_FILTER, OPT_FUNCTION_FILTER_FILTER_WHERE, or OPT_FUNCTION_FILTER_INSIDE_WHERE",
+                feature: "Function.filter",
             });
         }
 

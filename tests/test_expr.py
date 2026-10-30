@@ -420,12 +420,12 @@ class TestTupleExpr:
 
         assert TupleExpr(1, 2).to_sql(Sqlite) == "(1, 2)"
 
-        with pytest.raises(RuntimeError, match="at least two elements"):
+        with pytest.raises(RuntimeError, match="tuple with one item"):
             TupleExpr(1).to_sql(Sqlite)
 
         assert TupleExpr(1, 2).to_sql(Spark) == "struct(1, 2)"
 
-        with pytest.raises(RuntimeError, match="tuple values are not supported"):
+        with pytest.raises(RuntimeError, match="tuple"):
             TupleExpr(1, 2).to_sql(BigQuery)
 
 
@@ -539,7 +539,8 @@ class TestBinaryExpr:
         assert BinaryExpr(1, "^", 2).to_sql(DuckDb) == "xor(1, 2)"
         assert BinaryExpr(1, "^", 2).to_sql(Snowflake) == "BITXOR(1, 2)"
         assert BinaryExpr(1, "^", 2).to_sql(MySql) == "1 ^ 2"
-        with pytest.raises(RuntimeError, match="bitwise XOR is not supported"):
+
+        with pytest.raises(RuntimeError, match=r"BinaryExpr '\^'"):
             BinaryExpr(1, "^", 2).to_sql(Sqlite)
 
         assert BinaryExpr(5, "%", 2).to_sql(Oracle) == "MOD(5, 2)"
@@ -627,7 +628,7 @@ class TestIsDistinctFromExpr:
 
         assert IsDistinctFromExpr(1, 2).to_sql(MySql) == "NOT (1 <=> 2)"
         assert IsDistinctFromExpr(1, 2, negated=True).to_sql(MySql) == "1 <=> 2"
-        with pytest.raises(RuntimeError, match="IS DISTINCT FROM is not supported"):
+        with pytest.raises(RuntimeError, match="IsDistinctFromExpr"):
             IsDistinctFromExpr(1, 2).to_sql(Oracle)
 
 
@@ -810,9 +811,10 @@ class TestSimilarToExpr:
         assert sql == '"name" SIMILAR TO $1'
         assert params == ("%a%",)
 
-        with pytest.raises(RuntimeError, match="SIMILAR TO is not supported"):
+        with pytest.raises(RuntimeError, match="SimilarToExpr"):
             sim.to_sql(MySql)
-        with pytest.raises(RuntimeError, match="SIMILAR TO is not supported"):
+
+        with pytest.raises(RuntimeError, match="SimilarToExpr"):
             sim.to_sql(Sqlite)
 
         assert repr(sim) == "SimilarToExpr(Ident(\"name\"), Value('%a%', StringSerializer()))"
@@ -852,9 +854,10 @@ class TestRLikeExpr:
         assert sql == '"name" ~ $1'
         assert params == ("%a%",)
 
-        with pytest.raises(RuntimeError, match="RLIKE is not supported"):
+        with pytest.raises(RuntimeError, match="RLikeExpr"):
             rlike.to_sql(Sqlite)
-        with pytest.raises(RuntimeError, match="RLIKE is not supported"):
+
+        with pytest.raises(RuntimeError, match="RLikeExpr"):
             rlike.to_sql(MsSql)
 
         assert repr(rlike) == "RLikeExpr(Ident(\"name\"), Value('%a%', StringSerializer()))"
@@ -896,8 +899,9 @@ class TestCastExpr:
         assert CastExpr(1, "varchar(255)").to_sql(PostgreSql) == "CAST(1 AS varchar(255))"
         assert CastExpr(Ident("id"), "INT ARRAY").to_sql(PostgreSql) == 'CAST("id" AS INT ARRAY)'
 
-        with pytest.raises(RuntimeError, match="try cast"):
+        with pytest.raises(RuntimeError, match="'TRY_CAST'"):
             CastExpr(Ident("id"), "int", kind="TRY_CAST").to_sql(PostgreSql)
+
         assert CastExpr(Ident("id"), "int", kind="TRY_CAST").to_sql(BigQuery) == "SAFE_CAST(`id` AS INT)"
         assert CastExpr(Ident("id"), "int", kind="TRY_CAST").to_sql(Teradata) == 'TRYCAST("id" AS INT)'
         assert CastExpr(Ident("id"), "int", kind="::").to_sql(DuckDb) == '("id")::INT'

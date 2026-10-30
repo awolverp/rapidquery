@@ -28,8 +28,7 @@ impl sql::WriteSql for PyCreateSchema {
     fn write_sql<W: sql::SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> error::Result<()> {
         if !dialect.schema.features.contains(dialect::SchemaFeatures::SUPPORTED) {
             return Err(error::Error::Unsupported {
-                feature: "CREATE SCHEMA is not supported by this dialect",
-                fix: "set schema.features to include OPT_SCHEMA_FEATURES_SUPPORTED",
+                feature: "CreateSchema",
             });
         }
 
@@ -51,8 +50,7 @@ impl sql::WriteSql for PyCreateSchema {
             dialect::SchemaAuthorization::Unsupported => {
                 if self.authorization.is_some() {
                     return Err(error::Error::Unsupported {
-                        feature: "authorization is not supported in CREATE SCHEMA by this dialect",
-                        fix: "set schema.authorization to OPT_SCHEMA_AUTHORIZATION_OPTIONAL",
+                        feature: "CreateSchema.authorization",
                     });
                 }
 
@@ -72,8 +70,7 @@ impl sql::WriteSql for PyCreateSchema {
             // ... {LOCATION | MANAGED LOCATION | EXTERNAL_VOLUME =} <location>
             let Some(tmpl) = &dialect.schema.location else {
                 return Err(error::Error::Unsupported {
-                    feature: "location is not supported in CREATE SCHEMA by this dialect",
-                    fix: "set schema.location to a template such as \" LOCATION {}\"",
+                    feature: "CreateSchema.location",
                 });
             };
 
@@ -169,10 +166,7 @@ pub struct PyDropSchema {
 impl sql::WriteSql for PyDropSchema {
     fn write_sql<W: sql::SqlWriter>(&self, dialect: &crate::dialect::PyDialect, out: &mut W) -> error::Result<()> {
         if !dialect.schema.features.contains(dialect::SchemaFeatures::SUPPORTED) {
-            return Err(error::Error::Unsupported {
-                feature: "DROP SCHEMA is not supported by this dialect",
-                fix: "set schema.features to include OPT_SCHEMA_FEATURES_SUPPORTED",
-            });
+            return Err(error::Error::Unsupported { feature: "DropSchema" });
         }
 
         // DROP {SCHEMA | DATABASE}
@@ -197,8 +191,7 @@ impl sql::WriteSql for PyDropSchema {
             Some(DropSchemaBehavior::Cascade) => {
                 if !dialect.schema.features.contains(dialect::SchemaFeatures::DROP_CASCADE) {
                     return Err(error::Error::Unsupported {
-                        feature: "CASCADE is not supported in DROP SCHEMA by this dialect",
-                        fix: "set schema.features to include OPT_SCHEMA_FEATURES_DROP_CASCADE",
+                        feature: "DropSchema.behavior = 'CASCADE'",
                     });
                 }
 
@@ -207,8 +200,7 @@ impl sql::WriteSql for PyDropSchema {
             Some(DropSchemaBehavior::Restrict) => {
                 if !dialect.schema.features.contains(dialect::SchemaFeatures::DROP_RESTRICT) {
                     return Err(error::Error::Unsupported {
-                        feature: "RESTRICT is not supported in DROP SCHEMA by this dialect",
-                        fix: "set schema.features to include OPT_SCHEMA_FEATURES_DROP_RESTRICT",
+                        feature: "DropSchema.behavior = 'RESTRICT'",
                     });
                 }
 

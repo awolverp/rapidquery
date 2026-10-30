@@ -13,10 +13,6 @@ use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
 use crate::sql::write_separated;
 
-fn unsupported(feature: &'static str, fix: &'static str) -> error::Error {
-    error::Error::Unsupported { feature, fix }
-}
-
 /// Row value. The dialect chooses `ROW`, `struct`, or parentheses.
 ///
 /// An empty row is legal only for dialects that accept it. A string stored as
@@ -59,24 +55,17 @@ impl WriteSql for Tuple {
 
         if dialect.tuple.syntax != dialect::TupleSyntax::Unsupported {
             if arity == 0 && !dialect.tuple.arity.contains(dialect::TupleArity::EMPTY) {
-                return Err(unsupported(
-                    "empty tuple is not supported by this dialect",
-                    "set tuple.arity to include OPT_TUPLE_ARITY_EMPTY",
-                ));
+                return Err(error::Error::Unsupported { feature: "empty tuple" });
             }
             if arity == 1 && !dialect.tuple.arity.contains(dialect::TupleArity::ONE) {
-                return Err(unsupported(
-                    "a tuple needs at least two elements on this dialect",
-                    "set tuple.arity to include OPT_TUPLE_ARITY_ONE",
-                ));
+                return Err(error::Error::Unsupported {
+                    feature: "tuple with one item",
+                });
             }
         }
         match dialect.tuple.syntax {
             dialect::TupleSyntax::Unsupported => {
-                return Err(unsupported(
-                    "tuple values are not supported by this dialect",
-                    "set tuple.syntax to OPT_TUPLE_SYNTAX_ROW, OPT_TUPLE_SYNTAX_STRUCT, or OPT_TUPLE_SYNTAX_PARENTHESES",
-                ));
+                return Err(error::Error::Unsupported { feature: "tuple" });
             }
             dialect::TupleSyntax::Row => {
                 out.write_str("ROW(");
@@ -134,10 +123,9 @@ impl WriteSql for Unary {
     fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> error::Result<()> {
         if self.op == UnaryOp::BitNot {
             if !dialect.bitwise.operations.contains(dialect::BitwiseOperations::NOT) {
-                return Err(unsupported(
-                    "bitwise NOT is not supported by this dialect",
-                    "set bitwise.operations to include OPT_BITWISE_OPERATIONS_NOT",
-                ));
+                return Err(error::Error::Unsupported {
+                    feature: "UnaryExpr '!'",
+                });
             }
 
             match dialect.bitwise.syntax {
@@ -319,10 +307,9 @@ impl WriteSql for Binary {
                 Ok(())
             }
             BinaryOp::BitXor => match dialect.bitwise.xor {
-                dialect::BitwiseXor::Unsupported => Err(unsupported(
-                    "bitwise XOR is not supported by this dialect",
-                    "set bitwise.xor to OPT_BITWISE_XOR_CARET, OPT_BITWISE_XOR_HASH, OPT_BITWISE_XOR_FUNCTION, or OPT_BITWISE_XOR_BIT_FUNCTION",
-                )),
+                dialect::BitwiseXor::Unsupported => Err(error::Error::Unsupported {
+                    feature: "BinaryExpr '^'",
+                }),
                 dialect::BitwiseXor::Caret => write_infix(self, dialect, out, "^", false),
                 dialect::BitwiseXor::Hash => write_infix(self, dialect, out, "#", false),
                 dialect::BitwiseXor::Function => write_binary_call(dialect, out, "xor", &self.left, &self.right),
@@ -342,8 +329,7 @@ impl WriteSql for Binary {
                 "BITAND",
                 "BITAND",
                 error::Error::Unsupported {
-                    feature: "bitwise AND is not supported by this dialect",
-                    fix: "set bitwise.operations to include OPT_BITWISE_OPERATIONS_AND",
+                    feature: "BinaryExpr '&'",
                 },
             ),
             BinaryOp::BitOr => write_bit_op(
@@ -355,8 +341,7 @@ impl WriteSql for Binary {
                 "BITOR",
                 "BITOR",
                 error::Error::Unsupported {
-                    feature: "bitwise OR is not supported by this dialect",
-                    fix: "set bitwise.operations to include OPT_BITWISE_OPERATIONS_OR",
+                    feature: "BinaryExpr '|'",
                 },
             ),
             BinaryOp::LShift => write_bit_op(
@@ -368,8 +353,7 @@ impl WriteSql for Binary {
                 "BITSHIFTLEFT",
                 "SHIFTLEFT",
                 error::Error::Unsupported {
-                    feature: "bitwise shift is not supported by this dialect",
-                    fix: "set bitwise.operations to include OPT_BITWISE_OPERATIONS_SHL",
+                    feature: "BinaryExpr '<<'",
                 },
             ),
             BinaryOp::RShift => write_bit_op(
@@ -381,8 +365,7 @@ impl WriteSql for Binary {
                 "BITSHIFTRIGHT",
                 "SHIFTRIGHT",
                 error::Error::Unsupported {
-                    feature: "bitwise shift is not supported by this dialect",
-                    fix: "set bitwise.operations to include OPT_BITWISE_OPERATIONS_SHR",
+                    feature: "BinaryExpr '>>'",
                 },
             ),
             _ => write_infix(self, dialect, out, self.op.as_sql(), false),
@@ -486,10 +469,9 @@ impl IsDistinctFrom {
 impl WriteSql for IsDistinctFrom {
     fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> error::Result<()> {
         match dialect.operator.is_distinct_from {
-            dialect::IsDistinctFrom::Unsupported => Err(unsupported(
-                "IS DISTINCT FROM is not supported by this dialect",
-                "set operator.is_distinct_from to OPT_IS_DISTINCT_FROM_STANDARD or OPT_IS_DISTINCT_FROM_NULL_SAFE_EQUAL",
-            )),
+            dialect::IsDistinctFrom::Unsupported => Err(error::Error::Unsupported {
+                feature: "IsDistinctFromExpr",
+            }),
             dialect::IsDistinctFrom::Standard => {
                 self.left.write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 if self.negated {
@@ -724,18 +706,16 @@ impl WriteSql for Cast {
                         },
                     )
                 } else {
-                    Err(unsupported(
-                        "try cast is not supported by this dialect",
-                        "set cast.try_cast to a template such as \"TRY_CAST({expr} AS {type})\"",
-                    ))
+                    Err(error::Error::Unsupported {
+                        feature: "CastExpr 'TRY_CAST'",
+                    })
                 }
             }
             CastKind::DoubleColon => {
                 if !dialect.cast.supports_double_colon {
-                    return Err(unsupported(
-                        "double-colon cast is not supported by this dialect",
-                        "set cast.supports_double_colon to True",
-                    ));
+                    return Err(error::Error::Unsupported {
+                        feature: "CastExpr '::'",
+                    });
                 }
                 out.write('(');
                 self.expr.write_sql(dialect, out)?;
@@ -845,10 +825,7 @@ impl WriteSql for Trim {
             dialect::OperatorTrim::Function => write_trim_function(self, dialect, out),
             dialect::OperatorTrim::SpacesOnly => {
                 if self.characters.is_some() {
-                    return Err(unsupported(
-                        "trim characters are not supported by this dialect",
-                        "set operator.trim to OPT_OPERATOR_TRIM_SQL_FROM or OPT_OPERATOR_TRIM_FUNCTION",
-                    ));
+                    return Err(error::Error::Unsupported { feature: "TrimExpr" });
                 }
                 write_trim_function(self, dialect, out)
             }
@@ -895,10 +872,7 @@ impl Collate {
 impl WriteSql for Collate {
     fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> error::Result<()> {
         match dialect.operator.collate {
-            dialect::OperatorCollate::Unsupported => Err(unsupported(
-                "COLLATE is not supported by this dialect",
-                "set operator.collate to OPT_OPERATOR_COLLATE_INFIX_IDENT or OPT_OPERATOR_COLLATE_FUNCTION_STRING",
-            )),
+            dialect::OperatorCollate::Unsupported => Err(error::Error::Unsupported { feature: "CollateExpr" }),
             dialect::OperatorCollate::InfixIdent => {
                 self.expr.write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 out.write_str(" COLLATE ");

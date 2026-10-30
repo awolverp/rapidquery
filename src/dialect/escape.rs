@@ -40,10 +40,7 @@ impl base::LiteralConfig {
             template.write_to(writer, |_, out| out.write_str(bits));
             Ok(())
         } else {
-            Err(error::Error::Unsupported {
-                feature: "bit strings are not supported by this dialect",
-                fix: "set literal.bit to a template such as \"B'{}'\"",
-            })
+            Err(error::Error::Unsupported { feature: "bit string" })
         }
     }
 
