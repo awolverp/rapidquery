@@ -13,22 +13,36 @@ ASTs until being merged into default branch.
 
 ### DDL
 
-- [x] CREATE SCHEMA
-- [x] DROP SCHEMA
-- [ ] CREATE TABLE
-- [ ] ALTER TABLE
-- [ ] DROP TABLE
-- [ ] CREATE VIEW
-- [ ] DROP VIEW
-- [ ] CREATE TYPE
-- [ ] ALTER TYPE
-- [ ] DROP TYPE
-- [ ] CREATE SEQUENCE
-- [ ] ALTER SEQUENCE
-- [ ] DROP SEQUENCE
-- [ ] CREATE FUNCTION
-- [ ] ALTER FUNCTION
-- [ ] DROP FUNCTION
+- **Schemas**
+  - [x] CREATE SCHEMA
+  - [x] DROP SCHEMA
+
+- **Tables**
+  - [ ] CREATE INDEX
+  - [ ] DROP INDEX
+  - [ ] CONSTRAINT
+  - [ ] CREATE TABLE
+  - [ ] ALTER TABLE
+  - [ ] DROP TABLE
+
+- **Views**
+  - [ ] CREATE VIEW
+  - [ ] DROP VIEW
+
+- **Custom types**
+  - [ ] CREATE TYPE
+  - [ ] ALTER TYPE
+  - [ ] DROP TYPE
+
+- **Sequences**
+  - [ ] CREATE SEQUENCE
+  - [ ] ALTER SEQUENCE
+  - [ ] DROP SEQUENCE
+
+- **Functions**
+  - [ ] CREATE FUNCTION
+  - [ ] ALTER FUNCTION
+  - [ ] DROP FUNCTION
 
 ### DCL
 
@@ -46,9 +60,11 @@ ASTs until being merged into default branch.
 
 ### TCL
 
-- [ ] START TRANSACTION
-- [ ] COMMIT
-- [ ] ROLLBACK
-- [ ] SAVEPOINT
-- [ ] RELEASE SAVEPOINT
-- [ ] SET TRANSACTION
+- **Transactions**
+  - [ ] START TRANSACTION
+  - [ ] COMMIT
+  - [ ] ROLLBACK
+
+- **Savepoints**
+  - [ ] SAVEPOINT
+  - [ ] RELEASE SAVEPOINT
