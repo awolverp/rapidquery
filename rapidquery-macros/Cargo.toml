@@ -1,0 +1,17 @@
+[package]
+name = "rapidquery-macros"
+version = "1.0.0-alpha1"
+edition = "2024"
+description = "Procedural macros for RapidQuery."
+homepage = "https://github.com/awolverp/rapidquery"
+repository = "https://github.com/awolverp/rapidquery.git"
+license = "MIT"
+
+[lib]
+path = "lib.rs"
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "3", features = ["default", "full"] }

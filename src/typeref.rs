@@ -1,84 +1,47 @@
-// Column types
-pub(crate) static mut BLOB_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut BINARY_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut VAR_BINARY_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut BIT_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut VAR_BIT_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut DATETIME_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut TIMESTAMP_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut TIME_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut DATE_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut JSON_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut JSON_BINARY_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut DECIMAL_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut UUID_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut INET_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut MAC_ADDRESS_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut BOOLEAN_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut TINY_INTEGER_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut SMALL_INTEGER_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject =
-    std::ptr::null_mut();
-pub(crate) static mut INTEGER_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut BIG_INTEGER_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut TINY_UNSIGNED_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject =
-    std::ptr::null_mut();
-pub(crate) static mut SMALL_UNSIGNED_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject =
-    std::ptr::null_mut();
-pub(crate) static mut UNSIGNED_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut BIG_UNSIGNED_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut FLOAT_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut DOUBLE_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut TEXT_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut CHAR_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut STRING_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut VECTOR_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut ARRAY_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut ENUM_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+//! Interned `PyTypeObject*` cache.
 
+// Serializer types
+pub(crate) static mut SERIALIZER_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+
+// Ident types
+pub(crate) static mut IDENT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut UNQUOTE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut ASTERISK_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+
+// Value type
 pub(crate) static mut VALUE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut COLUMN_REF_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut TABLE_NAME_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut EXPR_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut FUNC_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut INDEX_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut INDEX_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut FOREIGN_KEY_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut TABLE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut ON_CONFLICT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut WINDOW_STATEMENT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut SELECT_LABEL_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut SELECT_STATEMENT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut DELETE_STATEMENT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut UPDATE_STATEMENT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut INSERT_STATEMENT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut CASE_STATEMENT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut WITH_CLAUSE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut ALTER_TABLE_BASE_OPTION_TYPE: *mut pyo3::ffi::PyTypeObject =
-    std::ptr::null_mut();
 
-// Python standard libraries types
+// Expr types
+pub(crate) static mut EXPR_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+
+// Python standard-library types (serializers)
 pub(crate) static mut STD_DECIMAL_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut STD_UUID_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut STD_DATETIME_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut STD_DATE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut STD_TIME_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
-pub(crate) static mut STD_ENUM_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
-unsafe fn get_type_object_for<T: pyo3::PyTypeInfo>(
-    py: pyo3::Python,
-) -> *mut pyo3::ffi::PyTypeObject {
+unsafe fn get_type_object_for<T: pyo3::PyTypeInfo>(py: pyo3::Python) -> *mut pyo3::ffi::PyTypeObject {
+    // Borrowed type object; lives as long as the `#[pyclass]` is registered
+    // on `rapidquery._core`, which is the process lifetime of this extension.
     T::type_object_raw(py)
 }
 
+/// Look up `module_name.member_name` and return its type object.
+///
+/// # Safety
+///
+/// `PyImport_ImportModule` / dict lookup are not null-checked. A missing
+/// stdlib module currently yields a null pointer (and a later crash if
+/// dereferenced). Call only during module init, when the stdlib is present.
+#[cfg_attr(feature = "nightly", optimize(size))]
 unsafe fn look_up_type_object(
     module_name: &std::ffi::CStr,
     member_name: &std::ffi::CStr,
 ) -> *mut pyo3::ffi::PyTypeObject {
     let module = pyo3::ffi::PyImport_ImportModule(module_name.as_ptr());
     let module_dict = pyo3::ffi::PyObject_GenericGetDict(module, std::ptr::null_mut());
-    let ptr = pyo3::ffi::PyMapping_GetItemString(module_dict, member_name.as_ptr())
-        .cast::<pyo3::ffi::PyTypeObject>();
+    let ptr = pyo3::ffi::PyMapping_GetItemString(module_dict, member_name.as_ptr()).cast::<pyo3::ffi::PyTypeObject>();
 
     pyo3::ffi::Py_DECREF(module_dict);
     pyo3::ffi::Py_DECREF(module);
@@ -91,73 +54,15 @@ macro_rules! multiple_get_type_object_for {
     };
 }
 
-#[cold]
-#[cfg_attr(feature = "optimize", optimize(size))]
-fn _initialize_typeref(py: pyo3::Python) {
+#[cfg(not(PyPy))]
+#[cfg_attr(feature = "nightly", optimize(size))]
+unsafe fn look_up_datetime() {
     unsafe {
-        multiple_get_type_object_for!(
-            py,
-            crate::sqltypes::PyBlobType => BLOB_COLUMN_TYPE,
-            crate::sqltypes::PyBinaryType => BINARY_COLUMN_TYPE,
-            crate::sqltypes::PyVarBinaryType => VAR_BINARY_COLUMN_TYPE,
-            crate::sqltypes::PyBitType => BIT_COLUMN_TYPE,
-            crate::sqltypes::PyVarBitType => VAR_BIT_COLUMN_TYPE,
-            crate::sqltypes::PyDateTimeType => DATETIME_COLUMN_TYPE,
-            crate::sqltypes::PyTimestampType => TIMESTAMP_COLUMN_TYPE,
-            crate::sqltypes::PyTimeType => TIME_COLUMN_TYPE,
-            crate::sqltypes::PyDateType => DATE_COLUMN_TYPE,
-            crate::sqltypes::PyJSONType => JSON_COLUMN_TYPE,
-            crate::sqltypes::PyJSONBinaryType => JSON_BINARY_COLUMN_TYPE,
-            crate::sqltypes::PyDecimalType => DECIMAL_COLUMN_TYPE,
-            crate::sqltypes::PyUUIDType => UUID_COLUMN_TYPE,
-            crate::sqltypes::PyINETType => INET_COLUMN_TYPE,
-            crate::sqltypes::PyMacAddressType => MAC_ADDRESS_COLUMN_TYPE,
-            crate::sqltypes::PyBooleanType => BOOLEAN_COLUMN_TYPE,
-            crate::sqltypes::PyTinyIntegerType => TINY_INTEGER_COLUMN_TYPE,
-            crate::sqltypes::PySmallIntegerType => SMALL_INTEGER_COLUMN_TYPE,
-            crate::sqltypes::PyIntegerType => INTEGER_COLUMN_TYPE,
-            crate::sqltypes::PyBigIntegerType => BIG_INTEGER_COLUMN_TYPE,
-            crate::sqltypes::PyTinyUnsignedType => TINY_UNSIGNED_COLUMN_TYPE,
-            crate::sqltypes::PySmallUnsignedType => SMALL_UNSIGNED_COLUMN_TYPE,
-            crate::sqltypes::PyUnsignedType => UNSIGNED_COLUMN_TYPE,
-            crate::sqltypes::PyBigUnsignedType => BIG_UNSIGNED_COLUMN_TYPE,
-            crate::sqltypes::PyFloatType => FLOAT_COLUMN_TYPE,
-            crate::sqltypes::PyDoubleType => DOUBLE_COLUMN_TYPE,
-            crate::sqltypes::PyTextType => TEXT_COLUMN_TYPE,
-            crate::sqltypes::PyCharType => CHAR_COLUMN_TYPE,
-            crate::sqltypes::PyStringType => STRING_COLUMN_TYPE,
-            crate::sqltypes::PyVectorType => VECTOR_COLUMN_TYPE,
-            crate::sqltypes::PyArrayType => ARRAY_COLUMN_TYPE,
-            crate::sqltypes::PyEnumType => ENUM_COLUMN_TYPE,
-            crate::common::value::PyValue => VALUE_TYPE,
-            crate::common::table_ref::PyTableName => TABLE_NAME_TYPE,
-            crate::common::column_ref::PyColumnRef => COLUMN_REF_TYPE,
-            crate::common::expression::PyExpr => EXPR_TYPE,
-            crate::common::expression::PyFunc => FUNC_TYPE,
-            crate::common::column::PyColumn => COLUMN_TYPE,
-            crate::common::foreign_key::PyForeignKey => FOREIGN_KEY_TYPE,
-            crate::schema::index::PyIndexColumn => INDEX_COLUMN_TYPE,
-            crate::schema::index::PyIndex => INDEX_TYPE,
-            crate::schema::alter_table::PyAlterTableBaseOption => ALTER_TABLE_BASE_OPTION_TYPE,
-            crate::schema::table::PyTable => TABLE_TYPE,
-            crate::query::on_conflict::PyOnConflict => ON_CONFLICT_TYPE,
-            crate::query::window::PyWindowStatement => WINDOW_STATEMENT_TYPE,
-            crate::query::select::PySelectLabel => SELECT_LABEL_TYPE,
-            crate::query::select::PySelectStatement => SELECT_STATEMENT_TYPE,
-            crate::query::delete::PyDeleteStatement => DELETE_STATEMENT_TYPE,
-            crate::query::update::PyUpdateStatement => UPDATE_STATEMENT_TYPE,
-            crate::query::insert::PyInsertStatement => INSERT_STATEMENT_TYPE,
-            crate::query::case::PyCaseStatement => CASE_STATEMENT_TYPE,
-            crate::query::with::PyWithClause => WITH_CLAUSE_TYPE,
-        );
-
-        STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");
-        STD_UUID_TYPE = look_up_type_object(c"uuid", c"UUID");
-        STD_ENUM_TYPE = look_up_type_object(c"enum", c"EnumMeta");
-
         pyo3::ffi::PyDateTime_IMPORT();
-        let datetime_capsule = pyo3::ffi::PyCapsule_Import(c"datetime.datetime_CAPI".as_ptr(), 1)
-            .cast::<pyo3::ffi::PyDateTime_CAPI>();
+        let datetime_capsule =
+            pyo3::ffi::PyCapsule_Import(c"datetime.datetime_CAPI".as_ptr(), 1).cast::<pyo3::ffi::PyDateTime_CAPI>();
+
+        debug_assert!(!datetime_capsule.is_null());
 
         STD_DATETIME_TYPE = (*datetime_capsule).DateTimeType;
         STD_DATE_TYPE = (*datetime_capsule).DateType;
@@ -165,8 +70,72 @@ fn _initialize_typeref(py: pyo3::Python) {
     }
 }
 
+#[cfg(PyPy)]
+#[cfg_attr(feature = "nightly", optimize(size))]
+unsafe fn look_up_datetime() {
+    unsafe {
+        STD_DATETIME_TYPE = look_up_type_object(c"datetime", c"datetime");
+        STD_DATE_TYPE = look_up_type_object(c"datetime", c"date");
+        STD_TIME_TYPE = look_up_type_object(c"datetime", c"time");
+    }
+}
+
+#[cold]
+#[cfg_attr(feature = "nightly", optimize(size))]
+fn _initialize_typeref(py: pyo3::Python) {
+    unsafe {
+        // SAFETY: called once from [`initialize_typeref`] while the GIL is
+        // held (module init). The `static mut` cells are still null; we
+        // write each pointer exactly once. After this function returns they
+        // are only read.
+        multiple_get_type_object_for!(
+            py,
+            // serializers
+            crate::serializers::PySerializer => SERIALIZER_TYPE,
+            // exprs
+            crate::expr::base::PyExpr => EXPR_TYPE,
+            crate::expr::ident::PyIdent => IDENT_TYPE,
+            crate::expr::ident::PyUnquote => UNQUOTE_TYPE,
+            crate::expr::ident::PyAsterisk => ASTERISK_TYPE,
+            crate::expr::value::PyValue => VALUE_TYPE,
+        );
+
+        STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");
+        STD_UUID_TYPE = look_up_type_object(c"uuid", c"UUID");
+
+        look_up_datetime();
+    }
+}
+
+/// Fill the type-pointer cache. Safe to call more than once; only the first
+/// call does work. Must run from `#[pymodule_init]` before any extractor
+/// that reads the `static mut` cells.
 pub fn initialize_typeref(py: pyo3::Python) {
     static INIT: std::sync::Once = std::sync::Once::new();
 
     INIT.call_once(|| _initialize_typeref(py));
+}
+
+/// `type(obj) is T` — no subclass match.
+///
+/// # Safety
+///
+/// `ptr` must be a valid, non-null `PyObject*`. `r#type` must be a valid
+/// `PyTypeObject*` (interned pointers from [`initialize_typeref`] are fine).
+/// The GIL must be held.
+#[inline(always)]
+pub unsafe fn check_exact(ptr: *mut pyo3::ffi::PyObject, r#type: *mut pyo3::ffi::PyTypeObject) -> bool {
+    pyo3::ffi::Py_TYPE(ptr) == r#type
+}
+
+/// `isinstance(obj, T)`.
+///
+/// # Safety
+///
+/// `ptr` must be a valid, non-null `PyObject*`. `r#type` must be a valid
+/// `PyTypeObject*` (interned pointers from [`initialize_typeref`] are fine).
+/// The GIL must be held.
+#[inline(always)]
+pub unsafe fn check(ptr: *mut pyo3::ffi::PyObject, r#type: *mut pyo3::ffi::PyTypeObject) -> bool {
+    pyo3::ffi::PyObject_TypeCheck(ptr, r#type) == 1
 }
