@@ -40,6 +40,12 @@ unsafe fn is_asterisk(obj: *mut pyo3::ffi::PyObject) -> bool {
 /// ```
 pub struct LiteralExprExtractor(pub ExprInner);
 
+/// Expression extracted from Python. A bare `str` becomes an identifier.
+///
+/// Use this for slots that are usually a column name and may also be an
+/// expression. A string literal belongs in [`LiteralExprExtractor`].
+pub struct NameExprExtractor(pub ExprInner);
+
 /// Native [`Ident`] extracted from a Python identifier argument.
 ///
 /// Accepts `Ident`, one quoted `str` (including `"*"`), `Unquote`, `Asterisk`,
@@ -232,6 +238,15 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for LiteralExprExtractor {
     #[inline]
     fn extract(obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>) -> Result<Self, Self::Error> {
         extract_expr(obj, false).map(Self)
+    }
+}
+
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for NameExprExtractor {
+    type Error = error::Error;
+
+    #[inline]
+    fn extract(obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>) -> Result<Self, Self::Error> {
+        extract_expr(obj, true).map(Self)
     }
 }
 

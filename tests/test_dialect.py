@@ -11,6 +11,7 @@ def test_default_constructors():
         rq.dialect.BitwiseConfig,
         rq.dialect.CastConfig,
         rq.dialect.Dialect,
+        rq.dialect.IndexConfig,
         rq.dialect.LikeConfig,
         rq.dialect.LiteralConfig,
         rq.dialect.OperatorConfig,

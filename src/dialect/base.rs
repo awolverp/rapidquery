@@ -350,6 +350,48 @@ rapidquery_macros::pyo3_constructor! {
     }
 }
 
+#[rapidquery_macros::pyclass("rapidquery.dialect.IndexConfig", from_py_object, eq, hash)]
+#[rapidquery_macros::define_options]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct IndexConfig {
+    /// Supported `CREATE INDEX` clauses.
+    ///
+    /// - SUPPORTED: The dialect accepts `CREATE INDEX`.
+    /// - IF_NOT_EXISTS: `CREATE INDEX IF NOT EXISTS` is written. Without this flag the clause is omitted.
+    /// - UNIQUE: `CREATE UNIQUE INDEX` is accepted.
+    /// - COLUMN_ORDER: Key columns may be `ASC` or `DESC`. Without this flag `ASC` is omitted and `DESC` is rejected.
+    /// - EXPRESSIONS: A key may be an expression, written in parentheses. Identifiers are always accepted.
+    /// - PARTIAL: A `WHERE` predicate is accepted.
+    /// - INCLUDE: An `INCLUDE` column list is accepted.
+    #[define(bits {
+        SUPPORTED,
+        IF_NOT_EXISTS,
+        UNIQUE,
+        COLUMN_ORDER,
+        EXPRESSIONS,
+        PARTIAL,
+        INCLUDE
+    })]
+    pub features: IndexFeatures,
+
+    /// Where `USING <index_type>` is written. The type text is inserted unchanged.
+    ///
+    /// - Unsupported: An index type is rejected.
+    /// - BeforeColumns: `ON table USING type (columns)`. PostgreSQL and Spark.
+    /// - AfterColumns: `(columns) USING type`. MySQL and DuckDB.
+    #[define(enum { #[default] Unsupported, BeforeColumns, AfterColumns })]
+    pub index_type: IndexType,
+}
+
+rapidquery_macros::pyo3_constructor! {
+    IndexConfig => export_index_config_options {
+        features: bits IndexFeatures {
+            SUPPORTED, IF_NOT_EXISTS, UNIQUE, COLUMN_ORDER, EXPRESSIONS, PARTIAL, INCLUDE
+        } = empty,
+        index_type: enum IndexType { Unsupported, BeforeColumns, AfterColumns } = Unsupported,
+    }
+}
+
 #[rapidquery_macros::pyclass("rapidquery.dialect.AggregateConfig", from_py_object, eq, hash)]
 #[rapidquery_macros::define_options]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -441,6 +483,9 @@ pub struct PyDialect {
 
     /// Schema / DDL feature flags and clause styles.
     pub schema: SchemaConfig,
+
+    /// `CREATE INDEX` feature flags and `USING` placement.
+    pub index: IndexConfig,
 }
 
 rapidquery_macros::pyo3_constructor! {
@@ -462,6 +507,7 @@ rapidquery_macros::pyo3_constructor! {
         operator: class OperatorConfig = OperatorConfig::default(),
         aggregate: class AggregateConfig = AggregateConfig::default(),
         schema: class SchemaConfig = SchemaConfig::default(),
+        index: class IndexConfig = IndexConfig::default(),
     }
 }
 
@@ -470,6 +516,7 @@ pub(super) fn export_options(module: &::pyo3::Bound<'_, ::pyo3::types::PyModule>
     export_aggregate_config_options(module)?;
     export_bitwise_config_options(module)?;
     export_cast_config_options(module)?;
+    export_index_config_options(module)?;
     export_like_config_options(module)?;
     export_literal_config_options(module)?;
     export_operator_config_options(module)?;

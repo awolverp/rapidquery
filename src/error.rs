@@ -90,6 +90,21 @@ pub enum Error {
     #[display("invalid value {value:?} for behavior; expected CASCADE or RESTRICT")]
     InvalidSchemaBehavior { value: String },
 
+    #[display("invalid value {value:?} for order; expected ASC or DESC")]
+    InvalidIndexOrder { value: String },
+
+    #[display("CREATE INDEX requires at least one column")]
+    EmptyIndexColumns,
+
+    #[display("index name is empty")]
+    EmptyIndexName,
+
+    #[display("index type is empty")]
+    EmptyIndexType,
+
+    #[display("INCLUDE column name is empty")]
+    EmptyIndexInclude,
+
     #[display("custom expression has {placeholders} placeholders but {arguments} arguments")]
     CustomPlaceholderCount { placeholders: usize, arguments: usize },
 

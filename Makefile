@@ -42,7 +42,7 @@ format:
 lint-python:
 	uv run ruff check .
 	uv run ruff format --check .
-	pyright rapidquery
+	uv run pyright rapidquery
 
 .PHONY: lint-rust  ## Lint rust source files
 lint-rust:

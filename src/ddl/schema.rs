@@ -7,6 +7,12 @@ use crate::internal::repr;
 use crate::sql;
 
 /// Represent a `CREATE SCHEMA` statement.
+///
+/// ```ignore
+/// CREATE {SCHEMA | DATABASE} [IF NOT EXISTS] <name>
+/// [AUTHORIZATION <authorization>]
+/// [*LOCATION <location>]
+/// ```
 #[rapidquery_macros::pyclass("rapidquery.ddl.CreateSchema", extends=super::PyDataDefinitionLanguage)]
 #[derive(Debug, Clone)]
 pub struct PyCreateSchema {
@@ -32,20 +38,17 @@ impl sql::WriteSql for PyCreateSchema {
             });
         }
 
-        // CREATE {SCHEMA | DATABASE}
         if dialect.schema.features.contains(dialect::SchemaFeatures::IS_DATABASE) {
             out.write_str("CREATE DATABASE ");
         } else {
             out.write_str("CREATE SCHEMA ");
         }
 
-        // ... [IF NOT EXISTS]
         out.write_str_if(
             self.if_not_exists && dialect.schema.features.contains(dialect::SchemaFeatures::IF_NOT_EXISTS),
             "IF NOT EXISTS ",
         );
 
-        // ... [<name>] [AUTHORIZATION <authorization>]
         match dialect.schema.authorization {
             dialect::SchemaAuthorization::Unsupported => {
                 if self.authorization.is_some() {
@@ -67,7 +70,6 @@ impl sql::WriteSql for PyCreateSchema {
         }
 
         if let Some(x) = &self.location {
-            // ... {LOCATION | MANAGED LOCATION | EXTERNAL_VOLUME =} <location>
             let Some(tmpl) = &dialect.schema.location else {
                 return Err(error::Error::Unsupported {
                     feature: "CreateSchema.location",
@@ -150,6 +152,10 @@ pub enum DropSchemaBehavior {
 }
 
 /// Represent a `DROP SCHEMA` statement.
+///
+/// ```ignore
+/// DROP {SCHEMA | DATABASE} [IF EXISTS] <name> [CASCADE | RESTRICT]
+/// ```
 #[rapidquery_macros::pyclass("rapidquery.ddl.DropSchema", extends=super::PyDataDefinitionLanguage)]
 #[derive(Debug, Clone)]
 pub struct PyDropSchema {
@@ -169,7 +175,6 @@ impl sql::WriteSql for PyDropSchema {
             return Err(error::Error::Unsupported { feature: "DropSchema" });
         }
 
-        // DROP {SCHEMA | DATABASE}
         if dialect.schema.features.contains(dialect::SchemaFeatures::IS_DATABASE) {
             out.write_str("DROP DATABASE ");
         } else {
@@ -182,10 +187,8 @@ impl sql::WriteSql for PyDropSchema {
             "IF EXISTS ",
         );
 
-        // ... <name>
         self.name.write_sql(dialect, out)?;
 
-        // ... [{CASCADE | RESTRICT}]
         match self.behavior {
             None => {}
             Some(DropSchemaBehavior::Cascade) => {

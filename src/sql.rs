@@ -16,6 +16,12 @@ pub type PrepareParams = Vec<alias::PyObject>;
 /// [`Buffered`] inlines values. [`Parameterized`] binds them. Other methods
 /// only append text.
 pub trait SqlWriter: FastWrite {
+    /// Python token this writer was built with.
+    ///
+    /// The lifetime is the borrow of `self`, so copy any `Py<>` data out before
+    /// writing into the same writer.
+    fn py<'a>(&'a self) -> pyo3::Python<'a>;
+
     /// Raw (`SqlBuf`): `None` → `NULL`, else `serializer.serialize` into the
     /// SQL buffer. Prepared: bind `object` as a placeholder; `serializer` is
     /// unused.
@@ -74,6 +80,11 @@ impl<'py> FastWrite for Buffer<'py> {
 }
 
 impl<'py> SqlWriter for Buffer<'py> {
+    #[inline]
+    fn py<'a>(&'a self) -> pyo3::Python<'a> {
+        self.py
+    }
+
     #[inline]
     fn write_value(
         &mut self,
@@ -163,6 +174,11 @@ impl<'py> FastWrite for Parameterized<'py> {
 }
 
 impl SqlWriter for Parameterized<'_> {
+    #[inline]
+    fn py<'a>(&'a self) -> pyo3::Python<'a> {
+        self.py
+    }
+
     #[inline]
     fn write_value(
         &mut self,

@@ -464,6 +464,61 @@ class SchemaConfig:
         """
 
 @final
+class IndexConfig:
+    """``CREATE INDEX`` features and where ``USING`` is written.
+
+    ``features`` must include ``OPT_INDEX_FEATURES_SUPPORTED`` or index
+    statements are rejected. ``index_type`` is ``UNSUPPORTED`` unless the
+    dialect accepts an access method. The method text is inserted unchanged.
+    """
+
+    def __new__(
+        cls,
+        *,
+        features: int = 0,
+        index_type: int = 0,
+    ) -> Self:
+        """Create an ``IndexConfig``.
+
+        Args:
+            features: ``OPT_INDEX_FEATURES_*`` flags. Must include
+                ``OPT_INDEX_FEATURES_SUPPORTED`` for ``CREATE INDEX`` to be
+                accepted. Defaults to none (``0``).
+            index_type: ``OPT_INDEX_TYPE_*`` value for the ``USING`` clause.
+                ``UNSUPPORTED`` rejects an index type. ``BEFORE_COLUMNS`` writes
+                ``ON table USING type (columns)``. ``AFTER_COLUMNS`` writes
+                ``(columns) USING type``. Defaults to ``UNSUPPORTED``.
+        """
+
+    def __eq__(self, value: object, /) -> bool:
+        """Return ``True`` if ``value`` is an ``IndexConfig`` with equal settings."""
+
+    def __hash__(self) -> int:
+        """Return a hash consistent with ``__eq__``."""
+
+    @property
+    def features(self) -> int:
+        """``OPT_INDEX_FEATURES_*`` flags for the ``CREATE INDEX`` clauses this dialect accepts.
+
+        ``SUPPORTED``: ``CREATE INDEX`` is accepted.
+        ``IF_NOT_EXISTS``: ``IF NOT EXISTS`` is written. Without this flag the clause is omitted.
+        ``UNIQUE``: ``CREATE UNIQUE INDEX`` is accepted.
+        ``COLUMN_ORDER``: key columns may be ``ASC`` or ``DESC``. Without this flag ``ASC`` is omitted and ``DESC`` is rejected.
+        ``EXPRESSIONS``: a key may be a parenthesized expression. Identifiers are always accepted.
+        ``PARTIAL``: a ``WHERE`` predicate is accepted.
+        ``INCLUDE``: an ``INCLUDE`` column list is accepted.
+        """
+
+    @property
+    def index_type(self) -> int:
+        """``OPT_INDEX_TYPE_*`` value: where ``USING <type>`` is written.
+
+        ``UNSUPPORTED`` rejects an index type.
+        ``BEFORE_COLUMNS`` writes ``ON table USING type (columns)``.
+        ``AFTER_COLUMNS`` writes ``(columns) USING type``.
+        """
+
+@final
 class StringConfig:
     r"""String literal template and ``||`` / ``+`` / ``CONCAT`` spelling.
 
@@ -651,6 +706,7 @@ class Dialect:
         operator: OperatorConfig = ...,
         aggregate: AggregateConfig = ...,
         schema: SchemaConfig = ...,
+        index: IndexConfig = ...,
     ) -> Self:
         r"""Create a ``Dialect``.
 
@@ -692,6 +748,7 @@ class Dialect:
             operator: Spelling of modulo, ``IS DISTINCT FROM``, ``TRIM``, and ``COLLATE``.
             aggregate: Aggregate ``{IGNORE|RESPECT} NULLS`` and ``FILTER`` syntax.
             schema: Schema / DDL feature flags and clause styles.
+            index: ``CREATE INDEX`` feature flags and ``USING`` placement.
 
         Every config argument defaults to its class's default-constructed value.
         """
@@ -756,6 +813,10 @@ class Dialect:
     @property
     def schema(self) -> SchemaConfig:
         """Schema / DDL feature flags and clause styles."""
+
+    @property
+    def index(self) -> IndexConfig:
+        """``CREATE INDEX`` feature flags and ``USING`` placement."""
 
 # AggregateConfig.function_filter: where the aggregate FILTER clause is written.
 OPT_FUNCTION_FILTER_UNSUPPORTED: Final[int]  # Aggregate FILTER is not supported.
@@ -856,6 +917,20 @@ OPT_SCHEMA_FEATURES_DROP_RESTRICT: Final[int]  # DROP SCHEMA ... RESTRICT
 # SchemaConfig.authorization: AUTHORIZATION owner clause.
 OPT_SCHEMA_AUTHORIZATION_UNSUPPORTED: Final[int]  # Not allowed.
 OPT_SCHEMA_AUTHORIZATION_OPTIONAL: Final[int]  # Allowed, but not required.
+
+# IndexConfig.features: independent CREATE INDEX feature flags.
+OPT_INDEX_FEATURES_SUPPORTED: Final[int]  # CREATE INDEX is accepted. Required for any index statement.
+OPT_INDEX_FEATURES_IF_NOT_EXISTS: Final[int]  # CREATE INDEX IF NOT EXISTS. Omitted when this flag is off.
+OPT_INDEX_FEATURES_UNIQUE: Final[int]  # CREATE UNIQUE INDEX
+OPT_INDEX_FEATURES_COLUMN_ORDER: Final[int]  # ASC / DESC on key columns. DESC is rejected without this flag.
+OPT_INDEX_FEATURES_EXPRESSIONS: Final[int]  # Parenthesized expression keys.
+OPT_INDEX_FEATURES_PARTIAL: Final[int]  # WHERE predicate.
+OPT_INDEX_FEATURES_INCLUDE: Final[int]  # INCLUDE (columns)
+
+# IndexConfig.index_type: where USING <type> is written.
+OPT_INDEX_TYPE_UNSUPPORTED: Final[int]  # An index type is rejected.
+OPT_INDEX_TYPE_BEFORE_COLUMNS: Final[int]  # ON table USING type (columns)
+OPT_INDEX_TYPE_AFTER_COLUMNS: Final[int]  # (columns) USING type
 
 BigQuery: Final[Dialect]
 Databricks: Final[Dialect]

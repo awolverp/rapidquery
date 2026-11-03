@@ -18,7 +18,7 @@ ASTs until being merged into default branch.
   - [x] DROP SCHEMA
 
 - **Tables**
-  - [ ] CREATE INDEX
+  - [x] CREATE INDEX
   - [ ] DROP INDEX
   - [ ] CONSTRAINT
   - [ ] CREATE TABLE

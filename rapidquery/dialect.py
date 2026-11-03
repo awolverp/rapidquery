@@ -18,6 +18,16 @@ from ._core.dialect import (
     OPT_FUNCTION_FILTER_FILTER_WHERE,
     OPT_FUNCTION_FILTER_INSIDE_WHERE,
     OPT_FUNCTION_FILTER_UNSUPPORTED,
+    OPT_INDEX_FEATURES_COLUMN_ORDER,
+    OPT_INDEX_FEATURES_EXPRESSIONS,
+    OPT_INDEX_FEATURES_IF_NOT_EXISTS,
+    OPT_INDEX_FEATURES_INCLUDE,
+    OPT_INDEX_FEATURES_PARTIAL,
+    OPT_INDEX_FEATURES_SUPPORTED,
+    OPT_INDEX_FEATURES_UNIQUE,
+    OPT_INDEX_TYPE_AFTER_COLUMNS,
+    OPT_INDEX_TYPE_BEFORE_COLUMNS,
+    OPT_INDEX_TYPE_UNSUPPORTED,
     OPT_I_LIKE_STRATEGY_STANDARD,
     OPT_I_LIKE_STRATEGY_UNSUPPORTED,
     OPT_I_LIKE_STRATEGY_USE_LIKE_LOWER,
@@ -65,6 +75,7 @@ from ._core.dialect import (
     BitwiseConfig,
     CastConfig,
     Dialect,
+    IndexConfig,
     LikeConfig,
     LiteralConfig,
     OperatorConfig,
@@ -102,6 +113,16 @@ __all__ = [
     "OPT_FUNCTION_FILTER_FILTER_WHERE",
     "OPT_FUNCTION_FILTER_INSIDE_WHERE",
     "OPT_FUNCTION_FILTER_UNSUPPORTED",
+    "OPT_INDEX_FEATURES_COLUMN_ORDER",
+    "OPT_INDEX_FEATURES_EXPRESSIONS",
+    "OPT_INDEX_FEATURES_IF_NOT_EXISTS",
+    "OPT_INDEX_FEATURES_INCLUDE",
+    "OPT_INDEX_FEATURES_PARTIAL",
+    "OPT_INDEX_FEATURES_SUPPORTED",
+    "OPT_INDEX_FEATURES_UNIQUE",
+    "OPT_INDEX_TYPE_AFTER_COLUMNS",
+    "OPT_INDEX_TYPE_BEFORE_COLUMNS",
+    "OPT_INDEX_TYPE_UNSUPPORTED",
     "OPT_IS_DISTINCT_FROM_NULL_SAFE_EQUAL",
     "OPT_IS_DISTINCT_FROM_STANDARD",
     "OPT_IS_DISTINCT_FROM_UNSUPPORTED",
@@ -153,6 +174,7 @@ __all__ = [
     "Dialect",
     "DuckDb",
     "Hive",
+    "IndexConfig",
     "LikeConfig",
     "LiteralConfig",
     "MsSql",
@@ -237,6 +259,7 @@ Databricks = Dialect(
         features=OPT_SCHEMA_FEATURES_SUPPORTED | OPT_SCHEMA_FEATURES_IF_NOT_EXISTS,
         location=" LOCATION {}",
     ),
+    index=IndexConfig(features=OPT_INDEX_FEATURES_SUPPORTED | OPT_INDEX_FEATURES_IF_NOT_EXISTS),
 )
 
 DuckDb = Dialect(
@@ -273,6 +296,13 @@ DuckDb = Dialect(
         function_filter=OPT_FUNCTION_FILTER_FILTER,
     ),
     schema=SchemaConfig(features=OPT_SCHEMA_FEATURES_SUPPORTED | OPT_SCHEMA_FEATURES_IF_NOT_EXISTS),
+    index=IndexConfig(
+        features=OPT_INDEX_FEATURES_SUPPORTED
+        | OPT_INDEX_FEATURES_IF_NOT_EXISTS
+        | OPT_INDEX_FEATURES_UNIQUE
+        | OPT_INDEX_FEATURES_EXPRESSIONS,
+        index_type=OPT_INDEX_TYPE_AFTER_COLUMNS,
+    ),
 )
 
 Hive = Dialect(
@@ -336,6 +366,13 @@ MsSql = Dialect(
         features=OPT_SCHEMA_FEATURES_SUPPORTED | OPT_SCHEMA_FEATURES_EMBEDDED_DDL,
         authorization=OPT_SCHEMA_AUTHORIZATION_OPTIONAL,
     ),
+    index=IndexConfig(
+        features=OPT_INDEX_FEATURES_SUPPORTED
+        | OPT_INDEX_FEATURES_UNIQUE
+        | OPT_INDEX_FEATURES_COLUMN_ORDER
+        | OPT_INDEX_FEATURES_PARTIAL
+        | OPT_INDEX_FEATURES_INCLUDE,
+    ),
 )
 
 MySql = Dialect(
@@ -363,6 +400,13 @@ MySql = Dialect(
     ),
     schema=SchemaConfig(
         features=OPT_SCHEMA_FEATURES_SUPPORTED | OPT_SCHEMA_FEATURES_IF_NOT_EXISTS | OPT_SCHEMA_FEATURES_IS_DATABASE,
+    ),
+    index=IndexConfig(
+        features=OPT_INDEX_FEATURES_SUPPORTED
+        | OPT_INDEX_FEATURES_UNIQUE
+        | OPT_INDEX_FEATURES_COLUMN_ORDER
+        | OPT_INDEX_FEATURES_EXPRESSIONS,
+        index_type=OPT_INDEX_TYPE_AFTER_COLUMNS,
     ),
 )
 
@@ -392,6 +436,12 @@ Oracle = Dialect(
         function_filter=OPT_FUNCTION_FILTER_FILTER_WHERE,
     ),
     schema=SchemaConfig(features=OPT_SCHEMA_FEATURES_SUPPORTED | OPT_SCHEMA_FEATURES_EMBEDDED_DDL),
+    index=IndexConfig(
+        features=OPT_INDEX_FEATURES_SUPPORTED
+        | OPT_INDEX_FEATURES_UNIQUE
+        | OPT_INDEX_FEATURES_COLUMN_ORDER
+        | OPT_INDEX_FEATURES_EXPRESSIONS,
+    ),
 )
 
 PostgreSql = Dialect(
@@ -429,6 +479,16 @@ PostgreSql = Dialect(
     schema=SchemaConfig(
         features=OPT_SCHEMA_FEATURES_SUPPORTED | OPT_SCHEMA_FEATURES_IF_NOT_EXISTS | OPT_SCHEMA_FEATURES_EMBEDDED_DDL,
         authorization=OPT_SCHEMA_AUTHORIZATION_OPTIONAL,
+    ),
+    index=IndexConfig(
+        features=OPT_INDEX_FEATURES_SUPPORTED
+        | OPT_INDEX_FEATURES_IF_NOT_EXISTS
+        | OPT_INDEX_FEATURES_UNIQUE
+        | OPT_INDEX_FEATURES_COLUMN_ORDER
+        | OPT_INDEX_FEATURES_EXPRESSIONS
+        | OPT_INDEX_FEATURES_PARTIAL
+        | OPT_INDEX_FEATURES_INCLUDE,
+        index_type=OPT_INDEX_TYPE_BEFORE_COLUMNS,
     ),
 )
 
@@ -495,6 +555,9 @@ Snowflake = Dialect(
         features=OPT_SCHEMA_FEATURES_SUPPORTED | OPT_SCHEMA_FEATURES_IF_NOT_EXISTS,
         location=" EXTERNAL_VOLUME = {}",
     ),
+    index=IndexConfig(
+        features=OPT_INDEX_FEATURES_SUPPORTED | OPT_INDEX_FEATURES_IF_NOT_EXISTS | OPT_INDEX_FEATURES_INCLUDE
+    ),
 )
 
 Spark = Dialect(
@@ -526,6 +589,10 @@ Spark = Dialect(
         features=OPT_SCHEMA_FEATURES_SUPPORTED | OPT_SCHEMA_FEATURES_IF_NOT_EXISTS | OPT_SCHEMA_FEATURES_IS_DATABASE,
         location=" LOCATION {}",
     ),
+    index=IndexConfig(
+        features=OPT_INDEX_FEATURES_SUPPORTED | OPT_INDEX_FEATURES_IF_NOT_EXISTS,
+        index_type=OPT_INDEX_TYPE_BEFORE_COLUMNS,
+    ),
 )
 
 Sqlite = Dialect(
@@ -546,6 +613,14 @@ Sqlite = Dialect(
         collate=OPT_OPERATOR_COLLATE_INFIX_IDENT,
     ),
     aggregate=AggregateConfig(function_filter=OPT_FUNCTION_FILTER_FILTER_WHERE),
+    index=IndexConfig(
+        features=OPT_INDEX_FEATURES_SUPPORTED
+        | OPT_INDEX_FEATURES_IF_NOT_EXISTS
+        | OPT_INDEX_FEATURES_UNIQUE
+        | OPT_INDEX_FEATURES_COLUMN_ORDER
+        | OPT_INDEX_FEATURES_EXPRESSIONS
+        | OPT_INDEX_FEATURES_PARTIAL,
+    ),
 )
 
 Teradata = Dialect(

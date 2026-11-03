@@ -12,6 +12,8 @@ pub mod dialect_mod {
     #[pymodule_export]
     use super::CastConfig;
     #[pymodule_export]
+    use super::IndexConfig;
+    #[pymodule_export]
     use super::LikeConfig;
     #[pymodule_export]
     use super::LiteralConfig;
