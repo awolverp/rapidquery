@@ -9,6 +9,12 @@ class AggregateConfig:
     Controls how null-treatment modifiers and aggregate filters are written
     inside function calls such as ``FIRST_VALUE``. Both options default to
     ``UNSUPPORTED``, which rejects the syntax.
+
+    Examples:
+        >>> from rapidquery.dialect import AggregateConfig, OPT_FUNCTION_FILTER_FILTER_WHERE
+        >>> cfg = AggregateConfig(function_filter=OPT_FUNCTION_FILTER_FILTER_WHERE)
+        >>> cfg.function_filter == OPT_FUNCTION_FILTER_FILTER_WHERE
+        True
     """
 
     def __new__(
@@ -60,6 +66,11 @@ class BitwiseConfig:
     A bitwise operator is rejected unless its flag is set in ``operations``.
     AND, OR, NOT, and the shifts share one spelling (``syntax``). XOR has its
     own spelling (``xor``).
+
+    Examples:
+        >>> from rapidquery.dialect import BitwiseConfig, OPT_BITWISE_OPERATIONS_AND
+        >>> BitwiseConfig(operations=OPT_BITWISE_OPERATIONS_AND).operations == OPT_BITWISE_OPERATIONS_AND
+        True
     """
 
     def __new__(
@@ -117,7 +128,13 @@ class BitwiseConfig:
 
 @final
 class CastConfig:
-    """``TRY_CAST`` spelling, and whether ``expr::type`` is legal."""
+    """``TRY_CAST`` spelling, and whether ``expr::type`` is legal.
+
+    Examples:
+        >>> from rapidquery.dialect import CastConfig
+        >>> CastConfig(try_cast=None).try_cast is None
+        True
+    """
 
     def __new__(
         cls,
@@ -151,7 +168,13 @@ class CastConfig:
 
 @final
 class LikeConfig:
-    """``LIKE`` / ``ILIKE`` / ``SIMILAR TO`` / regex spelling and escape support."""
+    """``LIKE`` / ``ILIKE`` / ``SIMILAR TO`` / regex spelling and escape support.
+
+    Examples:
+        >>> from rapidquery.dialect import LikeConfig, OPT_I_LIKE_STRATEGY_STANDARD
+        >>> LikeConfig(ilike=OPT_I_LIKE_STRATEGY_STANDARD).ilike == OPT_I_LIKE_STRATEGY_STANDARD
+        True
+    """
 
     def __new__(
         cls,
@@ -238,6 +261,11 @@ class LiteralConfig:
     dialect has no spelling. Every template other than ``bytes`` has exactly one
     ``{}`` placeholder. ``json`` receives a value that is already escaped and
     includes its own quotes.
+
+    Examples:
+        >>> from rapidquery.dialect import LiteralConfig
+        >>> LiteralConfig().array is None
+        True
     """
 
     def __new__(
@@ -335,7 +363,13 @@ class LiteralConfig:
 
 @final
 class OperatorConfig:
-    """``%``, ``IS DISTINCT FROM``, ``TRIM``, and ``COLLATE`` spelling."""
+    """``%``, ``IS DISTINCT FROM``, ``TRIM``, and ``COLLATE`` spelling.
+
+    Examples:
+        >>> from rapidquery.dialect import OPT_IS_DISTINCT_FROM_UNSUPPORTED, OperatorConfig
+        >>> OperatorConfig().is_distinct_from == OPT_IS_DISTINCT_FROM_UNSUPPORTED
+        True
+    """
 
     def __new__(
         cls,
@@ -408,6 +442,11 @@ class SchemaConfig:
     ``features`` must include ``OPT_SCHEMA_FEATURES_SUPPORTED`` or schema
     statements are rejected. ``location`` receives a value that is already
     escaped and includes its own quotes; ``None`` rejects a location.
+
+    Examples:
+        >>> from rapidquery.dialect import OPT_SCHEMA_FEATURES_SUPPORTED, SchemaConfig
+        >>> SchemaConfig(features=OPT_SCHEMA_FEATURES_SUPPORTED).features == OPT_SCHEMA_FEATURES_SUPPORTED
+        True
     """
 
     def __new__(
@@ -471,6 +510,11 @@ class IndexConfig:
     is rejected. ``drop_features`` must include ``OPT_INDEX_DROP_FEATURES_SUPPORTED``
     or ``DROP INDEX`` is rejected. ``index_type`` is ``UNSUPPORTED`` unless the
     dialect accepts an access method. The method text is inserted unchanged.
+
+    Examples:
+        >>> from rapidquery.dialect import IndexConfig, OPT_INDEX_FEATURES_SUPPORTED
+        >>> IndexConfig(features=OPT_INDEX_FEATURES_SUPPORTED).features == OPT_INDEX_FEATURES_SUPPORTED
+        True
     """
 
     def __new__(
@@ -552,6 +596,11 @@ class StringConfig:
     The template key selects how text is escaped: ``{single}``, ``{double}``,
     ``{hex}``, ``{hex_quote}``, ``{mysql}``, ``{unicode}``, or ``{unicode_quote}``.
     ``concat`` keys are ``{left}`` and ``{right}``.
+
+    Examples:
+        >>> from rapidquery.dialect import StringConfig
+        >>> StringConfig().template
+        "'{single}'"
     """
 
     def __new__(
@@ -618,6 +667,11 @@ class TemporalConfig:
     Each template has exactly one ``{}`` placeholder, which is the raw text
     (``2024-01-15``), so the quotes belong in the template (``DATE '{}'``,
     ``DATE E'{}'``). All default to ``{}``.
+
+    Examples:
+        >>> from rapidquery.dialect import TemporalConfig
+        >>> TemporalConfig().date
+        '{}'
     """
 
     def __new__(
@@ -663,7 +717,13 @@ class TemporalConfig:
 
 @final
 class TupleConfig:
-    """Tuple / row-value spelling and which arities below 2 are legal."""
+    """Tuple / row-value spelling and which arities below 2 are legal.
+
+    Examples:
+        >>> from rapidquery.dialect import OPT_TUPLE_SYNTAX_UNSUPPORTED, TupleConfig
+        >>> TupleConfig().syntax == OPT_TUPLE_SYNTAX_UNSUPPORTED
+        True
+    """
 
     def __new__(
         cls,
@@ -716,6 +776,12 @@ class Dialect:
     index (``'?{}'``, ``'${}'``, ``':{}'``). ``identifier`` keys are
     ``{double}``, ``{single}``, ``{bracket}``, ``{backtick}``, and the
     ``slash*`` backslash forms.
+
+    Examples:
+        >>> from rapidquery.dialect import PostgreSql
+        >>> from rapidquery.expr import Ident
+        >>> Ident("users").to_sql(PostgreSql)
+        '"users"'
     """
 
     def __new__(
@@ -736,6 +802,8 @@ class Dialect:
         index: IndexConfig = ...,
     ) -> Self:
         r"""Create a ``Dialect``.
+
+        Every nested config defaults to that config's own defaults.
 
         Args:
             placeholder: Positional parameter template with at most one ``{}``,
@@ -776,8 +844,6 @@ class Dialect:
             aggregate: Aggregate ``{IGNORE|RESPECT} NULLS`` and ``FILTER`` syntax.
             schema: Schema / DDL feature flags and clause styles.
             index: ``CREATE INDEX`` feature flags and ``USING`` placement.
-
-        Every config argument defaults to its class's default-constructed value.
         """
 
     def __eq__(self, value: object, /) -> bool:

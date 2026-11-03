@@ -6,7 +6,7 @@
 - Do you have any questions?
 - Do you have any feature requests?
 
-These are all welcome as [issues](https://github.com/pydantic/pydantic/issues/new).
+These are all welcome as [issues](https://github.com/awolverp/rapidquery/issues/new).
 
 > For reporting a security vulnerability, please see [Security Policy](./SECURITY.md).
 
@@ -25,6 +25,20 @@ To make contributing as easy and fast as possible, you'll want to run tests and 
 If you're going to add a feature or make a change to SQL, our _current_ priority is things that are supported in at least 3 dialects or defined in Standard SQL.
 
 > Use `make format` to fix formatting, and `make` to run tests and linting.
+
+## Dialects
+
+Dialect parameters default to disabled or unsupported. Leave a default enabled only when every dialect needs that spelling in order to render, such as identifier quotes, string literals, or the placeholder marker.
+
+Keep the parameter list and the `OPT_*` constants small. Add a flag to an existing set, or a variant to an existing enum, before adding a new field. Do not add an `OPT_*` constant for a clause that an existing flag already controls.
+
+## Documentation
+
+Rust items need rustdoc, and a short usage example helps. This project does not maintain doctests. Fence an example with `ignore`, or use a fence other than `rust`, so `cargo test` does not execute it.
+
+A PyO3 class, method, or function only needs a one-line summary in Rust. Write the full docstring in the hand-written `rapidquery/*.pyi` stub.
+
+Python docstrings follow [Google style](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings) because the API docs are rendered with mkdocstrings.
 
 ## AI Policy
 

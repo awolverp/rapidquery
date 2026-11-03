@@ -68,3 +68,7 @@ ASTs until being merged into default branch.
 - **Savepoints**
   - [ ] SAVEPOINT
   - [ ] RELEASE SAVEPOINT
+
+## Development
+
+Contributor setup and review rules are in [CONTRIBUTING.md](./CONTRIBUTING.md).

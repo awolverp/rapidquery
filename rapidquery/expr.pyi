@@ -531,8 +531,6 @@ class Function(Expr):
 
         Args:
             predicate: Boolean expression placed in the filter.
-
-        This method is not supported by Hive, MsSQL, MySQL, Redshift, Snowflake, Teradata.
         """
 
     def ignore_nulls(self) -> Self:
@@ -755,8 +753,6 @@ class IsDistinctFromExpr(Expr):
             left: Left expression.
             right: Right expression.
             negated: Write `IS NOT DISTINCT FROM`.
-
-        ``IS DISTINCT FROM`` is not supported by Oracle, Redshift, Teradata.
         """
 
     def get_left(self) -> Expr:
@@ -918,8 +914,6 @@ class SimilarToExpr(Expr):
             expr: Tested expression.
             pattern: SQL regular pattern.
             negated: Write `NOT SIMILAR TO`.
-
-        ``SIMILAR TO`` is supported by DuckDB, PostgreSql, Redshift.
         """
 
     def get_expr(self) -> Expr:
@@ -954,8 +948,6 @@ class RLikeExpr(Expr):
             expr: Tested expression.
             pattern: Regular expression.
             negated: Negate the match.
-
-        ``RLIKE`` is not supported by MsSQL, Sqlite, Teradata.
         """
 
     def get_expr(self) -> Expr:
@@ -1082,8 +1074,6 @@ class CollateExpr(Expr):
         Args:
             expr: Input expression.
             collation: Collation name, as an identifier.
-
-        ``COLLATE`` is not supported by Hive, Spark, Teradata.
         """
 
     def get_expr(self) -> Expr:
