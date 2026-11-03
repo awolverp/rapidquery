@@ -381,3 +381,172 @@ impl PyCreateIndex {
         Ok(fmt.into_string())
     }
 }
+
+/// `CASCADE` and `RESTRICT` in `DROP INDEX`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, derive_more::FromStr, derive_more::Display)]
+pub enum DropIndexBehavior {
+    /// Emits `CASCADE`.
+    #[display("CASCADE")]
+    Cascade,
+    /// Emits `RESTRICT`.
+    #[display("RESTRICT")]
+    Restrict,
+}
+
+/// Represents a `DROP INDEX` statement.
+///
+/// ```ignore
+/// DROP INDEX [IF EXISTS] <name> [ON <table>] [CASCADE | RESTRICT]
+/// DROP INDEX [IF EXISTS] <table>.<name> [CASCADE | RESTRICT]
+/// ```
+#[rapidquery_macros::pyclass("rapidquery.ddl.DropIndex", extends = super::PyDataDefinitionLanguage)]
+#[derive(Debug, Clone)]
+pub struct PyDropIndex {
+    /// Index name. One identifier.
+    pub name: arcstr::ArcStr,
+
+    /// Table name. Required for `ON` and `table.name` dialects, rejected for name-only dialects.
+    pub table_name: Option<Ident>,
+
+    /// `IF EXISTS`. Omitted when the dialect lacks `IF_NOT_EXISTS`.
+    pub if_exists: bool,
+
+    /// `CASCADE` or `RESTRICT`.
+    pub behavior: Option<DropIndexBehavior>,
+}
+
+impl sql::WriteSql for PyDropIndex {
+    fn write_sql<W: sql::SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> error::Result<()> {
+        let drop_features = dialect.index.drop_features;
+        if !drop_features.contains(dialect::IndexDropFeatures::SUPPORTED) {
+            return Err(error::Error::Unsupported { feature: "DropIndex" });
+        }
+
+        match self.behavior {
+            Some(DropIndexBehavior::Cascade) if !drop_features.contains(dialect::IndexDropFeatures::CASCADE) => {
+                return Err(error::Error::Unsupported {
+                    feature: "DropIndex.behavior = 'CASCADE'",
+                });
+            }
+            Some(DropIndexBehavior::Restrict) if !drop_features.contains(dialect::IndexDropFeatures::RESTRICT) => {
+                return Err(error::Error::Unsupported {
+                    feature: "DropIndex.behavior = 'RESTRICT'",
+                });
+            }
+            _ => {}
+        }
+
+        out.write_str("DROP INDEX ");
+        out.write_str_if(
+            self.if_exists && dialect.index.features.contains(dialect::IndexFeatures::IF_NOT_EXISTS),
+            "IF EXISTS ",
+        );
+
+        match (dialect.index.drop_table, &self.table_name) {
+            (dialect::IndexDropTable::NameOnly, None) => {
+                dialect.write_identifier(out, self.name.as_str());
+            }
+            (dialect::IndexDropTable::On, Some(table)) => {
+                dialect.write_identifier(out, self.name.as_str());
+                out.write_str(" ON ");
+                table.write_sql(dialect, out)?;
+            }
+            (dialect::IndexDropTable::Qualified, Some(table)) => {
+                table.write_sql(dialect, out)?;
+                out.write('.');
+                dialect.write_identifier(out, self.name.as_str());
+            }
+
+            (dialect::IndexDropTable::NameOnly, Some(_)) => {
+                // ignore table_name
+            }
+            (dialect::IndexDropTable::On | dialect::IndexDropTable::Qualified, None) => {
+                return Err(error::Error::MissingDropIndexTable);
+            }
+        }
+
+        match self.behavior {
+            Some(DropIndexBehavior::Cascade) => out.write_str(" CASCADE"),
+            Some(DropIndexBehavior::Restrict) => out.write_str(" RESTRICT"),
+            None => {}
+        }
+
+        Ok(())
+    }
+}
+
+#[pyo3::pymethods]
+impl PyDropIndex {
+    #[new]
+    #[pyo3(signature = (name, *, table_name = None, if_exists = false, behavior = None))]
+    fn new(
+        name: &str,
+        table_name: Option<IdentExtractor>,
+        if_exists: bool,
+        behavior: Option<&str>,
+    ) -> error::Result<pyo3::PyClassInitializer<Self>> {
+        if name.is_empty() {
+            return Err(error::Error::EmptyIndexName);
+        }
+
+        let behavior = match behavior {
+            None => None,
+            Some(value) => {
+                Some(
+                    DropIndexBehavior::from_str(value).map_err(|_| error::Error::InvalidIndexBehavior {
+                        value: value.to_owned(),
+                    })?,
+                )
+            }
+        };
+
+        let result = Self {
+            name: arcstr::ArcStr::from(name),
+            table_name: table_name.map(|table| table.0),
+            if_exists,
+            behavior,
+        };
+        Ok(pyo3::PyClassInitializer::from(super::PyDataDefinitionLanguage).add_subclass(result))
+    }
+
+    #[getter]
+    fn name(&self) -> String {
+        self.name.to_string()
+    }
+
+    #[getter]
+    fn table_name<'a>(&self, py: pyo3::Python<'a>) -> pyo3::PyResult<Option<alias::BoundObject<'a>>> {
+        self.table_name
+            .as_ref()
+            .map(|name| crate::expr::base::into_subclasses(py, name.clone().into()))
+            .transpose()
+    }
+
+    #[getter]
+    fn if_exists(&self) -> bool {
+        self.if_exists
+    }
+
+    #[getter]
+    fn behavior(&self) -> Option<String> {
+        self.behavior.map(|behavior| behavior.to_string())
+    }
+
+    /// Render this statement as raw SQL.
+    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> error::Result<String> {
+        sql::write_sql(dialect.py(), self, dialect.get())
+    }
+
+    fn __repr__(&self) -> String {
+        let mut fmt = repr::ReprFormatter::new_call("DropIndex");
+
+        fmt.positional(self.name.as_str());
+        if let Some(table_name) = &self.table_name {
+            fmt.keyword("table_name", table_name.python_repr());
+        }
+        fmt.keyword_true("if_exists", self.if_exists)
+            .keyword("behavior", self.behavior.map(|behavior| behavior.to_string()));
+
+        fmt.into_string()
+    }
+}

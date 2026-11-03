@@ -19,7 +19,7 @@ ASTs until being merged into default branch.
 
 - **Tables**
   - [x] CREATE INDEX
-  - [ ] DROP INDEX
+  - [x] DROP INDEX
   - [ ] CONSTRAINT
   - [ ] CREATE TABLE
   - [ ] ALTER TABLE

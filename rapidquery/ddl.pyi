@@ -170,3 +170,35 @@ class CreateIndex(DataDefinitionLanguage):
     def include(self) -> list[str]: ...
     @property
     def index_type(self) -> str | None: ...
+
+@final
+class DropIndex(DataDefinitionLanguage):
+    """Represents a ``DROP INDEX`` statement."""
+
+    def __new__(
+        cls,
+        name: str,
+        *,
+        table_name: _IdentExtractor | None = None,
+        if_exists: bool = False,
+        behavior: typing.Literal["CASCADE", "RESTRICT"] | str | None = None,
+    ) -> Self:
+        """
+        Construct a ``DROP INDEX`` statement.
+
+        Args:
+            name: Index name. One identifier, not a multipart name.
+            table_name: Table that owns the index. Required when the dialect writes
+                ``ON table`` or ``table.name``. Ignored when the dialect writes the name alone.
+            if_exists: Emits ``IF EXISTS`` when the dialect supports ``IF NOT EXISTS``. Otherwise the clause is omitted.
+            behavior: Emits ``CASCADE`` or ``RESTRICT``.
+        """
+
+    @property
+    def name(self) -> str: ...
+    @property
+    def table_name(self) -> Ident | None: ...
+    @property
+    def if_exists(self) -> bool: ...
+    @property
+    def behavior(self) -> typing.Literal["CASCADE", "RESTRICT"] | None: ...

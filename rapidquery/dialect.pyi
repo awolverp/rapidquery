@@ -465,10 +465,11 @@ class SchemaConfig:
 
 @final
 class IndexConfig:
-    """``CREATE INDEX`` features and where ``USING`` is written.
+    """``CREATE INDEX`` / ``DROP INDEX`` features and clause placement.
 
-    ``features`` must include ``OPT_INDEX_FEATURES_SUPPORTED`` or index
-    statements are rejected. ``index_type`` is ``UNSUPPORTED`` unless the
+    ``features`` must include ``OPT_INDEX_FEATURES_SUPPORTED`` or ``CREATE INDEX``
+    is rejected. ``drop_features`` must include ``OPT_INDEX_DROP_FEATURES_SUPPORTED``
+    or ``DROP INDEX`` is rejected. ``index_type`` is ``UNSUPPORTED`` unless the
     dialect accepts an access method. The method text is inserted unchanged.
     """
 
@@ -477,6 +478,8 @@ class IndexConfig:
         *,
         features: int = 0,
         index_type: int = 0,
+        drop_features: int = 0,
+        drop_table: int = 0,
     ) -> Self:
         """Create an ``IndexConfig``.
 
@@ -488,6 +491,12 @@ class IndexConfig:
                 ``UNSUPPORTED`` rejects an index type. ``BEFORE_COLUMNS`` writes
                 ``ON table USING type (columns)``. ``AFTER_COLUMNS`` writes
                 ``(columns) USING type``. Defaults to ``UNSUPPORTED``.
+            drop_features: ``OPT_INDEX_DROP_FEATURES_*`` flags. Must include
+                ``SUPPORTED`` for ``DROP INDEX`` to be accepted. Defaults to none (``0``).
+            drop_table: ``OPT_INDEX_DROP_TABLE_*`` value for how the table is named.
+                ``NAME_ONLY`` writes ``DROP INDEX name``. ``ON`` writes
+                ``DROP INDEX name ON table``. ``QUALIFIED`` writes
+                ``DROP INDEX table.name``. Defaults to ``NAME_ONLY``.
         """
 
     def __eq__(self, value: object, /) -> bool:
@@ -501,7 +510,7 @@ class IndexConfig:
         """``OPT_INDEX_FEATURES_*`` flags for the ``CREATE INDEX`` clauses this dialect accepts.
 
         ``SUPPORTED``: ``CREATE INDEX`` is accepted.
-        ``IF_NOT_EXISTS``: ``IF NOT EXISTS`` is written. Without this flag the clause is omitted.
+        ``IF_NOT_EXISTS``: ``CREATE INDEX IF NOT EXISTS`` and ``DROP INDEX IF EXISTS`` are written. Without this flag the clause is omitted.
         ``UNIQUE``: ``CREATE UNIQUE INDEX`` is accepted.
         ``COLUMN_ORDER``: key columns may be ``ASC`` or ``DESC``. Without this flag ``ASC`` is omitted and ``DESC`` is rejected.
         ``EXPRESSIONS``: a key may be a parenthesized expression. Identifiers are always accepted.
@@ -516,6 +525,24 @@ class IndexConfig:
         ``UNSUPPORTED`` rejects an index type.
         ``BEFORE_COLUMNS`` writes ``ON table USING type (columns)``.
         ``AFTER_COLUMNS`` writes ``(columns) USING type``.
+        """
+
+    @property
+    def drop_features(self) -> int:
+        """``OPT_INDEX_DROP_FEATURES_*`` flags for ``DROP INDEX``.
+
+        ``SUPPORTED``: ``DROP INDEX`` is accepted.
+        ``CASCADE``: ``DROP INDEX ... CASCADE`` is accepted.
+        ``RESTRICT``: ``DROP INDEX ... RESTRICT`` is accepted.
+        """
+
+    @property
+    def drop_table(self) -> int:
+        """``OPT_INDEX_DROP_TABLE_*`` value: how ``DROP INDEX`` names its table.
+
+        ``NAME_ONLY`` writes ``DROP INDEX name``.
+        ``ON`` writes ``DROP INDEX name ON table`` and requires a table.
+        ``QUALIFIED`` writes ``DROP INDEX table.name`` and requires a table.
         """
 
 @final
@@ -920,7 +947,7 @@ OPT_SCHEMA_AUTHORIZATION_OPTIONAL: Final[int]  # Allowed, but not required.
 
 # IndexConfig.features: independent CREATE INDEX feature flags.
 OPT_INDEX_FEATURES_SUPPORTED: Final[int]  # CREATE INDEX is accepted. Required for any index statement.
-OPT_INDEX_FEATURES_IF_NOT_EXISTS: Final[int]  # CREATE INDEX IF NOT EXISTS. Omitted when this flag is off.
+OPT_INDEX_FEATURES_IF_NOT_EXISTS: Final[int]  # CREATE INDEX IF NOT EXISTS and DROP INDEX IF EXISTS. Omitted when off.
 OPT_INDEX_FEATURES_UNIQUE: Final[int]  # CREATE UNIQUE INDEX
 OPT_INDEX_FEATURES_COLUMN_ORDER: Final[int]  # ASC / DESC on key columns. DESC is rejected without this flag.
 OPT_INDEX_FEATURES_EXPRESSIONS: Final[int]  # Parenthesized expression keys.
@@ -931,6 +958,16 @@ OPT_INDEX_FEATURES_INCLUDE: Final[int]  # INCLUDE (columns)
 OPT_INDEX_TYPE_UNSUPPORTED: Final[int]  # An index type is rejected.
 OPT_INDEX_TYPE_BEFORE_COLUMNS: Final[int]  # ON table USING type (columns)
 OPT_INDEX_TYPE_AFTER_COLUMNS: Final[int]  # (columns) USING type
+
+# IndexConfig.drop_features: DROP INDEX clauses. IF EXISTS reuses OPT_INDEX_FEATURES_IF_NOT_EXISTS.
+OPT_INDEX_DROP_FEATURES_SUPPORTED: Final[int]  # DROP INDEX is accepted.
+OPT_INDEX_DROP_FEATURES_CASCADE: Final[int]  # DROP INDEX ... CASCADE
+OPT_INDEX_DROP_FEATURES_RESTRICT: Final[int]  # DROP INDEX ... RESTRICT
+
+# IndexConfig.drop_table: how DROP INDEX names its table.
+OPT_INDEX_DROP_TABLE_NAME_ONLY: Final[int]  # DROP INDEX name. A table is rejected.
+OPT_INDEX_DROP_TABLE_ON: Final[int]  # DROP INDEX name ON table. A table is required.
+OPT_INDEX_DROP_TABLE_QUALIFIED: Final[int]  # DROP INDEX table.name. A table is required.
 
 BigQuery: Final[Dialect]
 Databricks: Final[Dialect]

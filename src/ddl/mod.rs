@@ -7,6 +7,7 @@ pub use schema::PyDropSchema;
 
 mod index;
 pub use index::PyCreateIndex;
+pub use index::PyDropIndex;
 pub use index::PyIndexColumn;
 
 /// Base of every DDL statement. Construct a subclass, not this class.
@@ -26,6 +27,8 @@ pub mod ddl_mod {
 
     #[pymodule_export]
     use super::PyCreateIndex;
+    #[pymodule_export]
+    use super::PyDropIndex;
     #[pymodule_export]
     use super::PyIndexColumn;
 }

@@ -357,7 +357,7 @@ pub struct IndexConfig {
     /// Supported `CREATE INDEX` clauses.
     ///
     /// - SUPPORTED: The dialect accepts `CREATE INDEX`.
-    /// - IF_NOT_EXISTS: `CREATE INDEX IF NOT EXISTS` is written. Without this flag the clause is omitted.
+    /// - IF_NOT_EXISTS: `IF NOT EXISTS` / `IF EXISTS` is written. Without this flag the clause is omitted.
     /// - UNIQUE: `CREATE UNIQUE INDEX` is accepted.
     /// - COLUMN_ORDER: Key columns may be `ASC` or `DESC`. Without this flag `ASC` is omitted and `DESC` is rejected.
     /// - EXPRESSIONS: A key may be an expression, written in parentheses. Identifiers are always accepted.
@@ -381,6 +381,22 @@ pub struct IndexConfig {
     /// - AfterColumns: `(columns) USING type`. MySQL and DuckDB.
     #[define(enum { #[default] Unsupported, BeforeColumns, AfterColumns })]
     pub index_type: IndexType,
+
+    /// `DROP INDEX` clauses. `IF EXISTS` is [`IndexFeatures::IF_NOT_EXISTS`].
+    ///
+    /// - SUPPORTED: The dialect accepts `DROP INDEX`.
+    /// - CASCADE: `DROP INDEX ... CASCADE`.
+    /// - RESTRICT: `DROP INDEX ... RESTRICT`.
+    #[define(bits { SUPPORTED, CASCADE, RESTRICT })]
+    pub drop_features: IndexDropFeatures,
+
+    /// How `DROP INDEX` names its table.
+    ///
+    /// - NameOnly: `DROP INDEX name`. A table is ignored.
+    /// - On: `DROP INDEX name ON table`. A missing table is rejected.
+    /// - Qualified: `DROP INDEX table.name`. A missing table is rejected.
+    #[define(enum { #[default] NameOnly, On, Qualified })]
+    pub drop_table: IndexDropTable,
 }
 
 rapidquery_macros::pyo3_constructor! {
@@ -389,6 +405,8 @@ rapidquery_macros::pyo3_constructor! {
             SUPPORTED, IF_NOT_EXISTS, UNIQUE, COLUMN_ORDER, EXPRESSIONS, PARTIAL, INCLUDE
         } = empty,
         index_type: enum IndexType { Unsupported, BeforeColumns, AfterColumns } = Unsupported,
+        drop_features: bits IndexDropFeatures { SUPPORTED, CASCADE, RESTRICT } = empty,
+        drop_table: enum IndexDropTable { NameOnly, On, Qualified } = NameOnly,
     }
 }
 

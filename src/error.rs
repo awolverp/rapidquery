@@ -93,6 +93,9 @@ pub enum Error {
     #[display("invalid value {value:?} for order; expected ASC or DESC")]
     InvalidIndexOrder { value: String },
 
+    #[display("invalid value {value:?} for behavior; expected CASCADE or RESTRICT")]
+    InvalidIndexBehavior { value: String },
+
     #[display("CREATE INDEX requires at least one column")]
     EmptyIndexColumns,
 
@@ -104,6 +107,9 @@ pub enum Error {
 
     #[display("INCLUDE column name is empty")]
     EmptyIndexInclude,
+
+    #[display("table_name is required in DROP INDEX for this dialect")]
+    MissingDropIndexTable,
 
     #[display("custom expression has {placeholders} placeholders but {arguments} arguments")]
     CustomPlaceholderCount { placeholders: usize, arguments: usize },
