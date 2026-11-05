@@ -18,114 +18,114 @@ pub(crate) fn format_options(names: &[&str], values: &[u8]) -> String {
 }
 
 /// Project error. Convert it with `?` from a function that returns `Result<T, Error>`.
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, strum::Display)]
 pub enum Error {
     /// A Python exception that already occurred (`PyErr::fetch`). Re-raised as-is.
-    #[display("{_0}")]
+    #[strum(to_string = "{0}")]
     Python(pyo3::PyErr),
 
     /// `expected` is the requirement. `got` is the Python type name that arrived.
-    #[display("{expected}, got {got}")]
+    #[strum(to_string = "{expected}, got {got}")]
     Expected { expected: &'static str, got: String },
 
-    #[display("{feature} is not supported by this dialect")]
+    #[strum(to_string = "{feature} is not supported by this dialect")]
     Unsupported { feature: &'static str },
 
-    #[display("invalid template for `{field}`: {reason}")]
+    #[strum(to_string = "invalid template for `{field}`: {reason}")]
     InvalidTemplate {
         field: &'static str,
         reason: TemplateParseError,
     },
 
-    #[display("{_0}")]
+    #[strum(to_string = "{0}")]
     Ident(IdentParseError),
 
-    #[display("string literal contains a NUL byte; a SQL string literal cannot carry NUL")]
+    #[strum(to_string = "string literal contains a NUL byte; a SQL string literal cannot carry NUL")]
     NulInString,
 
-    #[display("expected a string of '0' and '1' for bit serialization, got {value:?}")]
+    #[strum(to_string = "expected a string of '0' and '1' for bit serialization, got {value:?}")]
     InvalidBitString { value: String },
 
-    #[display("cannot serialize non-finite float {value} as a numeric literal")]
+    #[strum(to_string = "cannot serialize non-finite float {value} as a numeric literal")]
     NonFiniteFloat { value: f64 },
 
-    #[display("invalid uuid str: {detail}")]
+    #[strum(to_string = "invalid uuid str: {detail}")]
     InvalidUuid { detail: String },
 
-    #[display("invalid inet address {text:?}: {detail}")]
+    #[strum(to_string = "invalid inet address {text:?}: {detail}")]
     InvalidInet { text: String, detail: String },
 
-    #[display("invalid mac address {text:?}: {detail}")]
+    #[strum(to_string = "invalid mac address {text:?}: {detail}")]
     InvalidMac { text: String, detail: String },
 
-    #[display("LIKE ANY pattern list is empty; pass at least one pattern")]
+    #[strum(to_string = "LIKE ANY pattern list is empty; pass at least one pattern")]
     EmptyLikeAny,
 
-    #[display("unknown unary operator {operator:?}; expected NOT, +, -, or ~")]
+    #[strum(to_string = "unknown unary operator {operator:?}; expected NOT, +, -, or ~")]
     UnknownUnaryOperator { operator: String },
 
-    #[display("unknown IS kind {kind:?}; expected NULL, TRUE, FALSE, or UNKNOWN")]
+    #[strum(to_string = "unknown IS kind {kind:?}; expected NULL, TRUE, FALSE, or UNKNOWN")]
     UnknownIsKind { kind: String },
 
-    #[display("unknown cast kind {kind:?}; expected CAST, TRY_CAST, or ::")]
+    #[strum(to_string = "unknown cast kind {kind:?}; expected CAST, TRY_CAST, or ::")]
     UnknownCastKind { kind: String },
 
-    #[display("unknown TRIM where {kind:?}; expected BOTH, LEADING, or TRAILING")]
+    #[strum(to_string = "unknown TRIM where {kind:?}; expected BOTH, LEADING, or TRAILING")]
     UnknownTrimWhere { kind: String },
 
-    #[display("invalid value {value} for `{field}`; expected {expected}")]
+    #[strum(to_string = "invalid value {value} for `{field}`; expected {expected}")]
     InvalidEnumOptionField {
         field: &'static str,
         value: u8,
         expected: String,
     },
 
-    #[display("invalid bits {value:#b} for `{field}`; expected a combination of {expected}")]
+    #[strum(to_string = "invalid bits {value:#b} for `{field}`; expected a combination of {expected}")]
     InvalidBitOptionField {
         field: &'static str,
         value: u8,
         expected: String,
     },
 
-    #[display("invalid value {value:?} for behavior; expected CASCADE or RESTRICT")]
+    #[strum(to_string = "invalid value {value:?} for behavior; expected CASCADE or RESTRICT")]
     InvalidSchemaBehavior { value: String },
 
-    #[display("invalid value {value:?} for order; expected ASC or DESC")]
+    #[strum(to_string = "invalid value {value:?} for order; expected ASC or DESC")]
     InvalidIndexOrder { value: String },
 
-    #[display("invalid value {value:?} for behavior; expected CASCADE or RESTRICT")]
+    #[strum(to_string = "invalid value {value:?} for behavior; expected CASCADE or RESTRICT")]
     InvalidIndexBehavior { value: String },
 
-    #[display("CREATE INDEX requires at least one column")]
+    #[strum(to_string = "CREATE INDEX requires at least one column")]
     EmptyIndexColumns,
 
-    #[display("index name is empty")]
+    #[strum(to_string = "index name is empty")]
     EmptyIndexName,
 
-    #[display("index type is empty")]
+    #[strum(to_string = "index type is empty")]
     EmptyIndexType,
 
-    #[display("INCLUDE column name is empty")]
+    #[strum(to_string = "INCLUDE column name is empty")]
     EmptyIndexInclude,
 
-    #[display("table_name is required in DROP INDEX for this dialect")]
+    #[strum(to_string = "table_name is required in DROP INDEX for this dialect")]
     MissingDropIndexTable,
 
-    #[display("custom expression has {placeholders} placeholders but {arguments} arguments")]
+    #[strum(to_string = "custom expression has {placeholders} placeholders but {arguments} arguments")]
     CustomPlaceholderCount { placeholders: usize, arguments: usize },
 
-    #[display(
-        "collation must be a single quoted or unquoted name when operator.collate is OPT_OPERATOR_COLLATE_FUNCTION_STRING"
+    #[strum(
+        to_string = "collation must be a single quoted or unquoted name when operator.collate is OPT_OPERATOR_COLLATE_FUNCTION_STRING"
     )]
     CollationNotSingleName,
 
-    #[display("identifier index {index} is out of range (length {len})")]
+    #[strum(to_string = "identifier index {index} is out of range (length {len})")]
     IdentIndex { index: isize, len: usize },
 
-    #[display("integer is out of range for datetime serialization")]
+    #[strum(to_string = "integer is out of range for datetime serialization")]
     DatetimeOutOfRange,
 
-    #[display("timestamp {value} is out of range for datetime serialization")]
+    #[strum(to_string = "timestamp {value} is out of range for datetime serialization")]
     InvalidTimestamp { value: String },
 }
 

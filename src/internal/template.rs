@@ -84,15 +84,15 @@ where
     out.write_str(&haystack[last_end..]);
 }
 
-#[derive(Debug, Clone, Copy, derive_more::Display)]
+#[derive(Debug, Clone, Copy, strum::Display)]
 pub enum TemplateParseError {
-    #[display("template is too long (maximum is 256 characters)")]
+    #[strum(to_string = "template is too long (maximum is 256 characters)")]
     TemplateIsTooLong,
-    #[display("one of required keys not found: {_0}")]
+    #[strum(to_string = "one of required keys not found: {0}")]
     RequiredKeyNotFound(&'static str),
-    #[display("placeholders are missing (minimum {_0}, {_1} found)")]
+    #[strum(to_string = "placeholders are missing (minimum {0}, {1} found)")]
     MissingPlaceholder(u8, usize),
-    #[display("too many placeholders (maximum is {_0}, {_1} found)")]
+    #[strum(to_string = "too many placeholders (maximum is {0}, {1} found)")]
     TooManyPlaceholder(u8, usize),
 }
 impl std::error::Error for TemplateParseError {}

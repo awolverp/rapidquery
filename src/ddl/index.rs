@@ -12,13 +12,14 @@ use crate::internal::repr;
 use crate::sql;
 
 /// Represents `ASC` and `DESC` keywords.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, derive_more::FromStr, derive_more::Display)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::EnumString, strum::IntoStaticStr)]
+#[strum(ascii_case_insensitive)]
 pub enum IndexOrder {
     /// Emits `ASC`.
-    #[display("ASC")]
+    #[strum(serialize = "ASC")]
     Asc,
     /// Emits `DESC`.
-    #[display("DESC")]
+    #[strum(serialize = "DESC")]
     Desc,
 }
 
@@ -67,8 +68,8 @@ impl PyIndexColumn {
     }
 
     #[getter]
-    fn order(&self) -> String {
-        self.order.to_string()
+    fn order(&self) -> &'static str {
+        self.order.into()
     }
 
     fn __repr__(&self, py: pyo3::Python<'_>) -> error::Result<String> {
@@ -202,7 +203,7 @@ impl sql::WriteSql for PyCreateIndex {
 
             if column_order {
                 out.write(' ');
-                out.write_str(column.order.to_string().as_str());
+                out.write_str(column.order.into());
             }
         }
         out.write(')');
@@ -383,13 +384,14 @@ impl PyCreateIndex {
 }
 
 /// `CASCADE` and `RESTRICT` in `DROP INDEX`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, derive_more::FromStr, derive_more::Display)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::EnumString, strum::IntoStaticStr)]
+#[strum(ascii_case_insensitive)]
 pub enum DropIndexBehavior {
     /// Emits `CASCADE`.
-    #[display("CASCADE")]
+    #[strum(serialize = "CASCADE")]
     Cascade,
     /// Emits `RESTRICT`.
-    #[display("RESTRICT")]
+    #[strum(serialize = "RESTRICT")]
     Restrict,
 }
 
@@ -528,8 +530,8 @@ impl PyDropIndex {
     }
 
     #[getter]
-    fn behavior(&self) -> Option<String> {
-        self.behavior.map(|behavior| behavior.to_string())
+    fn behavior(&self) -> Option<&'static str> {
+        self.behavior.map(Into::into)
     }
 
     /// Render this statement as raw SQL.
@@ -545,7 +547,7 @@ impl PyDropIndex {
             fmt.keyword("table_name", table_name.python_repr());
         }
         fmt.keyword_true("if_exists", self.if_exists)
-            .keyword("behavior", self.behavior.map(|behavior| behavior.to_string()));
+            .keyword("behavior", self.behavior.map(Into::<&'static str>::into));
 
         fmt.into_string()
     }

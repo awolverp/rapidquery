@@ -141,13 +141,14 @@ impl PyCreateSchema {
 }
 
 /// Represents `CASCADE` and `RESTRICT` keywords in `DROP SCHEMA` statement.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, derive_more::FromStr, derive_more::Display)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::EnumString, strum::IntoStaticStr)]
+#[strum(ascii_case_insensitive)]
 pub enum DropSchemaBehavior {
-    /// Emits `CASCADE`
-    #[display("CASCADE")]
+    /// Emits `CASCADE`.
+    #[strum(serialize = "CASCADE")]
     Cascade,
-    /// Emits `RESTRICT`
-    #[display("RESTRICT")]
+    /// Emits `RESTRICT`.
+    #[strum(serialize = "RESTRICT")]
     Restrict,
 }
 
@@ -251,8 +252,8 @@ impl PyDropSchema {
     }
 
     #[getter]
-    fn behavior(&self) -> Option<String> {
-        self.behavior.map(|x| x.to_string())
+    fn behavior(&self) -> Option<&'static str> {
+        self.behavior.map(Into::into)
     }
 
     /// Render this expression as raw SQL (values inlined as literals).
@@ -265,7 +266,7 @@ impl PyDropSchema {
 
         fmt.positional(self.name.python_repr())
             .keyword_true("if_exists", self.if_exists)
-            .keyword("behavior", self.behavior.map(|x| x.to_string()));
+            .keyword("behavior", self.behavior.map(Into::<&'static str>::into));
 
         fmt.into_string()
     }
