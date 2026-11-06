@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::dialect;
-use crate::error;
+use crate::exceptions;
 use crate::expr::enum_::ExprInner;
 use crate::expr::enum_::Ident;
 use crate::expr::extractors::IdentExtractor;
@@ -36,7 +36,7 @@ pub struct PyIndexColumn {
 
 impl PyIndexColumn {
     #[inline]
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> error::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exceptions::Result<repr::ReprFormatter> {
         let mut fmt = repr::ReprFormatter::new_call("IndexColumn");
 
         fmt.positional(self.column.python_repr(py)?);
@@ -52,9 +52,10 @@ impl PyIndexColumn {
 impl PyIndexColumn {
     #[new]
     #[pyo3(signature = (column, *, order = "ASC"))]
-    fn new(column: NameExprExtractor, order: &str) -> error::Result<Self> {
-        let order = IndexOrder::from_str(order).map_err(|_| error::Error::InvalidIndexOrder {
-            value: order.to_owned(),
+    fn new(column: NameExprExtractor, order: &str) -> exceptions::Result<Self> {
+        let order = IndexOrder::from_str(order).map_err(|_| exceptions::Error::ArgumentValue {
+            expected: "'ASC' or 'DESC'",
+            got: order.to_owned(),
         })?;
         Ok(Self {
             column: column.0,
@@ -72,7 +73,7 @@ impl PyIndexColumn {
         self.order.into()
     }
 
-    fn __repr__(&self, py: pyo3::Python<'_>) -> error::Result<String> {
+    fn __repr__(&self, py: pyo3::Python<'_>) -> exceptions::Result<String> {
         self.python_repr(py).map(repr::ReprFormatter::into_string)
     }
 }
@@ -122,20 +123,18 @@ pub struct PyCreateIndex {
 }
 
 impl sql::WriteSql for PyCreateIndex {
-    fn write_sql<W: sql::SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> error::Result<()> {
+    fn write_sql<W: sql::SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
         let features = dialect.index.features;
 
         if !features.contains(dialect::IndexFeatures::SUPPORTED) {
-            return Err(error::Error::Unsupported { feature: "CreateIndex" });
+            return Err(exceptions::Error::Unsupported("CreateIndex"));
         }
 
         // `Some((before_columns, text))`
         let using = match (&self.index_type, dialect.index.index_type) {
             (None, _) => None,
             (Some(_), dialect::IndexType::Unsupported) => {
-                return Err(error::Error::Unsupported {
-                    feature: "CreateIndex.index_type",
-                });
+                return Err(exceptions::Error::Unsupported("CreateIndex.index_type"));
             }
             (Some(text), dialect::IndexType::BeforeColumns) => Some((true, text.as_str())),
             (Some(text), dialect::IndexType::AfterColumns) => Some((false, text.as_str())),
@@ -143,9 +142,7 @@ impl sql::WriteSql for PyCreateIndex {
 
         if self.unique {
             if !features.contains(dialect::IndexFeatures::UNIQUE) {
-                return Err(error::Error::Unsupported {
-                    feature: "CreateIndex.unique",
-                });
+                return Err(exceptions::Error::Unsupported("CreateIndex.unique"));
             }
             out.write_str("CREATE UNIQUE INDEX ");
         } else {
@@ -178,15 +175,11 @@ impl sql::WriteSql for PyCreateIndex {
             let column = column.bind(py).get();
 
             if !expressions && !matches!(column.column, ExprInner::Ident(_)) {
-                return Err(error::Error::Unsupported {
-                    feature: "CreateIndex.expression",
-                });
+                return Err(exceptions::Error::Unsupported("CreateIndex.expression"));
             }
 
             if !column_order && matches!(column.order, IndexOrder::Desc) {
-                return Err(error::Error::Unsupported {
-                    feature: "CreateIndex.order",
-                });
+                return Err(exceptions::Error::Unsupported("CreateIndex.order"));
             }
 
             if index > 0 {
@@ -215,9 +208,7 @@ impl sql::WriteSql for PyCreateIndex {
 
         if !self.include.is_empty() {
             if !features.contains(dialect::IndexFeatures::INCLUDE) {
-                return Err(error::Error::Unsupported {
-                    feature: "CreateIndex.include",
-                });
+                return Err(exceptions::Error::Unsupported("CreateIndex.include"));
             }
 
             out.write_str(" INCLUDE (");
@@ -232,9 +223,7 @@ impl sql::WriteSql for PyCreateIndex {
 
         if let Some(predicate) = &self.predicate {
             if !features.contains(dialect::IndexFeatures::PARTIAL) {
-                return Err(error::Error::Unsupported {
-                    feature: "CreateIndex.predicate",
-                });
+                return Err(exceptions::Error::Unsupported("CreateIndex.predicate"));
             }
 
             out.write_str(" WHERE ");
@@ -269,22 +258,22 @@ impl PyCreateIndex {
         include: Option<Vec<String>>,
         predicate: Option<LiteralExprExtractor>,
         index_type: Option<&str>,
-    ) -> error::Result<pyo3::PyClassInitializer<Self>> {
+    ) -> exceptions::Result<pyo3::PyClassInitializer<Self>> {
         if name.is_empty() {
-            return Err(error::Error::EmptyIndexName);
+            return Err(pyo3::exceptions::PyValueError::new_err("index name is empty").into());
         }
         if columns.is_empty() {
-            return Err(error::Error::EmptyIndexColumns);
+            return Err(pyo3::exceptions::PyValueError::new_err("index columns list is empty").into());
         }
 
         let include = include.unwrap_or_default();
         if include.iter().any(String::is_empty) {
-            return Err(error::Error::EmptyIndexInclude);
+            return Err(pyo3::exceptions::PyValueError::new_err("INCLUDE column name is empty").into());
         }
 
         let index_type = match index_type {
             None => None,
-            Some("") => return Err(error::Error::EmptyIndexType),
+            Some("") => return Err(pyo3::exceptions::PyValueError::new_err("index type is empty").into()),
             Some(text) => Some(arcstr::ArcStr::from(text)),
         };
 
@@ -345,11 +334,11 @@ impl PyCreateIndex {
     }
 
     /// Render this statement as raw SQL (values inlined as literals).
-    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> error::Result<String> {
+    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> exceptions::Result<String> {
         sql::write_sql(dialect.py(), self, dialect.get())
     }
 
-    fn __repr__(&self, py: pyo3::Python<'_>) -> error::Result<String> {
+    fn __repr__(&self, py: pyo3::Python<'_>) -> exceptions::Result<String> {
         let mut fmt = repr::ReprFormatter::new_call("CreateIndex");
 
         fmt.positional(self.name.as_str())
@@ -418,22 +407,18 @@ pub struct PyDropIndex {
 }
 
 impl sql::WriteSql for PyDropIndex {
-    fn write_sql<W: sql::SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> error::Result<()> {
+    fn write_sql<W: sql::SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
         let drop_features = dialect.index.drop_features;
         if !drop_features.contains(dialect::IndexDropFeatures::SUPPORTED) {
-            return Err(error::Error::Unsupported { feature: "DropIndex" });
+            return Err(exceptions::Error::Unsupported("DropIndex"));
         }
 
         match self.behavior {
             Some(DropIndexBehavior::Cascade) if !drop_features.contains(dialect::IndexDropFeatures::CASCADE) => {
-                return Err(error::Error::Unsupported {
-                    feature: "DropIndex.behavior = 'CASCADE'",
-                });
+                return Err(exceptions::Error::Unsupported("DropIndex.behavior='CASCADE'"));
             }
             Some(DropIndexBehavior::Restrict) if !drop_features.contains(dialect::IndexDropFeatures::RESTRICT) => {
-                return Err(error::Error::Unsupported {
-                    feature: "DropIndex.behavior = 'RESTRICT'",
-                });
+                return Err(exceptions::Error::Unsupported("DropIndex.behavior='RESTRICT'"));
             }
             _ => {}
         }
@@ -463,7 +448,10 @@ impl sql::WriteSql for PyDropIndex {
                 // ignore table_name
             }
             (dialect::IndexDropTable::On | dialect::IndexDropTable::Qualified, None) => {
-                return Err(error::Error::MissingDropIndexTable);
+                return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                    "DropIndex.table_name is required in for this dialect",
+                )
+                .into());
             }
         }
 
@@ -486,19 +474,20 @@ impl PyDropIndex {
         table_name: Option<IdentExtractor>,
         if_exists: bool,
         behavior: Option<&str>,
-    ) -> error::Result<pyo3::PyClassInitializer<Self>> {
+    ) -> exceptions::Result<pyo3::PyClassInitializer<Self>> {
         if name.is_empty() {
-            return Err(error::Error::EmptyIndexName);
+            return Err(pyo3::exceptions::PyValueError::new_err("index name is empty").into());
         }
 
         let behavior = match behavior {
             None => None,
             Some(value) => {
-                Some(
-                    DropIndexBehavior::from_str(value).map_err(|_| error::Error::InvalidIndexBehavior {
-                        value: value.to_owned(),
-                    })?,
-                )
+                let ix_b = DropIndexBehavior::from_str(value).map_err(|_| exceptions::Error::ArgumentValue {
+                    expected: "CASCADE or RESTRICT",
+                    got: value.to_owned(),
+                })?;
+
+                Some(ix_b)
             }
         };
 
@@ -535,7 +524,7 @@ impl PyDropIndex {
     }
 
     /// Render this statement as raw SQL.
-    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> error::Result<String> {
+    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> exceptions::Result<String> {
         sql::write_sql(dialect.py(), self, dialect.get())
     }
 

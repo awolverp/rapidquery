@@ -4,7 +4,7 @@
 //! [`Parameterized`] binds them as placeholders.
 
 use crate::dialect;
-use crate::error;
+use crate::exceptions;
 use crate::internal::alias;
 use crate::internal::writer::FastWrite;
 use crate::serializers::SerializerType;
@@ -30,7 +30,7 @@ pub trait SqlWriter: FastWrite {
         dialect: &dialect::PyDialect,
         serializer: &SerializerType,
         object: &alias::PyObject,
-    ) -> error::Result<()>;
+    ) -> exceptions::Result<()>;
 }
 
 /// SQL buffer that inlines values. It does not keep a parameter list.
@@ -91,7 +91,7 @@ impl<'py> SqlWriter for Buffer<'py> {
         dialect: &dialect::PyDialect,
         serializer: &SerializerType,
         object: &alias::PyObject,
-    ) -> error::Result<()> {
+    ) -> exceptions::Result<()> {
         use pyo3::types::PyAnyMethods;
 
         let bound = object.bind(self.py);
@@ -185,7 +185,7 @@ impl SqlWriter for Parameterized<'_> {
         dialect: &dialect::PyDialect,
         _serializer: &SerializerType,
         object: &alias::PyObject,
-    ) -> error::Result<()> {
+    ) -> exceptions::Result<()> {
         self.push_param(dialect, object.clone_ref(self.py));
         Ok(())
     }
@@ -207,7 +207,7 @@ impl std::fmt::Write for Parameterized<'_> {
 
 /// Render `self` into `out`. The writer chooses literal vs placeholder for values.
 pub trait WriteSql {
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> error::Result<()>;
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()>;
 }
 
 /// Render `stmt` as raw SQL (values inlined as literals).
@@ -215,7 +215,7 @@ pub fn write_sql<'py, T: WriteSql>(
     py: pyo3::Python<'py>,
     stmt: &T,
     dialect: &dialect::PyDialect,
-) -> error::Result<String> {
+) -> exceptions::Result<String> {
     let mut buf = Buffer::with_capacity(py, 256);
     stmt.write_sql(dialect, &mut buf)?;
     Ok(buf.into_string())
@@ -226,7 +226,7 @@ pub fn prepare<'py, T: WriteSql>(
     py: pyo3::Python<'py>,
     stmt: &T,
     dialect: &dialect::PyDialect,
-) -> error::Result<(String, PrepareParams)> {
+) -> exceptions::Result<(String, PrepareParams)> {
     let mut context = Parameterized::with_capacity(py, 256);
     stmt.write_sql(dialect, &mut context)?;
     Ok(context.into_parts())
@@ -242,7 +242,7 @@ pub fn write_separated<'a, T, W>(
     out: &mut W,
     items: impl IntoIterator<Item = &'a T>,
     separator: &str,
-) -> error::Result<()>
+) -> exceptions::Result<()>
 where
     T: WriteSql + 'a,
     W: SqlWriter,

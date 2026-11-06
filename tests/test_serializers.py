@@ -11,6 +11,7 @@ from decimal import Decimal
 import pytest
 
 from rapidquery.dialect import OPT_BOOL_FORMAT_INTEGER, Dialect, LiteralConfig, StringConfig, TemporalConfig
+from rapidquery.exceptions import UnsupportedError
 from rapidquery.serializers import (
     ArraySerializer,
     BitSerializer,
@@ -200,7 +201,7 @@ class TestUuidSerializer:
         assert serializer.serialize(dialect, uuid.UUID(_UUID)) == expected
 
     def test_unsupported(self):
-        with pytest.raises(RuntimeError, match="UUID"):
+        with pytest.raises(UnsupportedError, match="UUID"):
             UuidSerializer().serialize(Dialect(), _UUID)
 
     def test_invalid_str(self):
@@ -251,7 +252,7 @@ class TestBitSerializer:
         assert BitSerializer().serialize(_literal(bit=template), "10") == expected
 
     def test_unsupported(self):
-        with pytest.raises(RuntimeError, match="bit string"):
+        with pytest.raises(UnsupportedError, match="bit string"):
             BitSerializer().serialize(Dialect(), "10")
 
     def test_rejects_non_bit_string(self):
@@ -379,7 +380,7 @@ class TestDateTimeSerializers:
             DatetimeSerializer().serialize(Dialect(), "2024-01-15T10:30:00")
 
     def test_datetime_overflow(self):
-        with pytest.raises(OverflowError):
+        with pytest.raises(ValueError, match="out of range"):
             DatetimeSerializer().serialize(Dialect(), 10**20)
 
 
@@ -399,7 +400,7 @@ class TestInetSerializer:
         assert InetSerializer().serialize(_literal(inet=template), obj) == template.replace("{}", inner)
 
     def test_unsupported(self):
-        with pytest.raises(RuntimeError, match="inet"):
+        with pytest.raises(UnsupportedError, match="INET"):
             InetSerializer().serialize(Dialect(), "192.168.1.1")
 
     def test_invalid_address(self):
@@ -416,7 +417,7 @@ class TestMacAddressSerializer:
         assert serializer.serialize(dialect, "01-23-45-67-89-AB") == expected
 
     def test_unsupported(self):
-        with pytest.raises(RuntimeError, match="macaddr"):
+        with pytest.raises(UnsupportedError, match="MACADDR"):
             MacAddressSerializer().serialize(Dialect(), "01:23:45:67:89:ab")
 
     def test_invalid_address(self):
@@ -452,7 +453,7 @@ class TestArraySerializer:
         assert nested_serializer.serialize(dialect, [[1, 2], [3]]) == nested
 
     def test_unsupported(self):
-        with pytest.raises(RuntimeError, match="array"):
+        with pytest.raises(UnsupportedError, match="ARRAY"):
             ArraySerializer(IntegerSerializer()).serialize(Dialect(), [1, 2])
 
     def test_rejects_non_sequence_and_bad_element(self):
@@ -465,7 +466,7 @@ class TestArraySerializer:
 
     def test_nested_unsupported_element(self):
         dialect = _literal(array="ARRAY[{}]")
-        with pytest.raises(RuntimeError, match="bit string"):
+        with pytest.raises(UnsupportedError, match="bit string"):
             ArraySerializer(BitSerializer()).serialize(dialect, ["10"])
 
 

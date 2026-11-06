@@ -1,4 +1,4 @@
-use crate::error;
+use crate::exceptions;
 use crate::internal::template;
 use crate::internal::writer;
 
@@ -29,7 +29,7 @@ impl base::LiteralConfig {
     /// Native formats embed `bits` as-is. Callers must pass only `'0'` and `'1'`;
     /// that is checked with `debug_assert!`.
     #[inline]
-    pub fn write_bits<W: writer::FastWrite>(&self, writer: &mut W, bits: &str) -> error::Result<()> {
+    pub fn write_bits<W: writer::FastWrite>(&self, writer: &mut W, bits: &str) -> exceptions::Result<()> {
         // FIXME: return an error for invalid bits
         debug_assert!(
             bits.chars().all(|c| c == '0' || c == '1'),
@@ -40,7 +40,7 @@ impl base::LiteralConfig {
             template.write_to(writer, |_, out| out.write_str(bits));
             Ok(())
         } else {
-            Err(error::Error::Unsupported { feature: "bit string" })
+            Err(exceptions::Error::Unsupported("bit string"))
         }
     }
 
@@ -70,10 +70,14 @@ impl base::LiteralConfig {
     }
 
     #[pyo3(signature = (value, /))]
-    fn serialize_bits(&self, value: &str) -> error::Result<String> {
+    fn serialize_bits(&self, py: pyo3::Python, value: &str) -> exceptions::Result<String> {
         if value.is_empty() || !value.bytes().all(|b| b == b'0' || b == b'1') {
-            return Err(error::Error::InvalidBitString {
-                value: value.to_owned(),
+            let pyobj = pyo3::types::PyString::new(py, value).into_any().unbind();
+
+            return Err(exceptions::Error::SerializeValue {
+                name: "serialize_bits",
+                reason: "value must be binary ('0'/'1')".to_owned(),
+                value: pyobj,
             });
         }
 
@@ -95,10 +99,12 @@ impl base::LiteralConfig {
 impl base::StringConfig {
     /// Escape `raw` and wrap it as a complete string literal.
     #[inline]
-    pub fn write_string_literal<W: writer::FastWrite>(&self, writer: &mut W, raw: &str) -> error::Result<()> {
+    pub fn write_string_literal<W: writer::FastWrite>(&self, writer: &mut W, raw: &str) -> pyo3::PyResult<()> {
         // FIXME: we can accept NUL on some dialects
         if raw.contains('\0') {
-            return Err(error::Error::NulInString);
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "string literal contains a NUL byte; a SQL string literal cannot carry NUL",
+            ));
         }
 
         self.template.write_to(
@@ -128,7 +134,7 @@ impl base::StringConfig {
 #[pyo3::pymethods]
 impl base::StringConfig {
     #[pyo3(signature = (value, /))]
-    fn serialize_string(&self, value: &str) -> error::Result<String> {
+    fn serialize_string(&self, value: &str) -> exceptions::Result<String> {
         let mut buf = String::new();
         self.write_string_literal(&mut buf, value)?;
         Ok(buf)
@@ -348,7 +354,7 @@ fn write_backslash_unicode<W: writer::FastWrite>(writer: &mut W, string: &str, e
 mod tests {
     use crate::dialect::PyDialect;
     use crate::dialect::StringConfig;
-    use crate::error;
+    use crate::exceptions;
     use crate::internal::template::Template;
 
     const KEYS: &[(&str, bool)] = &[
@@ -425,7 +431,7 @@ mod tests {
         ("unicode_quote", false),
     ];
 
-    fn render_string(tmpl: &str, raw: &str) -> error::Result<String> {
+    fn render_string(tmpl: &str, raw: &str) -> exceptions::Result<String> {
         let c = StringConfig {
             template: Template::parse(tmpl, STRING_KEYS, 1, 1).unwrap(),
             ..Default::default()
@@ -473,9 +479,6 @@ mod tests {
 
     #[test]
     fn string_rejects_nul() {
-        assert!(matches!(
-            render_string("'{single}'", "a\0b"),
-            Err(error::Error::NulInString)
-        ));
+        assert!(render_string("'{single}'", "a\0b").is_err());
     }
 }

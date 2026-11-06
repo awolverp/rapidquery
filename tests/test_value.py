@@ -149,7 +149,7 @@ class TestSerializerProtocol:
         class Unk:
             __serializer__ = 10
 
-        with pytest.raises(TypeError, match="non-serializer"):
+        with pytest.raises(TypeError, match="int"):
             _ = Value(Unk())
 
     def test_attribute_error(self):

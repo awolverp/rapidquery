@@ -1,7 +1,7 @@
 //! SQL identifiers.
 
 use crate::dialect::PyDialect;
-use crate::error;
+use crate::exceptions;
 use crate::internal::repr;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
@@ -71,7 +71,7 @@ impl PartialEq<&str> for IdentPart {
 
 impl WriteSql for IdentPart {
     #[inline]
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> error::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> exceptions::Result<()> {
         match self {
             Self::Quote(name) => {
                 dialect.write_identifier(out, name.as_str());
@@ -104,33 +104,23 @@ impl WriteSql for IdentPart {
 pub struct Ident(smallvec::SmallVec<[IdentPart; 3]>);
 
 /// Why building an [`Ident`] failed.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, strum::Display)]
 pub enum IdentParseError {
     /// No parts (empty string, empty constructor).
+    #[strum(to_string = "identifier is empty")]
     Empty,
     /// A quoted or unquoted part was the empty string (`"a..b"`, `""` as a part).
+    #[strum(to_string = "identifier has an empty part")]
     EmptyChunk,
     /// More than [`Ident::MAX_PARTS`] parts.
+    #[strum(to_string = "identifier has too many parts")]
     TooManyParts,
     /// `*` appeared before the last part (`*.id`).
+    #[strum(to_string = "asterisk must be the last identifier part")]
     AsteriskNotLast,
     /// Unquoted body was not a simple ASCII identifier. Holds the rejected text.
+    #[strum(to_string = "unquoted identifier {0:?} is not a simple ASCII name; expected [A-Za-z_][A-Za-z0-9_]*")]
     InvalidUnquoted(arcstr::ArcStr),
-}
-
-impl std::fmt::Display for IdentParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Empty => f.write_str("identifier is empty"),
-            Self::EmptyChunk => f.write_str("identifier has an empty part"),
-            Self::TooManyParts => write!(f, "identifier has too many parts; the maximum is {}", Ident::MAX_PARTS),
-            Self::AsteriskNotLast => f.write_str("asterisk must be the last identifier part"),
-            Self::InvalidUnquoted(name) => write!(
-                f,
-                "unquoted identifier {name:?} is not a simple ASCII name; expected [A-Za-z_][A-Za-z0-9_]*"
-            ),
-        }
-    }
 }
 
 impl std::error::Error for IdentParseError {}
@@ -218,6 +208,8 @@ impl Ident {
                 return Err(IdentParseError::AsteriskNotLast);
             }
             if parts.len() >= Self::MAX_PARTS {
+                // This is very rare
+                std::hint::cold_path();
                 return Err(IdentParseError::TooManyParts);
             }
             match &part {
@@ -271,7 +263,7 @@ impl std::str::FromStr for Ident {
 
 impl WriteSql for Ident {
     #[inline]
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> error::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> exceptions::Result<()> {
         write_separated(dialect, out, &self.0, ".")
     }
 }

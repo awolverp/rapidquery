@@ -3,7 +3,7 @@
 //! [`PyExpr`] holds [`ExprInner`]. Concrete nodes (`Ident`, `Binary`, …) are
 //! empty frozen subclasses. Shared methods live on the base.
 
-use crate::error;
+use crate::exceptions;
 use crate::internal::alias;
 use crate::internal::utils;
 use crate::sql;
@@ -59,7 +59,11 @@ impl PyExpr {
 }
 
 /// `None`, exact `bool`, or exact `str` → an `IS` expression.
-fn is_from_kind<'py>(expr: enum_::ExprInner, kind: &alias::BoundObject<'py>, negated: bool) -> error::Result<PyExpr> {
+fn is_from_kind<'py>(
+    expr: enum_::ExprInner,
+    kind: &alias::BoundObject<'py>,
+    negated: bool,
+) -> exceptions::Result<PyExpr> {
     let ptr = kind.as_ptr();
 
     // SAFETY: `ptr` is a live borrowed object and this runs with the GIL held.
@@ -79,10 +83,7 @@ fn is_from_kind<'py>(expr: enum_::ExprInner, kind: &alias::BoundObject<'py>, neg
             return super::nodes::PyIsExpr::new_base(expr, text, negated);
         }
 
-        Err(error::Error::Expected {
-            expected: "expected None, bool, or str for an IS expression",
-            got: utils::get_type_name(kind.py(), ptr),
-        })
+        Err(exceptions::Error::argument_type("None, bool, or str", kind))
     }
 }
 
@@ -389,8 +390,12 @@ impl PyExpr {
     // ===== Is =====
 
     /// e.g. `a IS [kind]`
-    fn is_<'py>(&self, py: pyo3::Python<'py>, kind: alias::BoundObject<'py>) -> error::Result<alias::BoundObject<'py>> {
-        is_from_kind(self.0.clone(), &kind, false).and_then(|x| x.into_subclasses(py).map_err(error::Error::from))
+    fn is_<'py>(
+        &self,
+        py: pyo3::Python<'py>,
+        kind: alias::BoundObject<'py>,
+    ) -> exceptions::Result<alias::BoundObject<'py>> {
+        is_from_kind(self.0.clone(), &kind, false).and_then(|x| x.into_subclasses(py).map_err(exceptions::Error::from))
     }
 
     /// e.g. `a IS NOT [kind]`
@@ -398,8 +403,8 @@ impl PyExpr {
         &self,
         py: pyo3::Python<'py>,
         kind: alias::BoundObject<'py>,
-    ) -> error::Result<alias::BoundObject<'py>> {
-        is_from_kind(self.0.clone(), &kind, true).and_then(|x| x.into_subclasses(py).map_err(error::Error::from))
+    ) -> exceptions::Result<alias::BoundObject<'py>> {
+        is_from_kind(self.0.clone(), &kind, true).and_then(|x| x.into_subclasses(py).map_err(exceptions::Error::from))
     }
 
     // ===== IsDistinctFrom =====
@@ -446,11 +451,11 @@ impl PyExpr {
         &self,
         pattern: alias::BoundObject<'py>,
         escape: Option<char>,
-    ) -> error::Result<alias::BoundObject<'py>> {
+    ) -> exceptions::Result<alias::BoundObject<'py>> {
         let py = pattern.py();
 
         super::nodes::PyLikeExpr::new_base(self.0.clone(), pattern, false, true, escape)
-            .and_then(|x| x.into_subclasses(py).map_err(error::Error::from))
+            .and_then(|x| x.into_subclasses(py).map_err(exceptions::Error::from))
     }
 
     /// e.g. `a NOT LIKE 'a%'`
@@ -459,11 +464,11 @@ impl PyExpr {
         &self,
         pattern: alias::BoundObject<'py>,
         escape: Option<char>,
-    ) -> error::Result<alias::BoundObject<'py>> {
+    ) -> exceptions::Result<alias::BoundObject<'py>> {
         let py = pattern.py();
 
         super::nodes::PyLikeExpr::new_base(self.0.clone(), pattern, true, true, escape)
-            .and_then(|x| x.into_subclasses(py).map_err(error::Error::from))
+            .and_then(|x| x.into_subclasses(py).map_err(exceptions::Error::from))
     }
 
     /// e.g. `a ILIKE 'a%'`
@@ -472,11 +477,11 @@ impl PyExpr {
         &self,
         pattern: alias::BoundObject<'py>,
         escape: Option<char>,
-    ) -> error::Result<alias::BoundObject<'py>> {
+    ) -> exceptions::Result<alias::BoundObject<'py>> {
         let py = pattern.py();
 
         super::nodes::PyLikeExpr::new_base(self.0.clone(), pattern, false, false, escape)
-            .and_then(|x| x.into_subclasses(py).map_err(error::Error::from))
+            .and_then(|x| x.into_subclasses(py).map_err(exceptions::Error::from))
     }
 
     /// e.g. `a NOT ILIKE 'a%'`
@@ -485,11 +490,11 @@ impl PyExpr {
         &self,
         pattern: alias::BoundObject<'py>,
         escape: Option<char>,
-    ) -> error::Result<alias::BoundObject<'py>> {
+    ) -> exceptions::Result<alias::BoundObject<'py>> {
         let py = pattern.py();
 
         super::nodes::PyLikeExpr::new_base(self.0.clone(), pattern, true, false, escape)
-            .and_then(|x| x.into_subclasses(py).map_err(error::Error::from))
+            .and_then(|x| x.into_subclasses(py).map_err(exceptions::Error::from))
     }
 
     // ===== SimilarTo / RLike =====
@@ -533,15 +538,19 @@ impl PyExpr {
     // ===== Cast =====
 
     /// e.g. `CAST(a AS int)`
-    fn cast_as<'py>(&self, py: pyo3::Python<'py>, data_type_name: &str) -> error::Result<alias::BoundObject<'py>> {
+    fn cast_as<'py>(&self, py: pyo3::Python<'py>, data_type_name: &str) -> exceptions::Result<alias::BoundObject<'py>> {
         super::nodes::PyCastExpr::new_base(self.0.clone(), data_type_name, "CAST")
-            .and_then(|x| x.into_subclasses(py).map_err(error::Error::from))
+            .and_then(|x| x.into_subclasses(py).map_err(exceptions::Error::from))
     }
 
     /// e.g. `TRY_CAST(a AS int)`
-    fn try_cast_as<'py>(&self, py: pyo3::Python<'py>, data_type_name: &str) -> error::Result<alias::BoundObject<'py>> {
+    fn try_cast_as<'py>(
+        &self,
+        py: pyo3::Python<'py>,
+        data_type_name: &str,
+    ) -> exceptions::Result<alias::BoundObject<'py>> {
         super::nodes::PyCastExpr::new_base(self.0.clone(), data_type_name, "TRY_CAST")
-            .and_then(|x| x.into_subclasses(py).map_err(error::Error::from))
+            .and_then(|x| x.into_subclasses(py).map_err(exceptions::Error::from))
     }
 
     // ===== Collate / Trim =====
@@ -562,16 +571,16 @@ impl PyExpr {
         py: pyo3::Python<'py>,
         r#where: &str,
         characters: Option<super::extractors::LiteralExprExtractor>,
-    ) -> error::Result<alias::BoundObject<'py>> {
+    ) -> exceptions::Result<alias::BoundObject<'py>> {
         super::nodes::PyTrimExpr::new_base(self.0.clone(), r#where, characters.map(|x| x.0))
-            .and_then(|x| x.into_subclasses(py).map_err(error::Error::from))
+            .and_then(|x| x.into_subclasses(py).map_err(exceptions::Error::from))
     }
 
     /// Render this expression as a parameterized statement.
     fn prepare<'py>(
         &self,
         dialect: pyo3::Bound<'py, crate::dialect::PyDialect>,
-    ) -> error::Result<(String, alias::BoundObject<'py>)> {
+    ) -> exceptions::Result<(String, alias::BoundObject<'py>)> {
         let (sql, params) = sql::prepare(dialect.py(), &self.0, dialect.get())?;
 
         let params = unsafe {
@@ -585,11 +594,11 @@ impl PyExpr {
     }
 
     /// Render this expression as raw SQL (values inlined as literals).
-    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> error::Result<String> {
+    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> exceptions::Result<String> {
         sql::write_sql(dialect.py(), &self.0, dialect.get())
     }
 
-    fn __repr__(&self, py: pyo3::Python<'_>) -> error::Result<String> {
+    fn __repr__(&self, py: pyo3::Python<'_>) -> exceptions::Result<String> {
         Ok(self.0.python_repr(py)?.into_string())
     }
 }

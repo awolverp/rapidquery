@@ -1,4 +1,3 @@
-use crate::error;
 use pyo3::types::PyAnyMethods;
 use pyo3::types::PyTupleMethods;
 
@@ -7,6 +6,7 @@ use super::enum_::ExprInner;
 use super::extractors::IdentExtractor;
 use super::extractors::LiteralExprExtractor;
 use super::extractors::extract_like_pattern;
+use crate::exceptions;
 use crate::internal::alias;
 use crate::internal::utils;
 
@@ -92,7 +92,7 @@ empty_node! {
 impl PyTupleExpr {
     #[new]
     #[pyo3(signature = (*items))]
-    fn __new__(items: alias::ArgsType<'_>) -> error::Result<pyo3::PyClassInitializer<Self>> {
+    fn __new__(items: alias::ArgsType<'_>) -> exceptions::Result<pyo3::PyClassInitializer<Self>> {
         use pyo3::types::PyTupleMethods;
 
         let mut exprs = Vec::with_capacity(items.len());
@@ -133,10 +133,11 @@ impl PyUnaryExpr {
 impl PyUnaryExpr {
     #[new]
     #[pyo3(signature = (operator, expr, /))]
-    fn __new__(operator: &str, expr: LiteralExprExtractor) -> error::Result<pyo3::PyClassInitializer<Self>> {
+    fn __new__(operator: &str, expr: LiteralExprExtractor) -> exceptions::Result<pyo3::PyClassInitializer<Self>> {
         let Some(op) = super::enum_::UnaryOp::parse(operator) else {
-            return Err(error::Error::UnknownUnaryOperator {
-                operator: operator.to_owned(),
+            return Err(exceptions::Error::ArgumentValue {
+                expected: "NOT, +, -, or ~",
+                got: operator.to_owned(),
             });
         };
 
@@ -196,9 +197,12 @@ impl PyBinaryExpr {
 }
 
 impl PyIsExpr {
-    pub(super) fn new_base(expr: ExprInner, kind: &str, negated: bool) -> error::Result<PyExpr> {
+    pub(super) fn new_base(expr: ExprInner, kind: &str, negated: bool) -> exceptions::Result<PyExpr> {
         let Some(kind) = super::enum_::IsKind::parse(kind) else {
-            return Err(error::Error::UnknownIsKind { kind: kind.to_owned() });
+            return Err(exceptions::Error::ArgumentValue {
+                expected: "NULL, TRUE, FALSE, or UNKNOWN",
+                got: kind.to_owned(),
+            });
         };
 
         let inner = super::enum_::Is {
@@ -214,7 +218,11 @@ impl PyIsExpr {
 impl PyIsExpr {
     #[new]
     #[pyo3(signature = (expr, kind, /, *, negated = false))]
-    fn __new__(expr: LiteralExprExtractor, kind: &str, negated: bool) -> error::Result<pyo3::PyClassInitializer<Self>> {
+    fn __new__(
+        expr: LiteralExprExtractor,
+        kind: &str,
+        negated: bool,
+    ) -> exceptions::Result<pyo3::PyClassInitializer<Self>> {
         let base = Self::new_base(expr.0, kind, negated)?;
         Ok(pyo3::PyClassInitializer::from(base).add_subclass(Self))
     }
@@ -299,7 +307,7 @@ impl PyInListExpr {
         expr: LiteralExprExtractor,
         list: alias::BoundObject<'_>,
         negated: bool,
-    ) -> error::Result<pyo3::PyClassInitializer<Self>> {
+    ) -> exceptions::Result<pyo3::PyClassInitializer<Self>> {
         let base = Self::new_base(expr.0, list, negated)?;
         Ok(pyo3::PyClassInitializer::from(base).add_subclass(Self))
     }
@@ -385,7 +393,7 @@ impl PyLikeExpr {
         negated: bool,
         case_sensitive: bool,
         escape: Option<char>,
-    ) -> error::Result<PyExpr> {
+    ) -> exceptions::Result<PyExpr> {
         let inner = super::enum_::Like {
             case_sensitive,
             negated,
@@ -407,7 +415,7 @@ impl PyLikeExpr {
         negated: bool,
         case_sensitive: bool,
         escape: Option<char>,
-    ) -> error::Result<pyo3::PyClassInitializer<Self>> {
+    ) -> exceptions::Result<pyo3::PyClassInitializer<Self>> {
         let base = Self::new_base(expr.0, pattern, negated, case_sensitive, escape)?;
         Ok(pyo3::PyClassInitializer::from(base).add_subclass(Self))
     }
@@ -531,9 +539,12 @@ impl PyRLikeExpr {
 }
 
 impl PyCastExpr {
-    pub(super) fn new_base(expr: ExprInner, data_type_name: &str, kind: &str) -> error::Result<PyExpr> {
+    pub(super) fn new_base(expr: ExprInner, data_type_name: &str, kind: &str) -> exceptions::Result<PyExpr> {
         let Some(kind) = super::enum_::CastKind::parse(kind) else {
-            return Err(error::Error::UnknownCastKind { kind: kind.to_owned() });
+            return Err(exceptions::Error::ArgumentValue {
+                expected: "CAST, TRY_CAST, or ::",
+                got: kind.to_owned(),
+            });
         };
 
         let inner = super::enum_::Cast {
@@ -553,7 +564,7 @@ impl PyCastExpr {
         expr: LiteralExprExtractor,
         data_type_name: &str,
         kind: &str,
-    ) -> error::Result<pyo3::PyClassInitializer<Self>> {
+    ) -> exceptions::Result<pyo3::PyClassInitializer<Self>> {
         let base = Self::new_base(expr.0, data_type_name, kind)?;
         Ok(pyo3::PyClassInitializer::from(base).add_subclass(Self))
     }
@@ -575,10 +586,15 @@ impl PyCastExpr {
 }
 
 impl PyTrimExpr {
-    pub(super) fn new_base(expr: ExprInner, r#where: &str, characters: Option<ExprInner>) -> error::Result<PyExpr> {
+    pub(super) fn new_base(
+        expr: ExprInner,
+        r#where: &str,
+        characters: Option<ExprInner>,
+    ) -> exceptions::Result<PyExpr> {
         let Some(where_) = super::enum_::TrimWhere::parse(r#where) else {
-            return Err(error::Error::UnknownTrimWhere {
-                kind: r#where.to_owned(),
+            return Err(exceptions::Error::ArgumentValue {
+                expected: "BOTH, LEADING, or TRAILING",
+                got: r#where.to_owned(),
             });
         };
 
@@ -599,7 +615,7 @@ impl PyTrimExpr {
         expr: LiteralExprExtractor,
         r#where: &str,
         characters: Option<LiteralExprExtractor>,
-    ) -> error::Result<pyo3::PyClassInitializer<Self>> {
+    ) -> exceptions::Result<pyo3::PyClassInitializer<Self>> {
         let base = Self::new_base(expr.0, r#where, characters.map(|LiteralExprExtractor(e)| e))?;
         Ok(pyo3::PyClassInitializer::from(base).add_subclass(Self))
     }
@@ -656,7 +672,7 @@ impl PyCollateExpr {
 impl PyCaseExpr {
     #[new]
     #[pyo3(signature = (operand = None, /))]
-    fn __new__(operand: Option<LiteralExprExtractor>) -> error::Result<pyo3::PyClassInitializer<Self>> {
+    fn __new__(operand: Option<LiteralExprExtractor>) -> exceptions::Result<pyo3::PyClassInitializer<Self>> {
         let inner = super::enum_::Case {
             operand: operand.map(|LiteralExprExtractor(e)| Box::new(e)),
             when: vec![],
@@ -669,7 +685,7 @@ impl PyCaseExpr {
         slf: pyo3::PyRef<'_, Self>,
         when: LiteralExprExtractor,
         then: LiteralExprExtractor,
-    ) -> error::Result<alias::PyObject> {
+    ) -> exceptions::Result<alias::PyObject> {
         let mut inner = Self::inner(&slf).clone();
         inner.when.push((when.0, then.0));
 
@@ -678,7 +694,7 @@ impl PyCaseExpr {
             pyo3::PyClassInitializer::from(PyExpr(inner.into())).add_subclass(Self),
         )
         .map(pyo3::Py::into_any)
-        .map_err(error::Error::from)
+        .map_err(exceptions::Error::from)
     }
 
     fn else_(slf: pyo3::PyRef<'_, Self>, result: LiteralExprExtractor) -> pyo3::PyResult<alias::PyObject> {
@@ -692,7 +708,7 @@ impl PyCaseExpr {
         .map(pyo3::Py::into_any)
     }
 
-    fn get_operand(slf: pyo3::PyRef<'_, Self>) -> error::Result<alias::BoundObject<'_>> {
+    fn get_operand(slf: pyo3::PyRef<'_, Self>) -> exceptions::Result<alias::BoundObject<'_>> {
         let inner = Self::inner(&slf);
 
         match inner.operand.as_ref() {
@@ -704,7 +720,7 @@ impl PyCaseExpr {
         }
     }
 
-    fn get_when_list(slf: pyo3::PyRef<'_, Self>) -> error::Result<alias::BoundObject<'_>> {
+    fn get_when_list(slf: pyo3::PyRef<'_, Self>) -> exceptions::Result<alias::BoundObject<'_>> {
         let py = slf.py();
         let inner = Self::inner(&slf);
 
@@ -736,7 +752,7 @@ impl PyCaseExpr {
 impl PyCustomExpr {
     #[new]
     #[pyo3(signature = (sql, *args))]
-    fn __new__(sql: String, args: alias::ArgsType<'_>) -> error::Result<pyo3::PyClassInitializer<Self>> {
+    fn __new__(sql: String, args: alias::ArgsType<'_>) -> exceptions::Result<pyo3::PyClassInitializer<Self>> {
         let mut extracted = Vec::with_capacity(args.len());
 
         for item in args.iter() {

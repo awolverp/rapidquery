@@ -1,6 +1,7 @@
 import pytest
 
 import rapidquery as rq
+from rapidquery.exceptions import UnsupportedError
 
 
 class TestCreateSchema:
@@ -20,7 +21,7 @@ class TestCreateSchema:
     def test_unsupported(self):
         stmt = rq.ddl.CreateSchema("name")
 
-        with pytest.raises(RuntimeError, match="supported"):
+        with pytest.raises(UnsupportedError, match="supported"):
             _ = stmt.to_sql(rq.dialect.Sqlite)
 
     def test_supported(self):
@@ -58,7 +59,7 @@ class TestCreateSchema:
                 authorization=rq.dialect.OPT_SCHEMA_AUTHORIZATION_UNSUPPORTED,
             )
         )
-        with pytest.raises(RuntimeError, match="supported"):
+        with pytest.raises(UnsupportedError, match="supported"):
             _ = stmt.to_sql(dl)
 
         # Optional
@@ -84,7 +85,7 @@ class TestCreateSchema:
                 location=None,
             )
         )
-        with pytest.raises(RuntimeError, match="supported"):
+        with pytest.raises(UnsupportedError, match="supported"):
             _ = stmt.to_sql(dl)
 
         dl = rq.dialect.Dialect(
@@ -119,7 +120,7 @@ class TestDropSchema:
     def test_unsupported(self):
         stmt = rq.ddl.DropSchema("name")
 
-        with pytest.raises(RuntimeError, match="supported"):
+        with pytest.raises(UnsupportedError, match="supported"):
             _ = stmt.to_sql(rq.dialect.Sqlite)
 
     def test_supported(self):
@@ -142,7 +143,7 @@ class TestDropSchema:
 
         # Unsupported
         dl = rq.dialect.Dialect()
-        with pytest.raises(RuntimeError):
+        with pytest.raises(UnsupportedError):
             _ = stmt.to_sql(dl)
 
         # CASCADE Supported
@@ -155,7 +156,7 @@ class TestDropSchema:
 
         # CASCADE Unsupported
         dl = rq.dialect.Dialect()
-        with pytest.raises(RuntimeError):
+        with pytest.raises(UnsupportedError):
             _ = stmt.to_sql(dl)
 
         # RESTRICT Supported
@@ -171,5 +172,5 @@ class TestDropSchema:
 
         # RESTRICT Unsupported
         dl = rq.dialect.Dialect()
-        with pytest.raises(RuntimeError):
+        with pytest.raises(UnsupportedError):
             _ = stmt.to_sql(dl)
