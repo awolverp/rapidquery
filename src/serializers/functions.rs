@@ -121,9 +121,7 @@ pub(super) unsafe fn write_str<W: writer::FastWrite>(
     out: &mut W,
 ) -> exc::Result<()> {
     if pyo3::ffi::PyUnicode_Check(ptr) == 1 {
-        return cfg
-            .write_string_literal(out, utils::borrow_py_str_buffer(py, ptr)?)
-            .map_err(Into::into);
+        return cfg.write_string_literal(out, utils::borrow_py_str_buffer(py, ptr)?);
     }
 
     Err(reject_type(py, ptr, "StringSerializer", "str"))

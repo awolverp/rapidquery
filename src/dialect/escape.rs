@@ -95,15 +95,9 @@ impl base::LiteralConfig {
 impl base::StringConfig {
     /// Escape `raw` and wrap it as a complete string literal.
     #[inline]
-    pub fn write_string_literal<W: writer::FastWrite>(&self, writer: &mut W, raw: &str) -> pyo3::PyResult<()> {
-        // FIXME: we can accept NUL on some dialects
-        if raw.contains('\0') {
-            return Err(exc::Error::serialize(
-                "string literal",
-                "contains a NUL byte; a SQL string literal cannot carry NUL",
-            )
-            .into());
-        }
+    pub fn write_string_literal<W: writer::FastWrite>(&self, writer: &mut W, raw: &str) -> exc::Result<()> {
+        // Some dialects rejects NUL byte, but it does not worth checking and rejecting it
+        // because of its overhead.
 
         self.template.write_to(
             writer,

@@ -2,7 +2,7 @@
 
 use crate::internal::writer;
 
-// FIXME: Use `std::str::pattern::Pattern` when it's stable
+// FIXME(awolverp): Use `std::str::pattern::Pattern` when it's stable
 /// A search needle that can be located inside a UTF-8 haystack.
 pub trait ReplacePattern: Copy {
     /// First match of this pattern in `haystack`.
