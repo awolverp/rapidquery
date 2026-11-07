@@ -10,7 +10,7 @@ pub mod dcl;
 pub mod ddl;
 pub mod dialect;
 pub mod dml;
-pub mod exceptions;
+pub mod exc;
 pub mod expr;
 pub mod serializers;
 pub mod tcl;
@@ -19,7 +19,7 @@ pub mod tcl;
 #[pyo3::pymodule(gil_used = false)]
 mod _core {
     #[pymodule_export]
-    use super::exceptions::exceptions_mod;
+    use super::exc::exc_mod;
 
     #[pymodule_export]
     use super::dialect::dialect_mod;

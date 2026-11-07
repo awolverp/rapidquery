@@ -7,7 +7,7 @@ use super::TrimWhere;
 use super::UnaryOp;
 use super::UnarySpacing;
 use crate::dialect;
-use crate::exceptions;
+use crate::exc;
 use crate::internal::repr;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
@@ -37,7 +37,7 @@ pub struct Tuple {
 impl Tuple {
     pub(crate) const PRECEDENCE: u8 = 0;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exceptions::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         let mut fmt = repr::ReprFormatter::new_call("TupleExpr");
 
         for item in &self.items {
@@ -50,20 +50,20 @@ impl Tuple {
 }
 
 impl WriteSql for Tuple {
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         let arity = self.items.len();
 
         if dialect.tuple.syntax != dialect::TupleSyntax::Unsupported {
             if arity == 0 && !dialect.tuple.arity.contains(dialect::TupleArity::EMPTY) {
-                return Err(exceptions::Error::Unsupported("empty TupleExpr"));
+                return Err(exc::Error::dialect("empty tuple"));
             }
             if arity == 1 && !dialect.tuple.arity.contains(dialect::TupleArity::ONE) {
-                return Err(exceptions::Error::Unsupported("TupleExpr with one item"));
+                return Err(exc::Error::dialect("tuple with one element"));
             }
         }
         match dialect.tuple.syntax {
             dialect::TupleSyntax::Unsupported => {
-                return Err(exceptions::Error::Unsupported("TupleExpr"));
+                return Err(exc::Error::dialect("tuple"));
             }
             dialect::TupleSyntax::Row => {
                 out.write_str("ROW(");
@@ -106,7 +106,7 @@ pub struct Unary {
 }
 
 impl Unary {
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exceptions::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         let mut fmt = repr::ReprFormatter::new_call("UnaryExpr");
 
         fmt.positional(self.op.as_sql())
@@ -118,10 +118,10 @@ impl Unary {
 }
 
 impl WriteSql for Unary {
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         if self.op == UnaryOp::BitNot {
             if !dialect.bitwise.operations.contains(dialect::BitwiseOperations::NOT) {
-                return Err(exceptions::Error::Unsupported("UnaryExpr '!'"));
+                return Err(exc::Error::dialect("prefix !"));
             }
 
             match dialect.bitwise.syntax {
@@ -181,7 +181,7 @@ pub struct Binary {
 }
 
 impl Binary {
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exceptions::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         let mut fmt = repr::ReprFormatter::new_call("BinaryExpr");
 
         fmt.positional(self.left.python_repr(py)?)
@@ -209,7 +209,7 @@ fn write_binary_call<W: SqlWriter>(
     name: &str,
     left: &ExprInner,
     right: &ExprInner,
-) -> exceptions::Result<()> {
+) -> exc::Result<()> {
     out.write_str(name);
     out.write('(');
     left.write_sql(dialect, out)?;
@@ -235,8 +235,8 @@ fn write_bit_op<W: SqlWriter>(
     infix: &str,
     bit_fn: &str,
     shift_fn: &str,
-    missing: exceptions::Error,
-) -> exceptions::Result<()> {
+    missing: exc::Error,
+) -> exc::Result<()> {
     if !dialect.bitwise.operations.contains(op) {
         return Err(missing);
     }
@@ -260,7 +260,7 @@ fn write_infix<W: SqlWriter>(
     out: &mut W,
     spelling: &str,
     paren_arithmetic: bool,
-) -> exceptions::Result<()> {
+) -> exc::Result<()> {
     let prec = bin.op.precedence();
     write_infix_side(dialect, out, &bin.left, prec, false, paren_arithmetic)?;
     out.write(' ');
@@ -277,7 +277,7 @@ fn write_infix_side<W: SqlWriter>(
     prec: u8,
     paren_if_equal: bool,
     paren_arithmetic: bool,
-) -> exceptions::Result<()> {
+) -> exc::Result<()> {
     if paren_arithmetic && matches!(expr, ExprInner::Binary(b) if is_arithmetic_binary_op(&b.op)) {
         out.write('(');
         expr.write_sql(dialect, out)?;
@@ -288,7 +288,7 @@ fn write_infix_side<W: SqlWriter>(
 }
 
 impl WriteSql for Binary {
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         match &self.op {
             BinaryOp::StringConcat => {
                 _ = dialect.string.concat.write_to_result(
@@ -303,7 +303,7 @@ impl WriteSql for Binary {
                 Ok(())
             }
             BinaryOp::BitXor => match dialect.bitwise.xor {
-                dialect::BitwiseXor::Unsupported => Err(exceptions::Error::Unsupported("BinaryExpr '^'")),
+                dialect::BitwiseXor::Unsupported => Err(exc::Error::dialect("bitwise XOR")),
                 dialect::BitwiseXor::Caret => write_infix(self, dialect, out, "^", false),
                 dialect::BitwiseXor::Hash => write_infix(self, dialect, out, "#", false),
                 dialect::BitwiseXor::Function => write_binary_call(dialect, out, "xor", &self.left, &self.right),
@@ -322,7 +322,7 @@ impl WriteSql for Binary {
                 "&",
                 "BITAND",
                 "BITAND",
-                exceptions::Error::Unsupported("BinaryExpr '&'"),
+                exc::Error::dialect("bitwise AND"),
             ),
             BinaryOp::BitOr => write_bit_op(
                 self,
@@ -332,7 +332,7 @@ impl WriteSql for Binary {
                 "|",
                 "BITOR",
                 "BITOR",
-                exceptions::Error::Unsupported("BinaryExpr '|'"),
+                exc::Error::dialect("bitwise OR"),
             ),
             BinaryOp::LShift => write_bit_op(
                 self,
@@ -342,7 +342,7 @@ impl WriteSql for Binary {
                 "<<",
                 "BITSHIFTLEFT",
                 "SHIFTLEFT",
-                exceptions::Error::Unsupported("BinaryExpr '<<'"),
+                exc::Error::dialect("bitwise left shift"),
             ),
             BinaryOp::RShift => write_bit_op(
                 self,
@@ -352,7 +352,7 @@ impl WriteSql for Binary {
                 ">>",
                 "BITSHIFTRIGHT",
                 "SHIFTRIGHT",
-                exceptions::Error::Unsupported("BinaryExpr '>>'"),
+                exc::Error::dialect("bitwise right shift"),
             ),
             _ => write_infix(self, dialect, out, self.op.as_sql(), false),
         }
@@ -387,7 +387,7 @@ pub struct Is {
 impl Is {
     pub(crate) const PRECEDENCE: u8 = 5;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exceptions::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         let mut fmt = repr::ReprFormatter::new_call("IsExpr");
 
         fmt.positional(self.expr.python_repr(py)?)
@@ -400,7 +400,7 @@ impl Is {
 }
 
 impl WriteSql for Is {
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         self.expr.write_operand(dialect, out, Self::PRECEDENCE, false)?;
         if self.negated {
             out.write_str(" IS NOT ");
@@ -440,7 +440,7 @@ pub struct IsDistinctFrom {
 impl IsDistinctFrom {
     pub(crate) const PRECEDENCE: u8 = 5;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exceptions::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         let mut fmt = repr::ReprFormatter::new_call("IsDistinctFromExpr");
 
         fmt.positional(self.left.python_repr(py)?)
@@ -453,9 +453,9 @@ impl IsDistinctFrom {
 }
 
 impl WriteSql for IsDistinctFrom {
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         match dialect.operator.is_distinct_from {
-            dialect::IsDistinctFrom::Unsupported => Err(exceptions::Error::Unsupported("IsDistinctFromExpr")),
+            dialect::IsDistinctFrom::Unsupported => Err(exc::Error::dialect("IS DISTINCT FROM")),
             dialect::IsDistinctFrom::Standard => {
                 self.left.write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 if self.negated {
@@ -510,7 +510,7 @@ pub struct InList {
 impl InList {
     pub(crate) const PRECEDENCE: u8 = 5;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exceptions::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         let mut fmt = repr::ReprFormatter::new_call("InListExpr");
 
         fmt.positional(self.expr.python_repr(py)?);
@@ -528,7 +528,7 @@ impl InList {
 }
 
 impl WriteSql for InList {
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         if self.list.is_empty() {
             // `x IN ()` is false and `x NOT IN ()` is true, including when `x` is NULL.
             dialect.literal.write_boolean(out, self.negated);
@@ -585,7 +585,7 @@ pub struct Between {
 impl Between {
     pub(crate) const PRECEDENCE: u8 = 5;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exceptions::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         let mut fmt = repr::ReprFormatter::new_call("BetweenExpr");
         fmt.positional(self.expr.python_repr(py)?)
             .positional(self.low.python_repr(py)?)
@@ -598,7 +598,7 @@ impl Between {
 }
 
 impl WriteSql for Between {
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         // SQL Server ranks `AND` above `IN`/`BETWEEN`/`OR`, and those four share
         // a level evaluated left to right. The parentheses keep the predicate
         // from being parsed as part of the left operand.
@@ -649,7 +649,7 @@ pub struct Cast {
 impl Cast {
     pub(crate) const PRECEDENCE: u8 = 0;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exceptions::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         let mut fmt = repr::ReprFormatter::new_call("CastExpr");
 
         fmt.positional(self.expr.python_repr(py)?)
@@ -663,12 +663,7 @@ impl Cast {
         Ok(fmt)
     }
 
-    fn write_call<W: SqlWriter>(
-        &self,
-        dialect: &dialect::PyDialect,
-        out: &mut W,
-        name: &str,
-    ) -> exceptions::Result<()> {
+    fn write_call<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W, name: &str) -> exc::Result<()> {
         out.write_str(name);
         out.write('(');
         self.expr.write_sql(dialect, out)?;
@@ -680,7 +675,7 @@ impl Cast {
 }
 
 impl WriteSql for Cast {
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         match self.kind {
             CastKind::Cast => self.write_call(dialect, out, "CAST"),
             CastKind::TryCast => {
@@ -695,12 +690,12 @@ impl WriteSql for Cast {
                         },
                     )
                 } else {
-                    Err(exceptions::Error::Unsupported("CastExpr 'TRY_CAST'"))
+                    Err(exc::Error::dialect("TRY_CAST"))
                 }
             }
             CastKind::DoubleColon => {
                 if !dialect.cast.supports_double_colon {
-                    return Err(exceptions::Error::Unsupported("CastExpr '::'"));
+                    return Err(exc::Error::dialect("cast with ::"));
                 }
                 out.write('(');
                 self.expr.write_sql(dialect, out)?;
@@ -741,7 +736,7 @@ pub struct Trim {
 impl Trim {
     pub(crate) const PRECEDENCE: u8 = 0;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exceptions::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         let characters = self
             .characters
             .as_ref()
@@ -762,7 +757,7 @@ impl Trim {
 }
 
 #[inline]
-fn write_trim_function<W: SqlWriter>(trim: &Trim, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
+fn write_trim_function<W: SqlWriter>(trim: &Trim, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
     let name = match trim.where_ {
         TrimWhere::Both => "TRIM",
         TrimWhere::Leading => "LTRIM",
@@ -780,7 +775,7 @@ fn write_trim_function<W: SqlWriter>(trim: &Trim, dialect: &dialect::PyDialect, 
 }
 
 impl WriteSql for Trim {
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         match dialect.operator.trim {
             dialect::OperatorTrim::SqlFrom => {
                 out.write_str("TRIM(");
@@ -810,7 +805,7 @@ impl WriteSql for Trim {
             dialect::OperatorTrim::Function => write_trim_function(self, dialect, out),
             dialect::OperatorTrim::SpacesOnly => {
                 if self.characters.is_some() {
-                    return Err(exceptions::Error::Unsupported("TrimExpr"));
+                    return Err(exc::Error::dialect("TRIM"));
                 }
                 write_trim_function(self, dialect, out)
             }
@@ -844,7 +839,7 @@ pub struct Collate {
 impl Collate {
     pub(crate) const PRECEDENCE: u8 = 0;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exceptions::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         let mut fmt = repr::ReprFormatter::new_call("CollateExpr");
         fmt.positional(self.expr.python_repr(py)?)
             .positional(self.collation.python_repr())
@@ -855,9 +850,9 @@ impl Collate {
 }
 
 impl WriteSql for Collate {
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         match dialect.operator.collate {
-            dialect::OperatorCollate::Unsupported => Err(exceptions::Error::Unsupported("CollateExpr")),
+            dialect::OperatorCollate::Unsupported => Err(exc::Error::dialect("COLLATE")),
             dialect::OperatorCollate::InfixIdent => {
                 self.expr.write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 out.write_str(" COLLATE ");
@@ -869,10 +864,7 @@ impl WriteSql for Collate {
                         body.as_str()
                     }
                     _ => {
-                        return Err(pyo3::exceptions::PyValueError::new_err(
-                            "collation must be a single quoted or unquoted name for this dialect",
-                        )
-                        .into());
+                        return Err(exc::Error::dialect("COLLATE() with a multipart name"));
                     }
                 };
                 out.write_str("COLLATE(");
@@ -911,7 +903,7 @@ pub struct Case {
 impl Case {
     pub(crate) const PRECEDENCE: u8 = 0;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exceptions::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         let operand = self
             .operand
             .as_ref()
@@ -937,7 +929,7 @@ impl Case {
 }
 
 impl WriteSql for Case {
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         out.write_str("CASE");
         if let Some(operand) = &self.operand {
             out.write(' ');
@@ -984,7 +976,7 @@ pub struct Custom {
 impl Custom {
     pub(crate) const PRECEDENCE: u8 = 0;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exceptions::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         let mut fmt = repr::ReprFormatter::new_call("CustomExpr");
 
         fmt.positional(self.sql.as_str());
@@ -1000,7 +992,7 @@ impl Custom {
 
 impl WriteSql for Custom {
     #[cfg_attr(feature = "nightly", optimize(speed))]
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         let bytes = self.sql.as_bytes();
         let mut i = 0;
         let mut start = 0;
@@ -1018,10 +1010,14 @@ impl WriteSql for Custom {
                 if i + 1 < bytes.len() && bytes[i + 1] == b'}' {
                     out.write_str(&self.sql[start..i]);
                     if used >= self.args.len() {
-                        return Err(exceptions::Error::CustomPlaceholderCount {
-                            placeholders: used + 1,
-                            arguments: self.args.len(),
-                        });
+                        return Err(exc::Error::invalid(
+                            "CustomExpr",
+                            format!(
+                                "template has {} placeholders and {} arguments",
+                                used + 1,
+                                self.args.len()
+                            ),
+                        ));
                     }
                     self.args[used].write_sql(dialect, out)?;
                     used += 1;
@@ -1041,10 +1037,10 @@ impl WriteSql for Custom {
         out.write_str(&self.sql[start..]);
 
         if used != self.args.len() {
-            return Err(exceptions::Error::CustomPlaceholderCount {
-                placeholders: used,
-                arguments: self.args.len(),
-            });
+            return Err(exc::Error::invalid(
+                "CustomExpr",
+                format!("template has {used} placeholders and {} arguments", self.args.len()),
+            ));
         }
         Ok(())
     }

@@ -36,9 +36,9 @@ class Serializer(typing.Generic[_T]):
             The SQL literal, with no trailing separator.
 
         Raises:
-            TypeError: `object` is not a type this serializer accepts.
-            ValueError: `object` is the right type but not a legal value.
-            NotImplementedError: The dialect has no literal of this kind.
+            rapidquery.exc.SerializeError: `object` is not a type this serializer
+                accepts, or its value cannot be written as a literal.
+            rapidquery.exc.DialectError: The dialect has no literal of this kind.
         """
 
     def __eq__(self, other: object) -> bool: ...

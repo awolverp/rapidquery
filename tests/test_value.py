@@ -6,6 +6,7 @@ import uuid
 import pytest
 
 from rapidquery.dialect import PostgreSql
+from rapidquery.exc import SerializeError
 from rapidquery.expr import Expr, Value
 from rapidquery.serializers import (
     ArraySerializer,
@@ -113,7 +114,7 @@ class TestValueToSql:
         assert Value(None).to_sql(PostgreSql) == "NULL"
 
     def test_propagates_serializer_type_error(self):
-        with pytest.raises(TypeError):
+        with pytest.raises(SerializeError):
             Value("not an int", IntegerSerializer()).to_sql(PostgreSql)
 
 

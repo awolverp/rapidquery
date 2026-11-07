@@ -1,5 +1,5 @@
 use crate::dialect::PyDialect;
-use crate::exceptions;
+use crate::exc;
 use crate::internal::alias;
 use crate::internal::modules;
 use crate::internal::writer;
@@ -71,7 +71,7 @@ impl std::hash::Hash for SerializerType {
 }
 
 impl SerializerType {
-    pub fn infer_bound(bound: &alias::BoundObject) -> exceptions::Result<Self> {
+    pub fn infer_bound(bound: &alias::BoundObject) -> exc::Result<Self> {
         unsafe {
             let object_ptr = bound.as_ptr();
             let object_type_ptr = pyo3::ffi::Py_TYPE(object_ptr);
@@ -144,7 +144,7 @@ impl SerializerType {
                 return Ok(serializer.get().0.clone());
             },
             mismatches: {
-                return Err(exceptions::Error::protocol_return_type("__serializer__", "Serializer", &protocol));
+                return Err(exc::Error::type_mismatch("__serializer__", "Serializer", &protocol));
             }
         }
 
@@ -157,7 +157,7 @@ impl SerializerType {
         dialect: &PyDialect,
         object: &alias::BoundObject<'_>,
         out: &mut W,
-    ) -> exceptions::Result<()> {
+    ) -> exc::Result<()> {
         let py = object.py();
         let ptr = object.as_ptr();
 

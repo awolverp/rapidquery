@@ -27,7 +27,7 @@ class DataDefinitionLanguage:
             The SQL text.
 
         Raises:
-            RuntimeError: The dialect rejects this construct.
+            rapidquery.exc.DialectError: The dialect cannot render this construct.
             ValueError: A `CustomExpr` template has a different number of `{}`
                 slots than arguments.
         """
@@ -209,9 +209,9 @@ class CreateIndex(DataDefinitionLanguage):
             The SQL text.
 
         Raises:
-            RuntimeError: The dialect rejects this construct.
-            ValueError: A required part is missing, or a clause the dialect
-                rejects is set.
+            rapidquery.exc.DialectError: The dialect cannot render this construct,
+                including a clause its flags reject.
+            ValueError: A required part is missing or empty.
         """
 
     @property

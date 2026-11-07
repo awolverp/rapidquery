@@ -1,7 +1,7 @@
 import pytest
 
 import rapidquery as rq
-from rapidquery.exceptions import UnsupportedError
+from rapidquery.exc import DialectError
 
 
 class TestCreateSchema:
@@ -21,7 +21,7 @@ class TestCreateSchema:
     def test_unsupported(self):
         stmt = rq.ddl.CreateSchema("name")
 
-        with pytest.raises(UnsupportedError, match="supported"):
+        with pytest.raises(DialectError, match="^CREATE SCHEMA is not supported"):
             _ = stmt.to_sql(rq.dialect.Sqlite)
 
     def test_supported(self):
@@ -59,7 +59,7 @@ class TestCreateSchema:
                 authorization=rq.dialect.OPT_SCHEMA_AUTHORIZATION_UNSUPPORTED,
             )
         )
-        with pytest.raises(UnsupportedError, match="supported"):
+        with pytest.raises(DialectError, match="CREATE SCHEMA ... AUTHORIZATION"):
             _ = stmt.to_sql(dl)
 
         # Optional
@@ -85,7 +85,7 @@ class TestCreateSchema:
                 location=None,
             )
         )
-        with pytest.raises(UnsupportedError, match="supported"):
+        with pytest.raises(DialectError, match="CREATE SCHEMA ... LOCATION"):
             _ = stmt.to_sql(dl)
 
         dl = rq.dialect.Dialect(
@@ -120,7 +120,7 @@ class TestDropSchema:
     def test_unsupported(self):
         stmt = rq.ddl.DropSchema("name")
 
-        with pytest.raises(UnsupportedError, match="supported"):
+        with pytest.raises(DialectError, match="^DROP SCHEMA is not supported"):
             _ = stmt.to_sql(rq.dialect.Sqlite)
 
     def test_supported(self):
@@ -143,7 +143,7 @@ class TestDropSchema:
 
         # Unsupported
         dl = rq.dialect.Dialect()
-        with pytest.raises(UnsupportedError):
+        with pytest.raises(DialectError, match="^DROP SCHEMA is not supported"):
             _ = stmt.to_sql(dl)
 
         # CASCADE Supported
@@ -155,8 +155,8 @@ class TestDropSchema:
         assert stmt.to_sql(dl) == 'DROP SCHEMA "name" CASCADE'
 
         # CASCADE Unsupported
-        dl = rq.dialect.Dialect()
-        with pytest.raises(UnsupportedError):
+        dl = rq.dialect.Dialect(schema=rq.dialect.SchemaConfig(features=rq.dialect.OPT_SCHEMA_FEATURES_SUPPORTED))
+        with pytest.raises(DialectError, match="DROP SCHEMA ... CASCADE"):
             _ = stmt.to_sql(dl)
 
         # RESTRICT Supported
@@ -171,6 +171,6 @@ class TestDropSchema:
         assert stmt.to_sql(dl) == 'DROP SCHEMA "name" RESTRICT'
 
         # RESTRICT Unsupported
-        dl = rq.dialect.Dialect()
-        with pytest.raises(UnsupportedError):
+        dl = rq.dialect.Dialect(schema=rq.dialect.SchemaConfig(features=rq.dialect.OPT_SCHEMA_FEATURES_SUPPORTED))
+        with pytest.raises(DialectError, match="DROP SCHEMA ... RESTRICT"):
             _ = stmt.to_sql(dl)

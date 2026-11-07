@@ -1,4 +1,4 @@
-use crate::exceptions;
+use crate::exc;
 use crate::sql;
 
 #[cfg(test)]
@@ -188,11 +188,7 @@ impl std::fmt::Display for DataTypeName {
 }
 
 impl sql::WriteSql for DataTypeName {
-    fn write_sql<W: sql::SqlWriter>(
-        &self,
-        _dialect: &crate::dialect::PyDialect,
-        out: &mut W,
-    ) -> exceptions::Result<()> {
+    fn write_sql<W: sql::SqlWriter>(&self, _dialect: &crate::dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         out.write_str(self.as_str());
         Ok(())
     }

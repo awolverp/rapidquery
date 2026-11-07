@@ -1,7 +1,7 @@
 //! SQL identifiers.
 
 use crate::dialect::PyDialect;
-use crate::exceptions;
+use crate::exc;
 use crate::internal::repr;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
@@ -71,7 +71,7 @@ impl PartialEq<&str> for IdentPart {
 
 impl WriteSql for IdentPart {
     #[inline]
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> exceptions::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> exc::Result<()> {
         match self {
             Self::Quote(name) => {
                 dialect.write_identifier(out, name.as_str());
@@ -263,7 +263,7 @@ impl std::str::FromStr for Ident {
 
 impl WriteSql for Ident {
     #[inline]
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> exceptions::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> exc::Result<()> {
         write_separated(dialect, out, &self.0, ".")
     }
 }

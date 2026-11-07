@@ -371,9 +371,7 @@ impl Field {
                     match #value {
                         #( __x if __x == <#ty>::#variants as u8 => <#ty>::#variants, )*
                         __x => return ::core::result::Result::Err(
-                            pyo3::exceptions::PyValueError::new_err(
-                                format!("invalid argument value for `{}`. received {}", #name_str, __x)
-                            )
+                            crate::exc::Error::invalid(#name_str, format!("received {__x}")).into()
                         ),
                     }
                 }
@@ -382,9 +380,7 @@ impl Field {
             Kind::Bits { ty, .. } => {
                 quote! {
                     <#ty>::from_bits(#value).ok_or_else(|| {
-                        pyo3::exceptions::PyValueError::new_err(
-                            format!("invalid bits {:#b} for `{}`", #value, #name_str)
-                        )
+                        crate::exc::Error::invalid(#name_str, format!("invalid bits {:#b}", #value))
                     })?
                 }
             }
@@ -393,9 +389,7 @@ impl Field {
                 let keys = template_keys(keys);
                 quote! {
                     template::Template::parse(#value, #keys, #min, #max).map_err(
-                        |reason| pyo3::exceptions::PyValueError::new_err(
-                            format!("invalid template for `{}`: {}", #name_str, reason)
-                        )
+                        |source| crate::exc::Error::Template { field: #name_str, source }
                     )?
                 }
             }

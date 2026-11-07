@@ -1,5 +1,5 @@
 use crate::dialect;
-use crate::exceptions;
+use crate::exc;
 use crate::expr::enum_::Ident;
 use crate::expr::extractors::IdentExtractor;
 use crate::internal::alias;
@@ -31,9 +31,9 @@ pub struct PyCreateSchema {
 }
 
 impl sql::WriteSql for PyCreateSchema {
-    fn write_sql<W: sql::SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
+    fn write_sql<W: sql::SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         if !dialect.schema.features.contains(dialect::SchemaFeatures::SUPPORTED) {
-            return Err(exceptions::Error::Unsupported("CreateSchema"));
+            return Err(exc::Error::dialect("CREATE SCHEMA"));
         }
 
         if dialect.schema.features.contains(dialect::SchemaFeatures::IS_DATABASE) {
@@ -50,7 +50,7 @@ impl sql::WriteSql for PyCreateSchema {
         match dialect.schema.authorization {
             dialect::SchemaAuthorization::Unsupported => {
                 if self.authorization.is_some() {
-                    return Err(exceptions::Error::Unsupported("CreateSchema.authorization"));
+                    return Err(exc::Error::dialect("CREATE SCHEMA ... AUTHORIZATION"));
                 }
 
                 self.name.write_sql(dialect, out)?;
@@ -67,7 +67,7 @@ impl sql::WriteSql for PyCreateSchema {
 
         if let Some(x) = &self.location {
             let Some(tmpl) = &dialect.schema.location else {
-                return Err(exceptions::Error::Unsupported("CreateSchema.location"));
+                return Err(exc::Error::dialect("CREATE SCHEMA ... LOCATION"));
             };
 
             out.write(' ');
@@ -118,7 +118,7 @@ impl PyCreateSchema {
     }
 
     /// Render this expression as raw SQL (values inlined as literals).
-    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> exceptions::Result<String> {
+    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> exc::Result<String> {
         sql::write_sql(dialect.py(), self, dialect.get())
     }
 
@@ -165,9 +165,9 @@ pub struct PyDropSchema {
 }
 
 impl sql::WriteSql for PyDropSchema {
-    fn write_sql<W: sql::SqlWriter>(&self, dialect: &crate::dialect::PyDialect, out: &mut W) -> exceptions::Result<()> {
+    fn write_sql<W: sql::SqlWriter>(&self, dialect: &crate::dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         if !dialect.schema.features.contains(dialect::SchemaFeatures::SUPPORTED) {
-            return Err(exceptions::Error::Unsupported("DropSchema"));
+            return Err(exc::Error::dialect("DROP SCHEMA"));
         }
 
         if dialect.schema.features.contains(dialect::SchemaFeatures::IS_DATABASE) {
@@ -188,14 +188,14 @@ impl sql::WriteSql for PyDropSchema {
             None => {}
             Some(DropSchemaBehavior::Cascade) => {
                 if !dialect.schema.features.contains(dialect::SchemaFeatures::DROP_CASCADE) {
-                    return Err(exceptions::Error::Unsupported("DropSchema.behavior='CASCADE'"));
+                    return Err(exc::Error::dialect("DROP SCHEMA ... CASCADE"));
                 }
 
                 out.write_str(" CASCADE");
             }
             Some(DropSchemaBehavior::Restrict) => {
                 if !dialect.schema.features.contains(dialect::SchemaFeatures::DROP_RESTRICT) {
-                    return Err(exceptions::Error::Unsupported("DropSchema.behavior='RESTRICT'"));
+                    return Err(exc::Error::dialect("DROP SCHEMA ... RESTRICT"));
                 }
 
                 out.write_str(" RESTRICT");
@@ -214,7 +214,7 @@ impl PyDropSchema {
         name: IdentExtractor,
         if_exists: bool,
         behavior: Option<&str>,
-    ) -> exceptions::Result<pyo3::PyClassInitializer<Self>> {
+    ) -> exc::Result<pyo3::PyClassInitializer<Self>> {
         use std::str::FromStr;
 
         let result = Self {
@@ -222,12 +222,9 @@ impl PyDropSchema {
             if_exists,
             behavior: match behavior {
                 None => None,
-                Some(x) => Some(
-                    DropSchemaBehavior::from_str(x).map_err(|_| exceptions::Error::ArgumentValue {
-                        expected: "'CASCADE' or 'RESTRICT'",
-                        got: x.to_owned(),
-                    })?,
-                ),
+                Some(x) => Some(DropSchemaBehavior::from_str(x).map_err(|_| {
+                    exc::Error::invalid("behavior", format!("expected 'CASCADE' or 'RESTRICT', received {x}"))
+                })?),
             },
         };
         Ok(pyo3::PyClassInitializer::from(super::PyDataDefinitionLanguage).add_subclass(result))
@@ -249,7 +246,7 @@ impl PyDropSchema {
     }
 
     /// Render this expression as raw SQL (values inlined as literals).
-    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> exceptions::Result<String> {
+    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> exc::Result<String> {
         sql::write_sql(dialect.py(), self, dialect.get())
     }
 
