@@ -1,6 +1,7 @@
 import pytest
 
 import rapidquery as rq
+from rapidquery.exc import DialectError
 
 
 def _supported(**kwargs: int) -> rq.dialect.Dialect:
@@ -73,9 +74,9 @@ class TestCreateIndex:
     def test_unsupported(self):
         stmt = rq.ddl.CreateIndex("idx", "users", [rq.ddl.IndexColumn("id")])
 
-        with pytest.raises(RuntimeError, match="supported"):
+        with pytest.raises(DialectError, match="^CREATE INDEX is not supported"):
             _ = stmt.to_sql(rq.dialect.Dialect())
-        with pytest.raises(RuntimeError, match="supported"):
+        with pytest.raises(DialectError, match="^CREATE INDEX is not supported"):
             _ = stmt.to_sql(rq.dialect.BigQuery)
 
     def test_supported(self):
@@ -85,7 +86,7 @@ class TestCreateIndex:
     def test_unique(self):
         stmt = rq.ddl.CreateIndex("idx", "users", [rq.ddl.IndexColumn("id")], unique=True)
 
-        with pytest.raises(RuntimeError, match="supported"):
+        with pytest.raises(DialectError, match="CREATE INDEX ... UNIQUE"):
             _ = stmt.to_sql(_supported())
 
         rendered = stmt.to_sql(_supported(features=rq.dialect.OPT_INDEX_FEATURES_UNIQUE))
@@ -103,7 +104,7 @@ class TestCreateIndex:
         desc = rq.ddl.CreateIndex("idx", "users", [rq.ddl.IndexColumn("id", order="DESC")])
 
         assert asc.to_sql(_supported()) == 'CREATE INDEX "idx" ON "users" ("id")'
-        with pytest.raises(RuntimeError, match="supported"):
+        with pytest.raises(DialectError, match="CREATE INDEX ... ASC/DESC"):
             _ = desc.to_sql(_supported())
 
         rendered = asc.to_sql(_supported(features=rq.dialect.OPT_INDEX_FEATURES_COLUMN_ORDER))
@@ -123,7 +124,7 @@ class TestCreateIndex:
         column = rq.ddl.IndexColumn(rq.expr.Function("lower", rq.Ident("email")))
         stmt = rq.ddl.CreateIndex("idx", "users", [column])
 
-        with pytest.raises(RuntimeError, match="supported"):
+        with pytest.raises(DialectError, match="CREATE INDEX on an expression"):
             _ = stmt.to_sql(_supported())
 
         rendered = stmt.to_sql(_supported(features=rq.dialect.OPT_INDEX_FEATURES_EXPRESSIONS))
@@ -132,7 +133,7 @@ class TestCreateIndex:
     def test_predicate(self):
         stmt = rq.ddl.CreateIndex("idx", "users", [rq.ddl.IndexColumn("id")], predicate=rq.Ident("active"))
 
-        with pytest.raises(RuntimeError, match="supported"):
+        with pytest.raises(DialectError, match="CREATE INDEX ... WHERE"):
             _ = stmt.to_sql(_supported())
 
         rendered = stmt.to_sql(_supported(features=rq.dialect.OPT_INDEX_FEATURES_PARTIAL))
@@ -141,7 +142,7 @@ class TestCreateIndex:
     def test_include(self):
         stmt = rq.ddl.CreateIndex("idx", "users", [rq.ddl.IndexColumn("id")], include=["name", "email"])
 
-        with pytest.raises(RuntimeError, match="supported"):
+        with pytest.raises(DialectError, match="CREATE INDEX ... INCLUDE"):
             _ = stmt.to_sql(_supported())
 
         rendered = stmt.to_sql(_supported(features=rq.dialect.OPT_INDEX_FEATURES_INCLUDE))
@@ -150,7 +151,7 @@ class TestCreateIndex:
     def test_index_type_position(self):
         stmt = rq.ddl.CreateIndex("idx", "users", [rq.ddl.IndexColumn("id")], index_type="btree")
 
-        with pytest.raises(RuntimeError, match="supported"):
+        with pytest.raises(DialectError, match="CREATE INDEX ... USING"):
             _ = stmt.to_sql(_supported())
 
         before = stmt.to_sql(_supported(index_type=rq.dialect.OPT_INDEX_TYPE_BEFORE_COLUMNS))
@@ -238,11 +239,13 @@ class TestDropIndex:
     def test_unsupported(self):
         stmt = rq.ddl.DropIndex("idx")
 
-        with pytest.raises(RuntimeError, match="supported"):
+        with pytest.raises(DialectError, match="^DROP INDEX is not supported"):
             _ = stmt.to_sql(rq.dialect.Dialect())
-        with pytest.raises(RuntimeError, match="supported"):
+
+        with pytest.raises(DialectError, match="^DROP INDEX is not supported"):
             _ = stmt.to_sql(rq.dialect.BigQuery)
-        with pytest.raises(RuntimeError, match="supported"):
+
+        with pytest.raises(DialectError, match="^DROP INDEX is not supported"):
             _ = stmt.to_sql(rq.dialect.Databricks)
 
         created = rq.ddl.CreateIndex("idx", "t", [rq.ddl.IndexColumn("id")])
@@ -263,13 +266,13 @@ class TestDropIndex:
 
         on = rq.dialect.OPT_INDEX_DROP_TABLE_ON
 
-        with pytest.raises(ValueError, match="table_name"):
+        with pytest.raises(DialectError, match="DROP INDEX without a table name"):
             _ = missing.to_sql(_drop(drop_table=on))
 
         assert named.to_sql(_drop(drop_table=on)) == 'DROP INDEX "idx" ON "users"'
 
         qualified = rq.dialect.OPT_INDEX_DROP_TABLE_QUALIFIED
-        with pytest.raises(ValueError, match="table_name"):
+        with pytest.raises(DialectError, match="DROP INDEX without a table name"):
             _ = missing.to_sql(_drop(drop_table=qualified))
 
         assert named.to_sql(_drop(drop_table=qualified)) == 'DROP INDEX "users"."idx"'
@@ -278,9 +281,10 @@ class TestDropIndex:
         cascade = rq.ddl.DropIndex("idx", behavior="CASCADE")
         restrict = rq.ddl.DropIndex("idx", behavior="RESTRICT")
 
-        with pytest.raises(RuntimeError, match="supported"):
+        with pytest.raises(DialectError, match="DROP INDEX ... CASCADE"):
             _ = cascade.to_sql(_drop())
-        with pytest.raises(RuntimeError, match="supported"):
+
+        with pytest.raises(DialectError, match="DROP INDEX ... RESTRICT"):
             _ = restrict.to_sql(_drop())
 
         assert (

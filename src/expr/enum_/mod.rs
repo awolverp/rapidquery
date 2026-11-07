@@ -13,7 +13,7 @@ pub use operator::*;
 pub use value::*;
 
 use crate::dialect::PyDialect;
-use crate::error;
+use crate::exc;
 use crate::internal::repr::ReprFormatter;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
@@ -128,7 +128,7 @@ impl ExprInner {
         out: &mut W,
         parent_prec: u8,
         paren_if_equal: bool,
-    ) -> error::Result<()> {
+    ) -> exc::Result<()> {
         let child_prec = self.precedence();
         let paren = child_prec > parent_prec || (paren_if_equal && child_prec == parent_prec);
         if paren {
@@ -142,7 +142,7 @@ impl ExprInner {
     }
 
     #[inline]
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> error::Result<ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<ReprFormatter> {
         match self {
             Self::Ident(x) => Ok(x.python_repr()),
             Self::Value(x) => x.python_repr(py),
@@ -168,7 +168,7 @@ impl ExprInner {
 
 impl WriteSql for ExprInner {
     #[cfg_attr(feature = "nightly", optimize(speed))]
-    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> error::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> exc::Result<()> {
         match self {
             Self::Ident(x) => x.write_sql(dialect, out),
             Self::Value(x) => x.write_sql(dialect, out),

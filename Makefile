@@ -60,7 +60,7 @@ test-rust:
 
 .PHONY: test-python  ## Run Python tests
 test-python:
-	uv run pytest -v -n auto
+	uv run pytest -v
 
 .PHONY: test  ## Run all tests
 test: test-rust test-python

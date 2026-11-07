@@ -1,4 +1,4 @@
-use crate::error;
+use crate::exc;
 use std::str::FromStr;
 
 use pyo3::types::PyAnyMethods;
@@ -65,7 +65,7 @@ pub struct IdentExtractor(pub Ident);
 fn extract_expr(
     obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::PyAny>,
     str_as_ident: bool,
-) -> error::Result<ExprInner> {
+) -> exc::Result<ExprInner> {
     let ptr = obj.as_ptr();
     unsafe {
         if crate::typeref::check(ptr, crate::typeref::EXPR_TYPE) {
@@ -75,7 +75,7 @@ fn extract_expr(
 
         if crate::typeref::check_exact(ptr, crate::typeref::UNQUOTE_TYPE) {
             let unquote = obj.cast_unchecked::<super::ident::PyUnquote>();
-            let part = IdentPart::unquoted(unquote.get().0.as_str()).map_err(error::Error::from)?;
+            let part = IdentPart::unquoted(unquote.get().0.as_str()).map_err(exc::Error::from)?;
 
             return Ok(ExprInner::Ident(Ident::from_one(part)));
         }
@@ -122,7 +122,7 @@ fn extract_expr(
             return Ok(expr.get().0.clone());
         },
         mismatches: {
-            return Err(error::Error::Expected { expected: "__expr__ protocol attribute returned a non-expr", got: utils::get_type_name(obj.py(), protocol.as_ptr()) });
+            return Err(exc::Error::type_mismatch("__expr__", "Expr", &protocol));
         }
     }
 
@@ -133,7 +133,7 @@ fn extract_expr(
 ///
 /// A Python `str` is never a sequence. An already-built `TupleExpr` is a
 /// single pattern; a raw `tuple`/`list` is ANY.
-pub fn extract_like_pattern(obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::PyAny>) -> error::Result<LikePattern> {
+pub fn extract_like_pattern(obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::PyAny>) -> exc::Result<LikePattern> {
     let ptr = obj.as_ptr();
     unsafe {
         if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
@@ -151,13 +151,13 @@ pub fn extract_like_pattern(obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::
     Ok(LikePattern::One(Box::new(extract_expr(obj, false)?)))
 }
 
-fn extract_like_any<'py>(iter: impl IntoIterator<Item = pyo3::Bound<'py, pyo3::PyAny>>) -> error::Result<LikePattern> {
+fn extract_like_any<'py>(iter: impl IntoIterator<Item = pyo3::Bound<'py, pyo3::PyAny>>) -> exc::Result<LikePattern> {
     let mut items = Vec::new();
     for item in iter {
         items.push(item.extract::<LiteralExprExtractor>()?.0);
     }
     if items.is_empty() {
-        return Err(error::Error::EmptyLikeAny);
+        return Err(exc::Error::invalid("pattern", "expected at least one pattern"));
     }
     Ok(LikePattern::Any(items))
 }
@@ -171,7 +171,7 @@ pub(super) enum ExtractedIdentArgument {
 #[inline]
 pub(super) fn extract_ident_argument(
     obj: pyo3::prelude::Borrowed<'_, '_, pyo3::prelude::PyAny>,
-) -> error::Result<ExtractedIdentArgument> {
+) -> exc::Result<ExtractedIdentArgument> {
     let ptr = obj.as_ptr();
     unsafe {
         // SAFETY: `ptr` is a live borrowed `PyObject`. Type pointers are
@@ -222,18 +222,19 @@ pub(super) fn extract_ident_argument(
             }
         },
         mismatches: {
-            return Err(error::Error::Expected { expected: "__ident__ protocol attribute returned a non-ident", got: utils::get_type_name(obj.py(), protocol.as_ptr()) });
+            return Err(exc::Error::type_mismatch("__ident__", "Ident", &protocol));
         }
     }
 
-    Err(error::Error::Expected {
-        expected: "expected a str, Ident, Unquote, or Asterisk",
-        got: unsafe { crate::internal::utils::get_type_name(obj.py(), obj.as_ptr()) },
-    })
+    Err(exc::Error::type_mismatch(
+        "part",
+        "str, Ident, Unquote, or Asterisk",
+        obj.as_any(),
+    ))
 }
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for LiteralExprExtractor {
-    type Error = error::Error;
+    type Error = exc::Error;
 
     #[inline]
     fn extract(obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>) -> Result<Self, Self::Error> {
@@ -242,7 +243,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for LiteralExprExtractor {
 }
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for NameExprExtractor {
-    type Error = error::Error;
+    type Error = exc::Error;
 
     #[inline]
     fn extract(obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>) -> Result<Self, Self::Error> {
@@ -251,7 +252,7 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for NameExprExtractor {
 }
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for IdentExtractor {
-    type Error = error::Error;
+    type Error = exc::Error;
 
     #[inline]
     fn extract(obj: pyo3::prelude::Borrowed<'a, 'py, pyo3::prelude::PyAny>) -> Result<Self, Self::Error> {

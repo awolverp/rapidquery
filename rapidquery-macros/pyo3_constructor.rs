@@ -292,14 +292,6 @@ fn screaming_snake(s: &str) -> String {
     out
 }
 
-/// Single-segment type name used for `OPT_*` constants.
-fn enum_type_ident(ty: &Type) -> &Ident {
-    match ty {
-        Type::Path(type_name) => type_name.path.get_ident().expect("enum/bits type is a single ident"),
-        _ => panic!("enum/bits type is a single ident"),
-    }
-}
-
 /// Name of the exported module constant: `OPT_<TYPE_NAME>_<ITEM>`.
 fn const_name(field: &Ident, item: &Ident) -> String {
     format!(
@@ -375,36 +367,20 @@ impl Field {
             Kind::Plain(_) | Kind::Class(_) => value.clone(),
 
             Kind::Enum { ty, variants } => {
-                let type_ident = enum_type_ident(ty);
-                let names: Vec<_> = variants.iter().map(|v| const_name(type_ident, v)).collect();
-                let values = 0..variants.len() as u8;
                 quote! {
                     match #value {
                         #( __x if __x == <#ty>::#variants as u8 => <#ty>::#variants, )*
                         __x => return ::core::result::Result::Err(
-                            error::Error::InvalidEnumOptionField {
-                                field: #name_str,
-                                value: __x,
-                                expected: error::format_options(&[#(#names),*], &[#(#values),*]),
-                            },
+                            crate::exc::Error::invalid(#name_str, format!("received {__x}")).into()
                         ),
                     }
                 }
             }
 
-            Kind::Bits { ty, flags } => {
-                let type_ident = enum_type_ident(ty);
-                let names: Vec<_> = flags.iter().map(|flag| const_name(type_ident, flag)).collect();
+            Kind::Bits { ty, .. } => {
                 quote! {
                     <#ty>::from_bits(#value).ok_or_else(|| {
-                        error::Error::InvalidBitOptionField {
-                            field: #name_str,
-                            value: #value,
-                            expected: error::format_options(
-                                &[#(#names),*],
-                                &[#(<#ty>::#flags.bits()),*],
-                            ),
-                        }
+                        crate::exc::Error::invalid(#name_str, format!("invalid bits {:#b}", #value))
                     })?
                 }
             }
@@ -412,11 +388,9 @@ impl Field {
             Kind::Template { keys, min, max } => {
                 let keys = template_keys(keys);
                 quote! {
-                    template::Template::parse(#value, #keys, #min, #max)
-                        .map_err(|reason| error::Error::InvalidTemplate {
-                            field: #name_str,
-                            reason,
-                        })?
+                    template::Template::parse(#value, #keys, #min, #max).map_err(
+                        |source| crate::exc::Error::Template { field: #name_str, source }
+                    )?
                 }
             }
         }
@@ -650,7 +624,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 clippy::fn_params_excessive_bools,
                 clippy::cognitive_complexity
             )]
-            fn __new__(#(#params),*) -> error::Result<Self> {
+            fn __new__(#(#params),*) -> pyo3::PyResult<Self> {
                 Ok(Self { #(#inits),* })
             }
 

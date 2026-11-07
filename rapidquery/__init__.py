@@ -1,6 +1,6 @@
 """SQL query builder."""
 
-from . import dcl, ddl, dialect, dml, expr, serializers, tcl
+from . import dcl, ddl, dialect, dml, exc, expr, serializers, tcl
 from .expr import Asterisk, Ident, Unquote, Value
 
 __all__ = [
@@ -12,6 +12,7 @@ __all__ = [
     "ddl",
     "dialect",
     "dml",
+    "exc",
     "expr",
     "serializers",
     "tcl",

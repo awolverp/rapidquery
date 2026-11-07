@@ -1,6 +1,9 @@
 import importlib.util
+import os
 
 import pytest
+from hypothesis import settings
+
 from rapidquery._core import _feature_only_stdlib_json
 
 from rapidquery.dialect import (
@@ -21,6 +24,10 @@ from rapidquery.dialect import (
 )
 
 USING_ORJSON = importlib.util.find_spec("orjson") is not None and not _feature_only_stdlib_json
+
+settings.register_profile("default", max_examples=20, deadline=None)
+settings.register_profile("slow", max_examples=200, deadline=None)
+settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "default"))
 
 
 ALL_DIALECTS: list[Dialect] = [

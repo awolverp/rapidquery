@@ -2,7 +2,7 @@
 
 use super::ExprInner;
 use crate::dialect;
-use crate::error;
+use crate::exc;
 use crate::internal::repr;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
@@ -12,7 +12,7 @@ pub(super) fn write_escape<W: SqlWriter>(
     dialect: &dialect::PyDialect,
     out: &mut W,
     escape: Option<char>,
-) -> error::Result<()> {
+) -> exc::Result<()> {
     let Some(c) = escape else {
         return Ok(());
     };
@@ -34,7 +34,7 @@ pub enum LikePattern {
 }
 
 impl LikePattern {
-    fn python_repr(&self, py: pyo3::Python<'_>) -> error::Result<repr::ReprFormatter> {
+    fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         match self {
             Self::One(pattern) => pattern.python_repr(py),
             Self::Any(patterns) => {
@@ -84,7 +84,7 @@ pub struct Like {
 impl Like {
     pub(crate) const PRECEDENCE: u8 = 5;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> error::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         let mut fmt = repr::ReprFormatter::new_call("LikeExpr");
 
         fmt.positional(self.expr.python_repr(py)?)
@@ -104,7 +104,7 @@ fn write_like_operand<W: SqlWriter>(
     expr: &ExprInner,
     wrap_lower: bool,
     paren_if_equal: bool,
-) -> error::Result<()> {
+) -> exc::Result<()> {
     if wrap_lower {
         out.write_str("LOWER(");
         expr.write_sql(dialect, out)?;
@@ -133,7 +133,7 @@ fn write_like_pattern_list<W: SqlWriter>(
     out: &mut W,
     patterns: &[ExprInner],
     wrap_lower: bool,
-) -> error::Result<()> {
+) -> exc::Result<()> {
     if wrap_lower {
         for (i, pattern) in patterns.iter().enumerate() {
             if i > 0 {
@@ -163,20 +163,16 @@ fn ensure_like_escape_is_supported(
     syntax: dialect::LikeEscape,
     escape: Option<char>,
     native_any: bool,
-) -> error::Result<()> {
+) -> exc::Result<()> {
     if escape.is_none() || like_escape_allowed(syntax, native_any) {
         return Ok(());
     }
 
-    Err(if native_any {
-        error::Error::Unsupported {
-            feature: "LikeExpr.escape (LIKE ANY ESCAPE)",
-        }
+    if native_any {
+        Err(exc::Error::dialect("LIKE ANY ... ESCAPE"))
     } else {
-        error::Error::Unsupported {
-            feature: "LikeExpr.escape",
-        }
-    })
+        Err(exc::Error::dialect("LIKE ... ESCAPE"))
+    }
 }
 
 /// `[NOT] (x LIKE|ILIKE ANY (ARRAY?[…]) [ESCAPE char])`
@@ -188,7 +184,7 @@ fn write_like_any_native<W: SqlWriter>(
     ilike: bool,
     wrap_lower: bool,
     array: bool,
-) -> error::Result<()> {
+) -> exc::Result<()> {
     if like.negated {
         out.write_str("NOT (");
     }
@@ -214,15 +210,13 @@ fn write_like_any_native<W: SqlWriter>(
 }
 
 impl WriteSql for Like {
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> error::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         let (ilike, wrap_lower) = if self.case_sensitive {
             (false, false)
         } else {
             match dialect.like.ilike {
                 dialect::ILikeStrategy::Unsupported => {
-                    return Err(error::Error::Unsupported {
-                        feature: "LikeExpr.case_sensitive = False",
-                    });
+                    return Err(exc::Error::dialect("case-insensitive LIKE"));
                 }
                 dialect::ILikeStrategy::Standard => (true, false),
                 dialect::ILikeStrategy::UseLikeLower => (false, true),
@@ -297,7 +291,7 @@ pub struct SimilarTo {
 impl SimilarTo {
     pub(crate) const PRECEDENCE: u8 = 5;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> error::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         let mut fmt = repr::ReprFormatter::new_call("SimilarToExpr");
 
         fmt.positional(self.expr.python_repr(py)?)
@@ -310,11 +304,9 @@ impl SimilarTo {
 }
 
 impl WriteSql for SimilarTo {
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> error::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         if !dialect.like.supports_similar_to {
-            return Err(error::Error::Unsupported {
-                feature: "SimilarToExpr",
-            });
+            return Err(exc::Error::dialect("SIMILAR TO"));
         }
 
         self.expr.write_operand(dialect, out, Self::PRECEDENCE, false)?;
@@ -356,7 +348,7 @@ pub struct RLike {
 impl RLike {
     pub(crate) const PRECEDENCE: u8 = 5;
 
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> error::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         let mut fmt = repr::ReprFormatter::new_call("RLikeExpr");
 
         fmt.positional(self.expr.python_repr(py)?)
@@ -376,7 +368,7 @@ fn write_regex_call<W: SqlWriter>(
     negated: bool,
     expr: &ExprInner,
     pattern: &ExprInner,
-) -> error::Result<()> {
+) -> exc::Result<()> {
     if negated {
         out.write_str("NOT ");
     }
@@ -390,9 +382,9 @@ fn write_regex_call<W: SqlWriter>(
 }
 
 impl WriteSql for RLike {
-    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> error::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         match dialect.like.regex {
-            dialect::LikeRegex::Unsupported => Err(error::Error::Unsupported { feature: "RLikeExpr" }),
+            dialect::LikeRegex::Unsupported => Err(exc::Error::dialect("RLIKE")),
             dialect::LikeRegex::Standard => {
                 self.expr.write_operand(dialect, out, Self::PRECEDENCE, false)?;
                 if self.negated {

@@ -1,16 +1,19 @@
 """Serializer type checks and literal spelling for a configured dialect."""
 
 import datetime
-import enum
 import ipaddress
+import json
 import typing
 import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 
 import pytest
+from hypothesis import given, reproduce_failure
+from hypothesis import strategies as st
 
 from rapidquery.dialect import OPT_BOOL_FORMAT_INTEGER, Dialect, LiteralConfig, StringConfig, TemporalConfig
+from rapidquery.exc import DialectError, SerializeError
 from rapidquery.serializers import (
     ArraySerializer,
     BitSerializer,
@@ -40,10 +43,6 @@ _NAIVE = datetime.datetime(2024, 1, 15, 10, 30, 0)
 _OFFSET = datetime.datetime(2024, 1, 15, 10, 30, 0, tzinfo=datetime.timezone(datetime.timedelta(hours=-5)))
 
 
-class InvalidStrEnum(enum.Enum):
-    Variant = 1
-
-
 @dataclass(frozen=True, slots=True)
 class ExampleDataclass:
     x: int
@@ -57,6 +56,28 @@ def _temporal(**kwargs: str) -> Dialect:
     return Dialect(temporal=TemporalConfig(**kwargs))
 
 
+_DIALECT = Dialect()
+_BOOL_INT = _literal(boolean=OPT_BOOL_FORMAT_INTEGER)
+_SINGLE = Dialect(string=StringConfig(template="'{single}'"))
+_UUID_DIALECT = _literal(uuid="{}")
+_BYTES = _literal(bytes="X'{hex}'")
+_BIT = _literal(bit="B'{}'")
+_DATE_TMPL = _temporal(date="{}")
+_TIME_TMPL = _temporal(time="{}")
+_NAIVE_TMPL = _temporal(datetime_naive="{}")
+_UNIX_TMPL = _temporal(datetime_aware="{}")
+_INET = _literal(inet="'{}'::inet")
+_MAC = _literal(macaddr="E'{}'::macaddr")
+_ARRAY = _literal(array="ARRAY[{}]")
+_JSON = Dialect(string=StringConfig(template="'{single}'"), literal=LiteralConfig(json="{}"))
+
+_NOT_INT = st.one_of(st.floats(allow_nan=False), st.text(), st.none(), st.binary())
+_NOT_STR = st.one_of(st.integers(), st.none(), st.binary())
+_NOT_BYTES = st.one_of(st.text(), st.integers(), st.none(), st.binary().map(bytearray))
+_BAD_BIT = st.one_of(st.just(""), st.text(alphabet="23456789", min_size=1))
+_PRINTABLE_KEY = st.text(alphabet=st.characters(min_codepoint=32, max_codepoint=126), min_size=1)
+
+
 class TestIntegerSerializer:
     def test_values(self):
         serializer = IntegerSerializer()
@@ -67,10 +88,18 @@ class TestIntegerSerializer:
         assert serializer.serialize(dialect, True) == "1"
         assert serializer.serialize(dialect, False) == "0"
 
-    @pytest.mark.parametrize("value", [2.5, "invalid"])
+    @given(st.integers(min_value=-(10**30), max_value=10**30))
+    def test_integers_match_str(self, value: int):
+        assert IntegerSerializer().serialize(_DIALECT, value) == str(value)
+
+    @given(st.booleans())
+    def test_bools_are_digits(self, value: bool):
+        assert IntegerSerializer().serialize(_DIALECT, value) == ("1" if value else "0")
+
+    @given(_NOT_INT)
     def test_rejects_non_int(self, value: typing.Any):
-        with pytest.raises(TypeError):
-            IntegerSerializer().serialize(Dialect(), value)
+        with pytest.raises(SerializeError):
+            IntegerSerializer().serialize(_DIALECT, value)
 
 
 class TestFloatSerializer:
@@ -82,33 +111,45 @@ class TestFloatSerializer:
         assert serializer.serialize(dialect, 1.0) == "1.0"
         assert serializer.serialize(dialect, Decimal("1.3435")) == "1.3435"
 
-    def test_rejects_non_numeric(self):
-        with pytest.raises(TypeError):
-            FloatSerializer().serialize(Dialect(), "invalid")
+    @given(st.floats(allow_nan=False, allow_infinity=False))
+    def test_finite_floats_render(self, value: float):
+        text = FloatSerializer().serialize(_DIALECT, value)
+        assert "nan" not in text.lower()
+        assert "inf" not in text.lower()
 
-    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    @given(st.sampled_from([float("nan"), float("inf"), float("-inf")]))
     def test_rejects_non_finite(self, value: float):
-        with pytest.raises(ValueError):
-            FloatSerializer().serialize(Dialect(), value)
+        with pytest.raises(SerializeError):
+            FloatSerializer().serialize(_DIALECT, value)
+
+    @given(st.integers(min_value=-(10**20), max_value=10**20))
+    def test_integers_match_str(self, value: int):
+        assert FloatSerializer().serialize(_DIALECT, value) == str(value)
+
+    @given(st.decimals(min_value=-(10**20), max_value=10**20, allow_nan=False, allow_infinity=False))
+    def test_decimals_match_str(self, value: Decimal):
+        assert FloatSerializer().serialize(_DIALECT, value) == str(value)
+
+    @given(st.text())
+    def test_rejects_non_numeric(self, value: str):
+        with pytest.raises(SerializeError):
+            FloatSerializer().serialize(_DIALECT, value)
 
 
 class TestBooleanSerializer:
-    def test_keyword(self):
-        serializer = BooleanSerializer()
-        dialect = Dialect()
-        assert serializer.serialize(dialect, True) == "TRUE"
-        assert serializer.serialize(dialect, False) == "FALSE"
+    @given(st.booleans())
+    def test_keyword(self, value: bool):
+        expected = "TRUE" if value else "FALSE"
+        assert BooleanSerializer().serialize(_DIALECT, value) == expected
 
-    def test_integer(self):
-        serializer = BooleanSerializer()
-        dialect = _literal(boolean=OPT_BOOL_FORMAT_INTEGER)
-        assert serializer.serialize(dialect, True) == "1"
-        assert serializer.serialize(dialect, False) == "0"
+    @given(st.booleans())
+    def test_integer(self, value: bool):
+        assert BooleanSerializer().serialize(_BOOL_INT, value) == ("1" if value else "0")
 
-    @pytest.mark.parametrize("value", [1, 0, object()])
+    @given(st.one_of(st.integers(), st.text()))
     def test_rejects_non_bool(self, value: typing.Any):
-        with pytest.raises(TypeError):
-            BooleanSerializer().serialize(Dialect(), value)
+        with pytest.raises(SerializeError):
+            BooleanSerializer().serialize(_DIALECT, value)
 
 
 # (template, value, sql). One template per escape key. `E` prefixes the hex key.
@@ -178,16 +219,21 @@ class TestStringSerializer:
         dialect = Dialect(string=StringConfig(template=template))
         assert StringSerializer().serialize(dialect, value) == expected
 
-    @pytest.mark.parametrize("template", ["'{single}'", "E'{hex}'"])
-    def test_rejects_nul(self, template: str):
-        dialect = Dialect(string=StringConfig(template=template))
-        with pytest.raises(ValueError, match="NUL"):
-            StringSerializer().serialize(dialect, "a\0b")
+    @given(st.text().filter(lambda value: "\0" not in value))
+    def test_single_quotes_round_trip(self, value: str):
+        rendered = StringSerializer().serialize(_SINGLE, value)
+        assert rendered[0] == rendered[-1] == "'"
+        assert rendered[1:-1].replace("''", "'") == value
 
-    @pytest.mark.parametrize("value", [InvalidStrEnum.Variant, 1, None, b"bytes"])
+    @given(st.text(), st.text())
+    def test_rejects_nul(self, left: str, right: str):
+        with pytest.raises(SerializeError, match="NUL"):
+            StringSerializer().serialize(_SINGLE, left + "\0" + right)
+
+    @given(_NOT_STR)
     def test_rejects_non_str(self, value: typing.Any):
-        with pytest.raises(TypeError):
-            StringSerializer().serialize(Dialect(), value)
+        with pytest.raises(SerializeError):
+            StringSerializer().serialize(_DIALECT, value)
 
 
 class TestUuidSerializer:
@@ -199,19 +245,24 @@ class TestUuidSerializer:
         assert serializer.serialize(dialect, _UUID) == expected
         assert serializer.serialize(dialect, uuid.UUID(_UUID)) == expected
 
-    def test_unsupported(self):
-        with pytest.raises(RuntimeError, match="UUID"):
-            UuidSerializer().serialize(Dialect(), _UUID)
+    @given(st.uuids())
+    def test_uuids_match_str(self, value: uuid.UUID):
+        assert UuidSerializer().serialize(_UUID_DIALECT, value) == str(value)
 
-    def test_invalid_str(self):
-        dialect = _literal(uuid="'{}'")
-        with pytest.raises(ValueError):
-            UuidSerializer().serialize(dialect, "103596-db75-4ae0-907a-a4a9bc4d85")
+    @given(st.uuids())
+    def test_unsupported(self, value: uuid.UUID):
+        with pytest.raises(DialectError, match="UUID literal"):
+            UuidSerializer().serialize(_DIALECT, value)
 
-    def test_rejects_non_uuid(self):
-        dialect = _literal(uuid="'{}'")
-        with pytest.raises(TypeError):
-            UuidSerializer().serialize(dialect, 6428739)
+    @given(st.text(alphabet="xyz", min_size=1))
+    def test_invalid_str(self, value: str):
+        with pytest.raises(SerializeError):
+            UuidSerializer().serialize(_UUID_DIALECT, value)
+
+    @given(st.integers())
+    def test_rejects_non_uuid(self, value: int):
+        with pytest.raises(SerializeError):
+            UuidSerializer().serialize(_UUID_DIALECT, value)
 
 
 @pytest.mark.parametrize(
@@ -236,10 +287,15 @@ def test_bytes_template(template: str, dead: str, empty: str):
     assert serializer.serialize(dialect, b"") == empty
 
 
-@pytest.mark.parametrize("value", [bytearray(b"abc"), memoryview(b"abc"), "abc", 1, None])
+@given(st.binary())
+def test_bytes_are_uppercase_hex(value: bytes):
+    assert BytesSerializer().serialize(_BYTES, value) == "X'" + value.hex().upper() + "'"
+
+
+@given(_NOT_BYTES)
 def test_bytes_rejects_non_exact_bytes(value: typing.Any):
-    with pytest.raises(TypeError):
-        BytesSerializer().serialize(Dialect(), value)
+    with pytest.raises(SerializeError):
+        BytesSerializer().serialize(_DIALECT, value)
 
 
 class TestBitSerializer:
@@ -250,18 +306,24 @@ class TestBitSerializer:
     def test_embeds_bits(self, template: str, expected: str):
         assert BitSerializer().serialize(_literal(bit=template), "10") == expected
 
-    def test_unsupported(self):
-        with pytest.raises(RuntimeError, match="bit string"):
-            BitSerializer().serialize(Dialect(), "10")
+    @given(st.text(alphabet="01", min_size=1))
+    def test_embeds_generated_bits(self, value: str):
+        assert BitSerializer().serialize(_BIT, value) == f"B'{value}'"
 
-    def test_rejects_non_bit_string(self):
-        dialect = _literal(bit="B'{}'")
-        with pytest.raises(ValueError):
-            BitSerializer().serialize(dialect, "102")
-        with pytest.raises(ValueError):
-            BitSerializer().serialize(dialect, "")
-        with pytest.raises(TypeError):
-            BitSerializer().serialize(dialect, 10)
+    @given(st.text(alphabet="01", min_size=1))
+    def test_unsupported(self, value: str):
+        with pytest.raises(DialectError, match="bit string literal"):
+            BitSerializer().serialize(_DIALECT, value)
+
+    @given(_BAD_BIT)
+    def test_rejects_non_bit_string(self, value: str):
+        with pytest.raises(SerializeError):
+            BitSerializer().serialize(_BIT, value)
+
+    @given(st.integers())
+    def test_rejects_non_str(self, value: int):
+        with pytest.raises(SerializeError):
+            BitSerializer().serialize(_BIT, value)
 
 
 class TestJSONSerializer:
@@ -283,6 +345,11 @@ class TestJSONSerializer:
     def test_dumps_then_wraps(self, string_template: str, json_template: str, obj: typing.Any, expected: str):
         dialect = Dialect(string=StringConfig(template=string_template), literal=LiteralConfig(json=json_template))
         assert JSONSerializer().serialize(dialect, obj) == expected
+
+    @given(st.dictionaries(_PRINTABLE_KEY, st.integers(), max_size=5))
+    def test_printable_objects_match_compact_json(self, value: dict[str, int]):
+        dumped = json.dumps(value, separators=(",", ":"), ensure_ascii=True).replace("'", "''")
+        assert JSONSerializer().serialize(_JSON, value) == f"'{dumped}'"
 
     def test_orjson_only_values(self):
         dialect = Dialect(string=StringConfig(template="E'{hex}'"))
@@ -316,11 +383,14 @@ class TestDateTimeSerializers:
     def test_date(self, template: str, expected: str):
         assert DateSerializer().serialize(_temporal(date=template), _DATE) == expected
 
-    def test_date_rejects_datetime_and_str(self):
-        with pytest.raises(TypeError):
-            DateSerializer().serialize(Dialect(), datetime.datetime(2024, 1, 15, 10, 0))
-        with pytest.raises(TypeError):
-            DateSerializer().serialize(Dialect(), "2024-01-15")
+    @given(st.dates())
+    def test_dates_match_isoformat(self, value: datetime.date):
+        assert DateSerializer().serialize(_DATE_TMPL, value) == value.isoformat()
+
+    @given(st.datetimes() | st.text())
+    def test_date_rejects_datetime_and_str(self, value: datetime.datetime | str):
+        with pytest.raises(SerializeError):
+            DateSerializer().serialize(_DIALECT, value)
 
     @pytest.mark.parametrize(
         ("template", "expected"),
@@ -338,9 +408,15 @@ class TestDateTimeSerializers:
         dialect = _temporal(time="TIME E'{}'")
         assert TimeSerializer().serialize(dialect, _TIME_FRAC) == "TIME E'01:02:03.456789'"
 
-    def test_time_rejects_date(self):
-        with pytest.raises(TypeError):
-            TimeSerializer().serialize(Dialect(), _DATE)
+    @given(st.times())
+    def test_times_start_with_hms(self, value: datetime.time):
+        rendered = TimeSerializer().serialize(_TIME_TMPL, value)
+        assert rendered.startswith(value.strftime("%H:%M:%S"))
+
+    @given(st.dates())
+    def test_time_rejects_date(self, value: datetime.date):
+        with pytest.raises(SerializeError):
+            TimeSerializer().serialize(_DIALECT, value)
 
     @pytest.mark.parametrize(
         ("template", "expected"),
@@ -372,15 +448,37 @@ class TestDateTimeSerializers:
         assert serializer.serialize(dialect, 0) == "TIMESTAMPTZ E'1970-01-01 00:00:00+00:00'"
         assert serializer.serialize(dialect, 0.5) == "TIMESTAMPTZ E'1970-01-01 00:00:00.500+00:00'"
 
-    def test_datetime_rejects_date_and_str(self):
-        with pytest.raises(TypeError):
-            DatetimeSerializer().serialize(Dialect(), _DATE)
-        with pytest.raises(TypeError):
-            DatetimeSerializer().serialize(Dialect(), "2024-01-15T10:30:00")
+    @given(st.datetimes(timezones=st.none()))
+    def test_naive_datetimes_start_with_timestamp(self, value: datetime.datetime):
+        rendered = DatetimeSerializer().serialize(_NAIVE_TMPL, value)
 
-    def test_datetime_overflow(self):
-        with pytest.raises(OverflowError):
-            DatetimeSerializer().serialize(Dialect(), 10**20)
+        strftime = value.strftime("%Y-%m-%d %H:%M:%S")
+
+        # - On Windows / macOS .strftime(...) usually zero-pads years -> 0001-01-01.
+        # - On Linux (glibc) .strftime(...) does not pad years -> 1-01-01
+        #
+        # Otherside, `chrono` crate always zero-pads years
+        year, rest = strftime.split("-", 1)
+        if len(year) < 4:
+            year = year.zfill(4)
+            strftime = f"{year}-{rest}"
+
+        assert rendered.startswith(strftime)
+
+    @given(st.integers(min_value=-2_000_000_000, max_value=2_000_000_000))
+    def test_unix_timestamps_in_range(self, value: int):
+        rendered = DatetimeSerializer().serialize(_UNIX_TMPL, value)
+        assert len(rendered) >= 19
+
+    @given(st.integers(min_value=10**18, max_value=10**30))
+    def test_datetime_overflow(self, value: int):
+        with pytest.raises(SerializeError, match="out of range"):
+            DatetimeSerializer().serialize(_UNIX_TMPL, value)
+
+    @given(st.dates() | st.text())
+    def test_datetime_rejects_date_and_str(self, value: datetime.date | str):
+        with pytest.raises(SerializeError):
+            DatetimeSerializer().serialize(_DIALECT, value)
 
 
 class TestInetSerializer:
@@ -398,13 +496,20 @@ class TestInetSerializer:
     def test_canonical_cidr(self, template: str, obj: typing.Any, inner: str):
         assert InetSerializer().serialize(_literal(inet=template), obj) == template.replace("{}", inner)
 
-    def test_unsupported(self):
-        with pytest.raises(RuntimeError, match="inet"):
-            InetSerializer().serialize(Dialect(), "192.168.1.1")
+    @given(st.ip_addresses())
+    def test_addresses_use_host_prefix(self, value: ipaddress.IPv4Address | ipaddress.IPv6Address):
+        prefix = 32 if isinstance(value, ipaddress.IPv4Address) else 128
+        assert InetSerializer().serialize(_INET, value) == f"'{value}/{prefix}'::inet"
 
-    def test_invalid_address(self):
-        with pytest.raises(ValueError):
-            InetSerializer().serialize(_literal(inet="'{}'::inet"), "not-an-ip")
+    @given(st.ip_addresses())
+    def test_unsupported(self, value: ipaddress.IPv4Address | ipaddress.IPv6Address):
+        with pytest.raises(DialectError, match="INET literal"):
+            InetSerializer().serialize(_DIALECT, str(value))
+
+    @given(st.text(alphabet="xyz", min_size=1))
+    def test_invalid_address(self, value: str):
+        with pytest.raises(SerializeError):
+            InetSerializer().serialize(_INET, value)
 
 
 class TestMacAddressSerializer:
@@ -415,22 +520,27 @@ class TestMacAddressSerializer:
         assert serializer.serialize(dialect, "01:23:45:67:89:ab") == expected
         assert serializer.serialize(dialect, "01-23-45-67-89-AB") == expected
 
-    def test_unsupported(self):
-        with pytest.raises(RuntimeError, match="macaddr"):
-            MacAddressSerializer().serialize(Dialect(), "01:23:45:67:89:ab")
+    @given(st.binary(min_size=6, max_size=6))
+    def test_six_bytes_are_uppercase(self, value: bytes):
+        body = ":".join(f"{byte:02X}" for byte in value)
+        assert MacAddressSerializer().serialize(_MAC, body) == f"E'{body}'::macaddr"
 
-    def test_invalid_address(self):
-        with pytest.raises(ValueError):
-            MacAddressSerializer().serialize(_literal(macaddr="E'{}'::macaddr"), "not-a-mac")
+    @given(st.binary(min_size=6, max_size=6))
+    def test_unsupported(self, value: bytes):
+        body = ":".join(f"{byte:02X}" for byte in value)
+        with pytest.raises(DialectError, match="MACADDR literal"):
+            MacAddressSerializer().serialize(_DIALECT, body)
+
+    @given(st.text(alphabet="ghijklmnopqrstuvwxyz", min_size=1))
+    def test_invalid_address(self, value: str):
+        with pytest.raises(SerializeError):
+            MacAddressSerializer().serialize(_MAC, value)
 
 
 class TestUnspecifiedSerializer:
-    def test_uses_str(self):
-        serializer = UnspecifiedSerializer()
-        dialect = Dialect()
-        assert serializer.serialize(dialect, 123) == "123"
-        assert serializer.serialize(dialect, "hello") == "hello"
-        assert serializer.serialize(dialect, None) == "None"
+    @given(st.one_of(st.integers(), st.text(), st.none()))
+    def test_uses_str(self, value: int | str | None):
+        assert UnspecifiedSerializer().serialize(_DIALECT, value) == str(value)
 
 
 class TestArraySerializer:
@@ -452,20 +562,27 @@ class TestArraySerializer:
         assert nested_serializer.serialize(dialect, [[1, 2], [3]]) == nested
 
     def test_unsupported(self):
-        with pytest.raises(RuntimeError, match="array"):
+        with pytest.raises(DialectError, match="ARRAY literal"):
             ArraySerializer(IntegerSerializer()).serialize(Dialect(), [1, 2])
 
-    def test_rejects_non_sequence_and_bad_element(self):
-        dialect = _literal(array="ARRAY[{}]")
-        serializer = ArraySerializer(IntegerSerializer())
-        with pytest.raises(TypeError):
-            serializer.serialize(dialect, "not a list")
-        with pytest.raises(TypeError):
-            serializer.serialize(dialect, [1, "x"])
+    @given(st.lists(st.integers(min_value=-(10**20), max_value=10**20), max_size=20))
+    def test_lists_of_integers(self, value: list[int]):
+        body = ", ".join(str(item) for item in value)
+        assert ArraySerializer(IntegerSerializer()).serialize(_ARRAY, value) == f"ARRAY[{body}]"
+
+    @given(st.text())
+    def test_rejects_non_sequence(self, value: str):
+        with pytest.raises(SerializeError):
+            ArraySerializer(IntegerSerializer()).serialize(_ARRAY, value)
+
+    @given(st.lists(st.text(), min_size=1, max_size=5))
+    def test_rejects_bad_element(self, value: list[str]):
+        with pytest.raises(SerializeError):
+            ArraySerializer(IntegerSerializer()).serialize(_ARRAY, value)
 
     def test_nested_unsupported_element(self):
         dialect = _literal(array="ARRAY[{}]")
-        with pytest.raises(RuntimeError, match="bit string"):
+        with pytest.raises(DialectError, match="bit string literal"):
             ArraySerializer(BitSerializer()).serialize(dialect, ["10"])
 
 
@@ -481,9 +598,13 @@ class TestCustomSerializer:
         assert CustomSerializer(render).serialize(dialect, 1) == "CUSTOM:1"
         assert seen == [dialect]
 
-    def test_must_return_str(self):
-        def render(dialect: Dialect, obj: typing.Any) -> int:
-            return 12345
+    @given(st.integers())
+    def test_returns_rendered_text(self, value: int):
+        serializer = CustomSerializer(lambda _dialect, obj: f"N:{obj}")
+        assert serializer.serialize(_DIALECT, value) == f"N:{value}"
 
-        with pytest.raises(TypeError):
-            CustomSerializer(render).serialize(Dialect(), "x")
+    @given(st.integers())
+    def test_must_return_str(self, value: int):
+        serializer = CustomSerializer(lambda _dialect, _obj: value)
+        with pytest.raises(SerializeError):
+            serializer.serialize(_DIALECT, "x")

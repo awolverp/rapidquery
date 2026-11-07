@@ -2,22 +2,25 @@
 #![cfg_attr(feature = "nightly", feature(optimize_attribute))]
 
 pub mod data_type;
-pub mod dialect;
-pub mod error;
-pub mod expr;
 pub mod internal;
-pub mod serializers;
 pub mod sql;
 pub mod typeref;
 
 pub mod dcl;
 pub mod ddl;
+pub mod dialect;
 pub mod dml;
+pub mod exc;
+pub mod expr;
+pub mod serializers;
 pub mod tcl;
 
 /// RapidQuery native extension.
 #[pyo3::pymodule(gil_used = false)]
 mod _core {
+    #[pymodule_export]
+    use super::exc::exc_mod;
+
     #[pymodule_export]
     use super::dialect::dialect_mod;
 

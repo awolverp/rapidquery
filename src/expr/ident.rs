@@ -1,21 +1,19 @@
-use crate::error;
 use pyo3::types::PyTupleMethods;
+
+use crate::exc;
+use crate::internal::alias;
+use crate::internal::repr;
 
 use super::enum_::Ident;
 use super::enum_::IdentParseError;
 use super::enum_::IdentPart;
 use super::extractors::ExtractedIdentArgument;
 use super::extractors::extract_ident_argument;
-use crate::internal::alias;
-use crate::internal::repr;
 
 /// Convert a native part into the matching Python object (`str`, `Unquote`,
 /// or `Asterisk`).
 #[inline]
-fn ident_part_to_pyobject<'py>(
-    py: pyo3::Python<'py>,
-    ident_part: &IdentPart,
-) -> error::Result<alias::BoundObject<'py>> {
+fn ident_part_to_pyobject<'py>(py: pyo3::Python<'py>, ident_part: &IdentPart) -> exc::Result<alias::BoundObject<'py>> {
     match ident_part {
         IdentPart::Quote(s) => Ok(pyo3::types::PyString::new(py, s.as_str()).into_any()),
         IdentPart::Unquote(s) => Ok(pyo3::Bound::new(py, PyUnquote(arcstr::ArcStr::from(s.as_str())))?.into_any()),
@@ -47,9 +45,9 @@ impl PyIdent {
 impl PyIdent {
     #[new]
     #[pyo3(signature = (*parts))]
-    fn __new__(parts: alias::ArgsType) -> error::Result<pyo3::PyClassInitializer<Self>> {
+    fn __new__(parts: alias::ArgsType) -> exc::Result<pyo3::PyClassInitializer<Self>> {
         let ident = match parts.len() {
-            0 => return Err(error::Error::Ident(IdentParseError::Empty)),
+            0 => return Err(exc::Error::Ident(IdentParseError::Empty)),
             1 => match extract_ident_argument(parts.get_item(0)?.as_borrowed())? {
                 ExtractedIdentArgument::Ident(ident) => ident,
                 ExtractedIdentArgument::Part(part) => Ident::from_one(part),
@@ -77,7 +75,7 @@ impl PyIdent {
         Self::inner(&slf).len()
     }
 
-    fn __getitem__<'py>(slf: pyo3::PyRef<'py, Self>, index: isize) -> error::Result<alias::BoundObject<'py>> {
+    fn __getitem__<'py>(slf: pyo3::PyRef<'py, Self>, index: isize) -> exc::Result<alias::BoundObject<'py>> {
         let inner = Self::inner(&slf);
 
         let x = if index < 0 {
@@ -88,15 +86,15 @@ impl PyIdent {
 
         match inner.parts().get(x as usize) {
             Some(part) => ident_part_to_pyobject(slf.py(), part),
-            None => Err(error::Error::IdentIndex {
-                index,
-                len: inner.len(),
-            }),
+            None => Err(exc::Error::index(format!(
+                "identifier index {index} is out of range (length {})",
+                inner.len()
+            ))),
         }
     }
 
     /// Copy the parts into a list.
-    fn to_list(slf: pyo3::PyRef<'_, Self>, py: pyo3::Python<'_>) -> error::Result<Vec<alias::PyObject>> {
+    fn to_list(slf: pyo3::PyRef<'_, Self>, py: pyo3::Python<'_>) -> exc::Result<Vec<alias::PyObject>> {
         Self::inner(&slf)
             .parts()
             .iter()
@@ -114,7 +112,7 @@ pub struct PyUnquote(pub arcstr::ArcStr);
 impl PyUnquote {
     #[new]
     #[pyo3(signature = (name, /))]
-    fn __new__(name: &str) -> error::Result<Self> {
+    fn __new__(name: &str) -> exc::Result<Self> {
         // validate the `name`
         IdentPart::unquoted(name)?;
 

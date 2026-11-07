@@ -14,6 +14,7 @@ from rapidquery.dialect import (
     Sqlite,
     Teradata,
 )
+from rapidquery.exc import DialectError
 from rapidquery.expr import (
     Asterisk,
     BetweenExpr,
@@ -187,7 +188,7 @@ class TestExprMethods:
         with pytest.raises(TypeError):
             name.is_(1)
 
-        with pytest.raises(ValueError, match="unknown IS kind"):
+        with pytest.raises(ValueError, match="NULL, TRUE, FALSE, or UNKNOWN"):
             name.is_("MAYBE")
 
     def test_predicates(self):
@@ -267,7 +268,7 @@ class TestExprMethods:
         leading = name.trim(where="leading", characters="x")
         assert leading.get_where() == "LEADING"
         assert same(leading.get_characters(), Value("x"))
-        with pytest.raises(ValueError, match="unknown TRIM where"):
+        with pytest.raises(ValueError, match="BOTH, LEADING, or TRAILING"):
             name.trim(where="NOPE")
 
 
@@ -328,7 +329,8 @@ class TestFunction:
         assert fn.to_sql(BigQuery) == "`lag`(`x` IGNORE NULLS)"
         assert fn.to_sql(DuckDb) == '"lag"("x" IGNORE NULLS)'
         assert fn.get_null_treatment() == "IGNORE NULLS"
-        with pytest.raises(RuntimeError, match="null_treatment"):
+
+        with pytest.raises(DialectError, match="IGNORE NULLS and RESPECT NULLS"):
             fn.to_sql(PostgreSql)
 
         fn = Function("lag", Ident("x")).respect_nulls()
@@ -420,12 +422,12 @@ class TestTupleExpr:
 
         assert TupleExpr(1, 2).to_sql(Sqlite) == "(1, 2)"
 
-        with pytest.raises(RuntimeError, match="tuple with one item"):
+        with pytest.raises(DialectError, match="tuple with one element"):
             TupleExpr(1).to_sql(Sqlite)
 
         assert TupleExpr(1, 2).to_sql(Spark) == "struct(1, 2)"
 
-        with pytest.raises(RuntimeError, match="tuple"):
+        with pytest.raises(DialectError, match="^tuple is not supported"):
             TupleExpr(1, 2).to_sql(BigQuery)
 
 
@@ -461,7 +463,7 @@ class TestUnaryExpr:
             "?|",
             "bang",
         ):
-            with pytest.raises(ValueError, match="unknown unary operator"):
+            with pytest.raises(ValueError, match=r"NOT, \+, -, or ~"):
                 UnaryExpr(token, 1)
 
     def test_to_sql(self):
@@ -540,7 +542,7 @@ class TestBinaryExpr:
         assert BinaryExpr(1, "^", 2).to_sql(Snowflake) == "BITXOR(1, 2)"
         assert BinaryExpr(1, "^", 2).to_sql(MySql) == "1 ^ 2"
 
-        with pytest.raises(RuntimeError, match=r"BinaryExpr '\^'"):
+        with pytest.raises(DialectError, match="bitwise XOR"):
             BinaryExpr(1, "^", 2).to_sql(Sqlite)
 
         assert BinaryExpr(5, "%", 2).to_sql(Oracle) == "MOD(5, 2)"
@@ -563,7 +565,7 @@ class TestIsExpr:
         assert is_.get_kind() == "UNKNOWN"
         assert is_.get_negated() is True
 
-        with pytest.raises(ValueError, match="unknown IS kind"):
+        with pytest.raises(ValueError, match="NULL, TRUE, FALSE, or UNKNOWN"):
             IsExpr(Ident("id"), "MAYBE")
 
     def test_to_sql(self):
@@ -628,7 +630,7 @@ class TestIsDistinctFromExpr:
 
         assert IsDistinctFromExpr(1, 2).to_sql(MySql) == "NOT (1 <=> 2)"
         assert IsDistinctFromExpr(1, 2, negated=True).to_sql(MySql) == "1 <=> 2"
-        with pytest.raises(RuntimeError, match="IsDistinctFromExpr"):
+        with pytest.raises(DialectError, match="IS DISTINCT FROM"):
             IsDistinctFromExpr(1, 2).to_sql(Oracle)
 
 
@@ -734,7 +736,7 @@ class TestLikeExpr:
         tup = LikeExpr(Ident("name"), ("%a%", Ident("p")))
         assert same(tup.get_pattern(), (Value("%a%"), Ident("p")))
 
-        with pytest.raises(ValueError, match="empty"):
+        with pytest.raises(ValueError, match="at least one pattern"):
             LikeExpr(Ident("name"), [])
 
         with pytest.raises((TypeError, ValueError)):
@@ -769,8 +771,9 @@ class TestLikeExpr:
         ilike_any = LikeExpr(Ident("name"), ["%a%", "%b%"], case_sensitive=False)
         assert ilike_any.to_sql(PostgreSql) == "\"name\" ILIKE ANY (ARRAY[E'%a%', E'%b%'])"
 
-        with pytest.raises(RuntimeError, match="LIKE ANY ESCAPE"):
+        with pytest.raises(DialectError, match="LIKE ANY ... ESCAPE"):
             LikeExpr(Ident("name"), ["%a%", "%b%"], escape="!").to_sql(PostgreSql)
+
         assert LikeExpr(Ident("name"), ["%a%", "%b%"], escape="!").to_sql(Snowflake) == (
             "\"name\" LIKE ANY ('%a%', '%b%') ESCAPE '!'"
         )
@@ -811,10 +814,10 @@ class TestSimilarToExpr:
         assert sql == '"name" SIMILAR TO $1'
         assert params == ("%a%",)
 
-        with pytest.raises(RuntimeError, match="SimilarToExpr"):
+        with pytest.raises(DialectError, match="SIMILAR TO"):
             sim.to_sql(MySql)
 
-        with pytest.raises(RuntimeError, match="SimilarToExpr"):
+        with pytest.raises(DialectError, match="SIMILAR TO"):
             sim.to_sql(Sqlite)
 
         assert repr(sim) == "SimilarToExpr(Ident(\"name\"), Value('%a%', StringSerializer()))"
@@ -854,10 +857,10 @@ class TestRLikeExpr:
         assert sql == '"name" ~ $1'
         assert params == ("%a%",)
 
-        with pytest.raises(RuntimeError, match="RLikeExpr"):
+        with pytest.raises(DialectError, match="RLIKE"):
             rlike.to_sql(Sqlite)
 
-        with pytest.raises(RuntimeError, match="RLikeExpr"):
+        with pytest.raises(DialectError, match="RLIKE"):
             rlike.to_sql(MsSql)
 
         assert repr(rlike) == "RLikeExpr(Ident(\"name\"), Value('%a%', StringSerializer()))"
@@ -891,7 +894,7 @@ class TestCastExpr:
         cast = CastExpr(Ident("x"), "integer", kind="::")
         assert cast.get_kind() == "::"
 
-        with pytest.raises(ValueError, match="unknown cast kind"):
+        with pytest.raises(ValueError, match="CAST, TRY_CAST, or ::"):
             CastExpr(Ident("x"), "integer", kind="SAFE_CAST")
 
     def test_to_sql(self):
@@ -899,7 +902,7 @@ class TestCastExpr:
         assert CastExpr(1, "varchar(255)").to_sql(PostgreSql) == "CAST(1 AS varchar(255))"
         assert CastExpr(Ident("id"), "INT ARRAY").to_sql(PostgreSql) == 'CAST("id" AS INT ARRAY)'
 
-        with pytest.raises(RuntimeError, match="'TRY_CAST'"):
+        with pytest.raises(DialectError, match="TRY_CAST"):
             CastExpr(Ident("id"), "int", kind="TRY_CAST").to_sql(PostgreSql)
 
         assert CastExpr(Ident("id"), "int", kind="TRY_CAST").to_sql(BigQuery) == "SAFE_CAST(`id` AS INT)"
@@ -928,7 +931,7 @@ class TestTrimExpr:
         trim = TrimExpr(Ident("s"), characters=Ident("b"))
         assert same(trim.get_characters(), Ident("b"))
 
-        with pytest.raises(ValueError, match="unknown TRIM where"):
+        with pytest.raises(ValueError, match="BOTH, LEADING, or TRAILING"):
             TrimExpr(Ident("s"), where="MIDDLE")
         with pytest.raises(TypeError):
             TrimExpr(Ident("s"), what="x")  # pyright: ignore

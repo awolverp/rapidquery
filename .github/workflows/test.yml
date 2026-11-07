@@ -59,7 +59,7 @@ jobs:
         run: maturin develop
 
       - name: "Run pytest"
-        run: pytest -v -n auto
+        run: pytest -v
         env:
           HYPOTHESIS_PROFILE: slow
 
@@ -120,7 +120,7 @@ jobs:
         run: maturin develop --features nightly
 
       - name: "Run pytest"
-        run: pytest -v -n auto
+        run: pytest -v
         env:
           HYPOTHESIS_PROFILE: slow
 
@@ -129,7 +129,7 @@ jobs:
         run: maturin develop
 
       - name: "Run pytest (without nightly feature)"
-        run: pytest -v -n auto
+        run: pytest -v
         env:
           HYPOTHESIS_PROFILE: slow
 
@@ -179,7 +179,7 @@ jobs:
         run: maturin develop --features nightly
 
       - name: "Run pytest"
-        run: pytest -v -n auto
+        run: pytest -v
         env:
           HYPOTHESIS_PROFILE: slow
 
@@ -188,6 +188,6 @@ jobs:
         run: maturin develop
 
       - name: "Run pytest (without nightly feature)"
-        run: pytest -v -n auto
+        run: pytest -v
         env:
           HYPOTHESIS_PROFILE: slow

@@ -43,8 +43,8 @@ class Expr:
             The SQL text.
 
         Raises:
-            RuntimeError: The dialect rejects this construct.
-            NotImplementedError: The dialect has no spelling for this construct.
+            rapidquery.exc.DialectError: The dialect cannot render this construct.
+            rapidquery.exc.SerializeError: A value cannot be written as a SQL literal.
             ValueError: A `CustomExpr` template has a different number of `{}`
                 slots than arguments.
         """
@@ -64,8 +64,8 @@ class Expr:
             The SQL text and the bound Python objects, in placeholder order.
 
         Raises:
-            RuntimeError: The dialect rejects this construct.
-            NotImplementedError: The dialect has no spelling for this construct.
+            rapidquery.exc.DialectError: The dialect cannot render this construct.
+            rapidquery.exc.SerializeError: A value cannot be written as a SQL literal.
             ValueError: A `CustomExpr` template has a different number of `{}`
                 slots than arguments.
 
@@ -253,7 +253,7 @@ class Expr:
             escape: One escape character, or ``None``.
 
         Raises:
-            TypeError: ``escape`` is not one character.
+            ValueError: ``escape`` is not one character.
         """
 
     def not_like(self, pattern: object, /, *, escape: str | None = None) -> LikeExpr:
@@ -267,7 +267,7 @@ class Expr:
             escape: One escape character, or ``None``.
 
         Raises:
-            TypeError: ``escape`` is not one character.
+            ValueError: ``escape`` is not one character.
         """
 
     def ilike(self, pattern: object, /, *, escape: str | None = None) -> LikeExpr:
@@ -281,7 +281,7 @@ class Expr:
             escape: One escape character, or ``None``.
 
         Raises:
-            TypeError: ``escape`` is not one character.
+            ValueError: ``escape`` is not one character.
         """
 
     def not_ilike(self, pattern: object, /, *, escape: str | None = None) -> LikeExpr:
@@ -295,7 +295,7 @@ class Expr:
             escape: One escape character, or ``None``.
 
         Raises:
-            TypeError: ``escape`` is not one character.
+            ValueError: ``escape`` is not one character.
         """
 
     def similar_to(self, pattern: object, /) -> SimilarToExpr:
@@ -872,8 +872,8 @@ class LikeExpr(Expr):
                     not supported by BigQuery, Hive.
 
         Raises:
-            TypeError: `escape` is not one character, or `pattern` is not an
-                expression, list, or tuple.
+            TypeError: `pattern` is not an expression, list, or tuple.
+            ValueError: `escape` is not one character, or `pattern` is empty.
         """
 
     def get_expr(self) -> Expr:

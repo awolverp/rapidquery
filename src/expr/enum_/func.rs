@@ -1,8 +1,8 @@
 use super::ExprInner;
 use super::ident::Ident;
-use crate::error;
 
 use crate::dialect;
+use crate::exc;
 use crate::internal::repr;
 use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
@@ -67,7 +67,7 @@ pub struct Function {
 }
 
 impl Function {
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> error::Result<repr::ReprFormatter> {
+    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
         let mut fmt = repr::ReprFormatter::new_call("Function");
 
         fmt.positional(self.name.python_repr());
@@ -97,7 +97,7 @@ impl Function {
 }
 
 impl WriteSql for Function {
-    fn write_sql<W: SqlWriter>(&self, dialect: &crate::dialect::PyDialect, out: &mut W) -> error::Result<()> {
+    fn write_sql<W: SqlWriter>(&self, dialect: &crate::dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         // "name"([DISTINCT] args [{IGNORE|RESPECT} NULLS] [WHERE expr])
         // [FILTER ([WHERE] expr)] [{IGNORE|RESPECT} NULLS]
         self.name.write_sql(dialect, out)?;
@@ -112,14 +112,10 @@ impl WriteSql for Function {
         if self.null_treatment.is_some()
             && matches!(dialect.aggregate.null_treatment, dialect::NullTreatment::Unsupported)
         {
-            return Err(error::Error::Unsupported {
-                feature: "Function.null_treatment",
-            });
+            return Err(exc::Error::dialect("IGNORE NULLS and RESPECT NULLS"));
         }
         if self.filter.is_some() && matches!(dialect.aggregate.function_filter, dialect::FunctionFilter::Unsupported) {
-            return Err(error::Error::Unsupported {
-                feature: "Function.filter",
-            });
+            return Err(exc::Error::dialect("aggregate FILTER"));
         }
 
         // Inside parens IGNORE/RESPECT NULLS
