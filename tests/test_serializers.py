@@ -454,9 +454,14 @@ class TestDateTimeSerializers:
 
         strftime = value.strftime("%Y-%m-%d %H:%M:%S")
 
-        # - On Windows / macOS .strftime(...) usually zero-pads years → 0001-01-01.
-        # - On Linux (glibc) .strftime(...) does not pad years → 1-01-01
-        strftime = strftime.lstrip("0")
+        # - On Windows / macOS .strftime(...) usually zero-pads years -> 0001-01-01.
+        # - On Linux (glibc) .strftime(...) does not pad years -> 1-01-01
+        #
+        # Otherside, `chrono` crate always zero-pads years
+        year, rest = strftime.split("-", 1)
+        if len(year) < 4:
+            year = year.zfill(4)
+            strftime = f"{year}-{rest}"
 
         assert rendered.startswith(strftime)
 
