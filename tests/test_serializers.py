@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 import pytest
-from hypothesis import given
+from hypothesis import given, reproduce_failure
 from hypothesis import strategies as st
 
 from rapidquery.dialect import OPT_BOOL_FORMAT_INTEGER, Dialect, LiteralConfig, StringConfig, TemporalConfig
@@ -451,7 +451,14 @@ class TestDateTimeSerializers:
     @given(st.datetimes(timezones=st.none()))
     def test_naive_datetimes_start_with_timestamp(self, value: datetime.datetime):
         rendered = DatetimeSerializer().serialize(_NAIVE_TMPL, value)
-        assert rendered.startswith(value.strftime("%Y-%m-%d %H:%M:%S"))
+
+        strftime = value.strftime("%Y-%m-%d %H:%M:%S")
+
+        # - On Windows / macOS .strftime(...) usually zero-pads years → 0001-01-01.
+        # - On Linux (glibc) .strftime(...) does not pad years → 1-01-01
+        strftime = strftime.lstrip("0")
+
+        assert rendered.startswith(strftime)
 
     @given(st.integers(min_value=-2_000_000_000, max_value=2_000_000_000))
     def test_unix_timestamps_in_range(self, value: int):
