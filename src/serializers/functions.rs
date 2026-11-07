@@ -192,13 +192,7 @@ pub(super) unsafe fn write_bit<W: writer::FastWrite>(
     out: &mut W,
 ) -> exc::Result<()> {
     if pyo3::ffi::PyUnicode_CheckExact(ptr) == 1 {
-        let raw = utils::borrow_py_str_buffer(py, ptr)?;
-
-        if raw.is_empty() || !raw.bytes().all(|b| b == b'0' || b == b'1') {
-            return Err(exc::Error::serialize("BitSerializer", "value must be binary ('0'/'1')"));
-        }
-
-        cfg.write_bits(out, raw)
+        cfg.write_bits(out, utils::borrow_py_str_buffer(py, ptr)?)
     } else {
         Err(reject_type(py, ptr, "BitSerializer", "str"))
     }

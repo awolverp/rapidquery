@@ -25,20 +25,26 @@ impl base::LiteralConfig {
     }
 
     /// Write a bit-string (`'0'`/`'1'` characters) as a native literal.
-    ///
-    /// Native formats embed `bits` as-is. Callers must pass only `'0'` and `'1'`;
-    /// that is checked with `debug_assert!`.
     #[inline]
     pub fn write_bits<W: writer::FastWrite>(&self, writer: &mut W, bits: &str) -> exc::Result<()> {
-        // FIXME: return an error for invalid bits
-        debug_assert!(
-            bits.chars().all(|c| c == '0' || c == '1'),
-            "write_bits: invalid input: {bits}"
-        );
-
         if let Some(template) = &self.bit {
-            template.write_to(writer, |_, out| out.write_str(bits));
-            Ok(())
+            template.write_to_result(
+                writer, // Write char-by-char to validate `bits`
+                |_, out| {
+                    for (idx, c) in bits.chars().enumerate() {
+                        if c != '0' && c != '1' {
+                            return Err(exc::Error::serialize(
+                                "bits",
+                                format!("value must be binary ('{c}' found at index {idx})"),
+                            ));
+                        }
+
+                        out.write(c);
+                    }
+
+                    Ok(())
+                },
+            )
         } else {
             Err(exc::Error::dialect("bit string literal"))
         }
@@ -71,10 +77,6 @@ impl base::LiteralConfig {
 
     #[pyo3(signature = (value, /))]
     fn serialize_bits(&self, value: &str) -> exc::Result<String> {
-        if value.is_empty() || !value.bytes().all(|b| b == b'0' || b == b'1') {
-            return Err(exc::Error::serialize("bits", "value must be binary ('0'/'1')"));
-        }
-
         let mut buf = String::new();
         self.write_bits(&mut buf, value)?;
         Ok(buf)
