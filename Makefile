@@ -76,6 +76,7 @@ clean:
 	rm -f `find . -type f -name '.*~' `
 	rm -rf .pytest_cache
 	rm -rf .ruff_cache
+	rm -rf .hypothesis
 	rm -rf *.egg-info
 	rm -rf rapidquery/*.so
 
