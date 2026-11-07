@@ -14,60 +14,56 @@ ASTs until being merged into default branch.
 ### DDL
 
 - **Schemas**
-  - [x] CREATE SCHEMA
-  - [x] DROP SCHEMA
+  - [x] CreateSchema
+  - [x] DropSchema
 
 - **Tables**
-  - [x] CREATE INDEX
-  - [x] DROP INDEX
-  - [ ] CONSTRAINT
-  - [ ] CREATE TABLE
-  - [ ] ALTER TABLE
-  - [ ] DROP TABLE
+  - [x] CreateIndex
+  - [x] DropIndex
+  - [ ] ColumnDef
+  - [ ] CreateTable
+  - [ ] AlterTable
+  - [ ] DropTable
 
 - **Views**
-  - [ ] CREATE VIEW
-  - [ ] DROP VIEW
+  - [ ] CreateView
+  - [ ] DropView
 
 - **Custom types**
-  - [ ] CREATE TYPE
-  - [ ] ALTER TYPE
-  - [ ] DROP TYPE
+  - [ ] CreateType
+  - [ ] AlterType
+  - [ ] DropType
 
 - **Sequences**
-  - [ ] CREATE SEQUENCE
-  - [ ] ALTER SEQUENCE
-  - [ ] DROP SEQUENCE
+  - [ ] CreateSequence
+  - [ ] AlterSequence
+  - [ ] DropSequence
 
 - **Functions**
-  - [ ] CREATE FUNCTION
-  - [ ] ALTER FUNCTION
-  - [ ] DROP FUNCTION
+  - [ ] CreateFunction
+  - [ ] DropFunction
 
 ### DCL
 
-- [ ] GRANT
-- [ ] REVOKE
+- [ ] Grant
+- [ ] Revoke
 
 ### DML
 
-- [ ] INSERT
-- [ ] UPDATE
-- [ ] DELETE
-- [ ] MERGE
-- [ ] TRUNCATE TABLE
-- [ ] SELECT
+- [ ] Insert
+- [ ] Update
+- [ ] Delete
+- [ ] Merge
+- [ ] TruncateTable
+- [ ] Select
 
 ### TCL
 
 - **Transactions**
-  - [ ] START TRANSACTION
-  - [ ] COMMIT
-  - [ ] ROLLBACK
+  - [ ] Transaction
 
 - **Savepoints**
-  - [ ] SAVEPOINT
-  - [ ] RELEASE SAVEPOINT
+  - [ ] Savepoint
 
 ## Development
 
