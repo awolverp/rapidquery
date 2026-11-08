@@ -14,6 +14,9 @@ pub(crate) static mut VALUE_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_
 // Expr types
 pub(crate) static mut EXPR_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
+// DDL types
+pub(crate) static mut DDL_INDEX_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+
 // Python standard-library types (serializers)
 pub(crate) static mut STD_DECIMAL_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 pub(crate) static mut STD_UUID_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -90,14 +93,13 @@ fn _initialize_typeref(py: pyo3::Python) {
         // are only read.
         multiple_get_type_object_for!(
             py,
-            // serializers
             crate::serializers::PySerializer => SERIALIZER_TYPE,
-            // exprs
             crate::expr::base::PyExpr => EXPR_TYPE,
             crate::expr::ident::PyIdent => IDENT_TYPE,
             crate::expr::ident::PyUnquote => UNQUOTE_TYPE,
             crate::expr::ident::PyAsterisk => ASTERISK_TYPE,
             crate::expr::value::PyValue => VALUE_TYPE,
+            crate::ddl::PyIndexColumn => DDL_INDEX_COLUMN_TYPE,
         );
 
         STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");

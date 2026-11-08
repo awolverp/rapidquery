@@ -59,6 +59,17 @@ class TestCreateIndex:
         assert "unique=True" in repr(stmt)
         assert "if_not_exists=True" in repr(stmt)
 
+        # _IndexColumnExtractor
+        stmt = rq.ddl.CreateIndex(
+            "idx",
+            "datasets",
+            ["name", rq.ddl.IndexColumn("god"), rq.Ident("OK"), 1],
+        )
+        assert (
+            repr(stmt.columns)
+            == '(IndexColumn(Ident("name")), IndexColumn(Ident("god")), IndexColumn(Ident("OK")), IndexColumn(Value(1, IntegerSerializer())))'
+        )
+
     def test_invalid_construction(self):
         column = rq.ddl.IndexColumn("id")
 

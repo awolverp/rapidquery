@@ -5,7 +5,14 @@ from collections.abc import Sequence
 from typing import Self, final
 
 from rapidquery.dialect import Dialect
-from rapidquery.expr import Expr, Ident, _IdentExtractor
+from rapidquery.expr import Expr, Ident, _IdentExtractor, _NameExprExtractor
+
+_IndexColumnExtractor: typing.TypeAlias = _NameExprExtractor | IndexColumn
+"""IndexColumn extractor.
+
+- `str` becomes `IndexColumn(Ident(val), "ASC")`
+- Others becomes `Expr` and then `IndexColumn(expr, "ASC")`
+"""
 
 class DataDefinitionLanguage:
     """Base of every DDL statement. Construct a subclass, not this class.
@@ -144,7 +151,7 @@ class IndexColumn:
         'DESC'
     """
 
-    def __new__(cls, column: Expr | str, *, order: typing.Literal["ASC", "DESC"] | str = "ASC") -> Self:
+    def __new__(cls, column: _NameExprExtractor, *, order: typing.Literal["ASC", "DESC"] | str = "ASC") -> Self:
         """Construct an index key.
 
         Args:
@@ -176,11 +183,11 @@ class CreateIndex(DataDefinitionLanguage):
         cls,
         name: str,
         table_name: _IdentExtractor,
-        columns: Sequence[IndexColumn],
+        columns: typing.Iterable[_IndexColumnExtractor],
         *,
         unique: bool = False,
         if_not_exists: bool = False,
-        include: Sequence[str] | None = None,
+        include: typing.Iterable[str] | None = None,
         predicate: Expr | str | None = None,
         index_type: str | None = None,
     ) -> Self:
@@ -231,7 +238,7 @@ class CreateIndex(DataDefinitionLanguage):
         """Table the index is created on."""
 
     @property
-    def columns(self) -> list[IndexColumn]:
+    def columns(self) -> Sequence[IndexColumn]:
         """Index keys."""
 
     @property
