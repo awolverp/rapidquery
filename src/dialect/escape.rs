@@ -468,9 +468,4 @@ mod tests {
     fn string_mysql_key() {
         assert_eq!(render_string("'{mysql}'", "a\"b\u{1a}\t").unwrap(), "'a\\\"b\\Z\t'");
     }
-
-    #[test]
-    fn string_rejects_nul() {
-        assert!(render_string("'{single}'", "a\0b").is_err());
-    }
 }

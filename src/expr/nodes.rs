@@ -180,6 +180,19 @@ impl PyBinaryExpr {
         pyo3::PyClassInitializer::from(base).add_subclass(Self)
     }
 
+    // Similar to SQLAlchemy BinaryExpression.__bool__
+    fn __bool__(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<bool> {
+        let inner = Self::inner(&slf);
+
+        match inner.op {
+            super::enum_::BinaryOp::Eq => Ok(inner.left == inner.right),
+            super::enum_::BinaryOp::NotEq => Ok(inner.left != inner.right),
+            _ => Err(pyo3::exceptions::PyTypeError::new_err(
+                "Boolean value of this clause is not defined",
+            )),
+        }
+    }
+
     fn get_left(slf: pyo3::PyRef<'_, Self>) -> pyo3::PyResult<alias::BoundObject<'_>> {
         let inner = Self::inner(&slf);
         super::base::into_subclasses(slf.py(), (*inner.left).clone())

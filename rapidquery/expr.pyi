@@ -12,7 +12,16 @@ class _IdentPropertyProtocol(typing.Protocol):
     @property
     def __ident__(self) -> Ident: ...
 
-_IdentExtractor = str | Unquote | Ident | Asterisk | type[Asterisk] | _IdentClassVarProtocol | _IdentPropertyProtocol
+_IdentExtractor: typing.TypeAlias = (
+    str | Unquote | Ident | Asterisk | type[Asterisk] | _IdentClassVarProtocol | _IdentPropertyProtocol
+)
+"""Ident extractor."""
+
+_LiteralExprExtractor: typing.TypeAlias = str | object
+"""Expr extractor. A bare `str` becomes a `Value`, not a name."""
+
+_NameExprExtractor: typing.TypeAlias = str | object
+"""Expr extractor. A bare `str` becomes a `Ident`, not a value."""
 
 class Expr:
     """
@@ -76,77 +85,77 @@ class Expr:
             ('$1', (1,))
         """
 
-    def __add__(self, other: object, /) -> BinaryExpr:
+    def __add__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``self + other``."""
 
-    def __radd__(self, other: object, /) -> BinaryExpr:
+    def __radd__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``other + self``, when the left operand is not an expression."""
 
-    def __sub__(self, other: object, /) -> BinaryExpr:
+    def __sub__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``self - other``."""
 
-    def __rsub__(self, other: object, /) -> BinaryExpr:
+    def __rsub__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``other - self``, when the left operand is not an expression."""
 
-    def __mul__(self, other: object, /) -> BinaryExpr:
+    def __mul__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``self * other``."""
 
-    def __rmul__(self, other: object, /) -> BinaryExpr:
+    def __rmul__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``other * self``, when the left operand is not an expression."""
 
-    def __truediv__(self, other: object, /) -> BinaryExpr:
+    def __truediv__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``self / other``."""
 
-    def __rtruediv__(self, other: object, /) -> BinaryExpr:
+    def __rtruediv__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``other / self``, when the left operand is not an expression."""
 
-    def __mod__(self, other: object, /) -> BinaryExpr:
+    def __mod__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``self % other``."""
 
-    def __rmod__(self, other: object, /) -> BinaryExpr:
+    def __rmod__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``other % self``, when the left operand is not an expression."""
 
-    def __eq__(self, other: object, /) -> BinaryExpr:  # pyright: ignore[reportIncompatibleMethodOverride]
+    def __eq__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:  # pyright: ignore[reportIncompatibleMethodOverride]
         """SQL ``self = other``."""
 
-    def __ne__(self, other: object, /) -> BinaryExpr:  # pyright: ignore[reportIncompatibleMethodOverride]
+    def __ne__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:  # pyright: ignore[reportIncompatibleMethodOverride]
         """SQL ``self <> other``."""
 
-    def __lt__(self, other: object, /) -> BinaryExpr:
+    def __lt__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``self < other``."""
 
-    def __le__(self, other: object, /) -> BinaryExpr:
+    def __le__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``self <= other``."""
 
-    def __gt__(self, other: object, /) -> BinaryExpr:
+    def __gt__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``self > other``."""
 
-    def __ge__(self, other: object, /) -> BinaryExpr:
+    def __ge__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``self >= other``."""
 
-    def __and__(self, other: object, /) -> BinaryExpr:
+    def __and__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``self AND other``. Python ``&`` is logical AND, not bitwise."""
 
-    def __rand__(self, other: object, /) -> BinaryExpr:
+    def __rand__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``other AND self``. Python ``&`` is logical AND, not bitwise."""
 
-    def __or__(self, other: object, /) -> BinaryExpr:
+    def __or__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``self OR other``. Python ``|`` is logical OR, not bitwise."""
 
-    def __ror__(self, other: object, /) -> BinaryExpr:
+    def __ror__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``other OR self``. Python ``|`` is logical OR, not bitwise."""
 
-    def bit_and(self, other: object, /) -> BinaryExpr:
+    def bit_and(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL bitwise ``self & other``."""
 
-    def bit_or(self, other: object, /) -> BinaryExpr:
+    def bit_or(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """
         SQL bitwise ``self | other``.
 
         Is not supported by Redshift, Oracle.
         """
 
-    def bit_xor(self, other: object, /) -> BinaryExpr:
+    def bit_xor(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """
         SQL bitwise ``self ^ other``.
 
@@ -160,35 +169,35 @@ class Expr:
         Is not supported by Redshift, Oracle.
         """
 
-    def __lshift__(self, other: object, /) -> BinaryExpr:
+    def __lshift__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """
         SQL ``self << other``.
 
         Is not supported by MsSQL, Oracle.
         """
 
-    def __rlshift__(self, other: object, /) -> BinaryExpr:
+    def __rlshift__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """
         SQL ``other << self``, when the left operand is not an expression.
 
         Is not supported by MsSQL, Oracle.
         """
 
-    def __rshift__(self, other: object, /) -> BinaryExpr:
+    def __rshift__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """
         SQL ``self >> other``.
 
         Is not supported by MsSQL, Oracle.
         """
 
-    def __rrshift__(self, other: object, /) -> BinaryExpr:
+    def __rrshift__(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """
         SQL ``other >> self``, when the left operand is not an expression.
 
         Is not supported by MsSQL, Oracle.
         """
 
-    def concat(self, other: object, /) -> BinaryExpr:
+    def concat(self, other: _LiteralExprExtractor, /) -> BinaryExpr:
         """SQL ``self || other``. Dialects may rewrite ``||`` as a function or as ``+``."""
 
     def __neg__(self) -> UnaryExpr:
@@ -200,10 +209,10 @@ class Expr:
     def not_(self) -> UnaryExpr:
         """SQL ``NOT self``."""
 
-    def between(self, low: object, high: object, /) -> BetweenExpr:
+    def between(self, low: _LiteralExprExtractor, high: _LiteralExprExtractor, /) -> BetweenExpr:
         """SQL ``self BETWEEN low AND high``."""
 
-    def not_between(self, low: object, high: object, /) -> BetweenExpr:
+    def not_between(self, low: _LiteralExprExtractor, high: _LiteralExprExtractor, /) -> BetweenExpr:
         """SQL ``self NOT BETWEEN low AND high``."""
 
     def is_(self, kind: None | bool | str, /) -> IsExpr:
@@ -230,10 +239,10 @@ class Expr:
             ValueError: ``kind`` is a string and not one of those four words.
         """
 
-    def is_distinct_from(self, other: object, /) -> IsDistinctFromExpr:
+    def is_distinct_from(self, other: _LiteralExprExtractor, /) -> IsDistinctFromExpr:
         """SQL ``self IS DISTINCT FROM other``."""
 
-    def is_not_distinct_from(self, other: object, /) -> IsDistinctFromExpr:
+    def is_not_distinct_from(self, other: _LiteralExprExtractor, /) -> IsDistinctFromExpr:
         """SQL ``self IS NOT DISTINCT FROM other``."""
 
     def in_(self, list: Iterable[object], /) -> InListExpr:
@@ -242,7 +251,7 @@ class Expr:
     def not_in(self, list: Iterable[object], /) -> InListExpr:
         """SQL ``self NOT IN (list)``."""
 
-    def like(self, pattern: object, /, *, escape: str | None = None) -> LikeExpr:
+    def like(self, pattern: _LiteralExprExtractor, /, *, escape: str | None = None) -> LikeExpr:
         """
         SQL ``self LIKE pattern``.
 
@@ -256,7 +265,7 @@ class Expr:
             ValueError: ``escape`` is not one character.
         """
 
-    def not_like(self, pattern: object, /, *, escape: str | None = None) -> LikeExpr:
+    def not_like(self, pattern: _LiteralExprExtractor, /, *, escape: str | None = None) -> LikeExpr:
         """
         SQL ``self NOT LIKE pattern``.
 
@@ -270,7 +279,7 @@ class Expr:
             ValueError: ``escape`` is not one character.
         """
 
-    def ilike(self, pattern: object, /, *, escape: str | None = None) -> LikeExpr:
+    def ilike(self, pattern: _LiteralExprExtractor, /, *, escape: str | None = None) -> LikeExpr:
         """
         SQL ``self ILIKE pattern``.
 
@@ -284,7 +293,7 @@ class Expr:
             ValueError: ``escape`` is not one character.
         """
 
-    def not_ilike(self, pattern: object, /, *, escape: str | None = None) -> LikeExpr:
+    def not_ilike(self, pattern: _LiteralExprExtractor, /, *, escape: str | None = None) -> LikeExpr:
         """
         SQL ``self NOT ILIKE pattern``.
 
@@ -298,16 +307,16 @@ class Expr:
             ValueError: ``escape`` is not one character.
         """
 
-    def similar_to(self, pattern: object, /) -> SimilarToExpr:
+    def similar_to(self, pattern: _LiteralExprExtractor, /) -> SimilarToExpr:
         """SQL ``self SIMILAR TO pattern``."""
 
-    def not_similar_to(self, pattern: object, /) -> SimilarToExpr:
+    def not_similar_to(self, pattern: _LiteralExprExtractor, /) -> SimilarToExpr:
         """SQL ``self NOT SIMILAR TO pattern``."""
 
-    def rlike(self, pattern: object, /) -> RLikeExpr:
+    def rlike(self, pattern: _LiteralExprExtractor, /) -> RLikeExpr:
         """SQL regex match of ``self`` against ``pattern``."""
 
-    def not_rlike(self, pattern: object, /) -> RLikeExpr:
+    def not_rlike(self, pattern: _LiteralExprExtractor, /) -> RLikeExpr:
         """Negated SQL regex match of ``self`` against ``pattern``."""
 
     def cast_as(self, data_type_name: str, /) -> CastExpr:
@@ -323,7 +332,7 @@ class Expr:
         self,
         *,
         where: typing.Literal["BOTH", "LEADING", "TRAILING"] | str = "BOTH",
-        characters: object | None = None,
+        characters: _LiteralExprExtractor | None = None,
     ) -> TrimExpr:
         """
         SQL ``TRIM``, ``LTRIM``, or ``RTRIM`` of this expression.
@@ -507,7 +516,7 @@ class Function(Expr):
         '"count"("id")'
     """
 
-    def __new__(cls, name: _IdentExtractor, /, *args: object, distinct: bool = False) -> Self:
+    def __new__(cls, name: _IdentExtractor, /, *args: _LiteralExprExtractor, distinct: bool = False) -> Self:
         """
         Build a call.
 
@@ -522,7 +531,7 @@ class Function(Expr):
             ValueError: `name` is not a legal identifier.
         """
 
-    def filter(self, predicate: object, /) -> Self:
+    def filter(self, predicate: _LiteralExprExtractor, /) -> Self:
         """
         Return a copy with `FILTER (WHERE predicate)`.
 
@@ -578,7 +587,7 @@ class TupleExpr(Expr):
         'ROW(1, 2)'
     """
 
-    def __new__(cls, *items: object) -> Self:
+    def __new__(cls, *items: _LiteralExprExtractor) -> Self:
         """
         Build a row from expressions.
 
@@ -604,7 +613,7 @@ class UnaryExpr(Expr):
         'NOT "active"'
     """
 
-    def __new__(cls, operator: typing.Literal["NOT", "+", "-", "~"] | str, expr: object, /) -> Self:
+    def __new__(cls, operator: typing.Literal["NOT", "+", "-", "~"] | str, expr: _LiteralExprExtractor, /) -> Self:
         """
         Build a prefix operation.
 
@@ -641,7 +650,7 @@ class BinaryExpr(Expr):
 
     def __new__(
         cls,
-        left: object,
+        left: _LiteralExprExtractor,
         operator: typing.Literal[
             "+",
             "-",
@@ -665,7 +674,7 @@ class BinaryExpr(Expr):
             "||",
         ]
         | str,
-        right: object,
+        right: _LiteralExprExtractor,
         /,
     ) -> Self:
         """
@@ -676,6 +685,14 @@ class BinaryExpr(Expr):
             operator: One of the spellings listed on this method. `!=` is stored
                 as `<>`. Any other spelling is kept as a custom operator.
             right: Right operand.
+        """
+
+    def __bool__(self) -> bool:
+        """
+        Boolean evaluation of a comparison expression.
+
+        Note:
+            This is for `=` / `!=` / `<>` only, return whether the two operands are the same object.
         """
 
     def get_left(self) -> Expr:
@@ -703,7 +720,7 @@ class IsExpr(Expr):
 
     def __new__(
         cls,
-        expr: object,
+        expr: _LiteralExprExtractor,
         kind: typing.Literal["NULL", "TRUE", "FALSE", "UNKNOWN"] | str,
         /,
         *,
@@ -745,7 +762,7 @@ class IsDistinctFromExpr(Expr):
         '"a" IS DISTINCT FROM "b"'
     """
 
-    def __new__(cls, left: object, right: object, /, *, negated: bool = False) -> Self:
+    def __new__(cls, left: _LiteralExprExtractor, right: _LiteralExprExtractor, /, *, negated: bool = False) -> Self:
         """
         Build an `IS DISTINCT FROM` comparison.
 
@@ -778,7 +795,14 @@ class InListExpr(Expr):
         '"id" IN (1, 2)'
     """
 
-    def __new__(cls, expr: object, list: Iterable[object], /, *, negated: bool = False) -> Self:
+    def __new__(
+        cls,
+        expr: _LiteralExprExtractor,
+        list: Iterable[_LiteralExprExtractor],
+        /,
+        *,
+        negated: bool = False,
+    ) -> Self:
         """
         Build an `IN` list.
 
@@ -811,7 +835,15 @@ class BetweenExpr(Expr):
         '"n" BETWEEN 1 AND 3'
     """
 
-    def __new__(cls, expr: object, low: object, high: object, /, *, negated: bool = False) -> Self:
+    def __new__(
+        cls,
+        expr: _LiteralExprExtractor,
+        low: _LiteralExprExtractor,
+        high: _LiteralExprExtractor,
+        /,
+        *,
+        negated: bool = False,
+    ) -> Self:
         """
         Build a `BETWEEN` predicate.
 
@@ -852,8 +884,8 @@ class LikeExpr(Expr):
 
     def __new__(
         cls,
-        expr: object,
-        pattern: object,
+        expr: _LiteralExprExtractor,
+        pattern: _LiteralExprExtractor,
         /,
         *,
         negated: bool = False,
@@ -906,7 +938,7 @@ class SimilarToExpr(Expr):
         '"name" SIMILAR TO E\\'a%\\''
     """
 
-    def __new__(cls, expr: object, pattern: object, /, *, negated: bool = False) -> Self:
+    def __new__(cls, expr: _LiteralExprExtractor, pattern: _LiteralExprExtractor, /, *, negated: bool = False) -> Self:
         """
         Build a `SIMILAR TO` predicate.
 
@@ -940,7 +972,7 @@ class RLikeExpr(Expr):
         '"name" ~ E\\'a.*\\''
     """
 
-    def __new__(cls, expr: object, pattern: object, /, *, negated: bool = False) -> Self:
+    def __new__(cls, expr: _LiteralExprExtractor, pattern: _LiteralExprExtractor, /, *, negated: bool = False) -> Self:
         """
         Build a regex predicate.
 
@@ -977,7 +1009,7 @@ class CastExpr(Expr):
 
     def __new__(
         cls,
-        expr: object,
+        expr: _LiteralExprExtractor,
         data_type_name: str,
         /,
         *,
@@ -1023,11 +1055,11 @@ class TrimExpr(Expr):
 
     def __new__(
         cls,
-        expr: object,
+        expr: _LiteralExprExtractor,
         /,
         *,
         where: typing.Literal["BOTH", "LEADING", "TRAILING"] | str = "BOTH",
-        characters: object | None = None,
+        characters: _LiteralExprExtractor | None = None,
     ) -> Self:
         """
         Build a trim call.
@@ -1067,7 +1099,9 @@ class CollateExpr(Expr):
         '"s" COLLATE "en_US"'
     """
 
-    def __new__(cls, expr: object, collation: str | Unquote | Ident | Asterisk | type[Asterisk], /) -> Self:
+    def __new__(
+        cls, expr: _LiteralExprExtractor, collation: str | Unquote | Ident | Asterisk | type[Asterisk], /
+    ) -> Self:
         """
         Attach a collation.
 
@@ -1098,7 +1132,7 @@ class CaseExpr(Expr):
         'CASE WHEN "a" THEN 1 ELSE 0 END'
     """
 
-    def __new__(cls, operand: object | None = None, /) -> Self:
+    def __new__(cls, operand: _LiteralExprExtractor | None = None, /) -> Self:
         """
         Start a `CASE`.
 
@@ -1107,7 +1141,7 @@ class CaseExpr(Expr):
                 `CASE`.
         """
 
-    def when(self, when: object, then: object) -> Self:
+    def when(self, when: _LiteralExprExtractor, then: _LiteralExprExtractor) -> Self:
         """Return a copy with one more `WHEN` / `THEN` pair.
 
         Args:
@@ -1115,7 +1149,7 @@ class CaseExpr(Expr):
             then: Result when this branch matches.
         """
 
-    def else_(self, result: object) -> Self:
+    def else_(self, result: _LiteralExprExtractor) -> Self:
         """
         Return a copy whose `ELSE` result is `result`.
 
@@ -1148,7 +1182,7 @@ class CustomExpr(Expr):
         'COALESCE("n", 0)'
     """
 
-    def __new__(cls, sql: str, *args: object) -> Self:
+    def __new__(cls, sql: str, *args: _LiteralExprExtractor) -> Self:
         """
         Build a template.
 

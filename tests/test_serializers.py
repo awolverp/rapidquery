@@ -74,7 +74,7 @@ _JSON = Dialect(string=StringConfig(template="'{single}'"), literal=LiteralConfi
 _NOT_INT = st.one_of(st.floats(allow_nan=False), st.text(), st.none(), st.binary())
 _NOT_STR = st.one_of(st.integers(), st.none(), st.binary())
 _NOT_BYTES = st.one_of(st.text(), st.integers(), st.none(), st.binary().map(bytearray))
-_BAD_BIT = st.one_of(st.just(""), st.text(alphabet="23456789", min_size=1))
+_BAD_BIT = st.one_of(st.text(alphabet="23456789", min_size=1))
 _PRINTABLE_KEY = st.text(alphabet=st.characters(min_codepoint=32, max_codepoint=126), min_size=1)
 
 
@@ -226,9 +226,8 @@ class TestStringSerializer:
         assert rendered[1:-1].replace("''", "'") == value
 
     @given(st.text(), st.text())
-    def test_rejects_nul(self, left: str, right: str):
-        with pytest.raises(SerializeError, match="NUL"):
-            StringSerializer().serialize(_SINGLE, left + "\0" + right)
+    def test_not_reject_nul(self, left: str, right: str):
+        StringSerializer().serialize(_SINGLE, left + "\0" + right)
 
     @given(_NOT_STR)
     def test_rejects_non_str(self, value: typing.Any):

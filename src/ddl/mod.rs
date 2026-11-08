@@ -6,6 +6,7 @@ pub use schema::PyCreateSchema;
 pub use schema::PyDropSchema;
 
 mod index;
+pub use index::IndexColumnExtractor;
 pub use index::PyCreateIndex;
 pub use index::PyDropIndex;
 pub use index::PyIndexColumn;

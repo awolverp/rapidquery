@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::sync;
 
 use crate::dialect;
 use crate::exc;
@@ -6,75 +7,18 @@ use crate::expr::enum_::ExprInner;
 use crate::expr::enum_::Ident;
 use crate::expr::extractors::IdentExtractor;
 use crate::expr::extractors::LiteralExprExtractor;
-use crate::expr::extractors::NameExprExtractor;
 use crate::internal::alias;
 use crate::internal::repr;
+use crate::internal::utils;
 use crate::sql;
 
-/// Represents `ASC` and `DESC` keywords.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::EnumString, strum::IntoStaticStr)]
-#[strum(ascii_case_insensitive)]
-pub enum IndexOrder {
-    /// Emits `ASC`.
-    #[strum(serialize = "ASC")]
-    Asc,
-    /// Emits `DESC`.
-    #[strum(serialize = "DESC")]
-    Desc,
-}
+mod column;
+pub use column::IndexColumnInner;
+pub use column::IndexOrder;
+pub use column::PyIndexColumn;
 
-/// One key of a `CREATE INDEX` column list.
-#[rapidquery_macros::pyclass("rapidquery.ddl.IndexColumn")]
-#[derive(Debug, Clone)]
-pub struct PyIndexColumn {
-    /// Index column expression.
-    pub column: ExprInner,
-
-    /// Index column order.
-    pub order: IndexOrder,
-}
-
-impl PyIndexColumn {
-    #[inline]
-    pub fn python_repr(&self, py: pyo3::Python<'_>) -> exc::Result<repr::ReprFormatter> {
-        let mut fmt = repr::ReprFormatter::new_call("IndexColumn");
-
-        fmt.positional(self.column.python_repr(py)?);
-        if matches!(self.order, IndexOrder::Desc) {
-            fmt.keyword("order", "DESC");
-        }
-
-        Ok(fmt)
-    }
-}
-
-#[pyo3::pymethods]
-impl PyIndexColumn {
-    #[new]
-    #[pyo3(signature = (column, *, order = "ASC"))]
-    fn new(column: NameExprExtractor, order: &str) -> exc::Result<Self> {
-        let order = IndexOrder::from_str(order)
-            .map_err(|_| exc::Error::invalid("order", format!("expected 'ASC' or 'DESC', received {order}")))?;
-        Ok(Self {
-            column: column.0,
-            order,
-        })
-    }
-
-    #[getter]
-    fn column<'a>(&self, py: pyo3::Python<'a>) -> pyo3::PyResult<alias::BoundObject<'a>> {
-        crate::expr::base::into_subclasses(py, self.column.clone())
-    }
-
-    #[getter]
-    fn order(&self) -> &'static str {
-        self.order.into()
-    }
-
-    fn __repr__(&self, py: pyo3::Python<'_>) -> exc::Result<String> {
-        self.python_repr(py).map(repr::ReprFormatter::into_string)
-    }
-}
+mod extractors;
+pub use extractors::IndexColumnExtractor;
 
 /// Represents a `CREATE INDEX` statement.
 ///
@@ -106,7 +50,7 @@ pub struct PyCreateIndex {
     pub table_name: Ident,
 
     /// Index columns. At least one.
-    pub columns: Vec<pyo3::Py<PyIndexColumn>>,
+    pub columns: Vec<sync::Arc<IndexColumnInner>>,
 
     /// Partial index predicate (`WHERE`).
     pub predicate: Option<ExprInner>,
@@ -163,15 +107,8 @@ impl sql::WriteSql for PyCreateIndex {
         let column_order = features.contains(dialect::IndexFeatures::COLUMN_ORDER);
         let expressions = features.contains(dialect::IndexFeatures::EXPRESSIONS);
 
-        // SAFETY: `Python` is a zero-sized marker and the GIL is held for the whole
-        // call, so extending its lifetime only detaches it from the borrow of `out`.
-        // It must not escape this function.
-        let py: pyo3::Python<'static> = unsafe { std::mem::transmute(out.py()) };
-
         out.write_str(" (");
         for (index, column) in self.columns.iter().enumerate() {
-            let column = column.bind(py).get();
-
             if !expressions && !matches!(column.column, ExprInner::Ident(_)) {
                 return Err(exc::Error::dialect("CREATE INDEX on an expression"));
             }
@@ -250,7 +187,7 @@ impl PyCreateIndex {
     fn new(
         name: &str,
         table_name: IdentExtractor,
-        columns: Vec<pyo3::Py<PyIndexColumn>>,
+        columns: Vec<IndexColumnExtractor>,
         unique: bool,
         if_not_exists: bool,
         include: Option<Vec<String>>,
@@ -280,7 +217,7 @@ impl PyCreateIndex {
             unique,
             if_not_exists,
             table_name: table_name.0,
-            columns,
+            columns: columns.into_iter().map(|x| x.0).collect(),
             predicate: predicate.map(|predicate| predicate.0),
             include: include.into_iter().map(arcstr::ArcStr::from).collect(),
             index_type,
@@ -309,8 +246,16 @@ impl PyCreateIndex {
     }
 
     #[getter]
-    fn columns(&self) -> Vec<pyo3::Py<PyIndexColumn>> {
-        self.columns.clone()
+    fn columns<'a>(&self, py: pyo3::Python<'a>) -> pyo3::PyResult<alias::BoundObject<'a>> {
+        unsafe {
+            utils::iterator_to_tuple(
+                py,
+                self.columns.len() as isize,
+                self.columns
+                    .iter()
+                    .map(|x| pyo3::Bound::new(py, PyIndexColumn(x.clone())).map(|x| x.into_ptr())),
+            )
+        }
     }
 
     #[getter]
@@ -345,7 +290,6 @@ impl PyCreateIndex {
         {
             let mut list = fmt.positional_list();
             for column in &self.columns {
-                let column = column.bind(py).get();
                 list.positional(column.python_repr(py)?);
             }
         }
