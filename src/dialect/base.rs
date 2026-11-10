@@ -438,6 +438,35 @@ rapidquery_macros::pyo3_constructor! {
     }
 }
 
+#[rapidquery_macros::pyclass("rapidquery.dialect.TableConfig", from_py_object, eq, hash)]
+#[rapidquery_macros::define_options]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TableConfig {
+    /// Table features.
+    ///
+    /// - GENERATED_SUPPORTED: `GENERATED ALWAYS AS ...` clause in columns is supported
+    #[define(bits { GENERATED_SUPPORTED })]
+    pub features: TableFeatures,
+
+    /// Column auto increment template e.g. `"AUTO_INCREMENT"`
+    ///
+    /// Doesn't have any placeholder. `None` means unsupported.
+    pub column_auto_increment: Option<template::Template>,
+
+    /// Column comment template e.g. `"COMMENT {}"`
+    ///
+    /// `None` means unsupported.
+    pub column_comment: Option<template::Template>,
+}
+
+rapidquery_macros::pyo3_constructor! {
+    TableConfig => export_table_config_options {
+        features: bits TableFeatures { GENERATED_SUPPORTED } = empty,
+        column_auto_increment: Option<template(_?; 0)> = None,
+        column_comment: Option<template(_; 1)> = None,
+    }
+}
+
 /// SQL dialect: quoting, literals, and which syntax is legal.
 #[rapidquery_macros::pyclass("rapidquery.dialect.Dialect", eq, hash)]
 #[rapidquery_macros::define_options]
@@ -503,6 +532,9 @@ pub struct PyDialect {
 
     /// `CREATE INDEX` feature flags and `USING` placement.
     pub index: IndexConfig,
+
+    /// Table / Column definitions
+    pub table: TableConfig,
 }
 
 rapidquery_macros::pyo3_constructor! {
@@ -525,6 +557,7 @@ rapidquery_macros::pyo3_constructor! {
         aggregate: class AggregateConfig = AggregateConfig::default(),
         schema: class SchemaConfig = SchemaConfig::default(),
         index: class IndexConfig = IndexConfig::default(),
+        table: class TableConfig = TableConfig::default(),
     }
 }
 
@@ -542,6 +575,7 @@ pub(super) fn export_options(module: &::pyo3::Bound<'_, ::pyo3::types::PyModule>
     export_string_config_options(module)?;
     export_temporal_config_options(module)?;
     export_tuple_config_options(module)?;
+    export_table_config_options(module)?;
 
     Ok(())
 }

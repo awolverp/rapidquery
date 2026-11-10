@@ -1,5 +1,4 @@
 use std::str::FromStr;
-use std::sync;
 
 use crate::dialect;
 use crate::exc;
@@ -13,8 +12,6 @@ use crate::internal::utils;
 use crate::sql;
 
 mod column;
-pub use column::IndexColumnInner;
-pub use column::IndexOrder;
 pub use column::PyIndexColumn;
 
 mod extractors;
@@ -50,7 +47,7 @@ pub struct PyCreateIndex {
     pub table_name: Ident,
 
     /// Index columns. At least one.
-    pub columns: Vec<sync::Arc<IndexColumnInner>>,
+    pub columns: Vec<pyo3::Py<PyIndexColumn>>,
 
     /// Partial index predicate (`WHERE`).
     pub predicate: Option<ExprInner>,
@@ -104,35 +101,16 @@ impl sql::WriteSql for PyCreateIndex {
             out.write_str(text);
         }
 
-        let column_order = features.contains(dialect::IndexFeatures::COLUMN_ORDER);
-        let expressions = features.contains(dialect::IndexFeatures::EXPRESSIONS);
+        let py: pyo3::Python<'static> = unsafe { std::mem::transmute(out.py()) };
 
         out.write_str(" (");
         for (index, column) in self.columns.iter().enumerate() {
-            if !expressions && !matches!(column.column, ExprInner::Ident(_)) {
-                return Err(exc::Error::dialect("CREATE INDEX on an expression"));
-            }
-
-            if !column_order && matches!(column.order, IndexOrder::Desc) {
-                return Err(exc::Error::dialect("CREATE INDEX ... ASC/DESC"));
-            }
-
+            let column = column.bind(py).get();
             if index > 0 {
                 out.write_str(", ");
             }
-            match &column.column {
-                ExprInner::Ident(ident) => ident.write_sql(dialect, out)?,
-                other => {
-                    out.write('(');
-                    other.write_sql(dialect, out)?;
-                    out.write(')');
-                }
-            }
 
-            if column_order {
-                out.write(' ');
-                out.write_str(column.order.into());
-            }
+            column.write_sql(dialect, out)?;
         }
         out.write(')');
 
@@ -217,7 +195,7 @@ impl PyCreateIndex {
             unique,
             if_not_exists,
             table_name: table_name.0,
-            columns: columns.into_iter().map(|x| x.0).collect(),
+            columns: columns.into_iter().map(|x| x.0.unbind()).collect(),
             predicate: predicate.map(|predicate| predicate.0),
             include: include.into_iter().map(arcstr::ArcStr::from).collect(),
             index_type,
@@ -251,9 +229,7 @@ impl PyCreateIndex {
             utils::iterator_to_tuple(
                 py,
                 self.columns.len() as isize,
-                self.columns
-                    .iter()
-                    .map(|x| pyo3::Bound::new(py, PyIndexColumn(x.clone())).map(|x| x.into_ptr())),
+                self.columns.iter().map(|x| Ok(x.clone_ref(py).into_ptr())),
             )
         }
     }
@@ -290,6 +266,7 @@ impl PyCreateIndex {
         {
             let mut list = fmt.positional_list();
             for column in &self.columns {
+                let column = column.bind(py).get();
                 list.positional(column.python_repr(py)?);
             }
         }

@@ -769,6 +769,42 @@ class TupleConfig:
         """
 
 @final
+class TableConfig:
+    # TODO: update docstrings
+
+    def __new__(
+        cls,
+        *,
+        features: int = 0,
+        column_auto_increment: str | None = None,
+        column_comment: str | None = None,
+    ) -> Self:
+        """Create a ``TableConfig``.
+
+        Args:
+            features: `OPT_TABLE_FEATURES_*` flags.
+            column_auto_increment: Template for auto increment columns. Does not accept
+                any placeholders e.g. `"AUTOINCREMENT"`, `"GENERATED ALWAYS AS IDENTITY"`.
+                `None` means unsupported.
+            column_comment: Template for column inline comment e.g. `"COMMENT {}"`
+                `None` means unsupported, *and will be ignored*.
+            column_generated: Template for column `generated` option e.g. `"GENERATED ALWAYS AS ({})"`
+                `None` means unsupported.
+        """
+
+    @property
+    def column_auto_increment(self) -> str | None: ...
+    @property
+    def column_comment(self) -> str | None: ...
+    @property
+    def column_generated(self) -> str | None: ...
+    def __eq__(self, value: object, /) -> bool:
+        """Return ``True`` if ``value`` is a ``TupleConfig`` with equal settings."""
+
+    def __hash__(self) -> int:
+        """Return a hash consistent with ``__eq__``."""
+
+@final
 class Dialect:
     r"""Quoting, literal spelling, and which syntax is legal.
 
@@ -800,6 +836,7 @@ class Dialect:
         aggregate: AggregateConfig = ...,
         schema: SchemaConfig = ...,
         index: IndexConfig = ...,
+        table: TableConfig = ...,
     ) -> Self:
         r"""Create a ``Dialect``.
 
@@ -1034,6 +1071,9 @@ OPT_INDEX_DROP_FEATURES_RESTRICT: Final[int]  # DROP INDEX ... RESTRICT
 OPT_INDEX_DROP_TABLE_NAME_ONLY: Final[int]  # DROP INDEX name. A table is rejected.
 OPT_INDEX_DROP_TABLE_ON: Final[int]  # DROP INDEX name ON table. A table is required.
 OPT_INDEX_DROP_TABLE_QUALIFIED: Final[int]  # DROP INDEX table.name. A table is required.
+
+# TableConfig.features
+OPT_TABLE_FEATURES_GENERATED_SUPPORTED: Final[int]  # `GENERATED ALWAYS AS ...` clause in columns is supported
 
 BigQuery: Final[Dialect]
 Databricks: Final[Dialect]

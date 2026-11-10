@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from typing import Self, final
 
 from rapidquery.dialect import Dialect
-from rapidquery.expr import Expr, Ident, _IdentExtractor, _NameExprExtractor
+from rapidquery.expr import Expr, Ident, _IdentExtractor, _LiteralExprExtractor, _NameExprExtractor
 
 _IndexColumnExtractor: typing.TypeAlias = _NameExprExtractor | IndexColumn
 """IndexColumn extractor.
@@ -298,3 +298,56 @@ class DropIndex(DataDefinitionLanguage):
     @property
     def behavior(self) -> typing.Literal["CASCADE", "RESTRICT"] | None:
         """``CASCADE``, ``RESTRICT``, or ``None``."""
+
+@final
+class Column:
+    # TODO: update docstrings
+    """Represents column definition"""
+
+    def __new__(
+        cls,
+        name: str,
+        data_type: str,
+        /,
+        primary_key: bool = False,
+        unique: bool = False,
+        nullable: bool | None = None,
+        default: _LiteralExprExtractor = ...,
+        check: _LiteralExprExtractor = ...,
+        comment: str | None = None,
+        auto_increment: bool = False,
+        generated: _LiteralExprExtractor = ...,
+        generated_type: typing.Literal["STORED", "PERSIST", "VIRTUAL"] | str | None = None,
+        *,
+        extra: str | None = None,
+    ) -> typing.Self: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def data_type(self) -> str: ...
+    @property
+    def primary_key(self) -> bool: ...
+    @property
+    def unique(self) -> bool: ...
+    @property
+    def nullable(self) -> bool: ...
+    @property
+    def default(self) -> Expr | None: ...
+    @property
+    def check(self) -> Expr | None: ...
+    @property
+    def comment(self) -> str | None: ...
+    @property
+    def auto_increment(self) -> bool: ...
+    @property
+    def generated(self) -> Expr | None: ...
+    @property
+    def generated_type(self) -> typing.Literal["STORED", "PERSIST", "VIRTUAL"] | None: ...
+    @property
+    def extra(self) -> str | None: ...
+    @property
+    def __expr__(self) -> Expr: ...
+    @property
+    def __ident__(self) -> Ident: ...
+    def to_expr(self) -> Ident: ...
+    def to_sql(self, dialect: Dialect) -> str: ...

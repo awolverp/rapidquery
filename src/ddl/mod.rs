@@ -1,5 +1,11 @@
 //! Data Definition Language
 
+mod common;
+pub use common::Order;
+
+mod column;
+pub use column::PyColumn;
+
 mod schema;
 pub use schema::DropSchemaBehavior;
 pub use schema::PyCreateSchema;
@@ -32,4 +38,7 @@ pub mod ddl_mod {
     use super::PyDropIndex;
     #[pymodule_export]
     use super::PyIndexColumn;
+
+    #[pymodule_export]
+    use super::PyColumn;
 }

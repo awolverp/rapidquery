@@ -1,4 +1,5 @@
 from ._core.ddl import (
+    Column,
     CreateIndex,
     CreateSchema,
     DataDefinitionLanguage,
@@ -8,6 +9,7 @@ from ._core.ddl import (
 )
 
 __all__ = [
+    "Column",
     "CreateIndex",
     "CreateSchema",
     "DataDefinitionLanguage",

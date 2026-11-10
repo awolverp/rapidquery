@@ -95,7 +95,7 @@ impl base::LiteralConfig {
 impl base::StringConfig {
     /// Escape `raw` and wrap it as a complete string literal.
     #[inline]
-    pub fn write_string_literal<W: writer::FastWrite>(&self, writer: &mut W, raw: &str) -> exc::Result<()> {
+    pub fn write_string_literal<W: writer::FastWrite>(&self, writer: &mut W, raw: &str) {
         // Some dialects rejects NUL byte, but it does not worth checking and rejecting it
         // because of its overhead.
 
@@ -119,7 +119,6 @@ impl base::StringConfig {
                 _ => unreachable!("invalid key - write_string_literal"),
             },
         );
-        Ok(())
     }
 }
 
@@ -128,7 +127,7 @@ impl base::StringConfig {
     #[pyo3(signature = (value, /))]
     fn serialize_string(&self, value: &str) -> exc::Result<String> {
         let mut buf = String::new();
-        self.write_string_literal(&mut buf, value)?;
+        self.write_string_literal(&mut buf, value);
         Ok(buf)
     }
 }
@@ -430,7 +429,7 @@ mod tests {
         };
 
         let mut out = String::new();
-        c.write_string_literal(&mut out, raw)?;
+        c.write_string_literal(&mut out, raw);
         Ok(out)
     }
 

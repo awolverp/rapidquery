@@ -20,7 +20,7 @@ ASTs until being merged into default branch.
 - **Tables**
   - [x] CreateIndex
   - [x] DropIndex
-  - [ ] ColumnDef
+  - [x] Column
   - [ ] CreateTable
   - [ ] AlterTable
   - [ ] DropTable

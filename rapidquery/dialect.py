@@ -71,6 +71,7 @@ from ._core.dialect import (
     OPT_SCHEMA_FEATURES_IF_NOT_EXISTS,
     OPT_SCHEMA_FEATURES_IS_DATABASE,
     OPT_SCHEMA_FEATURES_SUPPORTED,
+    OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
     OPT_TUPLE_ARITY_EMPTY,
     OPT_TUPLE_ARITY_ONE,
     OPT_TUPLE_SYNTAX_PARENTHESES,
@@ -87,6 +88,7 @@ from ._core.dialect import (
     OperatorConfig,
     SchemaConfig,
     StringConfig,
+    TableConfig,
     TemporalConfig,
     TupleConfig,
 )
@@ -172,6 +174,7 @@ __all__ = [
     "OPT_SCHEMA_FEATURES_IF_NOT_EXISTS",
     "OPT_SCHEMA_FEATURES_IS_DATABASE",
     "OPT_SCHEMA_FEATURES_SUPPORTED",
+    "OPT_TABLE_FEATURES_GENERATED_SUPPORTED",
     "OPT_TUPLE_ARITY_EMPTY",
     "OPT_TUPLE_ARITY_ONE",
     "OPT_TUPLE_SYNTAX_PARENTHESES",
@@ -200,6 +203,7 @@ __all__ = [
     "Spark",
     "Sqlite",
     "StringConfig",
+    "TableConfig",
     "TemporalConfig",
     "Teradata",
     "TupleConfig",
@@ -237,6 +241,7 @@ BigQuery = Dialect(
         function_filter=OPT_FUNCTION_FILTER_INSIDE_WHERE,
     ),
     schema=SchemaConfig(features=OPT_SCHEMA_FEATURES_SUPPORTED | OPT_SCHEMA_FEATURES_IF_NOT_EXISTS),
+    table=TableConfig(features=0, column_auto_increment=None, column_comment=None),
 )
 
 Databricks = Dialect(
@@ -272,6 +277,11 @@ Databricks = Dialect(
         location=" LOCATION {}",
     ),
     index=IndexConfig(features=OPT_INDEX_FEATURES_SUPPORTED | OPT_INDEX_FEATURES_IF_NOT_EXISTS),
+    table=TableConfig(
+        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+        column_auto_increment="GENERATED ALWAYS AS IDENTITY",
+        column_comment="COMMENT {}",
+    ),
 )
 
 DuckDb = Dialect(
@@ -318,6 +328,11 @@ DuckDb = Dialect(
         | OPT_INDEX_DROP_FEATURES_CASCADE
         | OPT_INDEX_DROP_FEATURES_RESTRICT,
     ),
+    table=TableConfig(
+        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+        column_auto_increment=None,
+        column_comment=None,
+    ),
 )
 
 Hive = Dialect(
@@ -350,6 +365,7 @@ Hive = Dialect(
         features=OPT_SCHEMA_FEATURES_SUPPORTED | OPT_SCHEMA_FEATURES_IF_NOT_EXISTS | OPT_SCHEMA_FEATURES_IS_DATABASE,
         location=" LOCATION {}",
     ),
+    table=TableConfig(features=0, column_auto_increment=None, column_comment="COMMENT {}"),
 )
 
 MsSql = Dialect(
@@ -390,6 +406,12 @@ MsSql = Dialect(
         drop_features=OPT_INDEX_DROP_FEATURES_SUPPORTED,
         drop_table=OPT_INDEX_DROP_TABLE_ON,
     ),
+    table=TableConfig(
+        # FIXME(awolverp): check docs for GENERATED ALWAYS AS
+        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+        column_auto_increment="IDENTITY(1,1)",
+        column_comment=None,
+    ),
 )
 
 MySql = Dialect(
@@ -427,6 +449,11 @@ MySql = Dialect(
         drop_features=OPT_INDEX_DROP_FEATURES_SUPPORTED,
         drop_table=OPT_INDEX_DROP_TABLE_ON,
     ),
+    table=TableConfig(
+        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+        column_auto_increment="AUTO_INCREMENT",
+        column_comment="COMMENT {}",
+    ),
 )
 
 Oracle = Dialect(
@@ -461,6 +488,11 @@ Oracle = Dialect(
         | OPT_INDEX_FEATURES_COLUMN_ORDER
         | OPT_INDEX_FEATURES_EXPRESSIONS,
         drop_features=OPT_INDEX_DROP_FEATURES_SUPPORTED,
+    ),
+    table=TableConfig(
+        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+        column_auto_increment="GENERATED ALWAYS AS IDENTITY",
+        column_comment=None,
     ),
 )
 
@@ -513,6 +545,11 @@ PostgreSql = Dialect(
         | OPT_INDEX_DROP_FEATURES_CASCADE
         | OPT_INDEX_DROP_FEATURES_RESTRICT,
     ),
+    table=TableConfig(
+        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+        column_auto_increment="GENERATED ALWAYS AS IDENTITY",
+        column_comment=None,
+    ),
 )
 
 Redshift = Dialect(
@@ -540,6 +577,7 @@ Redshift = Dialect(
         features=OPT_SCHEMA_FEATURES_SUPPORTED | OPT_SCHEMA_FEATURES_IF_NOT_EXISTS | OPT_SCHEMA_FEATURES_EMBEDDED_DDL,
         authorization=OPT_SCHEMA_AUTHORIZATION_OPTIONAL,
     ),
+    table=TableConfig(features=0, column_auto_increment="IDENTITY(1,1)", column_comment=None),
 )
 
 Snowflake = Dialect(
@@ -583,6 +621,11 @@ Snowflake = Dialect(
         drop_features=OPT_INDEX_DROP_FEATURES_SUPPORTED,
         drop_table=OPT_INDEX_DROP_TABLE_QUALIFIED,
     ),
+    table=TableConfig(
+        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+        column_auto_increment="AUTOINCREMENT",
+        column_comment="COMMENT {}",
+    ),
 )
 
 Spark = Dialect(
@@ -620,6 +663,7 @@ Spark = Dialect(
         drop_features=OPT_INDEX_DROP_FEATURES_SUPPORTED,
         drop_table=OPT_INDEX_DROP_TABLE_ON,
     ),
+    table=TableConfig(features=0, column_auto_increment="GENERATED ALWAYS AS IDENTITY", column_comment="COMMENT {}"),
 )
 
 Sqlite = Dialect(
@@ -649,6 +693,7 @@ Sqlite = Dialect(
         | OPT_INDEX_FEATURES_PARTIAL,
         drop_features=OPT_INDEX_DROP_FEATURES_SUPPORTED,
     ),
+    table=TableConfig(features=0, column_auto_increment="AUTOINCREMENT", column_comment=None),
 )
 
 Teradata = Dialect(
@@ -669,4 +714,9 @@ Teradata = Dialect(
     literal=LiteralConfig(bit="'{}'B", bytes="'{hex}'XBV", uuid="'{}'"),
     operator=OperatorConfig(modulo=OPT_OPERATOR_MODULO_INFIX),
     aggregate=AggregateConfig(null_treatment=OPT_NULL_TREATMENT_INSIDE_PARENS),
+    table=TableConfig(
+        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+        column_auto_increment="GENERATED ALWAYS AS IDENTITY(START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 NO CYCLE)",
+        column_comment=None,
+    ),
 )

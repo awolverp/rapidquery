@@ -8,20 +8,12 @@ use crate::sql::SqlWriter;
 use crate::sql::WriteSql;
 use crate::sql::write_separated;
 
-pub(super) fn write_escape<W: SqlWriter>(
-    dialect: &dialect::PyDialect,
-    out: &mut W,
-    escape: Option<char>,
-) -> exc::Result<()> {
-    let Some(c) = escape else {
-        return Ok(());
-    };
-
-    out.write_str(" ESCAPE ");
-    let mut buf = [0u8; 4];
-    dialect.string.write_string_literal(out, c.encode_utf8(&mut buf))?;
-
-    Ok(())
+pub(super) fn write_escape<W: SqlWriter>(dialect: &dialect::PyDialect, out: &mut W, escape: Option<char>) {
+    if let Some(c) = escape {
+        out.write_str(" ESCAPE ");
+        let mut buf = [0u8; 4];
+        dialect.string.write_string_literal(out, c.encode_utf8(&mut buf));
+    }
 }
 
 /// Pattern side of [`Like`]: one expression, or a non-empty ANY list.
@@ -202,7 +194,7 @@ fn write_like_any_native<W: SqlWriter>(
     } else {
         out.write(')');
     }
-    write_escape(dialect, out, like.escape)?;
+    write_escape(dialect, out, like.escape);
     if like.negated {
         out.write(')');
     }
@@ -234,7 +226,8 @@ impl WriteSql for Like {
                 write_like_operand(dialect, out, &self.expr, wrap_lower, false)?;
                 write_like_infix(out, self.negated, ilike);
                 write_like_operand(dialect, out, pattern, wrap_lower, true)?;
-                write_escape(dialect, out, self.escape)
+                write_escape(dialect, out, self.escape);
+                Ok(())
             }
             LikePattern::Any(patterns) => match dialect.like.any {
                 dialect::LikeAny::ArrayConstructor => {
@@ -253,7 +246,7 @@ impl WriteSql for Like {
                         write_like_operand(dialect, out, &self.expr, wrap_lower, false)?;
                         write_like_infix(out, self.negated, ilike);
                         write_like_operand(dialect, out, pattern, wrap_lower, true)?;
-                        write_escape(dialect, out, self.escape)?;
+                        write_escape(dialect, out, self.escape);
                     }
                     out.write(')');
                     Ok(())

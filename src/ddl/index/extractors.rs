@@ -1,17 +1,14 @@
-use std::sync;
-
+use crate::ddl::common;
 use crate::exc;
 
-use super::column::IndexColumnInner;
-use super::column::IndexOrder;
 use super::column::PyIndexColumn;
 
 /// IndexColumn extracted from Python.
 ///
 /// Accepts `str` (becomes an identifier), `Expr` and exact `IndexColumn`.
-pub struct IndexColumnExtractor(pub sync::Arc<IndexColumnInner>);
+pub struct IndexColumnExtractor<'py>(pub pyo3::Bound<'py, PyIndexColumn>);
 
-impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for IndexColumnExtractor {
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for IndexColumnExtractor<'py> {
     type Error = exc::Error;
 
     #[inline]
@@ -19,16 +16,16 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for IndexColumnExtractor {
         unsafe {
             if crate::typeref::check_exact(obj.as_ptr(), crate::typeref::DDL_INDEX_COLUMN_TYPE) {
                 let obj = obj.cast_unchecked::<PyIndexColumn>();
-                return Ok(Self(obj.get().0.clone()));
+                return Ok(Self(obj.to_owned()));
             }
         }
 
         let expr = crate::expr::extractors::NameExprExtractor::extract(obj)?;
-        let inner = IndexColumnInner {
+        let inner = PyIndexColumn {
             column: expr.0,
-            order: IndexOrder::Asc,
+            order: common::Order::Asc,
         };
 
-        Ok(Self(sync::Arc::new(inner)))
+        pyo3::Bound::new(obj.py(), inner).map(Self).map_err(Into::into)
     }
 }

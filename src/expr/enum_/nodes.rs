@@ -870,7 +870,7 @@ impl WriteSql for Collate {
                 out.write_str("COLLATE(");
                 self.expr.write_sql(dialect, out)?;
                 out.write_str(", ");
-                dialect.string.write_string_literal(out, body)?;
+                dialect.string.write_string_literal(out, body);
                 out.write(')');
                 Ok(())
             }
