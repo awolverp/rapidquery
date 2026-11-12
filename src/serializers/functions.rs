@@ -121,10 +121,11 @@ pub(super) unsafe fn write_str<W: writer::FastWrite>(
     out: &mut W,
 ) -> exc::Result<()> {
     if pyo3::ffi::PyUnicode_Check(ptr) == 1 {
-        return cfg.write_string_literal(out, utils::borrow_py_str_buffer(py, ptr)?);
+        cfg.write_string_literal(out, utils::borrow_py_str_buffer(py, ptr)?);
+        Ok(())
+    } else {
+        Err(reject_type(py, ptr, "StringSerializer", "str"))
     }
-
-    Err(reject_type(py, ptr, "StringSerializer", "str"))
 }
 
 #[inline]
@@ -208,11 +209,11 @@ pub(super) unsafe fn write_json<W: writer::FastWrite>(
         unsafe { pyo3::Bound::from_borrowed_ptr(py, ptr) },
         // write result into `out`
         |text| {
-            literal_cfg.json.write_to_result(
+            literal_cfg.json.write_to(
                 out,
                 // no special keys
                 |_, out| string_cfg.write_string_literal(out, text),
-            )?;
+            );
             Ok(())
         },
     )

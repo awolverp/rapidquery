@@ -1,5 +1,18 @@
 //! Data Definition Language
 
+mod common;
+pub use common::Order;
+
+mod table;
+pub use table::PyCheckConstraint;
+pub use table::PyColumn;
+pub use table::PyConstraint;
+pub use table::PyCreateTable;
+pub use table::PyForeignKeyConstraint;
+pub use table::PyPrimaryKeyConstraint;
+pub use table::PyUniqueConstraint;
+pub use table::TableConstraint;
+
 mod schema;
 pub use schema::DropSchemaBehavior;
 pub use schema::PyCreateSchema;
@@ -32,4 +45,20 @@ pub mod ddl_mod {
     use super::PyDropIndex;
     #[pymodule_export]
     use super::PyIndexColumn;
+
+    #[pymodule_export]
+    use super::PyColumn;
+
+    #[pymodule_export]
+    use super::PyCheckConstraint;
+    #[pymodule_export]
+    use super::PyConstraint;
+    #[pymodule_export]
+    use super::PyCreateTable;
+    #[pymodule_export]
+    use super::PyForeignKeyConstraint;
+    #[pymodule_export]
+    use super::PyPrimaryKeyConstraint;
+    #[pymodule_export]
+    use super::PyUniqueConstraint;
 }

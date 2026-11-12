@@ -87,8 +87,6 @@ class TestCreateIndex:
 
         with pytest.raises(DialectError, match="^CREATE INDEX is not supported"):
             _ = stmt.to_sql(rq.dialect.Dialect())
-        with pytest.raises(DialectError, match="^CREATE INDEX is not supported"):
-            _ = stmt.to_sql(rq.dialect.BigQuery)
 
     def test_supported(self):
         stmt = rq.ddl.CreateIndex("idx", "users", [rq.ddl.IndexColumn("id")])
@@ -252,9 +250,6 @@ class TestDropIndex:
 
         with pytest.raises(DialectError, match="^DROP INDEX is not supported"):
             _ = stmt.to_sql(rq.dialect.Dialect())
-
-        with pytest.raises(DialectError, match="^DROP INDEX is not supported"):
-            _ = stmt.to_sql(rq.dialect.BigQuery)
 
         with pytest.raises(DialectError, match="^DROP INDEX is not supported"):
             _ = stmt.to_sql(rq.dialect.Databricks)

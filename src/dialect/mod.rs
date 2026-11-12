@@ -26,6 +26,8 @@ pub mod dialect_mod {
     #[pymodule_export]
     use super::StringConfig;
     #[pymodule_export]
+    use super::TableConfig;
+    #[pymodule_export]
     use super::TemporalConfig;
     #[pymodule_export]
     use super::TupleConfig;

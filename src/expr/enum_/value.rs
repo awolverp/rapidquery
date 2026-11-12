@@ -63,6 +63,9 @@ impl WriteSql for Value {
 
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
+        // FIXME(awolverp): Use Python `==` instead of identity-equal
+        //                  identity-equal can cause silent false `if`s conditions,
+        //                  such as `bool(Value(Decimal(1.1)) == Decimal(1.1))`
         self.serializer == other.serializer && self.object.as_ptr() == other.object.as_ptr()
     }
 }

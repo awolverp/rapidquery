@@ -71,7 +71,7 @@ impl sql::WriteSql for PyCreateSchema {
             };
 
             out.write(' ');
-            tmpl.write_to_result(out, |_, out| dialect.string.write_string_literal(out, x.as_str()))?;
+            tmpl.write_to(out, |_, out| dialect.string.write_string_literal(out, x.as_str()));
         }
 
         Ok(())

@@ -631,8 +631,7 @@ class StringConfig:
                 - ``unicode_quote``: ``unicode`` plus ``\"``. Use for ``"`` delimited strings.
 
                 Only use a backslash key when the target database really reads
-                backslash escapes inside string literals (e.g. MySQL, BigQuery,
-                Hive, Spark, or PostgreSQL ``E'...'``).
+                backslash escapes inside string literals (e.g. MySQL, Hive, Spark, or PostgreSQL ``E'...'``).
             concat: Template for binary string concatenation with exactly the keys
                 ``{left}`` and ``{right}``. Defaults to ``{left} || {right}``.
         """
@@ -769,6 +768,75 @@ class TupleConfig:
         """
 
 @final
+class TableConfig:
+    """Column clauses and ``CREATE TABLE`` clauses.
+
+    Examples:
+        >>> from rapidquery.dialect import OPT_TABLE_FEATURES_IF_NOT_EXISTS, TableConfig
+        >>> TableConfig(features=OPT_TABLE_FEATURES_IF_NOT_EXISTS).features == OPT_TABLE_FEATURES_IF_NOT_EXISTS
+        True
+    """
+
+    def __new__(
+        cls,
+        *,
+        features: int = 0,
+        column_auto_increment: str | None = None,
+        column_comment: str | None = None,
+        temporary: str | None = None,
+        comment: str | None = None,
+        location: str | None = None,
+    ) -> Self:
+        """Create a ``TableConfig``.
+
+        Args:
+            features: ``OPT_TABLE_FEATURES_*`` flags. Defaults to none (``0``).
+            column_auto_increment: Template for an auto-increment column. No
+                placeholders, for example ``"AUTOINCREMENT"``. ``None`` rejects
+                the clause.
+            column_comment: Template for an inline column comment, for example
+                ``"COMMENT {}"``. ``None`` omits the comment.
+            temporary: Keyword written between ``CREATE`` and ``TABLE`` for a
+                session-private temporary table. No placeholders. ``"TEMPORARY"``,
+                ``"VOLATILE"``, or ``"PRIVATE TEMPORARY"``. ``None`` rejects
+                ``temporary=True``.
+            comment: Template for a table comment, for example ``"COMMENT {}"``
+                or ``"COMMENT = {}"``. ``None`` omits the comment.
+            location: Template for a table location, for example ``"LOCATION {}"``.
+                The placeholder is a string literal. ``None`` rejects a location.
+        """
+
+    @property
+    def features(self) -> int:
+        """``OPT_TABLE_FEATURES_*`` flags."""
+
+    @property
+    def column_auto_increment(self) -> str | None:
+        """Auto-increment template, or ``None``."""
+
+    @property
+    def column_comment(self) -> str | None:
+        """Column comment template, or ``None``."""
+
+    @property
+    def temporary(self) -> str | None:
+        """Session-private temporary keyword, or ``None``."""
+
+    @property
+    def comment(self) -> str | None:
+        """Table comment template, or ``None``."""
+
+    @property
+    def location(self) -> str | None:
+        """Table location template, or ``None``."""
+
+    def __eq__(self, value: object, /) -> bool:
+        """Return ``True`` if ``value`` is a ``TableConfig`` with equal settings."""
+
+    def __hash__(self) -> int:
+        """Return a hash consistent with ``__eq__``."""
+
+@final
 class Dialect:
     r"""Quoting, literal spelling, and which syntax is legal.
 
@@ -800,6 +868,7 @@ class Dialect:
         aggregate: AggregateConfig = ...,
         schema: SchemaConfig = ...,
         index: IndexConfig = ...,
+        table: TableConfig = ...,
     ) -> Self:
         r"""Create a ``Dialect``.
 
@@ -830,7 +899,7 @@ class Dialect:
                 - ``slashdouble``: ``"``.
                 - ``slashsingle``: ``'``.
                 - ``slashbracket``: ``]``.
-                - ``slashbacktick``: ``` ` ``` (BigQuery).
+                - ``slashbacktick``: ``` ` ```.
 
                 Only use a ``slash*`` key when the target database really reads
                 backslash escapes inside quoted identifiers.
@@ -1035,16 +1104,38 @@ OPT_INDEX_DROP_TABLE_NAME_ONLY: Final[int]  # DROP INDEX name. A table is reject
 OPT_INDEX_DROP_TABLE_ON: Final[int]  # DROP INDEX name ON table. A table is required.
 OPT_INDEX_DROP_TABLE_QUALIFIED: Final[int]  # DROP INDEX table.name. A table is required.
 
-BigQuery: Final[Dialect]
+# TableConfig.features
+OPT_TABLE_FEATURES_CHECK: Final[int]  # Table-level CHECK
+OPT_TABLE_FEATURES_EXTERNAL: Final[int]  # CREATE EXTERNAL TABLE
+OPT_TABLE_FEATURES_FOREIGN_KEY: Final[int]  # Table-level FOREIGN KEY
+OPT_TABLE_FEATURES_GENERATED_SUPPORTED: Final[int]  # GENERATED ALWAYS AS ... on a column
+OPT_TABLE_FEATURES_IF_NOT_EXISTS: Final[int]  # CREATE TABLE IF NOT EXISTS. Omitted when off.
+OPT_TABLE_FEATURES_ON_COMMIT: Final[int]  # ON COMMIT PRESERVE ROWS, DELETE ROWS, or DROP
+OPT_TABLE_FEATURES_PRIMARY_KEY: Final[int]  # Table-level PRIMARY KEY
+OPT_TABLE_FEATURES_REFERENTIAL_ACTION: Final[int]  # ON DELETE and ON UPDATE
+OPT_TABLE_FEATURES_UNIQUE: Final[int]  # Table-level UNIQUE
+
 Databricks: Final[Dialect]
+"""Databricks dialect. It is still in preview and unstable."""
 DuckDb: Final[Dialect]
+"""DuckDB dialect. It is still in preview and unstable."""
 Hive: Final[Dialect]
+"""Hive dialect. It is still in preview and unstable."""
 MsSql: Final[Dialect]
+"""MsSQL/SQL Server dialect. It is still in preview and unstable."""
 MySql: Final[Dialect]
+"""MySQL/MariaDB dialect. It is still in preview and unstable."""
 Oracle: Final[Dialect]
+"""Oracle dialect. It is still in preview and unstable."""
 PostgreSql: Final[Dialect]
+"""PostgreSQL dialect. It is still in preview and unstable."""
 Redshift: Final[Dialect]
+"""Redshift dialect. It is still in preview and unstable."""
 Snowflake: Final[Dialect]
+"""Snowflake dialect. It is still in preview and unstable."""
 Spark: Final[Dialect]
+"""Spark dialect. It is still in preview and unstable."""
 Sqlite: Final[Dialect]
+"""SQLite dialect. It is still in preview and unstable."""
 Teradata: Final[Dialect]
+"""Teradata dialect. It is still in preview and unstable."""

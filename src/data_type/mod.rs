@@ -4,6 +4,9 @@ use crate::sql;
 #[cfg(test)]
 mod tests;
 
+// TODO(awolverp): Improve data type detection and make them per-dialect, like what SQLAlchemy can do
+// TODO(awolverp): Support `__type__() -> str` customization protocol
+
 /// SQL type name, interned when it is one of the known spellings.
 ///
 /// Known names fold to their traditional uppercase form. Unknown names and

@@ -28,7 +28,7 @@ enum Kind {
     Class(Type),
     /// `name: enum Ty { A, B }` — a Rust enum exposed to Python as `u8`.
     Enum { ty: Type, variants: Vec<Ident> },
-    /// `name: bits Ty { X, Y }` — a bitflags type exposed to Python as `u8`.
+    /// `name: bits Ty { X, Y }` — a bitflags type exposed to Python as `u16`.
     Bits { ty: Type, flags: Vec<Ident> },
     /// `name: template(..; n)` — `template::Template`, exposed as `str`.
     Template {
@@ -352,7 +352,8 @@ impl Field {
     fn param_ty(&self) -> TokenStream {
         let inner = match &self.kind {
             Kind::Plain(ty) | Kind::Class(ty) => quote!(#ty),
-            Kind::Enum { .. } | Kind::Bits { .. } => quote!(u8),
+            Kind::Enum { .. } => quote!(u8),
+            Kind::Bits { .. } => quote!(u16),
             Kind::Template { .. } => quote!(&str),
         };
         self.wrap_option(inner)
@@ -464,7 +465,7 @@ impl Field {
             }
 
             Kind::Enum { .. } => self.mapped_getter(quote!(u8), quote!(*__x as u8)),
-            Kind::Bits { .. } => self.mapped_getter(quote!(u8), quote!(__x.bits())),
+            Kind::Bits { .. } => self.mapped_getter(quote!(u16), quote!(__x.bits())),
             Kind::Template { .. } => self.mapped_getter(quote!(&str), quote!(__x.as_str())),
         }
     }
@@ -483,7 +484,7 @@ impl Field {
 
             (Kind::Bits { ty, .. }, DefaultValue::Flags(flags)) => {
                 let bits = if flags.is_empty() {
-                    quote!(0u8)
+                    quote!(0u16)
                 } else {
                     quote!(#(<#ty>::#flags.bits())|*)
                 };

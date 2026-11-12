@@ -1,7 +1,6 @@
 import pytest
 
 from rapidquery.dialect import (
-    BigQuery,
     Dialect,
     DuckDb,
     MsSql,
@@ -252,7 +251,6 @@ class TestExprMethods:
 
         attempt = name.try_cast_as("int")
         assert attempt.get_kind() == "TRY_CAST"
-        assert attempt.to_sql(BigQuery) == "SAFE_CAST(`name` AS INT)"
 
         collated = name.collate(Unquote("C"))
         assert isinstance(collated, CollateExpr)
@@ -326,7 +324,6 @@ class TestFunction:
 
         fn = Function("lag", Ident("x")).ignore_nulls()
         assert fn.to_sql(Oracle) == '"lag"("x") IGNORE NULLS'
-        assert fn.to_sql(BigQuery) == "`lag`(`x` IGNORE NULLS)"
         assert fn.to_sql(DuckDb) == '"lag"("x" IGNORE NULLS)'
         assert fn.get_null_treatment() == "IGNORE NULLS"
 
@@ -335,18 +332,15 @@ class TestFunction:
 
         fn = Function("lag", Ident("x")).respect_nulls()
         assert fn.to_sql(Oracle) == '"lag"("x") RESPECT NULLS'
-        assert fn.to_sql(BigQuery) == "`lag`(`x` RESPECT NULLS)"
         assert fn.to_sql(DuckDb) == '"lag"("x" RESPECT NULLS)'
         assert fn.get_null_treatment() == "RESPECT NULLS"
 
         fn = Function("lag").ignore_nulls()
         assert fn.to_sql(Oracle) == '"lag"() IGNORE NULLS'
-        assert fn.to_sql(BigQuery) == "`lag`(IGNORE NULLS)"
 
         completed = BinaryExpr(Ident("status"), "=", "completed")
         fn = Function("count", Ident("id")).ignore_nulls().filter(completed)
         assert fn.to_sql(Oracle) == '"count"("id") FILTER (WHERE "status" = \'completed\') IGNORE NULLS'
-        assert fn.to_sql(BigQuery) == "`count`(`id` IGNORE NULLS WHERE `status` = 'completed')"
         assert fn.to_sql(DuckDb) == '"count"("id" IGNORE NULLS) FILTER ("status" = \'completed\')'
 
     def test_edge_cases(self):
@@ -426,9 +420,6 @@ class TestTupleExpr:
             TupleExpr(1).to_sql(Sqlite)
 
         assert TupleExpr(1, 2).to_sql(Spark) == "struct(1, 2)"
-
-        with pytest.raises(DialectError, match="^tuple is not supported"):
-            TupleExpr(1, 2).to_sql(BigQuery)
 
 
 class TestUnaryExpr:
@@ -847,7 +838,6 @@ class TestRLikeExpr:
         assert rlike.to_sql(Spark) == "`name` RLIKE '%a%'"
         assert rlike.to_sql(Snowflake) == "\"name\" RLIKE '%a%'"
         assert rlike.to_sql(Oracle) == "REGEXP_LIKE(\"name\", '%a%')"
-        assert rlike.to_sql(BigQuery) == "REGEXP_CONTAINS(`name`, '%a%')"
         assert rlike.to_sql(DuckDb) == "regexp_matches(\"name\", '%a%')"
 
         assert RLikeExpr(Ident("name"), "%a%", negated=True).to_sql(PostgreSql) == "\"name\" !~ E'%a%'"
@@ -905,7 +895,6 @@ class TestCastExpr:
         with pytest.raises(DialectError, match="TRY_CAST"):
             CastExpr(Ident("id"), "int", kind="TRY_CAST").to_sql(PostgreSql)
 
-        assert CastExpr(Ident("id"), "int", kind="TRY_CAST").to_sql(BigQuery) == "SAFE_CAST(`id` AS INT)"
         assert CastExpr(Ident("id"), "int", kind="TRY_CAST").to_sql(Teradata) == 'TRYCAST("id" AS INT)'
         assert CastExpr(Ident("id"), "int", kind="::").to_sql(DuckDb) == '("id")::INT'
 

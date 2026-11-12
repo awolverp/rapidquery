@@ -6,7 +6,6 @@ from hypothesis import settings
 from rapidquery._core import _feature_only_stdlib_json
 
 from rapidquery.dialect import (
-    BigQuery,
     Databricks,
     Dialect,
     DuckDb,
@@ -30,7 +29,6 @@ settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "default"))
 
 
 ALL_DIALECTS: list[Dialect] = [
-    BigQuery,
     Databricks,
     DuckDb,
     Hive,

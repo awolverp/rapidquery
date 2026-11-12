@@ -1,17 +1,31 @@
 from ._core.ddl import (
+    CheckConstraint,
+    Column,
+    Constraint,
     CreateIndex,
     CreateSchema,
+    CreateTable,
     DataDefinitionLanguage,
     DropIndex,
     DropSchema,
+    ForeignKeyConstraint,
     IndexColumn,
+    PrimaryKeyConstraint,
+    UniqueConstraint,
 )
 
 __all__ = [
+    "CheckConstraint",
+    "Column",
+    "Constraint",
     "CreateIndex",
     "CreateSchema",
+    "CreateTable",
     "DataDefinitionLanguage",
     "DropIndex",
     "DropSchema",
+    "ForeignKeyConstraint",
     "IndexColumn",
+    "PrimaryKeyConstraint",
+    "UniqueConstraint",
 ]

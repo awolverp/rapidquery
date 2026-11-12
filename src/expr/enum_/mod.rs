@@ -167,7 +167,7 @@ impl ExprInner {
 }
 
 impl WriteSql for ExprInner {
-    #[cfg_attr(feature = "nightly", optimize(speed))]
+    #[inline]
     fn write_sql<W: SqlWriter>(&self, dialect: &PyDialect, out: &mut W) -> exc::Result<()> {
         match self {
             Self::Ident(x) => x.write_sql(dialect, out),

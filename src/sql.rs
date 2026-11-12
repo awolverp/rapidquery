@@ -257,3 +257,24 @@ where
     }
     Ok(())
 }
+
+/// Works like [`write_separated`], but uses `dialect::PyDialect::write_identifier`
+/// instead of `write_sql`.
+#[cfg_attr(feature = "nightly", optimize(speed))]
+pub fn write_identifiers<'a, W>(
+    dialect: &dialect::PyDialect,
+    out: &mut W,
+    items: impl IntoIterator<Item = &'a str>,
+    separator: &str,
+) where
+    W: SqlWriter,
+{
+    let mut first = true;
+    for item in items {
+        if !first {
+            out.write_str(separator);
+        }
+        first = false;
+        dialect.write_identifier(out, item);
+    }
+}
