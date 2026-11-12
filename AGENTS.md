@@ -12,7 +12,7 @@ This branch is incomplete.
 - Format: `make format` (ruff, then `cargo fmt`)
 - Lint: `make lint` (ruff check/format, pyright, `cargo fmt --check`, `cargo clippy --tests -- -D warnings`)
 - Rust tests: `make test-rust` (`--no-default-features --features auto-initialize,nightly`). Default features do not link libpython.
-- Python tests: `make test-python` (`pytest -v -n auto`). Rebuild the extension first when Rust changed.
+- Python tests: `make test-python` (`pytest -v`). Rebuild the extension first when Rust changed.
 - Full local gate: `make` (format, build-dev, lint, both test targets).
 
 CI (`.github/workflows/test.yml`) runs pytest only, on CPython 3.10–3.15, 3.14t/3.15t, and PyPy 3.11. Free-threaded jobs may fail. Rust tests and clippy are local.
