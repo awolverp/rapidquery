@@ -94,7 +94,7 @@ pub fn cust_protocol(input: TokenStream) -> TokenStream {
 ///
 /// * `enum { A, B }` — a fieldless enum (derives `Default`, so mark one
 ///   variant `#[default]` if the enum is ever defaulted).
-/// * `bits { A, B }` — a `u8` bitflags type. Flags get bit `1 << index`
+/// * `bits { A, B }` — a `u16` bitflags type. Flags get bit `1 << index`
 ///   automatically; write `A = <expr>` to override the value.
 ///
 /// Attributes (e.g. docs, `#[default]`) on variants and flags are kept.

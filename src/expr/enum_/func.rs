@@ -11,7 +11,7 @@ use crate::sql::write_separated;
 /// How `NULL`s are treated in some window/aggregate functions.
 ///
 /// Placement is dialect-specific: postfix `LAG(x) IGNORE NULLS`, or
-/// inside the argument list on BigQuery/DuckDB (`LAG(x IGNORE NULLS)`).
+/// inside the argument list on DuckDB (`LAG(x IGNORE NULLS)`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NullTreatment {
     /// `IGNORE NULLS`
@@ -60,8 +60,7 @@ pub struct Function {
     pub args: Vec<ExprInner>,
     /// e.g. `x > 5` in `COUNT(x) FILTER (WHERE x > 5)`
     pub filter: Option<Box<ExprInner>>,
-    /// `IGNORE NULLS` / `RESPECT NULLS`. Inside the parens on BigQuery
-    /// and DuckDB; after the call on other dialects.
+    /// `IGNORE NULLS` / `RESPECT NULLS`.
     pub null_treatment: Option<NullTreatment>,
     // TODO: over, within_group
 }

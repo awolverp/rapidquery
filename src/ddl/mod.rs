@@ -3,8 +3,15 @@
 mod common;
 pub use common::Order;
 
-mod column;
-pub use column::PyColumn;
+mod table;
+pub use table::PyCheckConstraint;
+pub use table::PyColumn;
+pub use table::PyConstraint;
+pub use table::PyCreateTable;
+pub use table::PyForeignKeyConstraint;
+pub use table::PyPrimaryKeyConstraint;
+pub use table::PyUniqueConstraint;
+pub use table::TableConstraint;
 
 mod schema;
 pub use schema::DropSchemaBehavior;
@@ -41,4 +48,17 @@ pub mod ddl_mod {
 
     #[pymodule_export]
     use super::PyColumn;
+
+    #[pymodule_export]
+    use super::PyCheckConstraint;
+    #[pymodule_export]
+    use super::PyConstraint;
+    #[pymodule_export]
+    use super::PyCreateTable;
+    #[pymodule_export]
+    use super::PyForeignKeyConstraint;
+    #[pymodule_export]
+    use super::PyPrimaryKeyConstraint;
+    #[pymodule_export]
+    use super::PyUniqueConstraint;
 }

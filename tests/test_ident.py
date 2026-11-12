@@ -2,7 +2,6 @@ import pytest
 
 from rapidquery import Asterisk, Ident, Unquote
 from rapidquery.dialect import (
-    BigQuery,
     Databricks,
     Dialect,
     DuckDb,
@@ -19,7 +18,6 @@ from rapidquery.dialect import (
 )
 
 _QUOTED_USERS_ID = {
-    BigQuery: "`users`.`id`",
     Databricks: "`users`.`id`",
     DuckDb: '"users"."id"',
     Hive: "`users`.`id`",

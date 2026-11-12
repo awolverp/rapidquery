@@ -19,8 +19,8 @@ use syn::punctuated::Punctuated;
 /// Name of the helper attribute placed on fields.
 const HELPER_ATTR: &str = "define";
 
-/// Bitflags types are `u8`, so at most this many flags fit.
-const MAX_FLAGS: usize = u8::BITS as usize;
+/// Bitflags types are `u16`, so at most this many flags fit.
+const MAX_FLAGS: usize = u16::BITS as usize;
 
 // ============================================================================
 // AST
@@ -112,7 +112,7 @@ impl Parse for Body {
         if flags.len() > MAX_FLAGS {
             return Err(syn::Error::new_spanned(
                 &flags[MAX_FLAGS].ident,
-                format!("a `u8` bitflags type holds at most {MAX_FLAGS} flags"),
+                format!("a `u16` bitflags type holds at most {MAX_FLAGS} flags"),
             ));
         }
         Ok(Self::Bits(flags))
@@ -157,7 +157,7 @@ impl GeneratedType {
                     ::bitflags::bitflags! {
                         #(#docs)*
                         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-                        #vis struct #name: u8 {
+                        #vis struct #name: u16 {
                             #(#flags)*
                         }
                     }

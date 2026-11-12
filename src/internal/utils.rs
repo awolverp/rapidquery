@@ -55,7 +55,11 @@ pub fn new_pynone<'py>(py: pyo3::Python<'py>) -> pyo3::Bound<'py, pyo3::PyAny> {
     unsafe { pyo3::Bound::from_borrowed_ptr(py, pyo3::ffi::Py_None()) }
 }
 
-/// Converts smallvec into PyTuple using pyo3 FFI
+/// Converts iterators into PyTuple using pyo3 FFI.
+///
+/// If we create a temporary `Vec<T>` and return, pyo3 itself is responsible
+/// to convert it to PyList, which has `O(2n)` overhead. With `iterator_to_tuple`
+/// we can directly convert everything into *PyTuple*.
 ///
 /// # Safety
 /// The items returned by the iterator must be owned, not borrowed.

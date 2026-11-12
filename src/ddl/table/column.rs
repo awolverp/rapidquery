@@ -15,24 +15,25 @@ pub enum ColumnGeneratedType {
     /// Emits `VIRTUAL`.
     #[strum(serialize = "VIRTUAL")]
     Virtual,
-    /// Emits `PERSIST`.
-    #[strum(serialize = "PERSIST")]
-    Persist,
+    /// Emits `PERSISTED`.
+    #[strum(serialize = "PERSISTED")]
+    Persisted,
     /// Emits `STORED`.
     #[strum(serialize = "STORED")]
     Stored,
 }
 
+/// Represents `GENERATED ALWAYS AS ...` clause
 #[derive(Debug, Clone)]
 pub struct ColumnGenerated {
     pub expression: ExprInner,
     pub generated_type: Option<ColumnGeneratedType>,
 }
 
-/// Column definition
+/// Column definition.
 ///
 /// ```ignore
-/// <name> <data_type> [GENERATED ALWAYS AS (<expression>) [VIRTUAL | STORED | PERSIST]]
+/// <name> <data_type> [GENERATED ALWAYS AS (<expression>) [VIRTUAL | STORED | PERSISTED]]
 /// [PRIMARY KEY | UNIQUE] [AUTOINCREMENT] {NULL | NOT NULL} [DEFAULT <default>] [CHECK (<check>)]
 /// [COMMENT <comment>] <extra>
 /// ```
@@ -70,7 +71,7 @@ pub struct PyColumn {
     /// Whether is auto increment
     pub auto_increment: bool,
 
-    /// `GENERATED AS` expression
+    /// `GENERATED ALWAYS AS` expression
     pub generated: Option<Box<ColumnGenerated>>,
 }
 
@@ -120,9 +121,7 @@ impl sql::WriteSql for PyColumn {
                 .features
                 .contains(crate::dialect::TableFeatures::GENERATED_SUPPORTED)
             {
-                return Err(exc::Error::Dialect {
-                    feature: "Column.generated",
-                });
+                return Err(exc::Error::dialect("Column.generated"));
             }
 
             out.write_str(" GENERATED ALWAYS AS (");
@@ -140,9 +139,7 @@ impl sql::WriteSql for PyColumn {
 
         if self.auto_increment {
             let Some(tmpl) = &dialect.table.column_auto_increment else {
-                return Err(exc::Error::Dialect {
-                    feature: "Column.auto_increment",
-                });
+                return Err(exc::Error::dialect("Column.auto_increment"));
             };
 
             out.write(' ');
@@ -156,7 +153,7 @@ impl sql::WriteSql for PyColumn {
         }
 
         if let Some(x) = &self.default {
-            out.write_str(" DEFAULT");
+            out.write_str(" DEFAULT ");
             x.write_sql(dialect, out)?;
         }
 
@@ -227,7 +224,7 @@ impl PyColumn {
                 exc::Error::invalid(
                     "generated_type",
                     format!(
-                        "expected 'VIRTUAL', 'PERSIST' or 'STORED', received {}",
+                        "expected 'VIRTUAL', 'PERSISTED' or 'STORED', received {}",
                         generated_type.unwrap()
                     ),
                 )
@@ -313,6 +310,11 @@ impl PyColumn {
     }
 
     #[getter]
+    fn get_auto_increment(&self) -> bool {
+        self.auto_increment
+    }
+
+    #[getter]
     fn get_generated<'a>(&self, py: pyo3::Python<'a>) -> pyo3::PyResult<Option<alias::BoundObject<'a>>> {
         self.generated
             .as_ref()
@@ -342,11 +344,6 @@ impl PyColumn {
     #[inline(always)]
     fn to_expr<'a>(&self, py: pyo3::Python<'a>) -> pyo3::PyResult<alias::BoundObject<'a>> {
         self.__expr__(py)
-    }
-
-    /// Render this expression as raw SQL (values inlined as literals).
-    fn to_sql(&self, dialect: pyo3::Bound<'_, crate::dialect::PyDialect>) -> exc::Result<String> {
-        sql::write_sql(dialect.py(), self, dialect.get())
     }
 
     fn __repr__(&self, py: pyo3::Python) -> exc::Result<String> {

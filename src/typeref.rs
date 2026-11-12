@@ -16,6 +16,11 @@ pub(crate) static mut EXPR_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_m
 
 // DDL types
 pub(crate) static mut DDL_INDEX_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut DDL_COLUMN_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut DDL_UNIQUE_CONSTRAINT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut DDL_PRIMARY_KEY_CONSTRAINT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut DDL_FOREIGN_KEY_CONSTRAINT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
+pub(crate) static mut DDL_CHECK_CONSTRAINT_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
 
 // Python standard-library types (serializers)
 pub(crate) static mut STD_DECIMAL_TYPE: *mut pyo3::ffi::PyTypeObject = std::ptr::null_mut();
@@ -100,6 +105,11 @@ fn _initialize_typeref(py: pyo3::Python) {
             crate::expr::ident::PyAsterisk => ASTERISK_TYPE,
             crate::expr::value::PyValue => VALUE_TYPE,
             crate::ddl::PyIndexColumn => DDL_INDEX_COLUMN_TYPE,
+            crate::ddl::PyColumn => DDL_COLUMN_TYPE,
+            crate::ddl::PyUniqueConstraint => DDL_UNIQUE_CONSTRAINT_TYPE,
+            crate::ddl::PyPrimaryKeyConstraint => DDL_PRIMARY_KEY_CONSTRAINT_TYPE,
+            crate::ddl::PyForeignKeyConstraint => DDL_FOREIGN_KEY_CONSTRAINT_TYPE,
+            crate::ddl::PyCheckConstraint => DDL_CHECK_CONSTRAINT_TYPE,
         );
 
         STD_DECIMAL_TYPE = look_up_type_object(c"decimal", c"Decimal");

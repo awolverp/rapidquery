@@ -530,6 +530,9 @@ impl InList {
 impl WriteSql for InList {
     fn write_sql<W: SqlWriter>(&self, dialect: &dialect::PyDialect, out: &mut W) -> exc::Result<()> {
         if self.list.is_empty() {
+            // FIXME(awolverp): Empty `IN ()` should render as a
+            //                  false predicate (`1 = 0`, or `1 = 1` for `NOT IN`).
+
             // `x IN ()` is false and `x NOT IN ()` is true, including when `x` is NULL.
             dialect.literal.write_boolean(out, self.negated);
             return Ok(());

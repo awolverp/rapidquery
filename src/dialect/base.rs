@@ -117,7 +117,7 @@ pub struct StringConfig {
     /// - `unicode_quote`: `unicode` plus `\"`. Use it for `"` delimited strings.
     ///
     /// Only use a backslash key when the target database really reads backslash escapes
-    /// inside string literals (e.g. MySQL, BigQuery, Hive, Spark, or PostgreSQL `E'...'`).
+    /// inside string literals (e.g. MySQL, Hive, Spark, or PostgreSQL `E'...'`).
     ///
     /// Prefer using `StringConfig::write_string_literal` instead of directly using this template.
     pub template: template::Template,
@@ -442,10 +442,28 @@ rapidquery_macros::pyo3_constructor! {
 #[rapidquery_macros::define_options]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableConfig {
-    /// Table features.
+    /// Table and column features.
     ///
-    /// - GENERATED_SUPPORTED: `GENERATED ALWAYS AS ...` clause in columns is supported
-    #[define(bits { GENERATED_SUPPORTED })]
+    /// - GENERATED_SUPPORTED: `GENERATED ALWAYS AS ...` clause in columns is supported.
+    /// - IF_NOT_EXISTS: `CREATE TABLE IF NOT EXISTS` is written. Without this flag the clause is omitted.
+    /// - EXTERNAL: `CREATE EXTERNAL TABLE` is accepted.
+    /// - PRIMARY_KEY: A table-level `PRIMARY KEY` constraint is accepted.
+    /// - UNIQUE: A table-level `UNIQUE` constraint is accepted.
+    /// - FOREIGN_KEY: A table-level `FOREIGN KEY` constraint is accepted.
+    /// - CHECK: A table-level `CHECK` constraint is accepted.
+    /// - REFERENTIAL_ACTION: `ON DELETE` and `ON UPDATE` are accepted.
+    /// - ON_COMMIT: `ON COMMIT PRESERVE ROWS`, `DELETE ROWS`, or `DROP` is accepted on a temporary table.
+    #[define(bits {
+        GENERATED_SUPPORTED,
+        IF_NOT_EXISTS,
+        EXTERNAL,
+        PRIMARY_KEY,
+        UNIQUE,
+        FOREIGN_KEY,
+        CHECK,
+        REFERENTIAL_ACTION,
+        ON_COMMIT
+    })]
     pub features: TableFeatures,
 
     /// Column auto increment template e.g. `"AUTO_INCREMENT"`
@@ -457,13 +475,42 @@ pub struct TableConfig {
     ///
     /// `None` means unsupported.
     pub column_comment: Option<template::Template>,
+
+    /// Session-private temporary keyword written between `CREATE` and `TABLE`.
+    ///
+    /// No placeholders. `None` means `temporary=True` is rejected.
+    /// `"TEMPORARY"`, `"VOLATILE"`, or `"PRIVATE TEMPORARY"`.
+    pub temporary: Option<template::Template>,
+
+    /// Table comment template e.g. `"COMMENT {}"` or `"COMMENT = {}"`.
+    ///
+    /// `None` means a table comment is omitted.
+    pub comment: Option<template::Template>,
+
+    /// Table location template e.g. `"LOCATION {}"`.
+    ///
+    /// The placeholder is a string literal. `None` means a location is rejected.
+    pub location: Option<template::Template>,
 }
 
 rapidquery_macros::pyo3_constructor! {
     TableConfig => export_table_config_options {
-        features: bits TableFeatures { GENERATED_SUPPORTED } = empty,
+        features: bits TableFeatures {
+            GENERATED_SUPPORTED,
+            IF_NOT_EXISTS,
+            EXTERNAL,
+            PRIMARY_KEY,
+            UNIQUE,
+            FOREIGN_KEY,
+            CHECK,
+            REFERENTIAL_ACTION,
+            ON_COMMIT
+        } = empty,
         column_auto_increment: Option<template(_?; 0)> = None,
         column_comment: Option<template(_; 1)> = None,
+        temporary: Option<template(_?; 0)> = None,
+        comment: Option<template(_; 1)> = None,
+        location: Option<template(_; 1)> = None,
     }
 }
 
@@ -500,7 +547,7 @@ pub struct PyDialect {
     /// - `slashdouble`: `"`
     /// - `slashsingle`: `'`
     /// - `slashbracket`: `]`
-    /// - `slashbacktick`: `` ` `` (BigQuery)
+    /// - `slashbacktick`: `` ` ``
     ///
     /// Only use a `slash*` key when the target database really reads backslash
     /// escapes inside quoted identifiers.

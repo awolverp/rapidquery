@@ -309,7 +309,7 @@ class ArraySerializer(Serializer[list[_T] | tuple[_T]]):
     """
     `ARRAY[elem, …]` built by serializing each item.
 
-    Use this for a list or tuple on PostgreSQL, DuckDB, and BigQuery. Pass
+    Use this for a list or tuple on PostgreSQL, DuckDB. Pass
     another `ArraySerializer` as `element` for a nested array. Other dialects
     raise.
 

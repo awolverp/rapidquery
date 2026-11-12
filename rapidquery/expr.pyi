@@ -901,7 +901,7 @@ class LikeExpr(Expr):
             negated: Negate the match.
             case_sensitive: When false, render the dialect's case-insensitive form.
             escape: One escape character, or `None` to omit ``ESCAPE``. ``ESCAPE`` is
-                    not supported by BigQuery, Hive.
+                    not supported by Hive.
 
         Raises:
             TypeError: `pattern` is not an expression, list, or tuple.

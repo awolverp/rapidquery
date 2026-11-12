@@ -71,7 +71,15 @@ from ._core.dialect import (
     OPT_SCHEMA_FEATURES_IF_NOT_EXISTS,
     OPT_SCHEMA_FEATURES_IS_DATABASE,
     OPT_SCHEMA_FEATURES_SUPPORTED,
+    OPT_TABLE_FEATURES_CHECK,
+    OPT_TABLE_FEATURES_EXTERNAL,
+    OPT_TABLE_FEATURES_FOREIGN_KEY,
     OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+    OPT_TABLE_FEATURES_IF_NOT_EXISTS,
+    OPT_TABLE_FEATURES_ON_COMMIT,
+    OPT_TABLE_FEATURES_PRIMARY_KEY,
+    OPT_TABLE_FEATURES_REFERENTIAL_ACTION,
+    OPT_TABLE_FEATURES_UNIQUE,
     OPT_TUPLE_ARITY_EMPTY,
     OPT_TUPLE_ARITY_ONE,
     OPT_TUPLE_SYNTAX_PARENTHESES,
@@ -100,6 +108,26 @@ _ALL_BITWISE = (
     | OPT_BITWISE_OPERATIONS_SHL
     | OPT_BITWISE_OPERATIONS_SHR
 )
+
+# Table-level PRIMARY KEY, UNIQUE, FOREIGN KEY, and CHECK, plus ON DELETE / ON UPDATE.
+_TABLE_CONSTRAINTS = (
+    OPT_TABLE_FEATURES_PRIMARY_KEY
+    | OPT_TABLE_FEATURES_UNIQUE
+    | OPT_TABLE_FEATURES_FOREIGN_KEY
+    | OPT_TABLE_FEATURES_CHECK
+    | OPT_TABLE_FEATURES_REFERENTIAL_ACTION
+)
+
+# The four standard table constraints, without referential actions.
+_TABLE_CONSTRAINTS_NO_ACTION = (
+    OPT_TABLE_FEATURES_PRIMARY_KEY
+    | OPT_TABLE_FEATURES_UNIQUE
+    | OPT_TABLE_FEATURES_FOREIGN_KEY
+    | OPT_TABLE_FEATURES_CHECK
+)
+
+# PRIMARY KEY, UNIQUE, and FOREIGN KEY. CHECK is omitted.
+_TABLE_KEYS = OPT_TABLE_FEATURES_PRIMARY_KEY | OPT_TABLE_FEATURES_UNIQUE | OPT_TABLE_FEATURES_FOREIGN_KEY
 
 __all__ = [
     "OPT_BITWISE_OPERATIONS_AND",
@@ -174,7 +202,15 @@ __all__ = [
     "OPT_SCHEMA_FEATURES_IF_NOT_EXISTS",
     "OPT_SCHEMA_FEATURES_IS_DATABASE",
     "OPT_SCHEMA_FEATURES_SUPPORTED",
+    "OPT_TABLE_FEATURES_CHECK",
+    "OPT_TABLE_FEATURES_EXTERNAL",
+    "OPT_TABLE_FEATURES_FOREIGN_KEY",
     "OPT_TABLE_FEATURES_GENERATED_SUPPORTED",
+    "OPT_TABLE_FEATURES_IF_NOT_EXISTS",
+    "OPT_TABLE_FEATURES_ON_COMMIT",
+    "OPT_TABLE_FEATURES_PRIMARY_KEY",
+    "OPT_TABLE_FEATURES_REFERENTIAL_ACTION",
+    "OPT_TABLE_FEATURES_UNIQUE",
     "OPT_TUPLE_ARITY_EMPTY",
     "OPT_TUPLE_ARITY_ONE",
     "OPT_TUPLE_SYNTAX_PARENTHESES",
@@ -182,7 +218,6 @@ __all__ = [
     "OPT_TUPLE_SYNTAX_STRUCT",
     "OPT_TUPLE_SYNTAX_UNSUPPORTED",
     "AggregateConfig",
-    "BigQuery",
     "BitwiseConfig",
     "CastConfig",
     "Databricks",
@@ -209,40 +244,6 @@ __all__ = [
     "TupleConfig",
 ]
 
-BigQuery = Dialect(
-    placeholder="?",
-    like=LikeConfig(
-        ilike=OPT_I_LIKE_STRATEGY_USE_LIKE_LOWER,
-        regex=OPT_LIKE_REGEX_REGEXP_CONTAINS,
-    ),
-    bitwise=BitwiseConfig(operations=_ALL_BITWISE, xor=OPT_BITWISE_XOR_CARET),
-    identifier="`{slashbacktick}`",
-    string=StringConfig(template="'{hex}'"),
-    cast=CastConfig(try_cast="SAFE_CAST({expr} AS {type})"),
-    temporal=TemporalConfig(
-        date="DATE '{}'",
-        time="TIME '{}'",
-        datetime_naive="TIMESTAMP '{}'",
-        datetime_aware="TIMESTAMP WITH TIMEZONE '{}'",
-    ),
-    literal=LiteralConfig(
-        bytes="B'{slashx}'",
-        uuid="'{}'",
-        json="JSON {}",
-        array="ARRAY[{}]",
-    ),
-    operator=OperatorConfig(
-        is_distinct_from=OPT_IS_DISTINCT_FROM_STANDARD,
-        trim=OPT_OPERATOR_TRIM_FUNCTION,
-        collate=OPT_OPERATOR_COLLATE_FUNCTION_STRING,
-    ),
-    aggregate=AggregateConfig(
-        null_treatment=OPT_NULL_TREATMENT_INSIDE_PARENS,
-        function_filter=OPT_FUNCTION_FILTER_INSIDE_WHERE,
-    ),
-    schema=SchemaConfig(features=OPT_SCHEMA_FEATURES_SUPPORTED | OPT_SCHEMA_FEATURES_IF_NOT_EXISTS),
-    table=TableConfig(features=0, column_auto_increment=None, column_comment=None),
-)
 
 Databricks = Dialect(
     placeholder="?",
@@ -278,9 +279,15 @@ Databricks = Dialect(
     ),
     index=IndexConfig(features=OPT_INDEX_FEATURES_SUPPORTED | OPT_INDEX_FEATURES_IF_NOT_EXISTS),
     table=TableConfig(
-        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED
+        | OPT_TABLE_FEATURES_IF_NOT_EXISTS
+        | OPT_TABLE_FEATURES_EXTERNAL
+        | _TABLE_KEYS,
         column_auto_increment="GENERATED ALWAYS AS IDENTITY",
         column_comment="COMMENT {}",
+        temporary="TEMPORARY",
+        comment="COMMENT {}",
+        location="LOCATION {}",
     ),
 )
 
@@ -329,9 +336,12 @@ DuckDb = Dialect(
         | OPT_INDEX_DROP_FEATURES_RESTRICT,
     ),
     table=TableConfig(
-        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED
+        | OPT_TABLE_FEATURES_IF_NOT_EXISTS
+        | _TABLE_CONSTRAINTS_NO_ACTION,
         column_auto_increment=None,
         column_comment=None,
+        temporary="TEMPORARY",
     ),
 )
 
@@ -365,7 +375,14 @@ Hive = Dialect(
         features=OPT_SCHEMA_FEATURES_SUPPORTED | OPT_SCHEMA_FEATURES_IF_NOT_EXISTS | OPT_SCHEMA_FEATURES_IS_DATABASE,
         location=" LOCATION {}",
     ),
-    table=TableConfig(features=0, column_auto_increment=None, column_comment="COMMENT {}"),
+    table=TableConfig(
+        features=OPT_TABLE_FEATURES_IF_NOT_EXISTS | OPT_TABLE_FEATURES_EXTERNAL,
+        column_auto_increment=None,
+        column_comment="COMMENT {}",
+        temporary="TEMPORARY",
+        comment="COMMENT {}",
+        location="LOCATION {}",
+    ),
 )
 
 MsSql = Dialect(
@@ -407,8 +424,9 @@ MsSql = Dialect(
         drop_table=OPT_INDEX_DROP_TABLE_ON,
     ),
     table=TableConfig(
-        # FIXME(awolverp): check docs for GENERATED ALWAYS AS
-        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+        # TODO(awolverp): MsSQL supports `OPT_TABLE_FEATURES_GENERATED_SUPPORTED`
+        #                 but with a different syntax: `AS (expr) [PERSISTED]`
+        features=_TABLE_CONSTRAINTS,
         column_auto_increment="IDENTITY(1,1)",
         column_comment=None,
     ),
@@ -450,9 +468,11 @@ MySql = Dialect(
         drop_table=OPT_INDEX_DROP_TABLE_ON,
     ),
     table=TableConfig(
-        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED | OPT_TABLE_FEATURES_IF_NOT_EXISTS | _TABLE_CONSTRAINTS,
         column_auto_increment="AUTO_INCREMENT",
         column_comment="COMMENT {}",
+        temporary="TEMPORARY",
+        comment="COMMENT {}",
     ),
 )
 
@@ -490,9 +510,10 @@ Oracle = Dialect(
         drop_features=OPT_INDEX_DROP_FEATURES_SUPPORTED,
     ),
     table=TableConfig(
-        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED | OPT_TABLE_FEATURES_IF_NOT_EXISTS | _TABLE_CONSTRAINTS,
         column_auto_increment="GENERATED ALWAYS AS IDENTITY",
         column_comment=None,
+        temporary="PRIVATE TEMPORARY",
     ),
 )
 
@@ -546,9 +567,13 @@ PostgreSql = Dialect(
         | OPT_INDEX_DROP_FEATURES_RESTRICT,
     ),
     table=TableConfig(
-        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED
+        | OPT_TABLE_FEATURES_IF_NOT_EXISTS
+        | OPT_TABLE_FEATURES_ON_COMMIT
+        | _TABLE_CONSTRAINTS,
         column_auto_increment="GENERATED ALWAYS AS IDENTITY",
         column_comment=None,
+        temporary="TEMPORARY",
     ),
 )
 
@@ -577,7 +602,12 @@ Redshift = Dialect(
         features=OPT_SCHEMA_FEATURES_SUPPORTED | OPT_SCHEMA_FEATURES_IF_NOT_EXISTS | OPT_SCHEMA_FEATURES_EMBEDDED_DDL,
         authorization=OPT_SCHEMA_AUTHORIZATION_OPTIONAL,
     ),
-    table=TableConfig(features=0, column_auto_increment="IDENTITY(1,1)", column_comment=None),
+    table=TableConfig(
+        features=OPT_TABLE_FEATURES_IF_NOT_EXISTS | _TABLE_KEYS,
+        column_auto_increment="IDENTITY(1,1)",
+        column_comment=None,
+        temporary="TEMPORARY",
+    ),
 )
 
 Snowflake = Dialect(
@@ -622,9 +652,11 @@ Snowflake = Dialect(
         drop_table=OPT_INDEX_DROP_TABLE_QUALIFIED,
     ),
     table=TableConfig(
-        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED | OPT_TABLE_FEATURES_IF_NOT_EXISTS | _TABLE_CONSTRAINTS,
         column_auto_increment="AUTOINCREMENT",
         column_comment="COMMENT {}",
+        temporary="TEMPORARY",
+        comment="COMMENT = {}",
     ),
 )
 
@@ -663,7 +695,14 @@ Spark = Dialect(
         drop_features=OPT_INDEX_DROP_FEATURES_SUPPORTED,
         drop_table=OPT_INDEX_DROP_TABLE_ON,
     ),
-    table=TableConfig(features=0, column_auto_increment="GENERATED ALWAYS AS IDENTITY", column_comment="COMMENT {}"),
+    table=TableConfig(
+        features=OPT_TABLE_FEATURES_IF_NOT_EXISTS | OPT_TABLE_FEATURES_EXTERNAL | _TABLE_KEYS,
+        column_auto_increment="GENERATED ALWAYS AS IDENTITY",
+        column_comment="COMMENT {}",
+        temporary="TEMPORARY",
+        comment="COMMENT {}",
+        location="LOCATION {}",
+    ),
 )
 
 Sqlite = Dialect(
@@ -693,7 +732,12 @@ Sqlite = Dialect(
         | OPT_INDEX_FEATURES_PARTIAL,
         drop_features=OPT_INDEX_DROP_FEATURES_SUPPORTED,
     ),
-    table=TableConfig(features=0, column_auto_increment="AUTOINCREMENT", column_comment=None),
+    table=TableConfig(
+        features=OPT_TABLE_FEATURES_IF_NOT_EXISTS | _TABLE_CONSTRAINTS,
+        column_auto_increment="AUTOINCREMENT",
+        column_comment=None,
+        temporary="TEMPORARY",
+    ),
 )
 
 Teradata = Dialect(
@@ -715,8 +759,9 @@ Teradata = Dialect(
     operator=OperatorConfig(modulo=OPT_OPERATOR_MODULO_INFIX),
     aggregate=AggregateConfig(null_treatment=OPT_NULL_TREATMENT_INSIDE_PARENS),
     table=TableConfig(
-        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED,
+        features=OPT_TABLE_FEATURES_GENERATED_SUPPORTED | _TABLE_CONSTRAINTS_NO_ACTION,
         column_auto_increment="GENERATED ALWAYS AS IDENTITY(START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 NO CYCLE)",
         column_comment=None,
+        temporary="VOLATILE",
     ),
 )
